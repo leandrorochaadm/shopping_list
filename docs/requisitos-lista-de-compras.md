@@ -1,6 +1,6 @@
 # Requisitos — Lista de compras de supermercado
 
-_Levantado em 15/08/2026 · Última atualização em 26/08/2026_
+_Levantado em 15/08/2026 · Última atualização em 27/08/2026_
 _Entrevistado: Leandro Rocha (dono do processo de compras)_
 
 ## Problema e objetivos
@@ -1499,7 +1499,30 @@ Os dois usam a **mesma lista** e podem estar no mercado em momentos diferentes.
 
 ## Pontos em aberto
 
-**Nenhuma pergunta em aberto.** As **sete últimas** vieram da revisão em três
+**Quatro perguntas em aberto**, todas levantadas em 27/08/2026, ao preparar o
+material para o desenvolvimento. Nenhuma delas atrapalha o começo do trabalho: são
+detalhes de tela e de organização, e cada uma pode ser respondida até a hora em que
+aquela parte for construída.
+
+- [ ] **Na hora de lançar a compra, em que ordem os produtos aparecem na lista de
+      escolha?** Ficou combinado que "os produtos de sempre" vêm sugeridos e que o
+      mais comprado daquele tipo aparece primeiro — mas falta dizer **de que período**
+      o sistema conta esse "mais comprado" (os últimos 3 meses? o histórico inteiro?)
+      e o que fazer quando dois empatam. É o campo que mais se toca no lançamento, e
+      ele pesa direto nos 2 minutos.
+- [ ] **No relatório, ao abrir um tipo para ver a divisão por marca, como aparece o
+      que não tem marca?** O acém moído não tem nenhuma. Ele vira uma linha
+      "sem marca", ou fica de fora dessa divisão e só aparece no total do tipo?
+- [ ] **Dentro de cada categoria da lista de compras, em que ordem os itens
+      aparecem?** Na sugestão já ficou combinada a ordem alfabética; na lista do dia a
+      dia, não. Se a ideia é seguir o caminho que você faz no corredor, alfabético
+      pode não ser o melhor — e a ordem das próprias categorias também está em aberto.
+- [ ] **Em que cidade vocês moram?** Parece pergunta fora de lugar, mas o sistema
+      precisa saber a que horas o dia vira aí. Sem isso, uma compra feita às nove da
+      noite pode acabar contada como se fosse do dia seguinte — e aí o aviso de
+      "vocês dois compraram leite hoje" e o gasto do mês saem errados.
+
+Antes delas não havia pergunta nenhuma. As **sete últimas** vieram da revisão em três
 passadas de 26/08/2026 — a que varreu os dois documentos depois de eles se
 declararem fechados — e foram decididas por ele no mesmo dia; estão logo abaixo,
 com a decisão de cada uma.
@@ -1744,8 +1767,12 @@ lançamento e não custa digitação nenhuma nos 2 minutos.
       dentro do cadastro de produto, preferência morta caindo em silêncio, teto
       alterado zerando os avisos do mês, "não encontrei" voltando com o desfazer
       da compra, e a regra de atualização da lista comum (ver "Pontos em
-      aberto"). Com elas fechadas, não resta pergunta em aberto neste documento
-      nem no rascunho de telas.
+      aberto"). Com elas fechadas, não restou pergunta em aberto naquele dia,
+      nem neste documento nem no rascunho de telas.
+- [ ] **Quatro perguntas novas, de 27/08/2026** — ordem dos produtos no lançamento,
+      produto sem marca na divisão por marca do relatório, ordem dos itens dentro da
+      categoria e a cidade onde moram (ver "Pontos em aberto"). Nasceram ao preparar
+      o material do desenvolvimento e nenhuma delas trava o começo.
 
 ## Histórico de sessões
 
@@ -2255,3 +2282,13 @@ lançamento e não custa digitação nenhuma nos 2 minutos.
   requisito 2 ("o toque dela", que neste documento se lê como a esposa, virou "o
   toque na faixa") e um parágrafo emendado nos Pontos em aberto.
   O rascunho de telas subiu para a **versão 2.0**.
+
+- 27/08/2026 — Sem entrevista. Preparação do material de desenvolvimento a partir
+  deste documento e do rascunho de telas: os 18 requisitos essenciais viraram 18
+  blocos de trabalho, na mesma ordem de construção já registrada aqui, mais o teste
+  de digitação no celular e o preparo do ambiente, que vêm antes de tudo. Escrever
+  essa sequência levantou **quatro perguntas novas**, todas registradas em "Pontos em
+  aberto": a ordem dos produtos na lista de escolha do lançamento, como o produto sem
+  marca aparece na divisão por marca do relatório, a ordem dos itens dentro de cada
+  categoria da lista, e a cidade onde eles moram (que é o que define a hora em que o
+  dia vira). Nenhuma delas muda estrutura nem atrapalha o começo do trabalho.
