@@ -1,7 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/repositories/device_user/device_user_repository.dart';
+import '../ui/catalog/widgets/new_product_screen.dart';
 import '../ui/core/widgets/under_construction_screen.dart';
+import '../ui/device_user/widgets/welcome_screen.dart';
+import '../ui/settings/widgets/settings_screen.dart';
+import '../ui/shopping_list/widgets/shopping_list_screen.dart';
+import '../ui/spike/widgets/typing_spike_screen.dart';
 import 'routes.dart';
 
 /// The eleven routes of `tecnico §3.4`, registered from day one.
@@ -11,28 +17,41 @@ import 'routes.dart';
 /// and no link lands on a route that does not exist.
 ///
 /// **No route is protected** — there is no session to protect. The single
-/// `redirect` this app will have is not about identity either: while the
-/// device user label is not in Hive, every route falls to [Routes.welcome].
-/// It arrives with H1, together with the label itself.
+/// `redirect` this app has is not about identity either: while the device
+/// user label is not in Hive, every route falls to [Routes.welcome].
 final appRouterProvider = Provider<GoRouter>((ref) {
   final router = GoRouter(
     initialLocation: Routes.shoppingList,
+    // go_router runs this SYNCHRONOUSLY, which is why the Hive box is opened
+    // by `main` before runApp: after that, reading the label costs nothing.
+    //
+    // `ref.read`, never `ref.watch`: watching would rebuild this provider on
+    // every label change, and rebuilding the provider throws the whole
+    // navigation stack away under the user's finger.
+    redirect: (context, state) {
+      // Without this guard /welcome redirects to /welcome and the screen
+      // never opens — a loop whose symptom points at nothing.
+      if (state.matchedLocation == Routes.welcome) return null;
+
+      // The S1 spike measures typing, not the app: sending it through the
+      // welcome screen would add a question to a stopwatch run. Goes away
+      // with the route.
+      if (state.matchedLocation == Routes.typingSpike) return null;
+
+      return ref.read(storedDeviceUserProvider) == null
+          ? Routes.welcome
+          : null;
+    },
     routes: [
       GoRoute(
         path: Routes.shoppingList,
         name: RouteNames.shoppingList,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Lista de compras',
-          story: 'H4',
-        ),
+        builder: (context, state) => const ShoppingListScreen(),
       ),
       GoRoute(
         path: Routes.welcome,
         name: RouteNames.welcome,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Quem está usando?',
-          story: 'H1',
-        ),
+        builder: (context, state) => const WelcomeScreen(),
       ),
       GoRoute(
         path: Routes.suggestions,
@@ -72,8 +91,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.newProduct,
         name: RouteNames.newProduct,
-        builder: (context, state) =>
-            const UnderConstructionScreen(title: 'Novo produto', story: 'H2'),
+        builder: (context, state) => const NewProductScreen(),
       ),
       GoRoute(
         path: Routes.reports,
@@ -97,11 +115,22 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           story: 'H10',
         ),
       ),
+      // Minimal for now — only the device user label, which is an acceptance
+      // criterion of H1. The spending cap arrives with H13.
       GoRoute(
         path: Routes.settings,
         name: RouteNames.settings,
-        builder: (context, state) =>
-            const UnderConstructionScreen(title: 'Configurações', story: 'H13'),
+        builder: (context, state) => const SettingsScreen(),
+      ),
+      // The twelfth route, and the only one that is not one of the eleven
+      // screens of `tecnico §3.4`: the S1 typing spike. It is registered here
+      // because the measurement has to happen on the installed PWA, and
+      // getting there is one tap on an address — a --dart-define would have
+      // meant a separate build just to measure. **Deleted with the screen.**
+      GoRoute(
+        path: Routes.typingSpike,
+        name: RouteNames.typingSpike,
+        builder: (context, state) => const TypingSpikeScreen(),
       ),
     ],
   );

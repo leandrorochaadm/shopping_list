@@ -37,6 +37,11 @@ abstract final class Routes {
 
   /// Behind the `≡` menu: the monthly spending cap and the device user.
   static const settings = '/settings';
+
+  /// **Throwaway — spike S1.** Reached by typing the address on the phone, so
+  /// the measurement happens on the installed PWA and not in a tab. Deleted
+  /// with the screen once A2 is answered.
+  static const typingSpike = '/spike';
 }
 
 /// Route names, used by `context.goNamed` so a path change never has to be
@@ -53,4 +58,7 @@ abstract final class RouteNames {
   static const remainingThisMonth = 'remainingThisMonth';
   static const catalog = 'catalog';
   static const settings = 'settings';
+
+  /// Throwaway — see [Routes.typingSpike].
+  static const typingSpike = 'typingSpike';
 }

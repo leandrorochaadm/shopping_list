@@ -41,6 +41,20 @@ void main() {
     expect(find.textContaining('SUPABASE_URL'), findsNothing);
   });
 
+  testWidgets('blames the date formatting, not the storage or the build', (
+    tester,
+  ) async {
+    // The fifth exit of `main`. It exists because the intl data used to share
+    // a `try` with Hive: the person reading the screen was sent to reopen the
+    // app outside a private window over a failure that had nothing to do with
+    // the browser.
+    await tester.pumpWidget(const MisconfiguredApp.formattingUnavailable());
+
+    expect(find.textContaining('formato de datas'), findsOneWidget);
+    expect(find.textContaining('janela privada'), findsNothing);
+    expect(find.textContaining('SUPABASE_URL'), findsNothing);
+  });
+
   testWidgets('renders in pt-BR like every other screen', (tester) async {
     // It is an application root of its own: forgetting the delegates here
     // would put Material's English strings on the only screen a broken

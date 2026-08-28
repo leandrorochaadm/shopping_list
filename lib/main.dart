@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'config/dependencies.dart';
 import 'config/environment.dart';
 import 'config/startup.dart';
+import 'data/repositories/device_user/device_user_repository_hive.dart';
 import 'routing/router.dart';
 import 'ui/core/app_locale.dart';
 import 'ui/core/themes/app_theme.dart';
@@ -16,16 +17,35 @@ import 'ui/core/widgets/misconfigured_app.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Two `try` blocks, not one: they fail for unrelated reasons and are fixed
+  // in different places, and a single catch would put "the browser blocked
+  // storage" on the screen when what broke was the date formatting.
   try {
     // Required by the pt_BR DateFormat used across the screens.
     await initializeDateFormatting('pt_BR');
+  } on Object catch (e, st) {
+    debugPrint('Locale data unavailable: $e\n$st');
+    runApp(const MisconfiguredApp.formattingUnavailable());
+    return;
+  }
 
+  final Box<String> deviceUserBox;
+  try {
     // Hive holds exactly two things (`tecnico §4.2`): the purchase draft and
     // the device user label. On web it writes to IndexedDB — which Safari
     // denies in a private window — and that is also why the app MUST be
     // tested installed on the home screen: an installed PWA and a Safari tab
     // have separate storage.
     await Hive.initFlutter();
+
+    // Opened HERE, before runApp, and not inside the repository: after this
+    // line `box.get` is synchronous, which is what lets the router's redirect
+    // — which go_router runs synchronously — ask whether this phone already
+    // has a label. openBox is also refused in a private window, and the right
+    // outcome for that is this screen, never a white one.
+    deviceUserBox = await Hive.openBox<String>(
+      DeviceUserRepositoryHive.boxName,
+    );
   } on Object catch (e, st) {
     debugPrint('Local storage unavailable: $e\n$st');
     runApp(const MisconfiguredApp.storageUnavailable());
@@ -62,7 +82,10 @@ Future<void> main() async {
 
   runApp(
     ProviderScope(
-      overrides: overrides,
+      overrides: [
+        deviceUserBoxProvider.overrideWithValue(deviceUserBox),
+        ...overrides,
+      ],
       child: ShoppingListApp(usingFakes: usingFakes),
     ),
   );

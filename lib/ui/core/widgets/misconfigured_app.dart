@@ -23,13 +23,31 @@ class MisconfiguredApp extends StatelessWidget {
           'Refaça o deploy passando SUPABASE_URL e SUPABASE_ANON_KEY.';
 
   /// The two values were there and Supabase still refused to start: a wrong
-  /// project URL, an anon key from another project, storage the browser
-  /// blocked.
+  /// project URL, an anon key from another project.
+  ///
+  /// Storage denied by the browser used to land here too, and does not any
+  /// more: `initializeSupabase` runs with `persistSession: false`, so the
+  /// refusal now belongs to Hive and to [MisconfiguredApp.storageUnavailable].
+  /// The two are fixed in different places, which is the whole reason they are
+  /// two screens.
   const MisconfiguredApp.startupFailed({super.key})
     : title = 'Falha ao iniciar',
       message =
           'Não foi possível abrir a conexão com o banco deste build.\n\n'
           'Confira SUPABASE_URL e SUPABASE_ANON_KEY e refaça o deploy.';
+
+  /// The pt-BR date and currency data failed to load. It shares nothing with
+  /// the two above: the build is fine and the browser is fine, so naming the
+  /// defines or the private window would send the reader chasing the wrong
+  /// thing. It has a screen of its own for exactly that reason — before this
+  /// constructor existed, `main` caught it in the same `try` as Hive and
+  /// blamed storage.
+  const MisconfiguredApp.formattingUnavailable({super.key})
+    : title = 'Falha ao iniciar',
+      message =
+          'O app não conseguiu carregar o formato de datas e valores em '
+          'português.\n\n'
+          'Feche e abra o app de novo. Se continuar, refaça o deploy.';
 
   /// The browser refused local storage: a private window, or site data
   /// blocked. Hive holds the purchase draft and the device user label, so
