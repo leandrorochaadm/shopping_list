@@ -7,7 +7,12 @@
 library;
 
 /// The server ANSWERED and said no.
-class ApiException implements Exception {
+///
+/// `final` for the same reason the eight AppFailure variants are: these two
+/// are the types `AppFailure.from` runs `is` against, in the only place in the
+/// app that inspects a raw exception. A subclass nobody expected would change
+/// that classification in silence.
+final class ApiException implements Exception {
   ApiException(this.statusCode, this.body);
 
   final int statusCode;
@@ -20,7 +25,7 @@ class ApiException implements Exception {
 /// No answer came back at all. Keeping this separate from ApiException is what
 /// lets the UI report NoConnection only when that is actually true — see the
 /// AppFailure classification in `ui/core/app_failure.dart`.
-class NetworkException implements Exception {
+final class NetworkException implements Exception {
   NetworkException(this.cause);
 
   final Object cause;
