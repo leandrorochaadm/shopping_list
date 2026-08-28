@@ -1,11 +1,13 @@
 {
-    "name": "shopping_list",
-    "short_name": "shopping_list",
+    "name": "Lista de compras",
+    "short_name": "Lista",
+    "lang": "pt-BR",
+    "dir": "ltr",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7FBF1",
+    "theme_color": "#3B6939",
+    "description": "Lista de compras do casal: o que falta comprar, quanto foi gasto e onde o preço é melhor.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
