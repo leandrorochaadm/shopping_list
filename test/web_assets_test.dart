@@ -16,6 +16,7 @@ void main() {
       jsonDecode(File('web/manifest.json').readAsStringSync())
           as Map<String, dynamic>;
   final indexHtml = File('web/index.html').readAsStringSync();
+  final robotsTxt = File('web/robots.txt').readAsStringSync();
 
   test('manifest colors follow the theme, not a copy of it', () {
     final scheme = AppTheme.light.colorScheme;
@@ -48,5 +49,32 @@ void main() {
   test('keeps the phone in portrait, as decision 2 froze it', () {
     expect(manifest['orientation'], 'portrait-primary');
     expect(manifest['display'], 'standalone');
+  });
+
+  test('declares apple-mobile-web-app-capable, for iOS older than the manifest '
+      'display member', () {
+    // Current iOS decides full screen from mobile-web-app-capable plus the
+    // manifest, both already here. This one is the net for older versions,
+    // and the H0 acceptance criteria name it by name.
+    expect(
+      indexHtml,
+      contains('<meta name="apple-mobile-web-app-capable" content="yes">'),
+    );
+  });
+
+  test(
+    'asks search engines to stay away, since the URL is the only barrier',
+    () {
+      // Decision 6: no login, permissive RLS, a public anon key. Whoever
+      // has the address has the database, so it cannot end up in an index.
+      expect(indexHtml, contains('<meta name="robots" content="noindex">'));
+    },
+  );
+
+  test('ships a robots.txt that disallows everything', () {
+    // The tag above only reaches crawlers that parse the page; this file is
+    // for the ones that read it before asking for anything else.
+    expect(robotsTxt, contains('User-agent: *'));
+    expect(robotsTxt, contains('Disallow: /'));
   });
 }

@@ -373,30 +373,178 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
+**Atualizado em 28/08/2026**, ao fim do plano `temp/plan/plano-fundacao-e-entrega-1-2026-08-27.md`
+(**passos 1 a 15, 17 a 21, 23 e 24 dos 25**). `flutter analyze` limpo, **271 testes
+verdes**, cobertura de linha **92,2%**.
 
-**Existe:** o esqueleto — `pubspec`, `config/`, `routing/` com as 11 rotas em placeholder,
-`ui/core/` (tema Material 3 claro, `MessageView`, `AppFailure`, tradução de erro),
-`data/services/` (exceções e o tradutor do Supabase), e os testes dos dois.
+**Existe:** o esqueleto — `pubspec` (com o Flutter 3.44.0 pinado), `config/`, `routing/`
+com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 claro,
+`MessageView`, `AppFailure`, tradução de erro, `SingleFieldDialog`), `data/services/`
+(exceções e o tradutor do Supabase) — e três features inteiras:
 
-O `main.dart` tem **quatro saídas**, e nenhuma delas é tela branca — deixar uma exceção
+- **H1 — `DeviceUser`:** `device_user_repository` (abstract + `_local` + `_hive`),
+  `DeviceUserViewModel`, a tela de boas-vindas, uma `/settings` mínima e o **único
+  `redirect` do app**.
+- **H2 — cadastro de produto em cinco níveis:** o domínio inteiro (`BaseUnit`/
+  `MeasureUnit`, `Packaging`, `Category`, `ProductType`, `Brand`, `ProductRegistration`,
+  `Product`, `normalizeName`, `findNameConflict`), o `catalog_repository`
+  (abstract + `_local` + `_remote`), o `NewProductViewModel`, a **Tela 4** e os três
+  diálogos que ela abre (categoria, marca e o mini-cadastro de tipo).
+- **H3 — mercados:** `Store`, `store_repository` (abstract + `_local` + `_remote`),
+  `StoreViewModel` e o `NewStoreDialog`. **Sem tela própria** — o diálogo mora dentro da
+  Tela 3, que é da H7; até lá quem prova que funciona é o teste.
+
+O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
 explicá-la. São elas: o app; `MisconfiguredApp()` quando um build fora de debug saiu sem
 os dois `--dart-define`; `MisconfiguredApp.startupFailed()` quando eles vieram e o
-`Supabase.initialize` recusou; e `MisconfiguredApp.storageUnavailable()` quando o
-navegador negou o IndexedDB que o Hive usa (janela privada, dados de site bloqueados).
-Qual delas depende dos defines é decisão de `config/startup.dart` — função pura, porque
-`main()` não é testável e essa escolha é a que só falha em deploy.
+`Supabase.initialize` recusou; `MisconfiguredApp.formattingUnavailable()` quando o `intl`
+não carregou o pt-BR; e `MisconfiguredApp.storageUnavailable()` quando o navegador negou o
+IndexedDB que o Hive usa (janela privada, dados de site bloqueados). As duas últimas
+dividiam um `try` até 28/08 — e a falha do `intl` culpava o armazenamento. Qual delas
+depende dos defines é decisão de `config/startup.dart` — função pura, porque `main()` não
+é testável e essa escolha é a que só falha em deploy.
+
+`Supabase.initialize` roda com `persistSession`, `autoRefreshToken` e `detectSessionInUri`
+**desligados**: não há login, e os defaults punham o `localStorage` no caminho aguardado —
+o que fazia uma janela privada acusar `SUPABASE_URL` errada, com a URL certa.
 
 Em debug sem os defines o app roda nos fakes com a faixa **DADOS FAKE** na tela: nada do
 que for digitado chega ao banco, e não há outro lugar onde isso apareça.
 
 O `web/` deixou de ser o do `flutter create`: nome, descrição e `lang` em pt-BR, cores
-vindas do `ColorScheme` (`test/web_assets_test.dart` falha se elas divergirem do tema) e
+vindas do `ColorScheme` (`test/web_assets_test.dart` falha se elas divergirem do tema),
 ícones gerados por `uv run tool/make_icons.py` — troca de seed do tema pede rodar de
-novo.
+novo —, e as metas `apple-mobile-web-app-capable` e `robots: noindex` mais o
+`web/robots.txt`, porque a URL não divulgada é a única barreira do sistema.
 
-**Não existe ainda:** nenhuma entidade, nenhum repository, nenhum ViewModel, nenhuma tela
-real, e **nenhuma migration** — o schema do Supabase é da H0, e ele é o contrato da API.
+O `.github/workflows/deploy.yml` existe e **nunca rodou**: analisa, testa com cobertura
+(**piso de 90%**, verificado em script), constrói com os dois `--dart-define` e publica
+no Cloudflare Pages — e a publicação é **pulada, não falhada**, enquanto os secrets de A3
+não existirem. A regra escrita nele: **`main` aponta para o `prod`, qualquer outra branch
+publica um preview contra o `dev`**. Não há remote nem branch neste repositório ainda, e
+**abrir uma branch antes do primeiro push é obrigatório** — senão a primeira publicação
+sai de `main` contra a base sem backup do `R13`.
 
-**A próxima entrega, pela ordem do `handoff §4`:** S1 (spike de digitação no iPhone 12) e
-H0 (ambientes, schema base, deploy e PWA). Em Flutter, a primeira feature é a **H1**.
+O `supabase/` existe com o `config.toml`, **três migrations** (a função `normalize_name`
+`IMMUTABLE`, as 12 tabelas com a função transacional de cadastro, e a RLS permissiva com
+os `grant`) e o **seed de 4 meses**, gerado por `uv run tool/make_seed.py` — reancorar é
+rodar de novo. As três migrations e o seed foram **aplicados e verificados** num banco
+descartável no Postgres 17 local (ver o parágrafo seguinte): as travas de duplicidade, o
+`NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros e o rollback da função
+transacional foram exercitados um a um.
+**Nada foi aplicado em `dev` nem em `prod`** — os projetos não existem (pendência A1).
+
+**O banco local de desenvolvimento é o `postgresql@17` nativo do Homebrew, não o stack
+Docker do Supabase** (decisão de 28/08/2026). É escolha, não limitação: o Docker Desktop
+está instalado e funciona. A máquina é um Mac Intel i3-8100B de 4 núcleos com ~20 GB de
+disco livres, o `supabase start` sobe ~10 containers dentro de uma VM, e nada do trabalho
+de schema em curso distingue Postgres em container de Postgres nativo.
+
+O que isso custa: **`supabase db reset` e `supabase db diff` não rodam** — os dois exigem
+Docker. O `db reset` tem substituto, `uv run tool/local_dev/setup.py --reset` (ver
+abaixo); o `db diff` **não tem**, então migration nova é SQL escrito à mão, que é como as
+três primeiras nasceram. O que **não** custa: `supabase db push` não usa Docker, conecta
+direto no banco hospedado. O passo 22 está liberado assim que o A1 sair.
+
+**Subir o stack local só com gatilho**, e são dois: o Realtime da H5, ou o formato de
+erro do PostgREST que o `supabase_error.dart` traduz numa versão diferente da 16.2 do
+Homebrew. **A RLS não é gatilho**: a política é `for all ... using (true) with check
+(true)` nas 12 tabelas — ela está ligada, mas não nega nada, porque não há login
+(decisão 6). O que importa nela são os `grant`, sem os quais a role não alcança a
+tabela, e isso o ambiente local já exercita. Quando o `dev` hospedado existir ele
+já dá essa paridade — daí o stack local vira conveniência para não sujar o `dev`, não
+obrigação. **Editar schema pelo dashboard do Supabase, em qualquer ambiente, está fora:**
+o que se clica lá não vira arquivo, e o `supabase/migrations/` passa a mentir.
+
+**O app em desenvolvimento fala com o Postgres local, e o que torna isso possível é
+`tool/local_dev/`** (montado em 28/08/2026). O app é Flutter Web: não abre socket de
+Postgres, fala PostgREST por HTTP. Então "usar o banco local" são três peças —
+o banco, o `postgrest` na frente dele e um `caddy` que reescreve o prefixo `/rest/v1`
+que o `supabase_flutter` monta para a raiz onde o PostgREST serve. Ambos nativos, do
+Homebrew, sem container.
+
+- `uv run tool/local_dev/setup.py` cria o `shopping_list_dev`, aplica bootstrap +
+  as migrations pendentes + o seed, gera a chave e escreve as configs. Ele mantém o
+  histórico em `supabase_migrations.schema_migrations`, **a mesma tabela e o mesmo
+  nome de versão que o CLI usa**, então migration nova entra sobre um banco com dados
+  em vez de exigir recriação. `--reset` recria do zero — é o `db reset` que o Docker
+  levaria embora. O seed só é carregado num banco recém-criado; `--seed` força.
+- `tool/local_dev/up.sh` sobe as duas peças; Ctrl+C derruba as duas.
+- **`tool/local_dev/run.sh` é o atalho do dia a dia**: garante a API de pé e chama o
+  `flutter run` já com os dois `--dart-define` lidos do `.env`. Sem argumento usa
+  `-d chrome`; o que for passado atravessa para o `flutter run`. Se ele mesmo subiu a
+  API, derruba ao sair; uma API que já estava de pé ele não toca.
+- `setup.py` também imprime o `flutter run` completo, se preferir montar à mão.
+- **A chave anon é um JWT HS256 com o claim `role: anon`** assinado por um segredo
+  local. É esse claim que faz o PostgREST dar `SET ROLE anon`, que é o que sujeita a
+  requisição aos `grant` do `rls.sql` — o mesmo mecanismo do projeto hospedado. Não
+  espere que a RLS negue nada: a política é permissiva de propósito, mas a **assinatura
+  é conferida**: chave forjada leva 401. A chave é **estável entre execuções** — o
+  `setup.py` reaproveita a do `.env` enquanto ela casar com o segredo, e só emite outra
+  quando o `.jwt_secret` muda. Segredo, chave e configs geradas são git-ignored, em 600.
+- Com o Postgres fora do ar o `setup.py` para na primeira linha com a frase e o comando
+  do `brew services`, em vez de um traceback de `subprocess.py`.
+- `tool/local_dev/bootstrap.sql` existe porque as migrations assumem um projeto
+  Supabase: o schema `extensions` (com `usage` para as roles), as roles `anon`,
+  `authenticated` e `service_role`, o `authenticator` que o PostgREST usa para o
+  `SET ROLE`, e a publication `supabase_realtime`. Um banco de `createdb` não tem
+  nada disso.
+
+**O que este ambiente não cobre: Realtime.** É uma app Elixir sem binário nativo, então
+a H5 continua precisando do projeto hospedado ou do Docker. E o PostgREST do Homebrew é
+o 16.2, que não é necessariamente a versão que o Supabase roda — o formato de erro pode
+divergir do que `supabase_error.dart` espera. Verificado aqui contra ele: o SQLSTATE
+`23505` chega como **HTTP 409**, e `normalize_name` passa os 11 casos de
+`supabase/checks/normalize_cases.sql` chamada com a chave anon.
+
+Uma coisa que este ambiente revelou e vale saber: **nem o Dart nem o SQL colapsam espaço
+interno**. `normalizeName` faz `trim().toLowerCase()` mais a tabela de acentos, e o SQL
+faz `lower(trim(unaccent(...)))` — os dois concordam, então o app não promete o que o
+banco recusa, mas "Café  Pilão" com dois espaços é um cadastro diferente de
+"Café Pilão".
+
+**Os dois `_remote` continuam cobertos por `mocktail` na suíte**, e o que
+`test/data/catalog_repository_remote_test.dart` fixa é o inviolável que falha em
+silêncio: **todo método fecha em `rethrowAsKnownFailure`**, e o SQLSTATE `23505` vira 409
+em vez de "status 23505" lido como `>= 500`. São 13 métodos, um teste cada.
+
+Isso não mudou com o `tool/local_dev/`, e a razão é uma armadilha que custa uma tarde:
+**`flutter_test` instala um `HttpOverrides` que responde 400 a toda requisição**. Um teste
+de integração contra a API local só roda com `HttpOverrides.global = null` depois do
+`ensureInitialized()` — e mesmo assim **não pode entrar na suíte**, porque o
+`deploy.yml` roda `flutter test` sem API de pé e o teste derrubaria o CI. O caminho real
+**foi exercitado à mão** com uma sonda descartável em 28/08/2026: o
+`StoreRepositoryRemote` de verdade, com o `SupabaseClient` de verdade, fez `fetchAll` e
+`create` contra o PostgREST local. É o que prova que a montagem serve ao app, e não
+só ao `curl`.
+
+Nessa sonda apareceu uma segunda coisa, e ela é do app, não do ambiente:
+**`Supabase.initialize` constrói um `SharedPreferencesGotrueAsyncStorage` mesmo com
+`persistSession: false`** — é o storage do PKCE que o comentário do `environment.dart`
+descreve como criado incondicionalmente. Na VM de teste, sem o plugin, ele **lançou**
+`MissingPluginException`; no navegador o `shared_preferences` usa `localStorage` e o
+caminho se resolve. Ou seja, o "no pior caso imprime uma linha no console" daquele
+comentário é mais otimista do que o observado. Se um dia a
+`MisconfiguredApp.storageUnavailable()` aparecer sem explicação, **comece por aqui**.
+
+**Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e
+nenhuma das outras oito telas. O que trava cada um está em
+`docs/pendencias-lista-de-compras.md`: **o bloco B está fechado** (as cinco decisões
+foram respondidas em 28/08/2026 e já estão no schema), e o que resta é o **bloco A** —
+contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
+
+**A rota `/spike` e `lib/ui/spike/` são descartáveis:** existem para a medição S1 no
+iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 estiver
+respondida (passo 25 do plano).
+
+**A próxima entrega:** os dois passos que dependem de você — publicar e medir a digitação
+no iPhone 12 (passo 16, precisa de A1, A2 e A3) e aplicar o schema no `dev` (passo 22,
+precisa de A1) —, e depois a **Entrega 2** (H4, H5, H6: a lista no corredor, o canal
+Realtime e o diálogo do item).
+
+**Uma decisão tomada ao escrever a Tela 4, e registrada aqui porque muda texto de
+usuário:** `Packaging.label` **não escreve o "1 ×" da embalagem de peça única** —
+"350 ml", não "1 × 350 ml" —, porque é esse o nome da prateleira que se procura no
+lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais ele volta:
+"12 × 350 ml".

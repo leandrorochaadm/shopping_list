@@ -1,0 +1,121 @@
+# Analyses, tests, builds and publishes the PWA to Cloudflare Pages.
+#
+# Cloudflare's own builder has no Flutter, so the build happens here and only
+# the result is uploaded.
+#
+# TWO ENVIRONMENTS, and the rule that matters: **a preview NEVER points at
+# `prod`**. `main` builds against the production project; every other branch
+# builds a preview against `dev`. The preview URL is guessable —
+# `<hash>.<project>.pages.dev` — and an undisclosed URL is the only barrier
+# this system has (decision 6), so what sits behind a guessable one has to be
+# the disposable database.
+#
+# Until A3 is answered (docs/pendencias-lista-de-compras.md) the secrets do not
+# exist yet. The publish step is SKIPPED when the token is empty rather than
+# failing: analyse, test and build still run and still guard every push.
+name: deploy
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.0
+  # The skeleton's line was 82.6% and the suite is well above it today. The
+  # floor sits below the current number on purpose — enough room for a feature
+  # to land with its tests one commit behind, not enough for a screen to
+  # arrive untested. An item on a checklist that nothing measures is an
+  # intention, not a gate.
+  MIN_COVERAGE: '90.0'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # Before the tests, and not after: this is what catches an import of
+      # `package:flutter/…` inside `domain/`, which no test would notice.
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        run: flutter test --coverage
+
+      - name: coverage floor
+        run: |
+          set -euo pipefail
+          total=$(awk -F: '
+            /^LF:/ { found += $2 }
+            /^LH:/ { hit += $2 }
+            END { if (found == 0) { print "0"; exit } printf "%.1f", 100 * hit / found }
+          ' coverage/lcov.info)
+          echo "line coverage: ${total}% (floor ${MIN_COVERAGE}%)"
+          awk -v total="$total" -v floor="$MIN_COVERAGE" 'BEGIN { exit !(total + 0 >= floor + 0) }' \
+            || { echo "::error::coverage ${total}% is below the ${MIN_COVERAGE}% floor"; exit 1; }
+
+      # `main` talks to prod; everything else talks to dev. Empty secrets
+      # produce a build that shows MisconfiguredApp instead of a white screen —
+      # which is the honest outcome, and is why that screen exists.
+      - name: pick the environment
+        id: environment
+        run: |
+          set -euo pipefail
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "url=${{ secrets.SUPABASE_URL_PROD }}" >> "$GITHUB_OUTPUT"
+            echo "key=${{ secrets.SUPABASE_ANON_KEY_PROD }}" >> "$GITHUB_OUTPUT"
+            echo "branch=main" >> "$GITHUB_OUTPUT"
+            echo "target: prod"
+          else
+            echo "url=${{ secrets.SUPABASE_URL_DEV }}" >> "$GITHUB_OUTPUT"
+            echo "key=${{ secrets.SUPABASE_ANON_KEY_DEV }}" >> "$GITHUB_OUTPUT"
+            echo "branch=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "target: dev (preview)"
+          fi
+
+      - name: flutter build web
+        run: |
+          flutter build web --release \
+            --dart-define=SUPABASE_URL='${{ steps.environment.outputs.url }}' \
+            --dart-define=SUPABASE_ANON_KEY='${{ steps.environment.outputs.key }}'
+
+      - name: publish to Cloudflare Pages
+        # Skipped, not failed, while A3 has not been answered.
+        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_PROJECT_NAME != ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          # The undisclosed subdomain of A3. A repository VARIABLE and not a
+          # secret: it is the project name wrangler needs, and hiding it from
+          # the log would not hide it from whoever opens the app.
+          CLOUDFLARE_PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
+        run: |
+          npx --yes wrangler@3 pages deploy build/web \
+            --project-name "$CLOUDFLARE_PROJECT_NAME" \
+            --branch "${{ steps.environment.outputs.branch }}" \
+            --commit-dirty=true
+
+      - name: say why nothing was published
+        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_PROJECT_NAME == ''
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
+        run: |
+          echo "::notice::Build ok, nothing published: A3 (Cloudflare Pages) is still open."
+          echo "Needed: secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,"
+          echo "SUPABASE_URL_DEV, SUPABASE_ANON_KEY_DEV, SUPABASE_URL_PROD,"
+          echo "SUPABASE_ANON_KEY_PROD; and the repository variable"
+          echo "CLOUDFLARE_PROJECT_NAME."

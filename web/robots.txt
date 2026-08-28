@@ -1,0 +1,5 @@
+# The subdomain nobody published is the only barrier this app has (decision 6).
+# Same intent as the <meta name="robots" content="noindex"> in index.html, for
+# the crawlers that read this file instead.
+User-agent: *
+Disallow: /

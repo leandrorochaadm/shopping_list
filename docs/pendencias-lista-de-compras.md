@@ -14,13 +14,15 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 | Bloco | Itens | Bloqueia |
 |---|---|---|
 | A — Contas e aparelhos | 3 | a 1ª migration e o 1º deploy |
-| B — Decisões de schema | 2 | a 1ª migration (**não se corrige depois**) |
+| B — Decisões de schema | 5 | **as cinco respondidas em 28/08/2026** |
 | C — Perguntas de negócio | 4 | H5, H7, H11 e H13 — nenhuma trava o início |
 | D — Status dos documentos | 3 | nada; são higiene de documento |
 | E — Riscos aceitos | 2 | nada; são confirmação por escrito |
 
-**Os únicos que travam o próximo passo são o A e o B.** O bloco C pode ser respondido até
-a história que o usa.
+**O bloco B está fechado desde 28/08/2026** — a migration base já foi escrita com as cinco
+respostas. **O que trava o próximo passo agora é só o bloco A:** sem os projetos Supabase
+(A1) nada do que está versionado chega a um banco, e sem o Cloudflare (A3) nada chega ao
+iPhone. O bloco C pode ser respondido até a história que o usa.
 
 ---
 
@@ -40,7 +42,9 @@ ou o `prod`, nem se o segundo existe.
 **Por que dois:** decisão 9 — base única foi descartada para não arriscar histórico real
 numa migration.
 
-**Trava:** a 1ª migration e qualquer `flutter run` fora dos fakes.
+**Trava:** aplicar as migrations (elas já estão escritas e versionadas em
+`supabase/migrations/`, e foram validadas contra um Postgres 17 local) e qualquer
+`flutter run` fora dos fakes.
 
 **Resposta:**
 - `dev` — URL: ` ` · chave anônima: ` `
@@ -68,8 +72,12 @@ de tela construída. É o **risco principal** do projeto.
 **Depende de:** A3 — sem HTTPS não há como pôr o formulário no iPhone nem adicioná-lo à
 tela de início.
 
-**Eu posso ajudar:** eu escrevo o formulário de três campos e o publico junto com o
-primeiro deploy. **Cronometrar nos dois aparelhos é você.**
+**Feito em 28/08/2026:** o formulário de três campos está em `/spike` (`Teste de
+digitação`) — texto livre, número inteiro e valor, que são os três teclados do iOS que a
+Tela 3 usa. O cronômetro começa na **primeira tecla**, não na abertura. A rota passa pelo
+`redirect` sem perguntar quem está usando, para a pergunta não entrar na medição.
+**Cronometrar nos dois aparelhos é você** — e a tela, a rota e o teste dela são apagados
+assim que este item estiver respondido.
 
 **Resposta:**
 - Tempo dos 3 campos: ` ` · Teclado cobriu o campo? ( ) sim ( ) não
@@ -88,8 +96,21 @@ login, RLS permissiva, chave anônima pública).
 
 **Trava:** o 1º deploy, a S1 (A2) e, com eles, tudo o que se testa no aparelho.
 
+**O que já está feito (28/08/2026):** `.github/workflows/deploy.yml` existe e roda
+`flutter analyze`, `flutter test --coverage`, o piso de cobertura e o `flutter build web`
+a cada push. **O passo de publicar é pulado — não falha — enquanto os secrets não
+existirem**, e a Action diz na saída exatamente o que falta. `main` publica contra o
+`prod`; qualquer outra branch publica preview contra o `dev`, e **preview nunca aponta
+para o `prod`**.
+
+> ⚠️ **Abra uma branch antes do primeiro push.** O repositório está em `main`, e é dali
+> que a Action publica contra produção. A S1 é medição — ela não deve sair contra a base
+> sem backup do `R13`.
+
 **Resposta:**
 - Subdomínio: ` `
+- Variável de repositório (`Settings → Secrets and variables → Actions → Variables`):
+  `[ ] CLOUDFLARE_PROJECT_NAME`
 - Secrets criados no GitHub (`Settings → Secrets → Actions`):
   `[ ] CLOUDFLARE_API_TOKEN` `[ ] CLOUDFLARE_ACCOUNT_ID`
   `[ ] SUPABASE_URL_DEV` `[ ] SUPABASE_ANON_KEY_DEV`
@@ -105,9 +126,10 @@ Verificado no repositório: `web/manifest.json` e `web/index.html` estão com `n
 PNG de `web/icons/` foram trocados (gerados por `tool/make_icons.py`); e
 `test/web_assets_test.dart` falha se as cores divergirem do tema.
 
-**Sobra desta pendência:** as duas metas do `index.html` e o `robots.txt`
-(`tecnico §13`, pendências 5 e 6). **São arquivos do repositório — eu faço**, estão como
-passo 1 do plano.
+**Sobra desta pendência — `[x]` FEITA em 28/08/2026:** as duas metas do `index.html`
+(`apple-mobile-web-app-capable` e `robots: noindex`) e o `web/robots.txt`
+(`tecnico §13`, pendências 5 e 6). Três testes novos em `test/web_assets_test.dart`
+falham se qualquer uma das três sumir. **Nada sobrou deste item.**
 
 ---
 
@@ -116,6 +138,12 @@ passo 1 do plano.
 `handoff §14.3`. **Não são pergunta ao cliente, são decisão técnica** — mas mudam o
 schema inteiro e não se corrigem depois, então precisam do seu "ok" antes de eu escrever
 a migration. Já trago a recomendação: **basta você confirmar ou trocar.**
+
+São **cinco**: B1 e B2 nasceram com o `handoff`; **B3, B4 e B5 nasceram nas revisões do
+plano de implementação** (28/08/2026) e moravam só dentro dele — três dos cinco bloqueios
+da migration eram invisíveis neste documento, que é onde a decisão é tomada. B1 a B4 travam
+a migration; **B5 trava o seed**, e o seed grava valores num formato que o app depois
+precisa saber ler.
 
 ### B1 — Como o produto vendido a peso vira folha
 
@@ -129,7 +157,9 @@ sempre um alvo único e nenhuma consulta de preço precisa de dois caminhos.
 **Alternativa descartada:** a compra apontar ora para o cadastro, ora para a folha — isso
 duplica toda consulta de preço, de relatório e de comparação entre mercados.
 
-**Decisão:** ( ) folha sempre, com embalagem nula **(recomendado)** ( ) outra: ` `
+**Decisão (28/08/2026):** **(x) folha sempre, com embalagem nula.** Toda compra aponta
+para uma linha de `product`; no vendido a peso as colunas de embalagem ficam nulas.
+Registrado na migration `20260827090100_base_schema.sql`.
 
 ---
 
@@ -147,7 +177,88 @@ precisa saber que existe uma marca-fantasma.
 seletor de marcas, o relatório por marca (que é a lacuna **L2** logo abaixo) e a
 manutenção do cadastro da H10.
 
-**Decisão:** ( ) `NULLS NOT DISTINCT` **(recomendado)** ( ) marca sentinela ( ) outra: ` `
+**Decisão (28/08/2026):** **(x) `NULLS NOT DISTINCT`.** A tela mostra "Sem marca" como
+opção; o banco grava `brand_id` nulo e o índice único trata dois nulos como iguais.
+Nenhuma marca-fantasma aparece no seletor nem no relatório por marca.
+
+---
+
+### B3 — O índice único vale para o cadastro desativado?
+
+**O problema:** os seis cadastros têm **desativação** (decisão 19 — nada é apagado, para o
+histórico não se partir) **e** trava de nome repetido. Nenhum documento diz como os dois
+convivem: se você desativar a categoria "Limpeza", o sistema deixa criar uma "Limpeza"
+nova ou não?
+
+**Recomendação — a trava vale também para o desativado.** Ao digitar "Limpeza" de novo, o
+app não deixa criar e oferece **reativar a que existe**. O histórico continua inteiro num
+cadastro só.
+
+**Alternativa:** a trava só olha os ativos. Nasce uma segunda "Limpeza", e no dia em que a
+primeira for reativada existem duas com o mesmo nome — com metade do histórico em cada
+uma. **Isso não se desfaz.**
+
+**O que muda no código depois de decidida:** a busca da trava passa a incluir os
+desativados (H2 e H3) e a tela de manutenção (H10) ganha o caminho "reativar o que já
+existe" em vez de "criar".
+
+**Decisão (28/08/2026):** **(x) trava total + reativar.** O índice único ignora `active`,
+a busca da trava em Dart inclui os desativados e a H10 ganha o caminho "reativar o que
+já existe".
+
+---
+
+### B4 — Onde mora a marcação "vendido a peso"
+
+**O problema:** "vendido a peso" (o acém moído, o azeite a granel) precisa ficar guardado
+em algum nível do cadastro, e há dois candidatos: o **tipo do produto** ("Acém moído") ou
+o **cadastro** (tipo + marca + descrição).
+
+**Recomendação — no cadastro.** É onde o wireframe da Tela 4 a desenha, entre Unidade e
+Marca, e é o que permite "mussarela em pacote" e "mussarela do balcão" convivendo no mesmo
+tipo. Ela vale em qualquer unidade base: o azeite a granel é medido em litro e mesmo assim
+é vendido a peso.
+
+**Alternativa descartada:** pendurá-la no tipo do produto — aí o tipo inteiro vira "a peso"
+ou "por peça", e os dois casos da mussarela precisariam de dois tipos diferentes, quebrando
+a soma por tipo que é a base de todo relatório.
+
+**O que muda no código depois de decidida:** a coluna `selling_mode` fica em
+`product_registration` (recomendado) ou em `product_type`, e é ela que decide se a Tela 4
+mostra ou esconde a lista de embalagens.
+
+**Decisão (28/08/2026):** **(x) no cadastro do produto.** `selling_mode` é coluna de
+`product_registration`, como o wireframe da Tela 4 desenha.
+
+---
+
+### B5 — Em que formato o dinheiro e a quantidade viajam
+
+**O problema:** a decisão 24 diz "`numeric` no banco, decimal no app" para o dinheiro nunca
+arredondar sozinho — e a lista congelada de dependências (decisão 3) **não tem pacote
+decimal**. Pior: `numeric` no banco **não** impede o erro. O Supabase devolve o número sem
+aspas, e o código do app o transforma em número quebrado (`double`) **antes** de qualquer
+linha nossa ver o valor. É o desfecho **automático** se nada for decidido, com o banco
+inteiro correto — exatamente o risco `R15`.
+
+**Recomendação — guardar em número inteiro na menor unidade:** centavos para dinheiro,
+gramas para peso, mililitros para volume. `R$ 19,90` viaja como `1990`. Nada no caminho
+arredonda, e a comparação de embalagem já é feita assim (decisão 24: "1 × 0,35 L" e
+"1 × 350 ml" são a mesma coisa). A vírgula só aparece na hora de escrever na tela.
+
+**Alternativa:** manter `numeric` no banco e pedir o valor **como texto** em toda consulta
+de dinheiro, convertendo em Dart. Guarda a escala no banco ao custo de uma consulta
+explícita em todo relatório — e de um esquecimento silencioso no dia em que alguém escrever
+a consulta sem isso.
+
+**Trava:** o seed de 4 meses (ele grava valores) e, depois dele, todo relatório.
+
+**Decisão (28/08/2026):** **(x) inteiro na menor unidade.** Dinheiro em centavos, peso em
+gramas, volume em mililitros — `bigint` no Postgres e `int` em Dart, do banco à tela. A
+vírgula nasce só na formatação. **Consequência no schema:** as colunas de conteúdo da
+embalagem deixaram de ser duas (`total_content` numeric + `total_content_smallest_unit`
+bigint) e viraram **uma só** `bigint` — guardar também a forma fracionária seria
+reintroduzir exatamente o `R15` que esta decisão fecha.
 
 ---
 

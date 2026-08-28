@@ -22,8 +22,18 @@
   <!-- Same values as manifest.json: the ColorScheme primary and surface of AppTheme.light. -->
   <meta name="theme-color" content="#3B6939">
 
+  <!-- The URL nobody published is the only barrier this app has (decision 6):
+       no login, permissive RLS, a public anon key. A search index would remove
+       it. web/robots.txt says the same thing to the crawler that reads files
+       instead of tags. -->
+  <meta name="robots" content="noindex">
+
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
+  <!-- The standardized name above plus "display": "standalone" in the manifest
+       are what decide full screen on current iOS. This one is the net for
+       older versions — and the H0 acceptance criteria name it explicitly. -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Lista">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
