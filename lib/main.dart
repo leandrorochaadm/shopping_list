@@ -1,122 +1,100 @@
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:hive_ce_flutter/hive_flutter.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+import 'config/dependencies.dart';
+import 'config/environment.dart';
+import 'config/startup.dart';
+import 'routing/router.dart';
+import 'ui/core/app_locale.dart';
+import 'ui/core/themes/app_theme.dart';
+import 'ui/core/widgets/misconfigured_app.dart';
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
 
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
+  try {
+    // Required by the pt_BR DateFormat used across the screens.
+    await initializeDateFormatting('pt_BR');
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+    // Hive holds exactly two things (`tecnico §4.2`): the purchase draft and
+    // the device user label. On web it writes to IndexedDB — which Safari
+    // denies in a private window — and that is also why the app MUST be
+    // tested installed on the home screen: an installed PWA and a Safari tab
+    // have separate storage.
+    await Hive.initFlutter();
+  } on Object catch (e, st) {
+    debugPrint('Local storage unavailable: $e\n$st');
+    runApp(const MisconfiguredApp.storageUnavailable());
+    return;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
-    return Scaffold(
-      appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
+  final List<Override> overrides;
+  final bool usingFakes;
+  switch (resolveStartup(
+    configured: Environment.isSupabaseConfigured,
+    debug: kDebugMode,
+  )) {
+    case StartupPlan.remote:
+      try {
+        await Environment.initializeSupabase();
+      } on Object catch (e, st) {
+        // The defines were there and the SDK still refused to start: a wrong
+        // project URL, an anon key from another project. Letting it escape
+        // from main paints a white screen, and an installed PWA has no
+        // console to explain one.
+        debugPrint('Supabase.initialize failed: $e\n$st');
+        runApp(const MisconfiguredApp.startupFailed());
+        return;
+      }
+      overrides = overridesRemote;
+      usingFakes = false;
+    case StartupPlan.fakes:
+      overrides = overridesLocal;
+      usingFakes = true;
+    case StartupPlan.missingConfiguration:
+      runApp(const MisconfiguredApp());
+      return;
   }
+
+  runApp(
+    ProviderScope(
+      overrides: overrides,
+      child: ShoppingListApp(usingFakes: usingFakes),
+    ),
+  );
+}
+
+class ShoppingListApp extends ConsumerWidget {
+  const ShoppingListApp({super.key, this.usingFakes = false});
+
+  /// True when the repositories are the `_local` fakes — debug only. Nothing
+  /// typed on the screens reaches a database then, and a mark on the screen is
+  /// the only way to know: there is no console to read in an installed PWA.
+  final bool usingFakes;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
+    title: 'Lista de compras',
+    theme: AppTheme.light,
+    // Portrait phone only (tecnico 7.3, decision 2). Landscape is not
+    // preventable on web and is left untested by decision, not by omission.
+    routerConfig: ref.watch(appRouterProvider),
+    // Without this, showDatePicker and the Material tooltips stay in English
+    // even though the screens render pt-BR dates.
+    localizationsDelegates: appLocalizationsDelegates,
+    supportedLocales: appSupportedLocales,
+    locale: ptBrLocale,
+    builder: usingFakes ? _fakeDataBanner : null,
+  );
+
+  // topStart because the debug checked-mode banner already owns topEnd.
+  static Widget _fakeDataBanner(BuildContext context, Widget? child) => Banner(
+    message: 'DADOS FAKE',
+    location: BannerLocation.topStart,
+    child: child ?? const SizedBox.shrink(),
+  );
 }
