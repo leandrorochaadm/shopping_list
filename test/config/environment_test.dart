@@ -14,9 +14,16 @@ void main() {
     });
 
     test('refuses to initialize Supabase without both values', () async {
-      // Fails here, naming the two flags, instead of much later as a generic
-      // error inside the first query. expectLater, awaited: an async matcher
-      // left unawaited can report its failure outside this test.
+      // This guards the SAFETY NET, not the deploy: `main` only calls
+      // initializeSupabase inside StartupPlan.remote, which is only chosen
+      // when the defines are already there, so nothing in the app as it runs
+      // today reaches this throw. What protects a build shipped without the
+      // flags is resolveStartup — see startup_test.dart. The guard is kept for
+      // the second caller this function will eventually have, and this test is
+      // what keeps it honest until then.
+      //
+      // expectLater, awaited: an async matcher left unawaited can report its
+      // failure outside this test.
       await expectLater(
         Environment.initializeSupabase(),
         throwsA(
