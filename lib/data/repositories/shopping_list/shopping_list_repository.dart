@@ -7,9 +7,18 @@ import '../../../domain/models/shopping_list_item.dart';
 /// The one list the two phones share. I/O only: every rule is asked of the
 /// entity before a method here is called.
 abstract class ShoppingListRepository {
-  /// The whole list, with type, category, brand and packaging already
-  /// embedded — the screen does not survive half a line (D4). No `active`
-  /// filter: a deactivated type that is on the list stays on the list.
+  /// The list as it stands: every line still ON it, with type, category,
+  /// brand and packaging already embedded — the screen does not survive half
+  /// a line (D4) — and with the write-off trail already summed, so the
+  /// balance can be derived (P5).
+  ///
+  /// "Still on it" means neither closed by a purchase (`fulfilled_on`) nor
+  /// removed by hand (`removed_on`). **The filter belongs here and not beside
+  /// a second method**: leaving this one bringing everything is how a bought
+  /// item reappears in the aisle.
+  ///
+  /// No `active` filter, though: a deactivated type that is on the list stays
+  /// on the list.
   Future<IList<ShoppingListItem>> fetchAll();
 
   /// Writes the line and returns what the database created, embeds included.
@@ -30,11 +39,17 @@ abstract class ShoppingListRepository {
   /// "last write wins" (`tecnico §4.5`).
   Future<ShoppingListItem> update(ShoppingListItem item);
 
-  /// Removing by hand, from the item dialog. It is a real DELETE: the list
-  /// item is not one of the six soft-deleted catalogs (decision 19) — it has
-  /// no history to preserve, and a list that only grows is useless in an
-  /// aisle.
-  Future<void> remove(String id);
+  /// Removing by hand, from the item dialog.
+  ///
+  /// **Since H7 it is NOT a DELETE.** `list_write_off` has a foreign key to
+  /// this table with no `on delete`, so an item that already took a partial
+  /// write-off cannot be deleted — and deleting it would take with it the
+  /// trail H9 undoes. It fills `removed_on` instead, and the read above stops
+  /// bringing it, which is what the aisle actually sees.
+  ///
+  /// [day] is the phone's today: the clock enters the system in the
+  /// ViewModel and travels as a parameter (rule 9).
+  Future<void> remove(ShoppingListItem item, DateTime day);
 
   /// What the other phone touched, while this screen is open.
   ///

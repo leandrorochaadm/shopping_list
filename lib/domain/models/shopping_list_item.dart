@@ -28,6 +28,9 @@ final class ShoppingListItem {
     required DateTime enteredOn,
     bool picked = false,
     bool notFound = false,
+    int writtenOffQuantity = 0,
+    DateTime? fulfilledOn,
+    DateTime? removedOn,
   }) {
     // Null is an answer; zero and negative are not.
     if (quantity != null && quantity <= 0) throw const InvalidQuantity();
@@ -43,6 +46,9 @@ final class ShoppingListItem {
       enteredOn: dayOf(enteredOn),
       picked: picked,
       notFound: notFound,
+      writtenOffQuantity: writtenOffQuantity,
+      fulfilledOn: fulfilledOn == null ? null : dayOf(fulfilledOn),
+      removedOn: removedOn == null ? null : dayOf(removedOn),
     );
   }
 
@@ -56,6 +62,9 @@ final class ShoppingListItem {
     required this.enteredOn,
     required this.picked,
     required this.notFound,
+    required this.writtenOffQuantity,
+    required this.fulfilledOn,
+    required this.removedOn,
   });
 
   /// Reads the embed of `_selection`: `product_type` comes nested, and the
@@ -75,7 +84,27 @@ final class ShoppingListItem {
       enteredOn: decodeCalendarDay(json['entered_on'] as String),
       picked: json['picked'] as bool? ?? false,
       notFound: json['not_found'] as bool? ?? false,
+      // The balance is DERIVED (P5), never a column: H9 undoes a purchase by
+      // deleting its write-offs, and a stored `remaining_quantity` would be a
+      // second number to recompute — two sources for one figure diverge on
+      // the first mistake. Summing dozens of rows in Dart is not a cost;
+      // `handoff §7` sizes the whole list in the dozens.
+      writtenOffQuantity: _sumWriteOffs(json['list_write_off']),
+      fulfilledOn: _dayOrNull(json['fulfilled_on']),
+      removedOn: _dayOrNull(json['removed_on']),
     );
+  }
+
+  static DateTime? _dayOrNull(Object? value) =>
+      value == null ? null : decodeCalendarDay(value as String);
+
+  static int _sumWriteOffs(Object? embed) {
+    if (embed is! List) return 0;
+    var total = 0;
+    for (final row in embed.cast<Map<String, dynamic>>()) {
+      total += (row['quantity_written_off'] as num?)?.toInt() ?? 0;
+    }
+    return total;
   }
 
   /// Null before the line exists — it is born on the phone in the ViewModel.
@@ -106,6 +135,22 @@ final class ShoppingListItem {
   /// The `[!]`, which only the item dialog can reach.
   final bool notFound;
 
+  /// The sum of `list_write_off.quantity_written_off` for this line, read
+  /// from the embed. It is what [remainingQuantity] subtracts.
+  final int writtenOffQuantity;
+
+  /// The day a PURCHASE closed this line (decision B6). Null is "still on the
+  /// list". It is a date and not a DELETE because `list_write_off` has a
+  /// foreign key here with no `on delete` — the trail is what H9 undoes, and
+  /// a deleted row would take it with it.
+  final DateTime? fulfilledOn;
+
+  /// The day someone removed this line BY HAND, from the item dialog. A
+  /// different act from being bought, and it needs its own column for the
+  /// same reason: an item that already took a partial write-off cannot be
+  /// deleted, and H9 has to tell the two apart when it undoes a purchase.
+  final DateTime? removedOn;
+
   /// Only the table's own columns — the embedded entities go back as ids.
   Map<String, dynamic> toJson() => {
     if (id != null) 'id': id,
@@ -116,6 +161,10 @@ final class ShoppingListItem {
     'entered_on': encodeCalendarDay(enteredOn),
     'picked': picked,
     'not_found': notFound,
+    // Both are columns; `writtenOffQuantity` is not — it is the sum of
+    // another table, and writing it back would invent a column.
+    'fulfilled_on': fulfilledOn == null ? null : encodeCalendarDay(fulfilledOn!),
+    'removed_on': removedOn == null ? null : encodeCalendarDay(removedOn!),
   };
 
   /// The checkbox flips TWO states and never passes through "não encontrei"
@@ -128,6 +177,28 @@ final class ShoppingListItem {
   ShoppingListItem markedNotFound() => copyWith(notFound: true);
 
   ShoppingListItem clearedNotFound() => copyWith(notFound: false);
+
+  /// Removing by hand, and it is a TRANSITION on the entity (rule 7) rather
+  /// than a DELETE in a repository. [day] is the phone's today, which enters
+  /// the system in the ViewModel and travels as a parameter.
+  ShoppingListItem markedRemoved(DateTime day) =>
+      copyWith(removedOn: dayOf(day));
+
+  /// Still on the list: neither bought nor removed by hand. It is the filter
+  /// every read of the list uses, and the partial index in the schema mirrors
+  /// it — a query that forgets one half makes a bought item reappear in the
+  /// aisle.
+  bool get isOpen => fulfilledOn == null && removedOn == null;
+
+  /// The balance — 'restam 4 de 6 L'. Null when the line never asked for a
+  /// quantity, and never negative: a purchase bigger than what was asked for
+  /// closes the line, it does not owe it anything.
+  int? get remainingQuantity {
+    final asked = quantity;
+    if (asked == null) return null;
+    final left = asked - writtenOffQuantity;
+    return left < 0 ? 0 : left;
+  }
 
   /// The rule of decision 25, written here even though its caller only
   /// arrives with H7: a purchase only clears an item that entered BEFORE it or
@@ -166,6 +237,9 @@ final class ShoppingListItem {
     DateTime? enteredOn,
     bool? picked,
     bool? notFound,
+    int? writtenOffQuantity,
+    DateTime? fulfilledOn,
+    DateTime? removedOn,
     bool clearBrand = false,
     bool clearProduct = false,
     bool clearQuantity = false,
@@ -181,6 +255,9 @@ final class ShoppingListItem {
     enteredOn: enteredOn ?? this.enteredOn,
     picked: picked ?? this.picked,
     notFound: notFound ?? this.notFound,
+    writtenOffQuantity: writtenOffQuantity ?? this.writtenOffQuantity,
+    fulfilledOn: fulfilledOn ?? this.fulfilledOn,
+    removedOn: removedOn ?? this.removedOn,
   );
 
   @override
@@ -195,7 +272,10 @@ final class ShoppingListItem {
           other.quantity == quantity &&
           other.enteredOn == enteredOn &&
           other.picked == picked &&
-          other.notFound == notFound);
+          other.notFound == notFound &&
+          other.writtenOffQuantity == writtenOffQuantity &&
+          other.fulfilledOn == fulfilledOn &&
+          other.removedOn == removedOn);
 
   @override
   int get hashCode => Object.hash(
@@ -208,6 +288,9 @@ final class ShoppingListItem {
     enteredOn,
     picked,
     notFound,
+    writtenOffQuantity,
+    fulfilledOn,
+    removedOn,
   );
 
   @override

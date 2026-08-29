@@ -93,7 +93,12 @@ void main() {
     });
 
     test('remove', () {
-      expect(() => repository.remove('item-1'), throwsA(_is409));
+      // Since H7 it is an UPDATE filling `removed_on`, not a DELETE — the
+      // write-off trail has a foreign key here.
+      expect(
+        () => repository.remove(_item(), DateTime(2026, 8, 28)),
+        throwsA(_is409),
+      );
     });
   });
 
@@ -174,7 +179,10 @@ void main() {
       final seen = <ListChangeKind>[];
       repository.watchChanges().listen(seen.add);
 
-      await expectLater(() => repository.remove('item-1'), throwsA(_is409));
+      await expectLater(
+        () => repository.remove(_item(), DateTime(2026, 8, 28)),
+        throwsA(_is409),
+      );
       repository.onChange(_payload(PostgresChangeEvent.delete, id: 'other'));
       await Future<void>.delayed(Duration.zero);
 

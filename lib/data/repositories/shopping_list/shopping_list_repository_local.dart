@@ -14,10 +14,15 @@ import 'shopping_list_repository.dart';
 
 /// In-memory fake: debug without --dart-define, and every test.
 ///
-/// The seed reproduces **the three shapes that break differently**, and its
-/// types are the very ones `CatalogRepositoryLocal` has — a list holding a
-/// type the catalog does not know would make the `#1a` panel look wrong in
-/// debug for a reason that is only the fake's.
+/// The seed reproduces **the five shapes the write-off treats differently**,
+/// and its types are the very ones `CatalogRepositoryLocal` has — a list
+/// holding a type the catalog does not know would make the `#1a` panel look
+/// wrong in debug for a reason that is only the fake's.
+///
+/// The five: one with a quantity, one with none, one marked "não encontrei",
+/// one already picked whose type nobody buys, and one that entered AFTER the
+/// purchase the other fake registers. Together they are what makes
+/// `planWriteOffs` visible in debug without a database.
 ///
 /// Not `final`: the ViewModel tests extend it with a spy that fails the next
 /// call, which is how both error paths get exercised without mocktail.
@@ -80,6 +85,8 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
       ),
       // Brand AND packaging preferred — the only one that exercises the whole
       // label — and already picked, so both states of the line are visible.
+      // Its type is the one the purchase fake buys, so it is also the case
+      // "compra parcial abate e não zera".
       ShoppingListItem(
         id: 'item-3',
         type: ProductType(
@@ -103,6 +110,35 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
         enteredOn: DateTime(2026, 8, 28),
         picked: true,
       ),
+      // Picked, and of a type NOBODY buys: it has to stay on the list after
+      // a purchase, untouched — nothing is written about it at all.
+      ShoppingListItem(
+        id: 'item-4',
+        type: ProductType(
+          id: 'type-3',
+          name: 'Papel higiênico',
+          categoryId: 'cat-3',
+          baseUnit: BaseUnit.unit,
+        ),
+        category: cleaning,
+        quantity: 4,
+        enteredOn: DateTime(2026, 8, 20),
+        picked: true,
+      ),
+      // Entered AFTER the purchase the other fake registers: decision 25
+      // says a purchase dated earlier does not touch it.
+      ShoppingListItem(
+        id: 'item-5',
+        type: ProductType(
+          id: 'type-1',
+          name: 'Refrigerante',
+          categoryId: 'cat-1',
+          baseUnit: BaseUnit.liter,
+        ),
+        category: drinks,
+        quantity: 2000,
+        enteredOn: DateTime(2026, 9, 15),
+      ),
     ];
   }
 
@@ -114,7 +150,9 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
   @override
   Future<IList<ShoppingListItem>> fetchAll() async {
     await Future<void>.delayed(latency);
-    return _items.toIList();
+    // The same filter the real query makes: a line that was bought or removed
+    // by hand has left the list, and must not come back in the aisle.
+    return _items.where((item) => item.isOpen).toIList();
   }
 
   @override
@@ -138,8 +176,12 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
   }
 
   @override
-  Future<void> remove(String id) async {
+  Future<void> remove(ShoppingListItem item, DateTime day) async {
     await Future<void>.delayed(latency);
-    _items.removeWhere((entry) => entry.id == id);
+    // An UPDATE and not a removal, mirroring the real thing: the row stays,
+    // `fetchAll` stops bringing it, and the write-off trail H9 undoes is
+    // left whole.
+    final index = _items.indexWhere((entry) => entry.id == item.id);
+    if (index >= 0) _items[index] = _items[index].markedRemoved(day);
   }
 }

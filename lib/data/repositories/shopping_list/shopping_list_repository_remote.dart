@@ -4,6 +4,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/pending_changes.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../services/supabase_error.dart';
@@ -27,7 +28,8 @@ final class ShoppingListRepositoryRemote implements ShoppingListRepository {
   /// foreign key, which is how `preferred_brand_id` and `product_type_id` can
   /// point at different tables with no ambiguity.
   static const _selection = '''
-id, quantity, entered_on, picked, not_found,
+id, quantity, entered_on, picked, not_found, fulfilled_on, removed_on,
+list_write_off ( quantity_written_off ),
 product_type:product_type_id (
   id, name, category_id, base_unit, active,
   category:category_id ( id, name, active )
@@ -71,8 +73,15 @@ preferred_product:preferred_product_id (
   Future<IList<ShoppingListItem>> fetchAll() async {
     try {
       // No `.eq('product_type.active', true)`: a deactivated type that is on
-      // the list stays on the list.
-      final rows = await _client.from(_table).select(_selection);
+      // the list stays on the list. What IS filtered are the two ways out of
+      // it — bought and removed by hand — because a line that left must not
+      // come back in the aisle. The partial index of the migration is on
+      // exactly this pair.
+      final rows = await _client
+          .from(_table)
+          .select(_selection)
+          .isFilter('fulfilled_on', null)
+          .isFilter('removed_on', null);
       return rows.map(ShoppingListItem.fromJson).toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -118,10 +127,17 @@ preferred_product:preferred_product_id (
   }
 
   @override
-  Future<void> remove(String id) async {
-    _expectEcho(id);
+  Future<void> remove(ShoppingListItem item, DateTime day) async {
+    _expectEcho(item.id!);
     try {
-      await _client.from(_table).delete().eq('id', id);
+      // An UPDATE, not a DELETE — see the abstract. The day is rounded by
+      // the entity's own transition, so no widget and no repository decides
+      // what "today" is.
+      final removed = item.markedRemoved(day);
+      await _client
+          .from(_table)
+          .update({'removed_on': encodeCalendarDay(removed.removedOn!)})
+          .eq('id', item.id!);
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }

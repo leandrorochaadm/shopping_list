@@ -50,6 +50,9 @@ ShoppingListItem _item({
   DateTime? enteredOn,
   bool picked = false,
   bool notFound = false,
+  int writtenOffQuantity = 0,
+  DateTime? fulfilledOn,
+  DateTime? removedOn,
 }) => ShoppingListItem(
   id: id,
   type: type ?? _type(),
@@ -60,6 +63,9 @@ ShoppingListItem _item({
   enteredOn: enteredOn ?? DateTime(2026, 8, 28),
   picked: picked,
   notFound: notFound,
+  writtenOffQuantity: writtenOffQuantity,
+  fulfilledOn: fulfilledOn,
+  removedOn: removedOn,
 );
 
 void main() {
@@ -235,6 +241,9 @@ void main() {
         'entered_on': '2026-08-28',
         'picked': false,
         'not_found': false,
+        // B6: both ways out of the list are columns of this table.
+        'fulfilled_on': null,
+        'removed_on': null,
       });
       // The embedded entities never travel back — they are not columns.
       expect(json.containsKey('product_type'), isFalse);
@@ -287,4 +296,152 @@ void main() {
       expect(withHour, _item());
     });
   });
+
+  group('leaving the list — B6', () {
+    // The two ways out, and they are DATES rather than a DELETE:
+    // `list_write_off` has a foreign key here with no `on delete`, so a
+    // deleted row would take the trail H9 undoes with it.
+    test('a fresh line is open', () {
+      final item = _item();
+
+      expect(item.isOpen, isTrue);
+      expect(item.fulfilledOn, isNull);
+      expect(item.removedOn, isNull);
+    });
+
+    test('a line a purchase closed is not open', () {
+      final item = _item(fulfilledOn: DateTime(2026, 8, 30));
+
+      expect(item.isOpen, isFalse);
+      expect(item.fulfilledOn, DateTime(2026, 8, 30));
+    });
+
+    test('a line removed by hand is not open either', () {
+      // Two different acts, two different columns: H9 has to tell "a compra
+      // fechou este item" from "alguém tirou este item da lista".
+      final removed = _item().markedRemoved(DateTime(2026, 8, 30, 14, 22));
+
+      expect(removed.isOpen, isFalse);
+      expect(removed.removedOn, DateTime(2026, 8, 30));
+      expect(removed.fulfilledOn, isNull);
+    });
+  });
+
+  group('remainingQuantity', () {
+    test('is what was asked for, minus the trail', () {
+      // 'restam 4 de 6 L' — derived (P5), never stored: H9 undoes a purchase
+      // by deleting its write-offs, and a stored balance would be a second
+      // number to keep in step.
+      expect(_item(quantity: 6000).remainingQuantity, 6000);
+      expect(
+        _item(quantity: 6000, writtenOffQuantity: 2000).remainingQuantity,
+        4000,
+      );
+    });
+
+    test('never goes negative', () {
+      // Buying more than what was asked for closes the line; it does not owe
+      // the list anything back.
+      expect(
+        _item(quantity: 6000, writtenOffQuantity: 9000).remainingQuantity,
+        0,
+      );
+    });
+
+    test('is null when the line never asked for a quantity', () {
+      expect(_item(quantity: null).remainingQuantity, isNull);
+    });
+  });
+
+  group('json — B6', () {
+    test('sums the write-off embed instead of reading a balance column', () {
+      final item = ShoppingListItem.fromJson({
+        'id': 'item-1',
+        'quantity': 6000,
+        'entered_on': '2026-08-26',
+        'picked': false,
+        'not_found': false,
+        'fulfilled_on': null,
+        'removed_on': null,
+        'product_type': {
+          'id': 'type-1',
+          'name': 'Leite',
+          'category_id': 'cat-1',
+          'base_unit': 'liter',
+          'active': true,
+          'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
+        },
+        'preferred_brand': null,
+        'preferred_product': null,
+        'list_write_off': [
+          {'quantity_written_off': 2000},
+          {'quantity_written_off': 1000},
+        ],
+      });
+
+      expect(item.writtenOffQuantity, 3000);
+      expect(item.remainingQuantity, 3000);
+      expect(item.isOpen, isTrue);
+    });
+
+    test('an absent embed is no write-off, not a crash', () {
+      // The list screen's own query does not ask for the embed; only the
+      // write-off read does.
+      final item = ShoppingListItem.fromJson({
+        'id': 'item-1',
+        'quantity': 6000,
+        'entered_on': '2026-08-26',
+        'picked': false,
+        'not_found': false,
+        'product_type': {
+          'id': 'type-1',
+          'name': 'Leite',
+          'category_id': 'cat-1',
+          'base_unit': 'liter',
+          'active': true,
+          'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
+        },
+      });
+
+      expect(item.writtenOffQuantity, 0);
+      expect(item.fulfilledOn, isNull);
+      expect(item.removedOn, isNull);
+    });
+
+    test('reads the two dates and writes them back as columns', () {
+      final json = _item(
+        fulfilledOn: DateTime(2026, 8, 30),
+        removedOn: DateTime(2026, 8, 31),
+      ).toJson();
+
+      expect(json['fulfilled_on'], '2026-08-30');
+      expect(json['removed_on'], '2026-08-31');
+      // The sum is another table's, and writing it back would invent a
+      // column PostgREST would refuse.
+      expect(json.containsKey('written_off_quantity'), isFalse);
+    });
+
+    test('an open line writes both dates as null', () {
+      final json = _item().toJson();
+
+      expect(json['fulfilled_on'], isNull);
+      expect(json['removed_on'], isNull);
+    });
+  });
+
+  group('equality — B6', () {
+    test('covers the three new fields', () {
+      // Without this, a line that has just been written off does not repaint:
+      // Riverpod filters an update with `==`.
+      expect(_item(), _item());
+      expect(_item(), isNot(_item(writtenOffQuantity: 1)));
+      expect(_item(), isNot(_item(fulfilledOn: DateTime(2026, 8, 30))));
+      expect(_item(), isNot(_item(removedOn: DateTime(2026, 8, 30))));
+      expect(
+        _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode,
+        _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode,
+      );
+    });
+  });
 }
+
