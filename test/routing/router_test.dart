@@ -11,16 +11,20 @@ import 'package:shopping_list/ui/settings/widgets/settings_screen.dart';
 
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
+import '../helpers/locale.dart';
+import '../helpers/purchase.dart';
 import '../helpers/shopping_list.dart';
 
 void main() {
+  // Screen 3 draws a date, and `main()` does not run in a test.
+  setUpAll(initializePtBr);
+
   /// The paths still showing the placeholder, and the title each one carries.
   /// A typo in a path, a route dropped from the router or a name that stops
   /// matching fails here — instead of at the moment someone taps the link on
   /// the phone.
   const placeholderTitleByPath = <String, String>{
     Routes.suggestions: 'Sugestão de itens',
-    Routes.newPurchase: 'Lançar compra',
     Routes.purchaseHistory: 'Histórico de compras',
     '/purchases/7f3c/edit': 'Corrigir compra',
     Routes.reports: 'Relatórios',
@@ -29,7 +33,7 @@ void main() {
   };
 
   /// The paths whose real screen already exists. Every story moves one line
-  /// from the map above to this one — seven more times — and the SUM of the two
+  /// from the map above to this one — six more times — and the SUM of the two
   /// has to stay eleven. Loosening that count is how `tecnico §3.4` would
   /// quietly stop being true.
   const realTitleByPath = <String, String>{
@@ -37,6 +41,7 @@ void main() {
     Routes.welcome: 'Quem está usando?',
     Routes.settings: 'Configurações',
     Routes.newProduct: 'Novo produto',
+    Routes.newPurchase: 'Lançar compra',
   };
 
   Future<GoRouter> pumpRouter(
@@ -68,6 +73,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
 
@@ -108,6 +114,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
 
@@ -125,6 +132,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
     await tester.pumpAndSettle();
@@ -175,6 +183,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
 
@@ -211,6 +220,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
 
@@ -233,6 +243,7 @@ void main() {
         deviceUserOverride(name: null),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
     await tester.pumpAndSettle();
@@ -254,6 +265,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
     await tester.pumpAndSettle();
@@ -278,6 +290,7 @@ void main() {
         deviceUserOverride(name: null),
         catalogOverride(),
         shoppingListOverride(),
+        ...purchaseOverrides(),
       ],
     );
 

@@ -9,6 +9,12 @@ import '../data/repositories/catalog/catalog_repository_remote.dart';
 import '../data/repositories/device_user/device_user_repository.dart';
 import '../data/repositories/device_user/device_user_repository_hive.dart';
 import '../data/repositories/device_user/device_user_repository_local.dart';
+import '../data/repositories/purchase/purchase_repository.dart';
+import '../data/repositories/purchase/purchase_repository_local.dart';
+import '../data/repositories/purchase/purchase_repository_remote.dart';
+import '../data/repositories/purchase_draft/purchase_draft_repository.dart';
+import '../data/repositories/purchase_draft/purchase_draft_repository_hive.dart';
+import '../data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import '../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../data/repositories/shopping_list/shopping_list_repository_local.dart';
 import '../data/repositories/shopping_list/shopping_list_repository_remote.dart';
@@ -38,6 +44,19 @@ final deviceUserBoxProvider = Provider<Box<String>>(
   ),
 );
 
+/// The second box `main` opens before runApp, and the second — and last —
+/// thing Hive holds (`tecnico §4.2`): the purchase being typed.
+///
+/// It is separate from [deviceUserBoxProvider] rather than a second key in
+/// the same box because the two have unrelated lifetimes: the label is
+/// written once per phone and the draft is cleared after every purchase.
+final purchaseDraftBoxProvider = Provider<Box<String>>(
+  (ref) => throw UnimplementedError(
+    'purchaseDraftBoxProvider was not overridden. main opens the box before '
+    'runApp and overrides it there.',
+  ),
+);
+
 /// Demo and development without a backend: every repository is overridden with
 /// its `_local` fake.
 ///
@@ -51,6 +70,12 @@ final List<Override> overridesLocal = [
   storeRepositoryProvider.overrideWith((ref) => StoreRepositoryLocal()),
   shoppingListRepositoryProvider.overrideWith(
     (ref) => ShoppingListRepositoryLocal(),
+  ),
+  purchaseRepositoryProvider.overrideWith((ref) => PurchaseRepositoryLocal()),
+  // In memory, not Hive: a draft that survived a restart of a fake-data
+  // session would outlive the fake catalog it points at.
+  purchaseDraftRepositoryProvider.overrideWith(
+    (ref) => PurchaseDraftRepositoryLocal(),
   ),
 ];
 
@@ -72,5 +97,14 @@ final List<Override> overridesRemote = [
   ),
   shoppingListRepositoryProvider.overrideWith(
     (ref) => ShoppingListRepositoryRemote(ref.watch(supabaseClientProvider)),
+  ),
+  purchaseRepositoryProvider.overrideWith(
+    (ref) => PurchaseRepositoryRemote(ref.watch(supabaseClientProvider)),
+  ),
+  // The second exception, for the same reason as the label: the draft is a
+  // purchase that is not a purchase yet, and it must survive precisely when
+  // the network does not.
+  purchaseDraftRepositoryProvider.overrideWith(
+    (ref) => PurchaseDraftRepositoryHive(ref.watch(purchaseDraftBoxProvider)),
   ),
 ];

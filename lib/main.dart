@@ -9,10 +9,12 @@ import 'config/dependencies.dart';
 import 'config/environment.dart';
 import 'config/startup.dart';
 import 'data/repositories/device_user/device_user_repository_hive.dart';
+import 'data/repositories/purchase_draft/purchase_draft_repository_hive.dart';
 import 'routing/router.dart';
 import 'ui/core/app_locale.dart';
 import 'ui/core/themes/app_theme.dart';
 import 'ui/core/widgets/misconfigured_app.dart';
+import 'ui/purchase/view_model/pending_purchase_submitter.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +32,7 @@ Future<void> main() async {
   }
 
   final Box<String> deviceUserBox;
+  final Box<String> purchaseDraftBox;
   try {
     // Hive holds exactly two things (`tecnico §4.2`): the purchase draft and
     // the device user label. On web it writes to IndexedDB — which Safari
@@ -45,6 +48,14 @@ Future<void> main() async {
     // outcome for that is this screen, never a white one.
     deviceUserBox = await Hive.openBox<String>(
       DeviceUserRepositoryHive.boxName,
+    );
+    // The second box, opened in the SAME try: a phone that denies IndexedDB
+    // denies both, and the purchase draft is the half of the app that exists
+    // for the moment the network does not. Discovering the refusal from
+    // inside screen 3, with eighteen items typed, is the one outcome worth
+    // avoiding at any cost.
+    purchaseDraftBox = await Hive.openBox<String>(
+      PurchaseDraftRepositoryHive.boxName,
     );
   } on Object catch (e, st) {
     debugPrint('Local storage unavailable: $e\n$st');
@@ -84,6 +95,7 @@ Future<void> main() async {
     ProviderScope(
       overrides: [
         deviceUserBoxProvider.overrideWithValue(deviceUserBox),
+        purchaseDraftBoxProvider.overrideWithValue(purchaseDraftBox),
         ...overrides,
       ],
       child: ShoppingListApp(usingFakes: usingFakes),
@@ -99,20 +111,38 @@ class ShoppingListApp extends ConsumerWidget {
   /// the only way to know: there is no console to read in an installed PWA.
   final bool usingFakes;
 
+  /// The SnackBar of the automatic resend is born OUTSIDE any Scaffold — it
+  /// belongs to the app, not to a screen — so the messenger has to be
+  /// reachable from here.
+  static final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) => MaterialApp.router(
-    title: 'Lista de compras',
-    theme: AppTheme.light,
-    // Portrait phone only (tecnico 7.3, decision 2). Landscape is not
-    // preventable on web and is left untested by decision, not by omission.
-    routerConfig: ref.watch(appRouterProvider),
-    // Without this, showDatePicker and the Material tooltips stay in English
-    // even though the screens render pt-BR dates.
-    localizationsDelegates: appLocalizationsDelegates,
-    supportedLocales: appSupportedLocales,
-    locale: ptBrLocale,
-    builder: usingFakes ? _fakeDataBanner : null,
-  );
+  Widget build(BuildContext context, WidgetRef ref) {
+    // `listen`, NEVER `watch`: watching would rebuild the whole
+    // MaterialApp.router on every transition of the resend — an entire screen
+    // repainted to show one SnackBar.
+    ref.listen(pendingPurchaseSubmitterProvider, (_, status) {
+      if (status != PendingSubmission.sent) return;
+      _messengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('A compra pendente foi salva.')),
+      );
+    });
+
+    return MaterialApp.router(
+      title: 'Lista de compras',
+      scaffoldMessengerKey: _messengerKey,
+      theme: AppTheme.light,
+      // Portrait phone only (tecnico 7.3, decision 2). Landscape is not
+      // preventable on web and is left untested by decision, not by omission.
+      routerConfig: ref.watch(appRouterProvider),
+      // Without this, showDatePicker and the Material tooltips stay in English
+      // even though the screens render pt-BR dates.
+      localizationsDelegates: appLocalizationsDelegates,
+      supportedLocales: appSupportedLocales,
+      locale: ptBrLocale,
+      builder: usingFakes ? _fakeDataBanner : null,
+    );
+  }
 
   // topStart because the debug checked-mode banner already owns topEnd.
   static Widget _fakeDataBanner(BuildContext context, Widget? child) => Banner(

@@ -6,6 +6,7 @@ import 'package:shopping_list/main.dart';
 import 'helpers/catalog.dart';
 import 'helpers/device_user.dart';
 import 'helpers/locale.dart';
+import 'helpers/purchase.dart';
 import 'helpers/shopping_list.dart';
 
 void main() {
@@ -27,6 +28,9 @@ void main() {
           deviceUserOverride(),
           shoppingListOverride(),
           catalogOverride(),
+          // Since H7 the app root watches the automatic resend, which reads
+          // the draft and the purchase repository.
+          ...purchaseOverrides(),
         ],
         child: const ShoppingListApp(),
       ),
@@ -50,6 +54,9 @@ void main() {
           deviceUserOverride(),
           shoppingListOverride(),
           catalogOverride(),
+          // Since H7 the app root watches the automatic resend, which reads
+          // the draft and the purchase repository.
+          ...purchaseOverrides(),
         ],
         child: const ShoppingListApp(usingFakes: true),
       ),
@@ -72,6 +79,9 @@ void main() {
           deviceUserOverride(),
           shoppingListOverride(),
           catalogOverride(),
+          // Since H7 the app root watches the automatic resend, which reads
+          // the draft and the purchase repository.
+          ...purchaseOverrides(),
         ],
         child: const ShoppingListApp(),
       ),
@@ -88,7 +98,7 @@ void main() {
     // first opening is a question, not the list.
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [deviceUserOverride(name: null)],
+        overrides: [deviceUserOverride(name: null), ...purchaseOverrides()],
         child: const ShoppingListApp(),
       ),
     );

@@ -21,6 +21,16 @@ typedef CatalogOptions = ({
   IList<Brand> brands,
 });
 
+/// What a write left behind, beside the sentence for the SnackBar.
+///
+/// The written rows travel back because screen 3 opened screen 4 to register
+/// a product it was about to buy: without them it would have to reload the
+/// whole catalog to find the leaf that was just created — a round trip in the
+/// middle of a purchase, and the form blinking out while it happens.
+typedef SaveResult = ({String? error, SavedRegistration? saved});
+
+typedef AddPackagingsResult = ({String? error, IList<Product> products});
+
 /// A registration that already holds the typed identity, and the leaves it
 /// already has — what `[ Abrir e acrescentar embalagem ]` needs to open.
 typedef RegistrationConflict = ({
@@ -349,16 +359,20 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     }
   }
 
-  /// Saves the registration and its packagings in ONE transaction. Returns
-  /// null on success, or the sentence for the SnackBar.
+  /// Saves the registration and its packagings in ONE transaction.
+  ///
+  /// Returns the rows that were written, or the sentence for the SnackBar —
+  /// `error != null` is still the only test for failure. The rows travel back
+  /// because screen 3 needs the leaf it just created, with the id the
+  /// database gave it.
   ///
   /// [packagings] is empty for a product sold by weight — the leaf still
   /// exists (decision B1), it simply has no packaging.
-  Future<String?> save({
+  Future<SaveResult> save({
     required ProductRegistration registration,
     required IList<Packaging> packagings,
   }) async {
-    if (_running) return null;
+    if (_running) return (error: null, saved: null);
     _running = true;
     try {
       // The two rules of the selling mode, asked before any I/O: by piece
@@ -366,19 +380,19 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       // means the screen kept state it should have dropped.
       registration.checkPackagings(packagings);
 
-      await ref
+      final saved = await ref
           .read(catalogRepositoryProvider)
           .saveRegistrationWithProducts(
             registration: registration,
             packagings: packagings,
           );
-      return null;
+      return (error: null, saved: saved);
     } on MissingPackaging catch (e) {
-      return e.message;
+      return (error: e.message, saved: null);
     } on UnexpectedPackaging catch (e) {
-      return e.message;
+      return (error: e.message, saved: null);
     } on Object catch (e, st) {
-      return translateError(e, st, 'salvar o produto');
+      return (error: translateError(e, st, 'salvar o produto'), saved: null);
     } finally {
       _running = false;
     }
@@ -386,24 +400,34 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
   /// Adds packagings to a registration that already exists — the second half
   /// of `[ Abrir e acrescentar embalagem ]`.
-  Future<String?> addPackagings({
+  Future<AddPackagingsResult> addPackagings({
     required String registrationId,
     required IList<Packaging> packagings,
   }) async {
-    if (_running) return null;
+    if (_running) {
+      return (error: null, products: const IList<Product>.empty());
+    }
     _running = true;
     try {
-      if (packagings.isEmpty) return const MissingPackaging().message;
+      if (packagings.isEmpty) {
+        return (
+          error: const MissingPackaging().message,
+          products: const IList<Product>.empty(),
+        );
+      }
 
-      await ref
+      final products = await ref
           .read(catalogRepositoryProvider)
           .addPackagings(
             registrationId: registrationId,
             packagings: packagings,
           );
-      return null;
+      return (error: null, products: products);
     } on Object catch (e, st) {
-      return translateError(e, st, 'salvar a embalagem');
+      return (
+        error: translateError(e, st, 'salvar a embalagem'),
+        products: const IList<Product>.empty(),
+      );
     } finally {
       _running = false;
     }

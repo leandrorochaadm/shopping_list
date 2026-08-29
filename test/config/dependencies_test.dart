@@ -11,6 +11,12 @@ import 'package:shopping_list/data/repositories/catalog/catalog_repository_remot
 import 'package:shopping_list/data/repositories/device_user/device_user_repository.dart';
 import 'package:shopping_list/data/repositories/device_user/device_user_repository_hive.dart';
 import 'package:shopping_list/data/repositories/device_user/device_user_repository_local.dart';
+import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
+import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
+import 'package:shopping_list/data/repositories/purchase/purchase_repository_remote.dart';
+import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
+import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_hive.dart';
+import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_remote.dart';
@@ -48,6 +54,14 @@ void main() {
       container.read(shoppingListRepositoryProvider),
       isA<ShoppingListRepositoryLocal>(),
     );
+    expect(
+      container.read(purchaseRepositoryProvider),
+      isA<PurchaseRepositoryLocal>(),
+    );
+    expect(
+      container.read(purchaseDraftRepositoryProvider),
+      isA<PurchaseDraftRepositoryLocal>(),
+    );
   });
 
   test('runs the label on Hive even against the real project', () async {
@@ -56,8 +70,12 @@ void main() {
     final directory = Directory.systemTemp.createTempSync('dependencies_test');
     Hive.init(directory.path);
     final box = await Hive.openBox<String>(DeviceUserRepositoryHive.boxName);
+    final draftBox = await Hive.openBox<String>(
+      PurchaseDraftRepositoryHive.boxName,
+    );
     addTearDown(() async {
       await Hive.deleteBoxFromDisk(DeviceUserRepositoryHive.boxName);
+      await Hive.deleteBoxFromDisk(PurchaseDraftRepositoryHive.boxName);
       await Hive.close();
       directory.deleteSync(recursive: true);
     });
@@ -66,6 +84,7 @@ void main() {
       overrides: [
         supabaseClientProvider.overrideWithValue(_MockClient()),
         deviceUserBoxProvider.overrideWithValue(box),
+        purchaseDraftBoxProvider.overrideWithValue(draftBox),
         ...overridesRemote,
       ],
     );
@@ -88,6 +107,17 @@ void main() {
     expect(
       container.read(shoppingListRepositoryProvider),
       isA<ShoppingListRepositoryRemote>(),
+    );
+    expect(
+      container.read(purchaseRepositoryProvider),
+      isA<PurchaseRepositoryRemote>(),
+    );
+    // The second exception, for the same reason as the label: the draft is a
+    // purchase that is not a purchase yet, and it has to survive exactly when
+    // the network does not.
+    expect(
+      container.read(purchaseDraftRepositoryProvider),
+      isA<PurchaseDraftRepositoryHive>(),
     );
   });
 
@@ -114,6 +144,16 @@ void main() {
           (e) => e.toString(),
           'toString',
           contains('deviceUserBoxProvider'),
+        ),
+      ),
+    );
+    expect(
+      () => container.read(purchaseDraftBoxProvider),
+      throwsA(
+        isA<Object>().having(
+          (e) => e.toString(),
+          'toString',
+          contains('purchaseDraftBoxProvider'),
         ),
       ),
     );

@@ -217,9 +217,17 @@ void main() {
 
       final before = tester.widgetList(find.byType(ShoppingListTile)).length;
 
-      await repository.add(
+      // NOT awaited before the clock moves. The fake's latency is a real
+      // Timer, and inside testWidgets the clock only advances when a frame is
+      // pumped WITH a duration — a bare `pump()` elapses nothing and the
+      // timer never fires. Awaiting first deadlocks the test for ten minutes
+      // instead of failing it.
+      final added = repository.add(
         _item(id: '9', typeName: 'Arroz', categoryName: 'Bebidas'),
       );
+      await tester.pump(const Duration(milliseconds: 1));
+      await added;
+
       repository.emitRemoteChange(ListChangeKind.added);
       await tester.pumpAndSettle();
 

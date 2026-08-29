@@ -485,13 +485,18 @@ void main() {
             ].lock,
           );
 
-      expect(error, isNull);
+      expect(error.error, isNull);
       // ONE call: registration and leaves travel in a single transaction.
       expect(repository.saveCalls, 1);
       expect(
         await repository.fetchProductsOf('reg-100'),
         hasLength(4),
       );
+      // And the rows come BACK, with the ids the database gave them —
+      // without that, screen 3 could not select what was just registered
+      // without reloading the whole catalog.
+      expect(error.saved!.products, hasLength(4));
+      expect(error.saved!.registration.id, 'reg-100');
     });
 
     test('saves a weight-sold product with no packaging at all', () async {
@@ -510,7 +515,8 @@ void main() {
             packagings: const IList.empty(),
           );
 
-      expect(error, isNull);
+      expect(error.error, isNull);
+      expect(error.saved!.products.single.isSoldByWeight, isTrue);
       final leaves = await repository.fetchProductsOf('reg-100');
       expect(leaves, hasLength(1));
       expect(leaves.first.isSoldByWeight, isTrue);
@@ -530,7 +536,8 @@ void main() {
                 sellingMode: SellingMode.byPiece,
               ),
               packagings: const IList.empty(),
-            ),
+            )
+            .then((result) => result.error),
         'Informe ao menos uma embalagem para este produto.',
       );
       expect(repository.saveCalls, 0);
@@ -550,7 +557,8 @@ void main() {
                 sellingMode: SellingMode.byWeight,
               ),
               packagings: [bottle('350', MeasureUnit.milliliter)].lock,
-            ),
+            )
+            .then((result) => result.error),
         'Produto vendido a peso não tem embalagem.',
       );
       expect(repository.saveCalls, 0);
@@ -572,7 +580,8 @@ void main() {
                 sellingMode: SellingMode.byPiece,
               ),
               packagings: [bottle('350', MeasureUnit.milliliter)].lock,
-            ),
+            )
+            .then((result) => result.error),
         'Já existe um cadastro com esses dados.',
       );
     });
@@ -609,7 +618,8 @@ void main() {
             .addPackagings(
               registrationId: 'reg-1',
               packagings: [bottle('600', MeasureUnit.milliliter)].lock,
-            ),
+            )
+            .then((result) => result.error),
         isNull,
       );
       expect(repository.addPackagingCalls, 1);
@@ -627,7 +637,8 @@ void main() {
             .addPackagings(
               registrationId: 'reg-1',
               packagings: const IList.empty(),
-            ),
+            )
+            .then((result) => result.error),
         'Informe ao menos uma embalagem para este produto.',
       );
       expect(repository.addPackagingCalls, 0);

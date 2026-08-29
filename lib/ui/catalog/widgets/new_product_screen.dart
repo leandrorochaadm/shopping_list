@@ -18,13 +18,31 @@ import 'new_category_dialog.dart';
 import 'new_product_type_dialog.dart';
 import 'packaging_row.dart';
 
+/// What screen 4 hands back to screen 3: everything a `ProductOption` needs.
+///
+/// All four, and not the leaf alone: screen 3 has only the list of options it
+/// loaded when it opened, and the type and the brand of a product registered
+/// a moment ago are not in it. Going to fetch them would be a round trip in
+/// the middle of a purchase — and screen 4 already holds the four in hand.
+typedef PickedProduct = ({
+  Product product,
+  ProductRegistration registration,
+  ProductType type,
+  Brand? brand,
+});
+
 /// Screen 4 — the product registration, in five levels.
 ///
 /// The form lives here and the I/O lives in the ViewModel. Every rule is
 /// ASKED of the domain: whether two packagings are the same amount, whether
 /// the selling mode allows a packaging list, what a valid measure is.
 class NewProductScreen extends ConsumerStatefulWidget {
-  const NewProductScreen({super.key});
+  const NewProductScreen({this.returnsSelection = false, super.key});
+
+  /// True when screen 3 opened it to register something it is about to buy:
+  /// saving then POPS with the chosen leaf instead of navigating to the list.
+  /// Whoever arrives from the menu leaves it false and nothing changes.
+  final bool returnsSelection;
 
   @override
   ConsumerState<NewProductScreen> createState() => _NewProductScreenState();
@@ -194,27 +212,43 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   Future<void> _save() async {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
+    final options = ref.read(catalogViewModelProvider).value;
     final typeId = _typeId;
-    if (typeId == null) return;
+    if (typeId == null || options == null) return;
+    final type = _typeOf(options);
+    if (type == null) return;
 
     setState(() => _saving = true);
     final notifier = ref.read(catalogViewModelProvider.notifier);
     final opened = _opened;
 
-    final error = opened == null
-        ? await notifier.save(
-            registration: ProductRegistration(
-              productTypeId: typeId,
-              brandId: _brandId,
-              description: _descriptionController.text,
-              sellingMode: _sellingMode,
-            ),
-            packagings: _packagings,
-          )
-        : await notifier.addPackagings(
-            registrationId: opened.id!,
-            packagings: _packagings,
-          );
+    final String? error;
+    ProductRegistration? registration;
+    IList<Product> written;
+
+    if (opened == null) {
+      registration = ProductRegistration(
+        productTypeId: typeId,
+        brandId: _brandId,
+        description: _descriptionController.text,
+        sellingMode: _sellingMode,
+      );
+      final result = await notifier.save(
+        registration: registration,
+        packagings: _packagings,
+      );
+      error = result.error;
+      registration = result.saved?.registration ?? registration;
+      written = result.saved?.products ?? const IList<Product>.empty();
+    } else {
+      registration = opened;
+      final result = await notifier.addPackagings(
+        registrationId: opened.id!,
+        packagings: _packagings,
+      );
+      error = result.error;
+      written = result.products;
+    }
     if (!mounted) return;
     setState(() => _saving = false);
 
@@ -222,12 +256,70 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       messenger.showSnackBar(SnackBar(content: Text(error)));
       return;
     }
-    // Screen 3 is H7's; until it exists the way back is the list. What does
-    // NOT change is that saving leaves this screen — a registration saved
-    // twice is the failure this avoids.
+    // Saving ALWAYS leaves this screen — a registration saved twice is the
+    // failure this avoids.
     messenger.showSnackBar(const SnackBar(content: Text('Produto salvo.')));
-    router.go(Routes.shoppingList);
+
+    if (!widget.returnsSelection) {
+      router.go(Routes.shoppingList);
+      return;
+    }
+    // `pop`, never `go`: screen 3 is underneath with a purchase on it, and
+    // `go` would replace the route and take the draft off the screen.
+    router.pop<PickedProduct>(
+      _picked(registration, written, options, type),
+    );
   }
+
+  /// Which leaf the radio marked, and it comes from a DIFFERENT place in each
+  /// of the three paths — `_selectedDraftId` numbers the rows being typed, it
+  /// is not a database id. The match is by `totalContent`, which is the
+  /// natural key of a packaging inside a registration: the unique index of
+  /// the schema is `product (product_registration_id, total_content)`.
+  PickedProduct? _picked(
+    ProductRegistration registration,
+    IList<Product> written,
+    CatalogOptions options,
+    ProductType type,
+  ) {
+    // Sold by weight there is no packaging and no radio: the leaf is the only
+    // one the registration has.
+    if (_soldByWeight) {
+      final leaf = written.firstOrNull ?? _existing.firstOrNull;
+      return leaf == null ? null : _option(leaf, registration, options, type);
+    }
+
+    final marked = _drafts
+        .where((draft) => draft.id == _selectedDraftId)
+        .firstOrNull
+        ?.packaging;
+    if (marked == null) {
+      // The radio sits on a packaging that ALREADY existed — nothing came
+      // back from the database for it, because nothing was written.
+      final leaf = _existing.firstOrNull ?? written.firstOrNull;
+      return leaf == null ? null : _option(leaf, registration, options, type);
+    }
+
+    for (final leaf in [...written, ..._existing]) {
+      if (leaf.packaging?.totalContent == marked.totalContent) {
+        return _option(leaf, registration, options, type);
+      }
+    }
+    return null;
+  }
+
+  PickedProduct _option(
+    Product leaf,
+    ProductRegistration registration,
+    CatalogOptions options,
+    ProductType type,
+  ) => (
+    product: leaf,
+    registration: registration,
+    type: type,
+    // Null is "Sem marca" (decision B2) — a real answer.
+    brand: options.brands.where((brand) => brand.id == _brandId).firstOrNull,
+  );
 
   @override
   Widget build(BuildContext context) {

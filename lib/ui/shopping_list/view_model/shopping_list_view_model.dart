@@ -111,12 +111,18 @@ final class ShoppingListViewModel
   /// The whole item dialog, in one write (H6).
   Future<String?> save(ShoppingListItem item) => _write(item, 'salvar o item');
 
-  /// Removing by hand.
-  Future<String?> remove(ShoppingListItem item) async {
+  /// Removing by hand — which since H7 fills `removed_on` instead of
+  /// deleting the row, so the write-off trail H9 undoes stays whole.
+  ///
+  /// [today] exists for the test: the screen passes nothing and the clock
+  /// enters the system HERE (rule 9), never in a widget or an entity.
+  Future<String?> remove(ShoppingListItem item, {DateTime? today}) async {
     if (_running) return null;
     _running = true;
     try {
-      await ref.read(shoppingListRepositoryProvider).remove(item.id!);
+      await ref
+          .read(shoppingListRepositoryProvider)
+          .remove(item, today ?? DateTime.now());
       if (!ref.mounted) return null;
 
       state = AsyncData(

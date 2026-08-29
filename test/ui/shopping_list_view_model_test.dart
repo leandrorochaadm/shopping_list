@@ -21,6 +21,7 @@ class _SpyRepository extends ShoppingListRepositoryLocal {
   int addCalls = 0;
   int updateCalls = 0;
   int removeCalls = 0;
+  DateTime? removedOn;
   ShoppingListItem? lastAdded;
 
   Object? _take() {
@@ -55,11 +56,12 @@ class _SpyRepository extends ShoppingListRepositoryLocal {
   }
 
   @override
-  Future<void> remove(String id) async {
+  Future<void> remove(ShoppingListItem item, DateTime day) async {
     removeCalls++;
+    removedOn = day;
     final failure = _take();
     if (failure != null) throw failure;
-    return super.remove(id);
+    return super.remove(item, day);
   }
 }
 
@@ -280,7 +282,12 @@ void main() {
     final container = containerWith(repository);
     await container.read(shoppingListViewModelProvider.future);
 
+    // `ProviderException` is @internal, and building one by hand is the only
+    // way to exercise the loop that unwraps it — the real thing is thrown by
+    // Riverpod itself, from inside a provider chain no test can assemble.
+    // ignore: invalid_use_of_internal_member
     repository.failNextCall = ProviderException(
+      // ignore: invalid_use_of_internal_member
       ProviderException(NetworkException('offline'), StackTrace.empty),
       StackTrace.empty,
     );

@@ -5,6 +5,7 @@ import '../data/repositories/device_user/device_user_repository.dart';
 import '../ui/catalog/widgets/new_product_screen.dart';
 import '../ui/core/widgets/under_construction_screen.dart';
 import '../ui/device_user/widgets/welcome_screen.dart';
+import '../ui/purchase/widgets/new_purchase_screen.dart';
 import '../ui/settings/widgets/settings_screen.dart';
 import '../ui/shopping_list/widgets/shopping_list_screen.dart';
 import '../ui/spike/widgets/typing_spike_screen.dart';
@@ -69,8 +70,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.newPurchase,
         name: RouteNames.newPurchase,
-        builder: (context, state) =>
-            const UnderConstructionScreen(title: 'Lançar compra', story: 'H7'),
+        builder: (context, state) => const NewPurchaseScreen(),
       ),
       GoRoute(
         path: Routes.editPurchase,
@@ -91,7 +91,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.newProduct,
         name: RouteNames.newProduct,
-        builder: (context, state) => const NewProductScreen(),
+        // The `extra` is set only by screen 3's `[+Novo]`: it asks for the
+        // chosen leaf back instead of a navigation to the list. Whoever
+        // arrives from the menu passes nothing and falls to the default.
+        builder: (context, state) =>
+            NewProductScreen(returnsSelection: state.extra as bool? ?? false),
       ),
       GoRoute(
         path: Routes.reports,
