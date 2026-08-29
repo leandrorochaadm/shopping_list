@@ -1,12 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'online_status_platform.dart';
+import '../../data/services/connectivity/online_status_platform.dart';
 
 /// Whether the browser thinks there is a connection.
 ///
 /// A `Notifier<bool>` and not a `StreamProvider`: the first answer is
 /// SYNCHRONOUS — `navigator.onLine` costs nothing — and an `AsyncValue` would
 /// give screen 3 a "loading the connection" state that does not exist.
+///
+/// It lives in `ui/core/` and not next to the platform reading it consumes
+/// for the same reason `app_failure.dart` does: it is a piece of general-use
+/// state, with more than one consumer and no feature of its own — and rule 17
+/// keeps state out of `data/`.
 ///
 /// **Tests override this provider whole.** There is no navigator in the Dart
 /// VM, and the stub is deliberately mute rather than pretending otherwise —

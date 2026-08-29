@@ -381,4 +381,24 @@ void main() {
       expect(draft().toString(), contains('2026-08-18'));
     });
   });
+
+  group('PurchasedAmount', () {
+    PurchasedAmount amount({
+      String item = 'pi-1',
+      String type = 'type-1',
+      int quantity = 2000,
+    }) => PurchasedAmount(
+      purchaseItemId: item,
+      productTypeId: type,
+      quantityInBaseUnit: quantity,
+    );
+
+    test('equality covers every field', () {
+      expect(amount(), amount());
+      expect(amount().hashCode, amount().hashCode);
+      expect(amount(), isNot(amount(item: 'pi-2')));
+      expect(amount(), isNot(amount(type: 'type-2')));
+      expect(amount(), isNot(amount(quantity: 2001)));
+    });
+  });
 }

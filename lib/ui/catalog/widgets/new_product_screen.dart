@@ -24,12 +24,31 @@ import 'packaging_row.dart';
 /// loaded when it opened, and the type and the brand of a product registered
 /// a moment ago are not in it. Going to fetch them would be a round trip in
 /// the middle of a purchase — and screen 4 already holds the four in hand.
-typedef PickedProduct = ({
-  Product product,
-  ProductRegistration registration,
-  ProductType type,
-  Brand? brand,
-});
+final class PickedProduct {
+  const PickedProduct({
+    required this.product,
+    required this.registration,
+    required this.type,
+    required this.brand,
+  });
+
+  final Product product;
+  final ProductRegistration registration;
+  final ProductType type;
+  final Brand? brand;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PickedProduct &&
+          other.product == product &&
+          other.registration == registration &&
+          other.type == type &&
+          other.brand == brand;
+
+  @override
+  int get hashCode => Object.hash(product, registration, type, brand);
+}
 
 /// Screen 4 — the product registration, in five levels.
 ///
@@ -233,21 +252,45 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         description: _descriptionController.text,
         sellingMode: _sellingMode,
       );
-      final result = await notifier.save(
+      final outcome = await notifier.save(
         registration: registration,
         packagings: _packagings,
       );
-      error = result.error;
-      registration = result.saved?.registration ?? registration;
-      written = result.saved?.products ?? const IList<Product>.empty();
+      switch (outcome) {
+        // The reentrancy guard fired: nothing was written, so nothing is
+        // said and nothing is left. Undoing `_saving` is what keeps the
+        // button clickable — without it the screen trades one bug for a
+        // frozen button.
+        case null:
+          if (!mounted) return;
+          setState(() => _saving = false);
+          return;
+        case RegistrationSaved(:final saved):
+          error = null;
+          registration = saved.registration;
+          written = saved.products;
+        case RegistrationSaveFailed(:final message):
+          error = message;
+          written = const IList<Product>.empty();
+      }
     } else {
       registration = opened;
-      final result = await notifier.addPackagings(
+      final outcome = await notifier.addPackagings(
         registrationId: opened.id!,
         packagings: _packagings,
       );
-      error = result.error;
-      written = result.products;
+      switch (outcome) {
+        case null:
+          if (!mounted) return;
+          setState(() => _saving = false);
+          return;
+        case PackagingsAdded(:final products):
+          error = null;
+          written = products;
+        case AddPackagingsFailed(:final message):
+          error = message;
+          written = const IList<Product>.empty();
+      }
     }
     if (!mounted) return;
     setState(() => _saving = false);
@@ -313,7 +356,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     ProductRegistration registration,
     CatalogOptions options,
     ProductType type,
-  ) => (
+  ) => PickedProduct(
     product: leaf,
     registration: registration,
     type: type,

@@ -341,4 +341,19 @@ void main() {
     expect(option, isNot(option.withHistory(purchaseCount: 1)));
     expect(option.toString(), contains('Coca-Cola'));
   });
+
+  group('ProductGroup', () {
+    ProductGroup group({ProductType? type, String optionId = 'p1'}) =>
+        ProductGroup(
+          type: type ?? softDrink,
+          options: [byPiece(id: optionId)].lock,
+        );
+
+    test('equality covers every field, so the picker does not rebuild', () {
+      expect(group(), group());
+      expect(group().hashCode, group().hashCode);
+      expect(group(), isNot(group(type: beef)));
+      expect(group(), isNot(group(optionId: 'p2')));
+    });
+  });
 }

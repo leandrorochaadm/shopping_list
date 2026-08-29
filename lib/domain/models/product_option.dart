@@ -221,7 +221,22 @@ int compareForPicker(ProductOption a, ProductOption b) {
 }
 
 /// One type and its options, in the order the picker draws them.
-typedef ProductGroup = ({ProductType type, IList<ProductOption> options});
+final class ProductGroup {
+  const ProductGroup({required this.type, required this.options});
+
+  final ProductType type;
+  final IList<ProductOption> options;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ProductGroup &&
+          other.type == type &&
+          other.options == options;
+
+  @override
+  int get hashCode => Object.hash(type, options);
+}
 
 /// The picker is GROUPED BY TYPE, so a flat sort is not enough: ordering by
 /// count alone would put a soft drink between two milks.
@@ -255,6 +270,6 @@ IList<ProductGroup> groupForPicker(IList<ProductOption> options) {
 
   return [
     for (final key in keys)
-      (type: types[key]!, options: byType[key]!.toIList()),
+      ProductGroup(type: types[key]!, options: byType[key]!.toIList()),
   ].toIList();
 }

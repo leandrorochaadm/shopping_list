@@ -4,6 +4,30 @@ import 'list_write_off.dart';
 import 'purchase.dart' show PurchasedAmount;
 import 'shopping_list_item.dart';
 
+/// How much of ONE line of the purchase is still unspent, as [planWriteOffs]
+/// consumes the lines of a type in the order they were typed.
+///
+/// It lives and dies inside that function — but rule 16 says "no records
+/// anywhere in the project", and a named type is also what keeps
+/// `available[cursor].id` readable at the call site.
+final class AvailableAmount {
+  const AvailableAmount({required this.id, required this.left});
+
+  /// The purchase item this amount came from — the id H9 gives back to.
+  final String id;
+
+  /// What is left of it, in the base unit.
+  final int left;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AvailableAmount && other.id == id && other.left == left;
+
+  @override
+  int get hashCode => Object.hash(id, left);
+}
+
 /// **What the purchase does to the shopping list.** Every acceptance
 /// criterion of the write-off lives in this one function, and it is pure: no
 /// system clock, no I/O, no database. The SQL that follows it only inserts
@@ -51,7 +75,10 @@ IList<ListWriteOff> planWriteOffs({
     // give back exactly what each line took.
     final available = [
       for (final amount in entry.value)
-        (id: amount.purchaseItemId, left: amount.quantityInBaseUnit),
+        AvailableAmount(
+          id: amount.purchaseItemId,
+          left: amount.quantityInBaseUnit,
+        ),
     ];
     var cursor = 0;
     var leftOnCursor = available.isEmpty ? 0 : available.first.left;

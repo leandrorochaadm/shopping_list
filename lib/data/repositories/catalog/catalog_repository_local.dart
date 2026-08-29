@@ -176,7 +176,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
         for (final product in _products.where(
           (leaf) => leaf.productRegistrationId == registration.id,
         ))
-          (product: product, registration: registration),
+          TypeLeaf(product: product, registration: registration),
     ].toIList();
   }
 
@@ -234,7 +234,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
     _registrations.add(created);
 
     final products = _insert(created.id!, packagings);
-    return (registration: created, products: products);
+    return SavedRegistration(registration: created, products: products);
   }
 
   @override

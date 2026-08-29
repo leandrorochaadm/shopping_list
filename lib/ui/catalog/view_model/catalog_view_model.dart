@@ -15,28 +15,110 @@ import '../../core/error_translation.dart';
 /// The three lists screen 4 selects from. They load together because the
 /// screen is unusable until all three have arrived, and one AsyncValue over
 /// the three is one loading state instead of three.
-typedef CatalogOptions = ({
-  IList<Category> categories,
-  IList<ProductType> types,
-  IList<Brand> brands,
-});
+/// `==` covers all three fields because this is the `T` of an AsyncNotifier:
+/// Riverpod filters updates with `==`, and comparing by reference would
+/// repaint screen 4 on every refresh (rule 8).
+final class CatalogOptions {
+  const CatalogOptions({
+    required this.categories,
+    required this.types,
+    required this.brands,
+  });
 
-/// What a write left behind, beside the sentence for the SnackBar.
+  final IList<Category> categories;
+  final IList<ProductType> types;
+  final IList<Brand> brands;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CatalogOptions &&
+          other.categories == categories &&
+          other.types == types &&
+          other.brands == brands;
+
+  @override
+  int get hashCode => Object.hash(categories, types, brands);
+
+  /// Only the writes that replace exactly ONE of the three lists use this.
+  /// Written by hand, like every other copyWith in the project.
+  CatalogOptions copyWith({
+    IList<Category>? categories,
+    IList<ProductType>? types,
+    IList<Brand>? brands,
+  }) => CatalogOptions(
+    categories: categories ?? this.categories,
+    types: types ?? this.types,
+    brands: brands ?? this.brands,
+  );
+}
+
+/// How saving a registration ended. Two outcomes, and the payload rides on
+/// the successful one — which is why this is a sealed type and not a
+/// `String?` (rule 16).
 ///
 /// The written rows travel back because screen 3 opened screen 4 to register
 /// a product it was about to buy: without them it would have to reload the
 /// whole catalog to find the leaf that was just created — a round trip in the
 /// middle of a purchase, and the form blinking out while it happens.
-typedef SaveResult = ({String? error, SavedRegistration? saved});
+sealed class RegistrationSaveOutcome {
+  const RegistrationSaveOutcome();
+}
 
-typedef AddPackagingsResult = ({String? error, IList<Product> products});
+final class RegistrationSaved extends RegistrationSaveOutcome {
+  const RegistrationSaved(this.saved);
+
+  final SavedRegistration saved;
+}
+
+final class RegistrationSaveFailed extends RegistrationSaveOutcome {
+  const RegistrationSaveFailed(this.message);
+
+  /// pt-BR, already translated — the raw exception never reaches a screen.
+  final String message;
+}
+
+/// How adding packagings to an existing registration ended — the second half
+/// of `[ Abrir e acrescentar embalagem ]`. Two outcomes, payload on success
+/// (rule 16).
+sealed class AddPackagingsOutcome {
+  const AddPackagingsOutcome();
+}
+
+final class PackagingsAdded extends AddPackagingsOutcome {
+  const PackagingsAdded(this.products);
+
+  final IList<Product> products;
+}
+
+final class AddPackagingsFailed extends AddPackagingsOutcome {
+  const AddPackagingsFailed(this.message);
+
+  /// pt-BR, already translated.
+  final String message;
+}
 
 /// A registration that already holds the typed identity, and the leaves it
 /// already has — what `[ Abrir e acrescentar embalagem ]` needs to open.
-typedef RegistrationConflict = ({
-  ProductRegistration registration,
-  IList<Product> products,
-});
+final class RegistrationConflict {
+  const RegistrationConflict({
+    required this.registration,
+    required this.products,
+  });
+
+  final ProductRegistration registration;
+  final IList<Product> products;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RegistrationConflict &&
+          other.registration == registration &&
+          other.products == products;
+
+  @override
+  int get hashCode => Object.hash(registration, products);
+}
 
 /// The catalog itself — categories, types and brands — and every write screen
 /// 4 and the `#1a` panel make against it.
@@ -54,6 +136,14 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// one flag would let a duplicate check in flight block the save button,
   /// which is the opposite of what the guard is for.
   bool _running = false;
+
+  /// Guards the two registration writes — `save` and `addPackagings` — and
+  /// ONLY them. They shared `_running` with the three catalog creates until
+  /// 29/08/2026, and the cost was silent: saving while a category dialog was
+  /// still writing fell into the guard, and screen 4 read the empty answer as
+  /// success. They keep sharing a flag with each other because they are the
+  /// same action of screen 4.
+  bool _writingRegistration = false;
   bool _checkingIdentity = false;
   bool _loadingDescriptions = false;
   bool _loadingCounts = false;
@@ -69,7 +159,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     final types = repository.fetchTypes();
     final brands = repository.fetchBrands();
 
-    return (
+    return CatalogOptions(
       categories: await categories,
       types: await types,
       brands: await brands,
@@ -113,11 +203,8 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     build: (name) => Category(name: name),
     existing: (options) => options.categories,
     write: (repository, entry) => repository.createCategory(entry),
-    store: (options, created) => (
-      categories: options.categories.add(created),
-      types: options.types,
-      brands: options.brands,
-    ),
+    store: (options, created) =>
+        options.copyWith(categories: options.categories.add(created)),
     action: 'salvar a categoria',
     noun: 'a categoria',
   );
@@ -130,11 +217,8 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     build: (name) => Brand(name: name),
     existing: (options) => options.brands,
     write: (repository, entry) => repository.createBrand(entry),
-    store: (options, created) => (
-      categories: options.categories,
-      types: options.types,
-      brands: options.brands.add(created),
-    ),
+    store: (options, created) =>
+        options.copyWith(brands: options.brands.add(created)),
     action: 'salvar a marca',
     noun: 'a marca',
   );
@@ -154,11 +238,8 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         ProductType(name: name, categoryId: categoryId, baseUnit: baseUnit),
     existing: (options) => options.types,
     write: (repository, entry) => repository.createType(entry),
-    store: (options, created) => (
-      categories: options.categories,
-      types: options.types.add(created),
-      brands: options.brands,
-    ),
+    store: (options, created) =>
+        options.copyWith(types: options.types.add(created)),
     action: 'salvar o tipo',
     noun: 'o tipo',
   );
@@ -230,13 +311,13 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
       final options = state.value;
       if (options != null) {
-        state = AsyncData((
-          categories: options.categories,
-          types: options.types
-              .map((entry) => entry.id == written.id ? written : entry)
-              .toIList(),
-          brands: options.brands,
-        ));
+        state = AsyncData(
+          options.copyWith(
+            types: options.types
+                .map((entry) => entry.id == written.id ? written : entry)
+                .toIList(),
+          ),
+        );
       }
       return null;
     } on Object catch (e, st) {
@@ -329,7 +410,10 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       final products = await repository.fetchProductsOf(registration!.id!);
       if (!ref.mounted) return null;
 
-      return (registration: registration, products: products);
+      return RegistrationConflict(
+        registration: registration,
+        products: products,
+      );
     } on Object catch (e, st) {
       translateError(e, st, 'conferir se o produto já existe');
       return null;
@@ -361,19 +445,21 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
   /// Saves the registration and its packagings in ONE transaction.
   ///
-  /// Returns the rows that were written, or the sentence for the SnackBar —
-  /// `error != null` is still the only test for failure. The rows travel back
-  /// because screen 3 needs the leaf it just created, with the id the
-  /// database gave it.
+  /// Returns the rows that were written, or the sentence for the SnackBar.
+  /// The rows travel back because screen 3 needs the leaf it just created,
+  /// with the id the database gave it.
+  ///
+  /// A `null` is the reentrancy guard of rule 14 saying "I did nothing" — it
+  /// is not a third outcome, and it is never success.
   ///
   /// [packagings] is empty for a product sold by weight — the leaf still
   /// exists (decision B1), it simply has no packaging.
-  Future<SaveResult> save({
+  Future<RegistrationSaveOutcome?> save({
     required ProductRegistration registration,
     required IList<Packaging> packagings,
   }) async {
-    if (_running) return (error: null, saved: null);
-    _running = true;
+    if (_writingRegistration) return null;
+    _writingRegistration = true;
     try {
       // The two rules of the selling mode, asked before any I/O: by piece
       // with no packaging cannot convert a purchase, and by weight with one
@@ -386,34 +472,29 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
             registration: registration,
             packagings: packagings,
           );
-      return (error: null, saved: saved);
+      return RegistrationSaved(saved);
     } on MissingPackaging catch (e) {
-      return (error: e.message, saved: null);
+      return RegistrationSaveFailed(e.message);
     } on UnexpectedPackaging catch (e) {
-      return (error: e.message, saved: null);
+      return RegistrationSaveFailed(e.message);
     } on Object catch (e, st) {
-      return (error: translateError(e, st, 'salvar o produto'), saved: null);
+      return RegistrationSaveFailed(translateError(e, st, 'salvar o produto'));
     } finally {
-      _running = false;
+      _writingRegistration = false;
     }
   }
 
   /// Adds packagings to a registration that already exists — the second half
   /// of `[ Abrir e acrescentar embalagem ]`.
-  Future<AddPackagingsResult> addPackagings({
+  Future<AddPackagingsOutcome?> addPackagings({
     required String registrationId,
     required IList<Packaging> packagings,
   }) async {
-    if (_running) {
-      return (error: null, products: const IList<Product>.empty());
-    }
-    _running = true;
+    if (_writingRegistration) return null;
+    _writingRegistration = true;
     try {
       if (packagings.isEmpty) {
-        return (
-          error: const MissingPackaging().message,
-          products: const IList<Product>.empty(),
-        );
+        return AddPackagingsFailed(const MissingPackaging().message);
       }
 
       final products = await ref
@@ -422,14 +503,11 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
             registrationId: registrationId,
             packagings: packagings,
           );
-      return (error: null, products: products);
+      return PackagingsAdded(products);
     } on Object catch (e, st) {
-      return (
-        error: translateError(e, st, 'salvar a embalagem'),
-        products: const IList<Product>.empty(),
-      );
+      return AddPackagingsFailed(translateError(e, st, 'salvar a embalagem'));
     } finally {
-      _running = false;
+      _writingRegistration = false;
     }
   }
 }

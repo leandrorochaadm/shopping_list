@@ -17,7 +17,7 @@ void main() {
     String id = 'pi-1',
     String type = 'type-1',
     required int amount,
-  }) => (
+  }) => PurchasedAmount(
     purchaseItemId: id,
     productTypeId: type,
     quantityInBaseUnit: amount,
@@ -290,6 +290,20 @@ void main() {
         fulfills: true,
       )));
       expect(off.toString(), contains('l1'));
+    });
+  });
+
+  group('AvailableAmount', () {
+    test('equality covers every field', () {
+      const amount = AvailableAmount(id: 'pi-1', left: 2000);
+
+      expect(amount, const AvailableAmount(id: 'pi-1', left: 2000));
+      expect(
+        amount.hashCode,
+        const AvailableAmount(id: 'pi-1', left: 2000).hashCode,
+      );
+      expect(amount, isNot(const AvailableAmount(id: 'pi-2', left: 2000)));
+      expect(amount, isNot(const AvailableAmount(id: 'pi-1', left: 1999)));
     });
   });
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,9 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
+import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
+import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
+import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
@@ -19,7 +27,7 @@ void main() {
   /// Mounted through the real router: screen 4 asks `context.canPop()` to
   /// decide which exit R11 gives it, and that question has no answer without
   /// a GoRouter above it.
-  Future<void> pumpScreen(
+  Future<ProviderContainer> pumpScreen(
     WidgetTester tester, {
     CatalogRepository? repository,
   }) async {
@@ -47,6 +55,7 @@ void main() {
     );
     router.go(Routes.newProduct);
     await tester.pumpAndSettle();
+    return container;
   }
 
   /// Scrolls the target into view before tapping it: the form is longer than
@@ -492,6 +501,112 @@ void main() {
     expect(find.text('Novo produto'), findsOneWidget);
     expect(find.text('Tentar de novo'), findsNothing);
   });
+
+  testWidgets('the reentrancy guard never says "Produto salvo."', (
+    tester,
+  ) async {
+    // The regression test of the bug the sealed outcome fixed: `save` used to
+    // answer `(error: null, saved: null)` when the guard fired, the screen
+    // read `error == null` as success, said "Produto salvo." and navigated
+    // away — with nothing written. Deleting the `case null` of the screen
+    // brings it back, and this test fails.
+    final repository = _StuckRepository();
+    final container = await pumpScreen(tester, repository: repository);
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+    await type(tester, const ValueKey('size-1'), '350');
+    await choose(tester, const ValueKey('unit-1'), 'ml');
+
+    // Holds the write guard down: no `await`, so the call is still in flight
+    // when the button is tapped. `_saving` of the widget is still false here,
+    // so the button IS clickable and the tap really reaches the guard.
+    unawaited(
+      container
+          .read(catalogViewModelProvider.notifier)
+          .save(
+            registration: ProductRegistration(
+              productTypeId: 'type-1',
+              sellingMode: SellingMode.byPiece,
+            ),
+            packagings: [
+              Packaging.typed(
+                pieceCount: '1',
+                pieceSize: '350',
+                pieceSizeUnit: MeasureUnit.milliliter,
+              ),
+            ].lock,
+          ),
+    );
+
+    await tapOn(tester, find.byKey(const ValueKey('save')));
+
+    expect(find.text('Produto salvo.'), findsNothing);
+    // Still on screen 4, with the form intact.
+    expect(find.text('Novo produto'), findsOneWidget);
+    // And the button came back: without the `setState` in the `case null` the
+    // screen would trade a lying SnackBar for a button frozen forever.
+    final save = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('save')),
+    );
+    expect(save.onPressed, isNotNull);
+
+    repository.release();
+    await tester.pumpAndSettle();
+  });
+
+  group('PickedProduct', () {
+    PickedProduct picked({String leafId = 'prod-1', Brand? brand}) =>
+        PickedProduct(
+          product: Product(id: leafId, productRegistrationId: 'reg-1'),
+          registration: ProductRegistration(
+            id: 'reg-1',
+            productTypeId: 'type-1',
+            sellingMode: SellingMode.byPiece,
+          ),
+          type: ProductType(
+            id: 'type-1',
+            name: 'Refrigerante',
+            categoryId: 'cat-1',
+            baseUnit: BaseUnit.liter,
+          ),
+          brand: brand,
+        );
+
+    test('equality covers every field', () {
+      expect(picked(), picked());
+      expect(picked().hashCode, picked().hashCode);
+      expect(picked(), isNot(picked(leafId: 'prod-2')));
+      // Null is "Sem marca" (decision B2) — a real answer, and a different one.
+      expect(picked(), isNot(picked(brand: Brand(id: 'b1', name: 'Coca'))));
+    });
+  });
+}
+
+/// Never finishes the write, so the reentrancy guard stays down for as long as
+/// the test needs it — the deterministic way to reach it now that `save` no
+/// longer shares its flag with the three catalog creates.
+class _StuckRepository extends CatalogRepositoryLocal {
+  _StuckRepository() : super(latency: Duration.zero);
+
+  final _held = Completer<SavedRegistration>();
+
+  void release() => _held.complete(
+    SavedRegistration(
+      registration: ProductRegistration(
+        id: 'reg-100',
+        productTypeId: 'type-1',
+        sellingMode: SellingMode.byPiece,
+      ),
+      products: const IList.empty(),
+    ),
+  );
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<Packaging> packagings,
+  }) => _held.future;
 }
 
 

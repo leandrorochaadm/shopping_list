@@ -61,7 +61,7 @@ final class PurchaseRepositoryRemote implements PurchaseRepository {
 
       return rows.map((row) {
         final purchase = row['purchase'] as Map<String, dynamic>;
-        return (
+        return PurchaseHistoryEntry(
           productId: row['product_id'] as String,
           quantityInBaseUnit: (row['quantity_in_base_unit'] as num).toInt(),
           paid: Money.fromJson(row['total_paid']),

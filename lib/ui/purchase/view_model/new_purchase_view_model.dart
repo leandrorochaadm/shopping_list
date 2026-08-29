@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/purchase/purchase_repository.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
-import '../../../data/services/connectivity/online_status.dart';
+import '../../core/online_status.dart';
 import '../../../domain/models/price_reference.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
@@ -13,8 +13,9 @@ import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 import 'purchase_draft_view_model.dart';
 
-/// How a save ended. **Three outcomes, not two**, which is why this is a
-/// sealed type and not the project's usual `String?`.
+/// How a save ended. **Three outcomes, not two**, which under rule 16 is what
+/// makes this a sealed type consumed by an exhaustive `switch` rather than a
+/// `String?` — that form only answers for two outcomes carrying nothing.
 ///
 /// The third — "guardei no aparelho e vou tentar depois" — is neither an
 /// error nor a success: the screen shows a banner instead of a SnackBar and
@@ -168,10 +169,9 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
       // 5. The single write. A `true` means the purchase was already there —
       //    the resend that arrived twice. Not an error, and the draft has to
       //    die all the same.
-      await ref.read(purchaseRepositoryProvider).save((
-        purchase: purchase,
-        writeOffs: writeOffs,
-      ));
+      await ref
+          .read(purchaseRepositoryProvider)
+          .save(PurchaseSubmission(purchase: purchase, writeOffs: writeOffs));
       if (!ref.mounted) return null;
 
       // 6. The draft dies HERE, and only here: it is the one guard against

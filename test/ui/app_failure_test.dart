@@ -42,6 +42,31 @@ void main() {
       expect(AppFailure.from(Exception('?')), isA<UnexpectedFailure>());
     });
 
+    test('classifying an already classified failure returns it unchanged', () {
+      const original = NoConnection();
+
+      expect(AppFailure.from(original), same(original));
+    });
+
+    test('keeps the variant when an AppFailure arrives wrapped by Riverpod', () {
+      // Built through a real container, for the same reason the unwrap test
+      // below does it: ProviderException's constructor is internal to
+      // Riverpod. It is also what fixes the POSITION of the guard — before
+      // the loop it would never reach a wrapped failure.
+      const original = DuplicateRecord();
+      final failing = Provider<int>((ref) => throw original);
+      final container = ProviderContainer.test();
+
+      Object? caught;
+      try {
+        container.read(failing);
+      } on Object catch (e) {
+        caught = e;
+      }
+
+      expect(AppFailure.from(caught!), same(original));
+    });
+
     test('unwraps the ProviderException Riverpod wraps a failure into', () {
       // Built through a real container instead of by hand: the wrapping is
       // Riverpod's, and ProviderException's constructor is internal to it.

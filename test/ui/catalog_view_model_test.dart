@@ -464,7 +464,7 @@ void main() {
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
 
-      final error = await container
+      final outcome = await container
           .read(catalogViewModelProvider.notifier)
           .save(
             registration: ProductRegistration(
@@ -485,7 +485,7 @@ void main() {
             ].lock,
           );
 
-      expect(error.error, isNull);
+      final saved = (outcome! as RegistrationSaved).saved;
       // ONE call: registration and leaves travel in a single transaction.
       expect(repository.saveCalls, 1);
       expect(
@@ -495,8 +495,8 @@ void main() {
       // And the rows come BACK, with the ids the database gave them —
       // without that, screen 3 could not select what was just registered
       // without reloading the whole catalog.
-      expect(error.saved!.products, hasLength(4));
-      expect(error.saved!.registration.id, 'reg-100');
+      expect(saved.products, hasLength(4));
+      expect(saved.registration.id, 'reg-100');
     });
 
     test('saves a weight-sold product with no packaging at all', () async {
@@ -505,7 +505,7 @@ void main() {
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
 
-      final error = await container
+      final outcome = await container
           .read(catalogViewModelProvider.notifier)
           .save(
             registration: ProductRegistration(
@@ -515,8 +515,10 @@ void main() {
             packagings: const IList.empty(),
           );
 
-      expect(error.error, isNull);
-      expect(error.saved!.products.single.isSoldByWeight, isTrue);
+      expect(
+        (outcome! as RegistrationSaved).saved.products.single.isSoldByWeight,
+        isTrue,
+      );
       final leaves = await repository.fetchProductsOf('reg-100');
       expect(leaves, hasLength(1));
       expect(leaves.first.isSoldByWeight, isTrue);
@@ -537,7 +539,7 @@ void main() {
               ),
               packagings: const IList.empty(),
             )
-            .then((result) => result.error),
+            .then(_saveMessage),
         'Informe ao menos uma embalagem para este produto.',
       );
       expect(repository.saveCalls, 0);
@@ -558,7 +560,7 @@ void main() {
               ),
               packagings: [bottle('350', MeasureUnit.milliliter)].lock,
             )
-            .then((result) => result.error),
+            .then(_saveMessage),
         'Produto vendido a peso não tem embalagem.',
       );
       expect(repository.saveCalls, 0);
@@ -581,7 +583,7 @@ void main() {
               ),
               packagings: [bottle('350', MeasureUnit.milliliter)].lock,
             )
-            .then((result) => result.error),
+            .then(_saveMessage),
         'Já existe um cadastro com esses dados.',
       );
     });
@@ -619,8 +621,8 @@ void main() {
               registrationId: 'reg-1',
               packagings: [bottle('600', MeasureUnit.milliliter)].lock,
             )
-            .then((result) => result.error),
-        isNull,
+            .then((outcome) => (outcome! as PackagingsAdded).products),
+        hasLength(1),
       );
       expect(repository.addPackagingCalls, 1);
       expect(await repository.fetchProductsOf('reg-1'), hasLength(5));
@@ -638,7 +640,7 @@ void main() {
               registrationId: 'reg-1',
               packagings: const IList.empty(),
             )
-            .then((result) => result.error),
+            .then(_addMessage),
         'Informe ao menos uma embalagem para este produto.',
       );
       expect(repository.addPackagingCalls, 0);
@@ -725,4 +727,75 @@ void main() {
       );
     });
   });
+
+  group('the two types that group data instead of an outcome', () {
+    CatalogOptions options({
+      String categoryId = 'cat-1',
+      String typeId = 'type-1',
+      String brandId = 'brand-1',
+    }) => CatalogOptions(
+      categories: [Category(id: categoryId, name: 'Bebidas')].lock,
+      types: [
+        ProductType(
+          id: typeId,
+          name: 'Refrigerante',
+          categoryId: 'cat-1',
+          baseUnit: BaseUnit.liter,
+        ),
+      ].lock,
+      brands: [Brand(id: brandId, name: 'Coca-Cola')].lock,
+    );
+
+    test('CatalogOptions with equal lists is ==, so screen 4 stops '
+        'repainting', () {
+      // The `T` of the AsyncNotifier: Riverpod filters updates with `==`, and
+      // comparing by reference would rebuild screen 4 on every refresh. This
+      // test fails the moment someone deletes the `==`.
+      expect(options(), options());
+      expect(options().hashCode, options().hashCode);
+      expect(options(), isNot(options(categoryId: 'cat-2')));
+      expect(options(), isNot(options(typeId: 'type-2')));
+      expect(options(), isNot(options(brandId: 'brand-2')));
+    });
+
+    test('copyWith replaces one list and leaves the other two alone', () {
+      final withBrand = options().copyWith(
+        brands: [Brand(id: 'brand-2', name: 'Pepsi')].lock,
+      );
+
+      expect(withBrand.brands.single.name, 'Pepsi');
+      expect(withBrand.categories, options().categories);
+      expect(withBrand.types, options().types);
+    });
+
+    test('RegistrationConflict equality covers every field', () {
+      RegistrationConflict conflict({
+        String regId = 'reg-1',
+        String leafId = 'prod-1',
+      }) => RegistrationConflict(
+        registration: ProductRegistration(
+          id: regId,
+          productTypeId: 'type-1',
+          sellingMode: SellingMode.byPiece,
+        ),
+        products: [
+          Product(id: leafId, productRegistrationId: 'reg-1'),
+        ].lock,
+      );
+
+      expect(conflict(), conflict());
+      expect(conflict().hashCode, conflict().hashCode);
+      expect(conflict(), isNot(conflict(regId: 'reg-2')));
+      expect(conflict(), isNot(conflict(leafId: 'prod-2')));
+    });
+  });
 }
+
+/// The pt-BR sentence of a failed save. It asserts the outcome is the FAILED
+/// branch, so a guard that fired (`null`) or a save that went through can
+/// never be read as the error the test is looking for.
+String _saveMessage(RegistrationSaveOutcome? outcome) =>
+    (outcome! as RegistrationSaveFailed).message;
+
+String _addMessage(AddPackagingsOutcome? outcome) =>
+    (outcome! as AddPackagingsFailed).message;

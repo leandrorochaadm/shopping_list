@@ -120,6 +120,9 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | gasto | `spending` | quanto dinheiro saiu |
 | consumo | `consumption` | quanta quantidade entrou, na unidade base |
 | alerta de alta de preço | `priceIncreaseThreshold` | o limiar é `static const` no domínio |
+| saldo de uma linha da compra | `AvailableAmount` | o que resta de um `PurchaseItem` enquanto `planWriteOffs` distribui a compra pelos itens da lista |
+| grupo do painel `#1a` | `ProductTypeGroup` | nome da categoria + os tipos sob ela. A gêmea de `ShoppingListGroup` para o painel de acrescentar |
+| porta de saída de uma tela | `MenuEntry` | rota + ícone + rótulo. A barra de baixo e o `≡` da Tela 1 listam as mesmas |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -128,7 +131,9 @@ registre nesta tabela.
 
 ## Camadas
 
-- `config/` — `dependencies.dart` (providers e overrides) e `environment.dart` (`--dart-define`).
+- `config/` — `dependencies.dart` (os providers de infraestrutura e **os overrides** de
+  todos os repositories) e `environment.dart` (`--dart-define`). O `Provider` de cada
+  repository é **declarado no arquivo do contrato**, em `data/`, e sobrescrito aqui.
 - `routing/` — `routes.dart` (os 11 paths) e `router.dart` (o `GoRouter`).
 - `domain/models/` — entidades, **todas as regras de negócio** e as exceções de regra. Dart puro.
 - `domain/use_cases/` — só quando a lógica usa 2+ repositories ou é repetida em 2+ ViewModels.
@@ -179,12 +184,93 @@ registre nesta tabela.
     `build()` parou de proteger a carga inicial), `Timer`, callback de push. Distinguir
     tipo de falha é trabalho do `AppFailure`, não dele. Se entrar, o repository
     **inteiro** devolve `Result`.
+    **Isto não é a forma do retorno de uma ação** — essa é a regra 16.
+16. **A forma do retorno de uma ação sai do número de desfechos**, e são duas —
+    `Record` não é uma delas, em lugar nenhum do projeto. Dois desfechos sem carga:
+    `Future<String?>`, `null` = deu certo. Dois desfechos com carga, ou três ou mais:
+    `sealed` local ao ViewModel, consumido por `switch` exaustivo, com retorno
+    **anulável** — o `null` é a guarda de reentrância da regra 14 dizendo "não fiz
+    nada", e não um terceiro ramo. Agrupamento de dados sem desfecho (o `T` de um
+    `AsyncNotifier`, um valor devolvido num `pop`) é `final class` com `==`/`hashCode`
+    cobrindo todos os campos — a regra 8 vale para eles.
+17. Em `data/`, só o **arquivo do contrato** conhece o Riverpod, e apenas para declarar
+    o `Provider` que `config/dependencies.dart` sobrescreve. As implementações
+    (`_local`, `_remote`, `_hive`) não importam pacote de estado, e **nenhum arquivo de
+    `data/` constrói `AsyncValue`/`AsyncResult`** — esse envelope é do Riverpod, criado
+    ao redor do `build()`. O que atravessa a fronteira é `Future<T>` mais exceção.
+
+## A corrente da igualdade — quem deve o `==`
+
+A regra 8 exige `==`/`hashCode` cobrindo todos os campos, e a pergunta que sempre volta é
+se algum pacote poupa esse trabalho. **Não poupa** — e o motivo é que a igualdade é uma
+corrente de três elos, cada um com um dono diferente.
+
+O `==` do `AsyncValue` **já vem pronto do Riverpod**
+(`riverpod-3.4.2/lib/src/core/async_value.dart:654-664`): compara `runtimeType`,
+`_loading`, `_errorFilled` e o valor — e o valor ele **delega ao `==` do seu `T`**.
+`AsyncResult`, `AsyncData` e `AsyncError` herdam esse `==` sem redefinir nada. Ou seja:
+**nunca se escreve o `==` de um `AsyncValue`**, e não há o que um gerador faça nele. O
+único `==` que pode faltar é o do valor que viaja dentro do envelope.
+
+| Elo | Dono | Já resolvido? |
+|---|---|---|
+| `AsyncData<T>` / `AsyncError<T>` | Riverpod | **sim**, `async_value.dart:654` |
+| `IList<E>` | `fast_immutable_collections` | **sim**, `isDeepEquals: true` é o default |
+| `E` — a entidade ou a classe | **nós** | **não**, escrito à mão |
+
+Os dois formatos de `T` que o projeto usa mostram onde cada elo entra:
+
+```
+T é a coleção — AsyncNotifier<IList<Store>>
+  AsyncData<IList<Store>>.==  ->  IList.==  ->  Store.==
+       (Riverpod)                  (FIC)       (À MÃO)
+
+T é uma classe que contém coleções — AsyncNotifier<CatalogOptions>
+  AsyncData<CatalogOptions>.==  ->  CatalogOptions.==  ->  IList.==  ->  Category.==
+       (Riverpod)                        (À MÃO)          (FIC)       (À MÃO)
+```
+
+**O `IList` fecha um elo, nunca a corrente.** Ele garante que uma coleção de mesmo
+conteúdo seja `==`, e é por isso que um campo de coleção se compara com
+`other.categories == categories`, sem `listEquals` e sem laço. Mas **abaixo** ele apenas
+transporta a pergunta para o elemento, que continua devendo o seu `==`; e **acima** ele
+não age: uma classe sem `==` compara por referência e a corrente arrebenta no primeiro
+elo, sem as `IList` internas chegarem a ser consultadas. É o bug silencioso da regra 8 —
+o Riverpod para de filtrar update, a tela repinta a cada refresh e nenhum erro aparece.
+
+**Por que não `freezed` nem `equatable`** (os dois seguem proibidos em "Não fazer sem eu
+pedir"):
+
+- **`equatable` não elimina o erro.** O `props` é uma lista escrita à mão: esquecer um
+  campo ali é o mesmo esquecimento de deixá-lo fora do `==`. Troca linhas por risco
+  idêntico, e o teste campo a campo continua obrigatório do mesmo jeito.
+- **`freezed` elimina**, porque o gerador enumera os campos sozinho — mas traz de volta o
+  `build_runner` que a Stack recusou, e criaria duas convenções no mesmo repositório: as
+  entidades atuais têm `==`, `copyWith` e `fromJson`/`toJson` escritos à mão. Adotá-lo só
+  nas classes novas é pior do que qualquer um dos extremos.
+
+Adotar qualquer um dos dois é **alteração de escopo**, não decisão de implementação. Se um
+dia o número de classes com `==` manual passar da ordem de 40–50, a conta muda e vale
+reabrir; hoje não.
+
+A rede que de fato pega o campo esquecido é o **teste**: duas instâncias de campos iguais
+são `==` e têm o mesmo `hashCode`, mais um caso trocando **um** campo por vez.
 
 ## Erros — duas categorias
 
 - **Carga inicial** falhou: vai para o `state` como `AsyncError`, ocupa a tela.
 - **Ação** falhou (cancelar, salvar, recarregar): o método do ViewModel **retorna
   `String?`** com a mensagem; a lista permanece na tela e a View mostra SnackBar.
+- **A forma do retorno depende do número de desfechos** (regra 16):
+
+  | Desfechos | Forma | Exemplo no código |
+  |---|---|---|
+  | 2, sem carga | `Future<String?>` | `ShoppingListViewModel.add` |
+  | 2 com carga, ou 3+ | `sealed` + retorno anulável | `NewPurchaseViewModel.save` |
+
+  **`Record` não é uma das formas.** Ele dá `==` estrutural de graça, mas
+  `({String? error, T? payload})` representa 4 estados para 2 válidos, e não há
+  `switch` exaustivo sobre record.
 - No `catch`, se **não houver dado anterior**, o state tem de virar `AsyncError`.
   Deixar em `AsyncLoading` trava a tela num spinner que nunca resolve.
 - **Nunca interpolar a exceção na mensagem do usuário** — nem `'Falhou: $e'`, nem
@@ -268,9 +354,11 @@ continua em inglês (`MessageView`, `emptyLabel`).
 
 ## Não fazer sem eu pedir
 
-- use-case, `Result<T>`/`Either`, `Command`, DTO separado da entidade
-  — `Result` **não** é alternativa ao `AsyncValue` (um é retorno de repository, o outro é
-  estado de tela), e mesmo a pedido ele obedece à **regra 15** acima
+- use-case, `Result<T>`/`Either`, `Command`, DTO separado da entidade, **e `typedef` de
+  `Record`** — `Result` **não** é alternativa ao `AsyncValue` (um é retorno de
+  repository, o outro é estado de tela), e mesmo a pedido ele obedece à **regra 15**.
+  `sealed` local a um ViewModel **não** é o `Result` que a 15 barra: é o desfecho de uma
+  ação, e é a forma prescrita pela **regra 16**
 - `Mutation` do Riverpod 3 — é experimental (*"may change in a breaking way without a
   major version bump"*) e o `run()` relança depois de gravar o erro: disparar sem
   `await` deixa erro solto na zona. Ação com loading próprio = um provider pequeno por
@@ -318,10 +406,25 @@ vigor no código** — não reabrir sem o usuário pedir.
 | Idioma do código | `handoff §10`: classes e tabelas com os termos pt-BR do cliente | **Inglês em tudo**, inclusive nas tabelas do Supabase | regra 0 da skill; a linguagem ubíqua sobrevive no glossário acima |
 | Coleções | `tecnico §3`: cinco pacotes, "nada além disso" | **`fast_immutable_collections` entra** como sexta dependência | o `==` de `List` é por referência: lista mutada no lugar não repinta a tela no Riverpod 3 |
 | Localização | `tecnico §3`: cinco pacotes, "nada além disso" | **`flutter_localizations` entra**, do SDK do Flutter | `intl` formata data e moeda, mas não traduz widget nenhum: sem os delegates o `showDatePicker` e os tooltips do Material saem em inglês dentro de uma tela pt-BR |
-| Tratamento de erro | `tecnico §3.11`: `Result<T>` selado atravessando as camadas | **`AsyncValue` + `AppFailure`**; sem `Result` | regra 15 — `Result` só com gatilho observado (`Stream` que sobrevive ao erro, `Notifier<State>` próprio) |
+| Tratamento de erro | `tecnico §3.11`: `Result<T>` selado atravessando as camadas | **`AsyncValue` + `AppFailure`** | o `Result<T>` do guia oficial existe aqui com outro nome: `AsyncResult<T>`, do próprio Riverpod — `sealed`, `AsyncData \| AsyncError`, dartdoc *"A variant of `AsyncValue` that excludes `AsyncLoading`... only data\|error states"* (`riverpod-3.4.2/lib/src/core/async_value.dart:671`), exportado em `riverpod.dart:25`. O guia manda escrever a classe porque é agnóstico de gerenciador de estado; com Riverpod ela vem pronta. O `AppFailure` cobre o que nenhum dos dois cobre: classificar a falha antes de virar frase — o `Error<T>` do guia carrega `Exception` crua |
 | `analysis_options.yaml` | `tecnico §3.13`: o padrão do `flutter_lints` | **mantido o padrão** | a skill sugere 3 lints extras; a decisão congelada vence, e a diferença é irrelevante |
 | Detecção de conexão | `tecnico §3`: cinco pacotes, "nada além disso" | **`web` entra**, como 3ª adição | a decisão 22 proíbe `connectivity_plus`, e os eventos `online`/`offline` vêm do `package:web`. Ele já era `transitive`; declará-lo é o que cala o lint `depend_on_referenced_packages`. Fica atrás de um *conditional import*, para a VM do `flutter test` nunca o compilar |
 | Valor pré-preenchido na Tela 3 | `handoff §H7`: "quantidade convertida × preço da unidade base da última compra" | **regra de três inteira**: `pago × quantidadeNova ÷ quantidadeAnterior`, meio-para-cima | as duas fórmulas são a mesma **antes** do arredondamento, e só esta não erra: 12 L por R$ 62,00 são R$ 5,1667/L, que arredondados para 517 centavos devolvem **R$ 62,04** para a mesma compra |
+
+**O `Result` do guia oficial, traduzido para este projeto:**
+
+| Guia oficial do Flutter | Aqui |
+|---|---|
+| `sealed class Result<T>` | `sealed class AsyncResult<T>` (Riverpod) |
+| `Ok<T>` com `.value` | `AsyncData<T>` com `.value` |
+| `Error<T>` com `.error` (`Exception` crua) | `AsyncError<T>` com `.error` + `AppFailure` classificado |
+| `Result.ok(v)` / `Result.error(e)` | `AsyncData(v)` / `AsyncError(e, st)` |
+| `switch (r) { case Ok(): ... case Error(): ... }` | idem, com `AsyncData`/`AsyncError` |
+| — não existe | `AsyncLoading<T>` e `AsyncValue.guard` |
+
+Quem **constrói** cada um: o `Result` do guia é construído pelo repository; o
+`AsyncValue`/`AsyncResult` é construído **pelo Riverpod**, ao redor do `build()`.
+Não existe `AsyncData(` nem `AsyncError(` dentro de `lib/data/` — ver regra 17.
 
 Adaptações menores, já aplicadas:
 
@@ -388,23 +491,51 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 28/08/2026**, ao fim do plano
-`temp/plan/plano-h7-h8-lancar-compra-2026-08-28.md` (**os 28 passos**). `flutter analyze`
-limpo, **559 testes verdes**, cobertura de linha **85,4%**. Antes dele vieram a Entrega 1
-(`plano-fundacao-e-entrega-1-2026-08-27.md`) e a Entrega 2
-(`plano-entrega-2-lista-no-corredor-2026-08-28.md`).
+**Atualizado em 29/08/2026**, ao fim do plano
+`temp/plan/plano-doutrina-de-erro-e-fim-dos-records-2026-08-29.md`. `flutter analyze`
+limpo, **578 testes verdes**, cobertura de linha **86,1%**. Antes dele vieram a Entrega 1
+(`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
+(`plano-entrega-2-lista-no-corredor-2026-08-28.md`) e a Entrega 3
+(`plano-h7-h8-lancar-compra-2026-08-28.md`, os 28 passos).
+
+**O que o plano de 29/08 mudou, e não é feature:** a doutrina de erro passou a estar
+escrita — as **regras 16 e 17** e a seção "A corrente da igualdade" acima —, os **15
+records** do projeto (11 `typedef` e 4 inline, um deles de tipo inferido) viraram 12
+`final class` mais 2 hierarquias `sealed`, o `OnlineStatus` saiu de `data/services/` para
+`ui/core/` porque um `Notifier` é estado, `groupTypesByCategory` saiu de dentro do
+`add_item_panel` para `domain/models/product_type_group.dart`, e o `AppFailure.from`
+ficou idempotente. Junto veio a correção de **um bug de tela**: `CatalogViewModel.save`
+devolvia `(error: null, saved: null)` quando a guarda de reentrância disparava, e a Tela 4
+lia isso como sucesso — dizia *"Produto salvo."* e saía da tela **sem ter salvo nada**. A
+causa foi removida junto com o sintoma: `save` e `addPackagings` ganharam o
+`_writingRegistration`, e deixaram de cair na guarda das três criações de cadastro.
+
+**A verificação de que nenhum record voltou** é o grep de **literais**, não o de
+`^typedef` — um record de tipo inferido (`final x = [(id: ..., left: ...)]`) não tem
+`({...})` escrito em lugar nenhum:
+
+```
+grep -rnE "(^|[^A-Za-z0-9_])\(\s*[a-z][A-Za-z0-9_]*:" lib/ \
+  | grep -vE "\b[A-Za-z_][A-Za-z0-9_]*\("
+```
+
+Ele devolve hoje uma linha só, e ela é falso positivo: `Radio<int>(value: ...)`, cujo
+`<int>` é o que engana a segunda metade do comando.
 
 **A cobertura está ABAIXO do piso de 90% do `deploy.yml`, e a dívida é toda de dois
 arquivos:** `ui/shopping_list/widgets/item_dialog.dart` (0 de 140 linhas) e
-`add_item_panel.dart` (1 de 137) — os dois da Entrega 2, sem teste de widget nenhum. Sem
-eles o projeto está em **92,8%**, e os arquivos da H7/H8 ficaram em ~97% (o domínio inteiro
+`add_item_panel.dart` (1 de 130) — os dois da Entrega 2, sem teste de widget nenhum. Sem
+eles o projeto está em **93,0%**, e os arquivos da H7/H8 ficaram em ~97% (o domínio inteiro
 em 100%). **O CI reprova enquanto esses dois não tiverem teste**, e é a primeira coisa a
-fazer antes do primeiro push.
+fazer antes do primeiro push. O `add_item_panel` encolheu de 137 para 130 linhas em
+29/08: as ~7 do agrupamento foram para `domain/`, onde agora têm teste.
 
 **Existe:** o esqueleto — `pubspec` (com o Flutter 3.44.0 pinado), `config/`, `routing/`
 com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 claro,
-`MessageView`, `AppFailure`, tradução de erro, `SingleFieldDialog`, `formatting.dart`),
-`data/services/` (exceções, o tradutor do Supabase e a detecção de online/offline) — e
+`MessageView`, `AppFailure`, tradução de erro, `SingleFieldDialog`, `formatting.dart`,
+`MenuEntry` e o `OnlineStatus`), `data/services/` (exceções, o tradutor do Supabase e a
+leitura de plataforma do online/offline — o estado que a expõe é
+`ui/core/online_status.dart`) — e
 **seis telas** de onze:
 
 - **H1 — `DeviceUser`:** `device_user_repository` (abstract + `_local` + `_hive`),

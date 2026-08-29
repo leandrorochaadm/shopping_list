@@ -64,7 +64,7 @@ final class Purchase {
   /// unit, and which line of the purchase it came from.
   IList<PurchasedAmount> get amounts => [
     for (final item in items)
-      (
+      PurchasedAmount(
         purchaseItemId: item.id,
         productTypeId: item.productTypeId,
         quantityInBaseUnit: item.quantityInBaseUnit,
@@ -102,13 +102,31 @@ final class Purchase {
 }
 
 /// How much of a type one line of the purchase brought home. It is what
-/// `planWriteOffs` reads, and it is a record rather than an entity because it
-/// is a projection of [Purchase]: three fields, no rules, no identity.
-typedef PurchasedAmount = ({
-  String purchaseItemId,
-  String productTypeId,
-  int quantityInBaseUnit,
-});
+/// `planWriteOffs` reads: three fields, no rules, no identity — a projection
+/// of [Purchase], which is why it is a plain class and not an entity.
+final class PurchasedAmount {
+  const PurchasedAmount({
+    required this.purchaseItemId,
+    required this.productTypeId,
+    required this.quantityInBaseUnit,
+  });
+
+  final String purchaseItemId;
+  final String productTypeId;
+  final int quantityInBaseUnit;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PurchasedAmount &&
+          other.purchaseItemId == purchaseItemId &&
+          other.productTypeId == productTypeId &&
+          other.quantityInBaseUnit == quantityInBaseUnit;
+
+  @override
+  int get hashCode =>
+      Object.hash(purchaseItemId, productTypeId, quantityInBaseUnit);
+}
 
 /// pt-BR: every message below is read on screen.
 final class FutureDate implements Exception {

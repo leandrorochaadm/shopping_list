@@ -10,7 +10,7 @@ import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_re
 import 'package:shopping_list/data/repositories/store/store_repository.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
-import 'package:shopping_list/data/services/connectivity/online_status.dart';
+import 'package:shopping_list/ui/core/online_status.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/routing/router.dart';

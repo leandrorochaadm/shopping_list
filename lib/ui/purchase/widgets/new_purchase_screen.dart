@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../data/services/connectivity/online_status.dart';
+import '../../core/online_status.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/money.dart';

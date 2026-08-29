@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../data/services/connectivity/online_status.dart';
+import '../../core/online_status.dart';
 import 'new_purchase_view_model.dart';
 import 'purchase_draft_view_model.dart';
 

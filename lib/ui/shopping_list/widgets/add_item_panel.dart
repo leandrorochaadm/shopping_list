@@ -6,6 +6,7 @@ import '../../../domain/models/catalog_entry.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/name_normalization.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/product_type_group.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../catalog/view_model/catalog_view_model.dart';
 import '../../catalog/widgets/new_product_type_dialog.dart';
@@ -189,7 +190,10 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
       shrinkWrap: true,
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
-        for (final group in _groupByCategory(matches, options.categories))
+        for (final group in groupTypesByCategory(
+          matches,
+          options.categories,
+        ))
           ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
@@ -280,23 +284,6 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
   static bool _hasExactMatch(IList<ProductType> matches, String typed) =>
       findNameConflict(matches, typed) != null;
 
-  /// The results grouped by category, alphabetically — the same organization
-  /// the list itself uses, so the eye does not have to relearn it.
-  List<({String name, List<ProductType> types})> _groupByCategory(
-    IList<ProductType> types,
-    IList<Category> categories,
-  ) {
-    final byId = {for (final category in categories) category.id: category};
-    final groups = <String, List<ProductType>>{};
-    for (final type in types) {
-      final name = byId[type.categoryId]?.name ?? 'Sem categoria';
-      (groups[name] ??= []).add(type);
-    }
-
-    final names = groups.keys.toList()
-      ..sort((a, b) => normalizeName(a).compareTo(normalizeName(b)));
-    return [for (final name in names) (name: name, types: groups[name]!)];
-  }
 }
 
 class _RetryMessage extends StatelessWidget {

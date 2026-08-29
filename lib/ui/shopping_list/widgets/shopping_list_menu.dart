@@ -2,25 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../routing/routes.dart';
+import '../../core/widgets/menu_entry.dart';
 import '../../core/widgets/pending_destinations.dart';
 
 /// The `≡` of screen 1 — and, as the `handoff` puts it, "a única porta das
 /// quatro telas não desenhadas". Without it being born here they would have no
 /// door at all, and the only way in would be typing the route.
 abstract final class ShoppingListMenu {
-  static const _entries = <({String route, IconData icon, String label})>[
-    (
+  static const _entries = <MenuEntry>[
+    MenuEntry(
       route: Routes.purchaseHistory,
       icon: Icons.receipt_long,
       label: 'Histórico de compras',
     ),
-    (route: Routes.editPurchase, icon: Icons.edit, label: 'Corrigir compra'),
-    (
+    MenuEntry(
+      route: Routes.editPurchase,
+      icon: Icons.edit,
+      label: 'Corrigir compra',
+    ),
+    MenuEntry(
       route: Routes.catalog,
       icon: Icons.inventory_2_outlined,
       label: 'Manutenção do cadastro',
     ),
-    (
+    MenuEntry(
       route: Routes.settings,
       icon: Icons.settings_outlined,
       label: 'Configurações',

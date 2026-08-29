@@ -11,15 +11,42 @@ import '../../../domain/models/product_type.dart';
 /// A registration and the leaves it was saved with — what one transaction
 /// produced. It is not a DTO: both halves are the entities themselves, and
 /// they travel together because the write that created them was single.
-typedef SavedRegistration = ({
-  ProductRegistration registration,
-  IList<Product> products,
-});
+final class SavedRegistration {
+  const SavedRegistration({required this.registration, required this.products});
+
+  final ProductRegistration registration;
+  final IList<Product> products;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SavedRegistration &&
+          other.registration == registration &&
+          other.products == products;
+
+  @override
+  int get hashCode => Object.hash(registration, products);
+}
 
 /// A leaf and the registration it belongs to — the pair the item dialog needs
 /// in order to offer "marca preferida" and "embalagem preferida" of the SAME
 /// type, without downloading the whole catalog.
-typedef TypeLeaf = ({Product product, ProductRegistration registration});
+final class TypeLeaf {
+  const TypeLeaf({required this.product, required this.registration});
+
+  final Product product;
+  final ProductRegistration registration;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TypeLeaf &&
+          other.product == product &&
+          other.registration == registration;
+
+  @override
+  int get hashCode => Object.hash(product, registration);
+}
 
 /// The five levels of the product catalog. I/O only: every conversion, every
 /// duplicate check and every validation happens in `domain/` before a method

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../routing/routes.dart';
+import 'menu_entry.dart';
 import 'pending_destinations.dart';
 
 /// The three permanent destinations of the wireframe's bottom bar.
@@ -14,10 +15,18 @@ class MainBottomBar extends StatelessWidget {
   /// The route being shown, so the bar can mark its own destination.
   final String current;
 
-  static const _destinations = <({String route, IconData icon, String label})>[
-    (route: Routes.shoppingList, icon: Icons.checklist, label: 'Lista'),
-    (route: Routes.remainingThisMonth, icon: Icons.event_note, label: 'Falta'),
-    (route: Routes.reports, icon: Icons.bar_chart, label: 'Relatórios'),
+  static const _destinations = <MenuEntry>[
+    MenuEntry(route: Routes.shoppingList, icon: Icons.checklist, label: 'Lista'),
+    MenuEntry(
+      route: Routes.remainingThisMonth,
+      icon: Icons.event_note,
+      label: 'Falta',
+    ),
+    MenuEntry(
+      route: Routes.reports,
+      icon: Icons.bar_chart,
+      label: 'Relatórios',
+    ),
   ];
 
   @override

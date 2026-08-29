@@ -144,7 +144,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
 
       return rows
           .map(
-            (row) => (
+            (row) => TypeLeaf(
               product: Product.fromJson(row),
               registration: ProductRegistration.fromJson(
                 row['product_registration'] as Map<String, dynamic>,
@@ -250,7 +250,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
           .map(Product.fromJson)
           .toIList();
 
-      return (
+      return SavedRegistration(
         registration: ProductRegistration.fromJson(
           response['registration'] as Map<String, dynamic>,
         ),

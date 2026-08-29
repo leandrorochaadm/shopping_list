@@ -8,7 +8,7 @@ import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_re
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
-import 'package:shopping_list/data/services/connectivity/online_status.dart';
+import 'package:shopping_list/ui/core/online_status.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
@@ -119,13 +119,13 @@ void main() {
         optionByPiece(id: 'prod-4', pieceCount: 12),
       ].lock;
       final history = [
-        (
+        PurchaseHistoryEntry(
           productId: 'prod-4',
           quantityInBaseUnit: 4200,
           paid: const Money(6200),
           purchasedOn: DateTime(2026, 8, 18),
         ),
-        (
+        PurchaseHistoryEntry(
           productId: 'prod-4',
           quantityInBaseUnit: 4200,
           paid: const Money(5990),
@@ -144,13 +144,13 @@ void main() {
       // The query that brought these has no `order`: ordering an embedded
       // table in PostgREST orders the children, not the parents.
       final history = [
-        (
+        PurchaseHistoryEntry(
           productId: 'prod-4',
           quantityInBaseUnit: 4200,
           paid: const Money(5990),
           purchasedOn: DateTime(2026, 7, 30),
         ),
-        (
+        PurchaseHistoryEntry(
           productId: 'prod-4',
           quantityInBaseUnit: 4200,
           paid: const Money(6200),

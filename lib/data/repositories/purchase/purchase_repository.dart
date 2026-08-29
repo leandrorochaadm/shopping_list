@@ -9,10 +9,22 @@ import '../../../domain/models/purchase.dart';
 /// A purchase and what it takes off the list — the package of ONE
 /// transaction. It is not a DTO: both halves are entities, and they travel
 /// together because the write that stores them is single.
-typedef PurchaseSubmission = ({
-  Purchase purchase,
-  IList<ListWriteOff> writeOffs,
-});
+final class PurchaseSubmission {
+  const PurchaseSubmission({required this.purchase, required this.writeOffs});
+
+  final Purchase purchase;
+  final IList<ListWriteOff> writeOffs;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PurchaseSubmission &&
+          other.purchase == purchase &&
+          other.writeOffs == writeOffs;
+
+  @override
+  int get hashCode => Object.hash(purchase, writeOffs);
+}
 
 /// One line of a past purchase, reduced to the four numbers screen 3 needs:
 /// which leaf, how much of it, what it cost, and when.
@@ -20,12 +32,32 @@ typedef PurchaseSubmission = ({
 /// Both the ordering of the picker (how many times each leaf was bought) and
 /// the pre-filled value (what the last purchase paid) are computed from this,
 /// in Dart — one round trip instead of one per product chosen (P4).
-typedef PurchaseHistoryEntry = ({
-  String productId,
-  int quantityInBaseUnit,
-  Money paid,
-  DateTime purchasedOn,
-});
+final class PurchaseHistoryEntry {
+  const PurchaseHistoryEntry({
+    required this.productId,
+    required this.quantityInBaseUnit,
+    required this.paid,
+    required this.purchasedOn,
+  });
+
+  final String productId;
+  final int quantityInBaseUnit;
+  final Money paid;
+  final DateTime purchasedOn;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PurchaseHistoryEntry &&
+          other.productId == productId &&
+          other.quantityInBaseUnit == quantityInBaseUnit &&
+          other.paid == paid &&
+          other.purchasedOn == purchasedOn;
+
+  @override
+  int get hashCode =>
+      Object.hash(productId, quantityInBaseUnit, paid, purchasedOn);
+}
 
 /// Registering a purchase, and the two reads screen 3 opens with. I/O only:
 /// the write-off is decided by `planWriteOffs`, in the domain, before a

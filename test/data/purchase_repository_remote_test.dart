@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_remote.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
@@ -73,7 +74,7 @@ void main() {
   late _MockClient client;
   late PurchaseRepositoryRemote repository;
 
-  final submission = (
+  final submission = PurchaseSubmission(
     purchase: Purchase(
       id: 'a1',
       date: DateTime(2026, 8, 18),

@@ -72,20 +72,20 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   static List<PurchaseHistoryEntry> _seedHistory() => [
     // A crate: 12 × 350 ml for R$ 62,00 — the case where a rounded price per
     // litre would answer R$ 62,04 for the very same purchase.
-    (
+    PurchaseHistoryEntry(
       productId: 'prod-4',
       quantityInBaseUnit: 4200,
       paid: const Money(6200),
       purchasedOn: DateTime(2026, 8, 18),
     ),
-    (
+    PurchaseHistoryEntry(
       productId: 'prod-4',
       quantityInBaseUnit: 4200,
       paid: const Money(5990),
       purchasedOn: DateTime(2026, 7, 30),
     ),
     // Weighed: 1,5 kg of beef.
-    (
+    PurchaseHistoryEntry(
       productId: 'prod-5',
       quantityInBaseUnit: 1500,
       paid: const Money(4500),
@@ -151,12 +151,14 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
 
     saved.add(submission);
     for (final item in submission.purchase.items) {
-      _history.add((
-        productId: item.productId,
-        quantityInBaseUnit: item.quantityInBaseUnit,
-        paid: item.paid,
-        purchasedOn: submission.purchase.date,
-      ));
+      _history.add(
+        PurchaseHistoryEntry(
+          productId: item.productId,
+          quantityInBaseUnit: item.quantityInBaseUnit,
+          paid: item.paid,
+          purchasedOn: submission.purchase.date,
+        ),
+      );
     }
     return false;
   }

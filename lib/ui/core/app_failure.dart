@@ -25,6 +25,14 @@ sealed class AppFailure {
       raw = raw.exception;
     }
 
+    // Idempotent on purpose: a failure that was already classified must
+    // survive a second trip through here. Without this line an AppFailure
+    // thrown into the state would fall through to UnexpectedFailure, and
+    // "Sem conexão" would reach the screen as the generic sentence. It sits
+    // AFTER the loop so it also catches one that arrived wrapped by a hop in
+    // the provider chain.
+    if (raw is AppFailure) return raw;
+
     if (raw is NetworkException) return const NoConnection();
     if (raw is ApiException) {
       return switch (raw.statusCode) {
