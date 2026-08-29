@@ -43,6 +43,12 @@ dependencies:
   intl: ^0.20.2
   fast_immutable_collections: ^11.2.0
   http: ^1.6.0
+  # ONLY for the browser's `online`/`offline` events, behind a conditional
+  # import — decision 22 rules out connectivity_plus, and a polling Timer
+  # would wake the WebKit up for nothing. It is already in pubspec.lock as a
+  # transitive of supabase_flutter; declaring it is what keeps
+  # `depend_on_referenced_packages` quiet, and the analyze of the CI green.
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
