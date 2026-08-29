@@ -14,15 +14,15 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 | Bloco | Itens | Bloqueia |
 |---|---|---|
 | A — Contas e aparelhos | 3 | a 1ª migration e o 1º deploy |
-| B — Decisões de schema | 5 | **as cinco respondidas em 28/08/2026** |
-| C — Perguntas de negócio | 4 | H5, H7, H11 e H13 — nenhuma trava o início |
+| B — Decisões de schema | 6 | **as seis respondidas — cinco em 28/08, a B6 na H7** |
+| C — Perguntas de negócio | 4 | **C1 respondida na H7**; restam C2, C3 e C4 |
 | D — Status dos documentos | 3 | nada; são higiene de documento |
 | E — Riscos aceitos | 2 | nada; são confirmação por escrito |
 
 **O bloco B está fechado desde 28/08/2026** — a migration base já foi escrita com as cinco
-respostas. **O que trava o próximo passo agora é só o bloco A:** sem os projetos Supabase
-(A1) nada do que está versionado chega a um banco, e sem o Cloudflare (A3) nada chega ao
-iPhone. O bloco C pode ser respondido até a história que o usa.
+respostas, e a **B6** nasceu e foi respondida ao escrever a H7 (abaixo). **O que trava o
+próximo passo agora é só o bloco A:** sem os projetos Supabase (A1) nada do que está
+versionado chega a um banco, e sem o Cloudflare (A3) nada chega ao iPhone.
 
 ---
 
@@ -262,6 +262,43 @@ reintroduzir exatamente o `R15` que esta decisão fecha.
 
 ---
 
+### B6 — Como um item SAI da lista de compras `(nasceu na H7, 28/08/2026)`
+
+Não estava em nenhum documento, e a H7 a tornou inevitável:
+`list_write_off.shopping_list_item_id` é `not null references shopping_list_item (id)`
+**sem `on delete`**. Então *"o item saiu da lista"* **não pode ser um `DELETE`** — a
+primeira compra que abatesse um item e depois tentasse removê-lo bateria na chave
+estrangeira, e apagar a linha levaria embora o rastro que a H9 desfaz.
+
+**Resposta:** as **duas** saídas da lista viram **data**, e são colunas diferentes porque
+são atos diferentes — a H9 precisa distinguir *"a compra fechou este item"* de *"alguém
+tirou este item da lista"*:
+
+| Coluna | Quem preenche | Significado |
+|---|---|---|
+| `fulfilled_on` | a função `create_purchase` | o dia da **compra** que fechou o item |
+| `removed_on` | o app, ao remover à mão | o dia em que alguém tirou o item da lista |
+
+Nulo nas duas = ainda na lista. Toda leitura da lista filtra as duas, e o índice parcial
+`shopping_list_item_open_idx` documenta essa intenção tanto quanto a serve.
+
+**O saldo NÃO ganhou coluna:** `remainingQuantity = quantity − Σ list_write_off` é
+calculado em Dart. É o que faz o desfazer da H9 ser "apagar os write-offs e limpar a
+data", sem recalcular número nenhum — duas fontes para o mesmo número divergem no primeiro
+erro.
+
+**E o `check` de `list_write_off` foi relaxado para `>= 0`**, nunca menos: um item **sem
+quantidade** nunca pediu quantidade nenhuma, então ele recebe uma linha de rastro valendo
+**zero** e é fechado por ela. Sem essa linha, `fulfilled_on` seria inalcançável — é dos
+write-offs que ele sai. Deixar o item sem quantidade engolir *"tudo o que sobrou"* — a
+primeira versão do plano — inflaria o rastro e roubaria dos itens quantificados do mesmo
+tipo.
+
+Onde mora: `supabase/migrations/20260828130000_purchase_write.sql` e
+`lib/domain/models/write_off_plan.dart`.
+
+---
+
 ## C. Perguntas de negócio `(handoff §13)`
 
 As quatro que os requisitos deixaram abertas. **Nenhuma trava o início** — cada uma pode
@@ -276,7 +313,25 @@ desempata**, nem se o seletor **lista todos os produtos ou só os do tipo já em
 **Por que importa:** é o campo mais tocado do app e o primeiro dos três toques por item —
 mexe direto na meta de 2 minutos.
 
-**Resposta:** janela ` ` · desempate ` ` · lista ( ) todos ( ) só os do tipo
+**Resposta (28/08/2026, ao escrever a H7):** **um campo só, com busca por trecho do
+nome**, sem diferenciar maiúscula, minúscula nem acento — a mesma normalização da trava de
+duplicidade, aplicada dos dois lados e depois `contains`. A busca olha tipo, marca,
+descrição **e embalagem**, então `lei` acha todo leite, `italac` acha pela marca e `350`
+acha pela prateleira.
+
+- **janela:** os **últimos 3 meses de calendário**, contados do relógio do aparelho
+  (`threeMonthsBefore`, no ViewModel — nenhum `now()` no SQL);
+- **desempate:** o **mais comprado** primeiro; empate vai para o **comprado mais
+  recentemente**; e só então alfabético pelo nome normalizado, com o id fechando a ordem
+  para ela não oscilar entre duas leituras;
+- **lista:** **todos** os produtos ativos, **agrupados por tipo**, com o tipo mais comprado
+  abrindo a lista. Uma ordenação plana colocaria um refrigerante entre dois leites.
+
+**Nada de `★` na tela:** a notação dos wireframes reserva o símbolo para o painel `#3a`
+(melhor custo), que é H19. A contagem **ordena e não informa** — ela não vai para a tela.
+
+Onde mora: `compareForPicker` e `groupForPicker`, em
+`lib/domain/models/product_option.dart`, com teste por critério.
 
 ---
 
@@ -326,11 +381,14 @@ abertas** e por isso passam despercebidas.
   isso era verdade em 26/08. Em 27/08 os requisitos reabriram quatro perguntas e **duas
   são de tela**: C1 (ordem do seletor de Produto, Tela 3) e C3 (ordem dentro da categoria,
   Tela 1). **Ação:** responder C1 e C3 e publicar a v2.1. `[ ] feito`
-- **D3 — O texto da Tela 3 promete mais do que a plataforma entrega.** "Esta compra será
-  salva quando o sinal voltar" — o WebKit não tem Background Sync, então isso só acontece
-  com **o app aberto** ou **na abertura seguinte** (`R16`). O risco está aceito por
-  escrito, mas o texto não se ajustou. **Decisão:** ( ) ajustar o texto agora
-  ( ) medir nos dois aparelhos primeiro
+- **D3 — `[x]` O texto da Tela 3 promete mais do que a plataforma entrega.** "Esta compra
+  será salva quando o sinal voltar" — o WebKit não tem Background Sync, então isso só
+  acontece com **o app aberto** ou **na abertura seguinte** (`R16`).
+  **Decidido em 28/08/2026: ajustado agora.** A faixa passou a dizer *"Sem conexão. Esta
+  compra está guardada no aparelho e será salva quando você abrir o app com sinal."*, e o
+  botão virou `[ Salvar quando eu abrir com sinal ]`. O app **continua reenviando sozinho
+  com o app aberto** — o que a frase não promete e o app faz a mais, que é o lado certo do
+  erro. `[x] feito`
 
 ---
 

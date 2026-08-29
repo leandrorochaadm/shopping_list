@@ -40,6 +40,7 @@ com `IList<T>`, não `List<T>`.
 | `fast_immutable_collections` | `IList` — **acréscimo à lista congelada**, ver "Divergências" |
 | `http` | só pelo `ClientException`: o `postgrest` fala por ele e é assim que falha de transporte chega |
 | `flutter_localizations` | os delegates pt-BR do Material. Vem do SDK — **acréscimo à lista congelada**, ver "Divergências" |
+| `web` | só os eventos `online`/`offline` do navegador, atrás de um *conditional import* — **acréscimo à lista congelada**, ver "Divergências" |
 
 Em desenvolvimento: `flutter_test`, `mocktail`, `flutter_lints` ^6.0.0.
 
@@ -104,6 +105,12 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | preferência da lista | `listPreference` | marca e embalagem desejadas. **Não mandam na baixa** |
 | não encontrei | `notFound` | mora no diálogo do item; volta se a compra for apagada |
 | lançar a compra | `Purchase` / `PurchaseItem` | produto, quantidade e **valor total pago** |
+| dinheiro | `Money` | value object fino sobre `int cents`. **Nunca `double`** (`R15`) |
+| opção do seletor de Produto | `ProductOption` | folha + cadastro + tipo + marca, mais a contagem e o preço de referência. Carrega a regra do C1 |
+| preço da última compra | `PriceReference` | o **par** (valor pago, quantidade), nunca um preço por unidade arredondado |
+| baixa da lista | `ListWriteOff` / `planWriteOffs` | o rastro do que a compra tirou da lista, e a regra pura que o decide |
+| rascunho da compra | `PurchaseDraft` | a compra sendo digitada, no Hive. Sobrevive a app fechado |
+| compra pendente | `pendingSubmission` | salva sem sinal; sobe sozinha com o app aberto ou na abertura seguinte |
 | saldo do item | `remainingQuantity` | "restam 2 de 6 kg" — esse tira o item da lista |
 | teto de gasto | `spendingCap` | valor máximo pretendido no mês |
 | quem está usando | `deviceUser` | etiqueta local do aparelho. **Não é conta nem login** |
@@ -313,6 +320,8 @@ vigor no código** — não reabrir sem o usuário pedir.
 | Localização | `tecnico §3`: cinco pacotes, "nada além disso" | **`flutter_localizations` entra**, do SDK do Flutter | `intl` formata data e moeda, mas não traduz widget nenhum: sem os delegates o `showDatePicker` e os tooltips do Material saem em inglês dentro de uma tela pt-BR |
 | Tratamento de erro | `tecnico §3.11`: `Result<T>` selado atravessando as camadas | **`AsyncValue` + `AppFailure`**; sem `Result` | regra 15 — `Result` só com gatilho observado (`Stream` que sobrevive ao erro, `Notifier<State>` próprio) |
 | `analysis_options.yaml` | `tecnico §3.13`: o padrão do `flutter_lints` | **mantido o padrão** | a skill sugere 3 lints extras; a decisão congelada vence, e a diferença é irrelevante |
+| Detecção de conexão | `tecnico §3`: cinco pacotes, "nada além disso" | **`web` entra**, como 3ª adição | a decisão 22 proíbe `connectivity_plus`, e os eventos `online`/`offline` vêm do `package:web`. Ele já era `transitive`; declará-lo é o que cala o lint `depend_on_referenced_packages`. Fica atrás de um *conditional import*, para a VM do `flutter test` nunca o compilar |
+| Valor pré-preenchido na Tela 3 | `handoff §H7`: "quantidade convertida × preço da unidade base da última compra" | **regra de três inteira**: `pago × quantidadeNova ÷ quantidadeAnterior`, meio-para-cima | as duas fórmulas são a mesma **antes** do arredondamento, e só esta não erra: 12 L por R$ 62,00 são R$ 5,1667/L, que arredondados para 517 centavos devolvem **R$ 62,04** para a mesma compra |
 
 Adaptações menores, já aplicadas:
 
@@ -343,8 +352,14 @@ registradas; a que ainda não tem tela aponta para `UnderConstructionScreen`, qu
 história a entrega. **Cada história troca uma entrada do router pela tela real** — e
 `UnderConstructionScreen` é apagada quando a última tela existir.
 
-`/` é a Tela 1. `/purchases/new` é declarada **antes** de `/purchases/:id/edit`: o
-`go_router` casa na ordem, e senão `new` viraria um id.
+`/` é a Tela 1. `/purchases/new` é a Tela 3, e é declarada **antes** de
+`/purchases/:id/edit`: o `go_router` casa na ordem, e senão `new` viraria um id.
+
+`/products/new` é a única rota que lê `state.extra`, e é um `bool`: a Tela 3 a abre com
+`context.push(Routes.newProduct, extra: true)` para pedir a folha escolhida **de volta**,
+em vez de a Tela 4 navegar para a lista. Quem chega pelo menu não passa nada e cai no
+`false`. **`push`, nunca `go`:** `go` trocaria a rota e levaria embora a Tela 3 com a
+compra digitada nela.
 
 **Nenhuma rota é protegida** — não há sessão. O único `redirect` do app nasce na **H1**:
 enquanto a etiqueta de `deviceUser` não estiver no Hive, toda rota cai em `/welcome`.
@@ -373,14 +388,24 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 28/08/2026**, ao fim do plano `temp/plan/plano-fundacao-e-entrega-1-2026-08-27.md`
-(**passos 1 a 15, 17 a 21, 23 e 24 dos 25**). `flutter analyze` limpo, **271 testes
-verdes**, cobertura de linha **92,2%**.
+**Atualizado em 28/08/2026**, ao fim do plano
+`temp/plan/plano-h7-h8-lancar-compra-2026-08-28.md` (**os 28 passos**). `flutter analyze`
+limpo, **559 testes verdes**, cobertura de linha **85,4%**. Antes dele vieram a Entrega 1
+(`plano-fundacao-e-entrega-1-2026-08-27.md`) e a Entrega 2
+(`plano-entrega-2-lista-no-corredor-2026-08-28.md`).
+
+**A cobertura está ABAIXO do piso de 90% do `deploy.yml`, e a dívida é toda de dois
+arquivos:** `ui/shopping_list/widgets/item_dialog.dart` (0 de 140 linhas) e
+`add_item_panel.dart` (1 de 137) — os dois da Entrega 2, sem teste de widget nenhum. Sem
+eles o projeto está em **92,8%**, e os arquivos da H7/H8 ficaram em ~97% (o domínio inteiro
+em 100%). **O CI reprova enquanto esses dois não tiverem teste**, e é a primeira coisa a
+fazer antes do primeiro push.
 
 **Existe:** o esqueleto — `pubspec` (com o Flutter 3.44.0 pinado), `config/`, `routing/`
 com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 claro,
-`MessageView`, `AppFailure`, tradução de erro, `SingleFieldDialog`), `data/services/`
-(exceções e o tradutor do Supabase) — e três features inteiras:
+`MessageView`, `AppFailure`, tradução de erro, `SingleFieldDialog`, `formatting.dart`),
+`data/services/` (exceções, o tradutor do Supabase e a detecção de online/offline) — e
+**seis telas** de onze:
 
 - **H1 — `DeviceUser`:** `device_user_repository` (abstract + `_local` + `_hive`),
   `DeviceUserViewModel`, a tela de boas-vindas, uma `/settings` mínima e o **único
@@ -392,7 +417,18 @@ com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 c
   diálogos que ela abre (categoria, marca e o mini-cadastro de tipo).
 - **H3 — mercados:** `Store`, `store_repository` (abstract + `_local` + `_remote`),
   `StoreViewModel` e o `NewStoreDialog`. **Sem tela própria** — o diálogo mora dentro da
-  Tela 3, que é da H7; até lá quem prova que funciona é o teste.
+  Tela 3, e é ela quem finalmente o abre.
+- **H4/H5/H6 — a lista no corredor (Entrega 2):** `ShoppingListItem`, `groupByCategory`,
+  `calendar_day.dart`, `uuid.dart`, o `shopping_list_repository` (abstract + `_local` +
+  `_remote`, este com o canal Realtime e o descarte do próprio eco), o
+  `ShoppingListViewModel`, o `PendingChangesNotifier` e a **Tela 1** com o painel `#1a` e
+  o diálogo do item.
+- **H7/H8 — lançar a compra (Entrega 3):** o domínio novo (`Money`, `PriceReference`,
+  `ProductOption`, `Purchase`, `PurchaseItem`, `ListWriteOff`, `planWriteOffs`,
+  `PurchaseDraft`), o `purchase_repository` e o `purchase_draft_repository`, os três
+  ViewModels (`NewPurchaseViewModel`, `PurchaseDraftViewModel`,
+  `PendingPurchaseSubmitter`) e a **Tela 3** — que é também quem abre o `NewStoreDialog`
+  da H3 e quem manda a Tela 4 devolver a folha escolhida.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -504,10 +540,16 @@ faz `lower(trim(unaccent(...)))` — os dois concordam, então o app não promet
 banco recusa, mas "Café  Pilão" com dois espaços é um cadastro diferente de
 "Café Pilão".
 
-**Os dois `_remote` continuam cobertos por `mocktail` na suíte**, e o que
-`test/data/catalog_repository_remote_test.dart` fixa é o inviolável que falha em
-silêncio: **todo método fecha em `rethrowAsKnownFailure`**, e o SQLSTATE `23505` vira 409
-em vez de "status 23505" lido como `>= 500`. São 13 métodos, um teste cada.
+**Os `_remote` continuam cobertos por `mocktail` na suíte**, e o que
+`test/data/catalog_repository_remote_test.dart` e os seus dois irmãos fixam é o inviolável
+que falha em silêncio: **todo método fecha em `rethrowAsKnownFailure`**, e o SQLSTATE
+`23505` vira 409 em vez de "status 23505" lido como `>= 500`. Um teste por método.
+
+No `purchase_repository_remote_test.dart` há uma armadilha a mais, e ela custa meia hora:
+**`client.rpc` não devolve um `Future`** — devolve um `PostgrestFilterBuilder`, que apenas
+*implementa* um. `thenAnswer((_) async => …)` não compila, e o caminho de sucesso precisa
+de um dublê cujo `then` seja o que o `await` alcança. Só os casos de FALHA se resolvem com
+`thenThrow`.
 
 Isso não mudou com o `tool/local_dev/`, e a razão é uma armadilha que custa uma tarde:
 **`flutter_test` instala um `HttpOverrides` que responde 400 a toda requisição**. Um teste
@@ -528,23 +570,68 @@ caminho se resolve. Ou seja, o "no pior caso imprime uma linha no console" daque
 comentário é mais otimista do que o observado. Se um dia a
 `MisconfiguredApp.storageUnavailable()` aparecer sem explicação, **comece por aqui**.
 
-**Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e
-nenhuma das outras oito telas. O que trava cada um está em
-`docs/pendencias-lista-de-compras.md`: **o bloco B está fechado** (as cinco decisões
-foram respondidas em 28/08/2026 e já estão no schema), e o que resta é o **bloco A** —
-contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
+**Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e as
+outras cinco telas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
+bloco B está fechado** (as cinco decisões de 28/08 mais a **B6**, que nasceu na H7), a
+**C1** e a **D3** foram respondidas na H7, e o que resta é o **bloco A** — contas do
+Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
+
+**Duas migrations esperam um banco hospedado**, não uma: a
+`20260828130000_purchase_write.sql` da H7 acrescenta `fulfilled_on` e `removed_on` a
+`shopping_list_item`, relaxa o `check` de `list_write_off` para `>= 0` e cria a função
+transacional `create_purchase`. Os casos a exercitar estão em
+`supabase/checks/purchase_write_cases.sql`, escritos para rodar num Postgres 17
+descartável — **ainda não executados**, porque o A1 continua aberto.
 
 **A rota `/spike` e `lib/ui/spike/` são descartáveis:** existem para a medição S1 no
 iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 estiver
 respondida (passo 25 do plano).
 
-**A próxima entrega:** os dois passos que dependem de você — publicar e medir a digitação
-no iPhone 12 (passo 16, precisa de A1, A2 e A3) e aplicar o schema no `dev` (passo 22,
-precisa de A1) —, e depois a **Entrega 2** (H4, H5, H6: a lista no corredor, o canal
-Realtime e o diálogo do item).
+**A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
+iPhone 12 (precisa de A1, A2 e A3) e aplicar as migrations no `dev` (precisa de A1) —, e
+depois a **H9** (corrigir e apagar compra), que é quem desfaz o rastro que a H7 grava.
+
+**Dois critérios de aceite da H7 ficaram deliberadamente de fora**, e estão registrados
+para não sumirem: abrir a Tela 3 **a partir de um item da lista**, com a embalagem
+preferida já escolhida (falta só a navegação da Tela 1 para a Tela 3, com o item como
+`extra`), e o alerta de alta de preço `⚠`, que é a **H15**.
 
 **Uma decisão tomada ao escrever a Tela 4, e registrada aqui porque muda texto de
 usuário:** `Packaging.label` **não escreve o "1 ×" da embalagem de peça única** —
 "350 ml", não "1 × 350 ml" —, porque é esse o nome da prateleira que se procura no
 lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais ele volta:
 "12 × 350 ml".
+
+---
+
+## Três armadilhas que a H7 revelou, e que custam caro de redescobrir
+
+**1. O item do rascunho carrega a folha INTEIRA, não o id dela.** `PurchaseItem` guarda o
+`ProductOption` completo, e o `toDraftJson` o serializa junto. O motivo é o critério de
+aceite da H8: um rascunho recuperado em modo avião tem de **desenhar e reabrir as suas
+linhas sem rede nenhuma**, e um id exigiria procurar o produto num catálogo que nunca
+carregou. É também o que faz o reenvio automático funcionar com a Tela 3 nunca aberta — o
+tipo de cada item já está na mão, então a baixa da lista não depende do catálogo.
+
+**2. "Rascunho recuperado" é uma pergunta sobre a SESSÃO, não sobre a compra.** Ela não
+cabe na entidade: o mesmo rascunho gravado tem de ser lido como *"nasceu agora"* pela
+sessão que o escreveu e como *"recuperado"* pela seguinte. E não pode ser recalculada do
+Hive, porque depois da primeira linha digitada **sempre** há um rascunho lá. Por isso são
+duas peças: `recoveredDraftProvider`, respondido uma vez na primeira `build()` do
+`PurchaseDraftViewModel` e **consumido** quando a compra é salva ou descartada; e
+`PurchaseDraft.bannerDismissed`, **persistido**, porque o ViewModel é recriado toda vez
+que a etiqueta do aparelho muda e uma dispensa que vivesse na memória traria a faixa de
+volta junto.
+
+**3. `MessageView` dentro de um `ListView` estourava.** O widget mede
+`constraints.maxHeight` para preencher a viewport, e um `ListView` entrega altura
+**infinita** aos filhos — `BoxConstraints forces an infinite height`. Ele agora detecta o
+caso e devolve só o texto: já está dentro de um rolável, e um segundo
+`SingleChildScrollView` ali engoliria o pull-to-refresh de fora, que é a razão de ele
+existir.
+
+**E uma do `flutter_test`, que trava por dez minutos em vez de falhar:** dentro de
+`testWidgets` o relógio é falso, então o `Future.delayed(Duration.zero)` da latência dos
+fakes **só dispara quando um frame é bombeado COM duração**. `await repository.add(...)`
+antes de um `pump` é um deadlock; `await tester.pump()` sem duração não resolve — precisa
+ser `pump(const Duration(milliseconds: 1))`.
