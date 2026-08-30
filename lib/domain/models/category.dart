@@ -18,6 +18,8 @@ final class Category implements CatalogEntry {
   );
 
   /// Null before the row exists — the database generates it.
+  @override
+  @override
   final String? id;
 
   @override

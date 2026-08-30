@@ -51,6 +51,7 @@ ShoppingListItem _item({
   bool picked = false,
   bool notFound = false,
   int writtenOffQuantity = 0,
+  int writeOffCount = 0,
   DateTime? fulfilledOn,
   DateTime? removedOn,
 }) => ShoppingListItem(
@@ -64,6 +65,7 @@ ShoppingListItem _item({
   picked: picked,
   notFound: notFound,
   writtenOffQuantity: writtenOffQuantity,
+  writeOffCount: writeOffCount,
   fulfilledOn: fulfilledOn,
   removedOn: removedOn,
 );
@@ -435,12 +437,164 @@ void main() {
       // Riverpod filters an update with `==`.
       expect(_item(), _item());
       expect(_item(), isNot(_item(writtenOffQuantity: 1)));
+      // Without this case the new field could stay out of the `==` with
+      // nothing to say so — and screen 1 would not repaint after a
+      // correction that touched only the trail.
+      expect(_item(), isNot(_item(writeOffCount: 1)));
       expect(_item(), isNot(_item(fulfilledOn: DateTime(2026, 8, 30))));
       expect(_item(), isNot(_item(removedOn: DateTime(2026, 8, 30))));
       expect(
         _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode,
         _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode,
       );
+    });
+  });
+
+  group('the trail count — H9', () {
+    test('reads the SIZE of the embed beside its sum', () {
+      final item = ShoppingListItem.fromJson({
+        'id': 'item-1',
+        'quantity': 6000,
+        'entered_on': '2026-08-28',
+        'product_type': {
+          'id': 'type-1',
+          'name': 'Leite',
+          'category_id': 'cat-1',
+          'base_unit': 'liter',
+          'category': {'id': 'cat-1', 'name': 'Bebidas'},
+        },
+        'list_write_off': [
+          {'quantity_written_off': 2000},
+          {'quantity_written_off': 0},
+        ],
+      });
+
+      expect(item.writtenOffQuantity, 2000);
+      // The zero row counts: it is what closes an item with no quantity, and
+      // the count is the only thing that knows it is there (D6).
+      expect(item.writeOffCount, 2);
+    });
+
+    test('no embed at all is zero of both', () {
+      final item = ShoppingListItem.fromJson({
+        'id': 'item-1',
+        'quantity': 6000,
+        'entered_on': '2026-08-28',
+        'product_type': {
+          'id': 'type-1',
+          'name': 'Leite',
+          'category_id': 'cat-1',
+          'base_unit': 'liter',
+          'category': {'id': 'cat-1', 'name': 'Bebidas'},
+        },
+      });
+
+      expect(item.writtenOffQuantity, 0);
+      expect(item.writeOffCount, 0);
+    });
+  });
+
+  group('the transitions of H9 (rule 7)', () {
+    test('a purchase closes the line on the RECEIPT\'s day', () {
+      final closed = _item().fulfilledBy(DateTime(2026, 8, 18, 23, 59));
+
+      // Rounded to the day, so an instant carrying an hour never breaks the
+      // `==` of a line that did not change (rule 9).
+      expect(closed.fulfilledOn, DateTime(2026, 8, 18));
+      expect(closed.isOpen, isFalse);
+    });
+
+    test('the undo reopens it — and `copyWith` could not', () {
+      final closed = _item(fulfilledOn: DateTime(2026, 8, 18));
+
+      expect(closed.restoredToList().fulfilledOn, isNull);
+      expect(closed.restoredToList().isOpen, isTrue);
+      // `copyWith(fulfilledOn: null)` keeps what is there, which is exactly
+      // why the transition is written against the factory.
+      expect(closed.copyWith().fulfilledOn, DateTime(2026, 8, 18));
+    });
+
+    test('the undo does NOT resurrect a line removed by hand — D1', () {
+      final both = _item(
+        fulfilledOn: DateTime(2026, 8, 18),
+        removedOn: DateTime(2026, 8, 20),
+      );
+
+      final back = both.restoredToList();
+      expect(back.fulfilledOn, isNull);
+      expect(back.removedOn, DateTime(2026, 8, 20));
+      expect(back.isOpen, isFalse);
+    });
+
+    test('everything else survives the trip', () {
+      final closed = _item(
+        brand: _brand,
+        product: _packagedLeaf(),
+        picked: true,
+        notFound: true,
+        writtenOffQuantity: 2000,
+        writeOffCount: 3,
+        fulfilledOn: DateTime(2026, 8, 18),
+      );
+
+      final back = closed.restoredToList();
+      expect(back.preferredBrand, _brand);
+      expect(back.preferredProduct, _packagedLeaf());
+      expect(back.picked, isTrue);
+      expect(back.notFound, isTrue);
+      expect(back.writtenOffQuantity, 2000);
+      expect(back.writeOffCount, 3);
+      expect(back.enteredOn, closed.enteredOn);
+    });
+  });
+
+  group('the preference falls when the catalog row is deactivated — D7', () {
+    test('an active brand and packaging are the effective ones', () {
+      final item = _item(brand: _brand, product: _packagedLeaf());
+
+      expect(item.effectivePreferredBrand, _brand);
+      expect(item.effectivePreferredProduct, _packagedLeaf());
+      expect(item.effectiveLabel, 'Leite Italac 1 L');
+    });
+
+    test('a deactivated brand falls SILENTLY, with no write at all', () {
+      final item = _item(
+        brand: Brand(id: 'brand-1', name: 'Italac', active: false),
+        product: _packagedLeaf(),
+      );
+
+      expect(item.effectivePreferredBrand, isNull);
+      // The stored preference is untouched — it comes back the day the brand
+      // is reactivated, which is better than what the requirement asked for.
+      expect(item.preferredBrand, isNotNull);
+      expect(item.effectiveLabel, 'Leite 1 L');
+    });
+
+    test('a deactivated packaging falls the same way', () {
+      final item = _item(
+        brand: _brand,
+        product: _packagedLeaf().deactivated(),
+      );
+
+      expect(item.effectivePreferredProduct, isNull);
+      expect(item.effectiveLabel, 'Leite Italac');
+    });
+
+    test('with both gone the line is the type, and nothing else', () {
+      final item = _item(
+        brand: Brand(id: 'brand-1', name: 'Italac', active: false),
+        product: _packagedLeaf().deactivated(),
+      );
+
+      expect(item.effectiveLabel, 'Leite');
+      // The stored label still says everything: only the READ changed.
+      expect(item.label, 'Leite Italac 1 L');
+    });
+
+    test('a line with no preference reads the same either way', () {
+      expect(_item().effectiveLabel, 'Leite');
+      expect(_item().effectivePreferredBrand, isNull);
+      expect(_item().effectivePreferredProduct, isNull);
     });
   });
 }

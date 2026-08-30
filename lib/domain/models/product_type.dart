@@ -43,6 +43,7 @@ final class ProductType implements CatalogEntry {
     active: json['active'] as bool? ?? true,
   );
 
+  @override
   final String? id;
 
   @override

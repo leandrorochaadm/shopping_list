@@ -71,6 +71,35 @@ final class Purchase {
       ),
   ].toIList();
 
+  /// Correcting the header and the lines (H9), and it is a TRANSITION on the
+  /// entity rather than a `copyWith(storeId: ...)` spread around a ViewModel
+  /// (rule 7). The id and [registeredBy] are the two things it cannot touch:
+  /// the id is what the trail points at, and who registered a purchase is a
+  /// historical fact a correction never rewrites.
+  ///
+  /// The future-date rule is still [checkDate], asked before this is called —
+  /// a transition is not the place for a clock (rule 9).
+  Purchase correctedTo({
+    DateTime? date,
+    String? storeId,
+    IList<PurchaseItem>? items,
+  }) => Purchase(
+    id: id,
+    date: date ?? this.date,
+    storeId: storeId ?? this.storeId,
+    registeredBy: registeredBy,
+    items: items ?? this.items,
+  );
+
+  /// ONLY the three columns the correction writes. `registered_by` is left
+  /// out on purpose — see [correctedTo] — and the items travel apart, in
+  /// `p_items`, because `update_purchase` takes them as its second argument.
+  Map<String, dynamic> toCorrectionJson() => {
+    'id': id,
+    'purchase_date': encodeCalendarDay(date),
+    'store_id': storeId,
+  };
+
   /// ONLY the four columns of the `purchase` table — the items travel apart,
   /// in `p_items`, because the transactional function takes them as its
   /// second argument. The date leaves through `encodeCalendarDay`, never

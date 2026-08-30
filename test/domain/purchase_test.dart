@@ -382,6 +382,58 @@ void main() {
     });
   });
 
+  group('correcting a purchase — H9', () {
+    test('changes the date, the store and the lines, and nothing else', () {
+      final original = Purchase(
+        id: 'a1',
+        date: DateTime(2026, 8, 18),
+        storeId: 'store-1',
+        registeredBy: 'Leandro',
+        items: [purchaseItem(id: 'i1', option: crate)].lock,
+      );
+
+      final corrected = original.correctedTo(
+        date: DateTime(2026, 8, 19),
+        storeId: 'store-2',
+      );
+
+      expect(corrected.date, DateTime(2026, 8, 19));
+      expect(corrected.storeId, 'store-2');
+      // The id is what the trail points at, and who registered a purchase is
+      // a historical FACT a correction never rewrites.
+      expect(corrected.id, 'a1');
+      expect(corrected.registeredBy, 'Leandro');
+      expect(corrected.items, original.items);
+    });
+
+    test('correcting nothing gives an equal purchase back', () {
+      final original = Purchase(
+        id: 'a1',
+        date: DateTime(2026, 8, 18),
+        storeId: 'store-1',
+        registeredBy: 'Leandro',
+      );
+
+      expect(original.correctedTo(), original);
+    });
+
+    test('the correction payload leaves registered_by OUT', () {
+      final json = Purchase(
+        id: 'a1',
+        date: DateTime(2026, 8, 18),
+        storeId: 'store-1',
+        registeredBy: 'Leandro',
+      ).toCorrectionJson();
+
+      expect(json, {
+        'id': 'a1',
+        'purchase_date': '2026-08-18',
+        'store_id': 'store-1',
+      });
+      expect(json.containsKey('registered_by'), isFalse);
+    });
+  });
+
   group('PurchasedAmount', () {
     PurchasedAmount amount({
       String item = 'pi-1',

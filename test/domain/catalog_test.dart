@@ -35,6 +35,30 @@ void main() {
       expect(conflict.reactivated().active, isTrue);
     });
 
+    test('IGNORES the row being renamed — D8', () {
+      // Without `ignoringId`, correcting "Carrefur" to "Carrefour" (or just
+      // an accent, on the very same row) would report a conflict with itself
+      // and renaming would be impossible.
+      final existing = [
+        Store(id: '1', name: 'Carrefour'),
+        Store(id: '2', name: 'Feira do Zé'),
+      ];
+
+      expect(findNameConflict(existing, 'Carrefour', ignoringId: '1'), isNull);
+      // Another row with that name is still a conflict.
+      expect(
+        findNameConflict(existing, 'Carrefour', ignoringId: '2')?.id,
+        '1',
+      );
+      // And creating passes nothing, so every row counts.
+      expect(findNameConflict(existing, 'carrefour')?.id, '1');
+    });
+
+    test('an ignoringId that matches nobody changes nothing', () {
+      final existing = [Store(id: '1', name: 'Carrefour')];
+      expect(findNameConflict(existing, 'Carrefour', ignoringId: 'x')?.id, '1');
+    });
+
     test('finds nothing for a blank candidate', () {
       // A blank name is refused by the entity, not by the guard — answering
       // "already exists" here would be the wrong sentence.

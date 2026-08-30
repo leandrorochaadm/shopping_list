@@ -137,6 +137,7 @@ ShoppingListItem listItem({
   bool picked = false,
   bool notFound = false,
   int writtenOffQuantity = 0,
+  int writeOffCount = 0,
   DateTime? fulfilledOn,
   DateTime? removedOn,
 }) => ShoppingListItem(
@@ -148,6 +149,7 @@ ShoppingListItem listItem({
   picked: picked,
   notFound: notFound,
   writtenOffQuantity: writtenOffQuantity,
+  writeOffCount: writeOffCount,
   fulfilledOn: fulfilledOn,
   removedOn: removedOn,
 );

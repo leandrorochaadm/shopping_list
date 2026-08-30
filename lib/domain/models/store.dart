@@ -18,6 +18,7 @@ final class Store implements CatalogEntry {
     active: json['active'] as bool? ?? true,
   );
 
+  @override
   final String? id;
 
   @override

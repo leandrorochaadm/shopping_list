@@ -29,6 +29,7 @@ final class ShoppingListItem {
     bool picked = false,
     bool notFound = false,
     int writtenOffQuantity = 0,
+    int writeOffCount = 0,
     DateTime? fulfilledOn,
     DateTime? removedOn,
   }) {
@@ -47,6 +48,7 @@ final class ShoppingListItem {
       picked: picked,
       notFound: notFound,
       writtenOffQuantity: writtenOffQuantity,
+      writeOffCount: writeOffCount,
       fulfilledOn: fulfilledOn == null ? null : dayOf(fulfilledOn),
       removedOn: removedOn == null ? null : dayOf(removedOn),
     );
@@ -63,6 +65,7 @@ final class ShoppingListItem {
     required this.picked,
     required this.notFound,
     required this.writtenOffQuantity,
+    required this.writeOffCount,
     required this.fulfilledOn,
     required this.removedOn,
   });
@@ -90,6 +93,9 @@ final class ShoppingListItem {
       // the first mistake. Summing dozens of rows in Dart is not a cost;
       // `handoff §7` sizes the whole list in the dozens.
       writtenOffQuantity: _sumWriteOffs(json['list_write_off']),
+      // The SIZE of the same embed the line above sums. Two numbers out of
+      // one read, because H9 needs both — see [writeOffCount].
+      writeOffCount: _countWriteOffs(json['list_write_off']),
       fulfilledOn: _dayOrNull(json['fulfilled_on']),
       removedOn: _dayOrNull(json['removed_on']),
     );
@@ -97,6 +103,9 @@ final class ShoppingListItem {
 
   static DateTime? _dayOrNull(Object? value) =>
       value == null ? null : decodeCalendarDay(value as String);
+
+  static int _countWriteOffs(Object? embed) =>
+      embed is List ? embed.length : 0;
 
   static int _sumWriteOffs(Object? embed) {
     if (embed is! List) return 0;
@@ -138,6 +147,16 @@ final class ShoppingListItem {
   /// The sum of `list_write_off.quantity_written_off` for this line, read
   /// from the embed. It is what [remainingQuantity] subtracts.
   final int writtenOffQuantity;
+
+  /// How many trail rows point at this line — the SIZE of the embed
+  /// [writtenOffQuantity] takes its sum from.
+  ///
+  /// It exists because of the item with NO quantity: it is closed by a row
+  /// worth zero (rule 3a of `planWriteOffs`), so the sum does not move when
+  /// that row is deleted and only the COUNT can say the item has to reopen.
+  /// That is half of the derivation H9 does instead of reading a `fulfills`
+  /// flag that was never stored (D6).
+  final int writeOffCount;
 
   /// The day a PURCHASE closed this line (decision B6). Null is "still on the
   /// list". It is a date and not a DELETE because `list_write_off` has a
@@ -184,6 +203,34 @@ final class ShoppingListItem {
   ShoppingListItem markedRemoved(DateTime day) =>
       copyWith(removedOn: dayOf(day));
 
+  /// A purchase closed this line, on the day printed on the receipt — never
+  /// on today's (decision 25).
+  ShoppingListItem fulfilledBy(DateTime purchaseDay) =>
+      copyWith(fulfilledOn: dayOf(purchaseDay));
+
+  /// The way back: H9 undoing the purchase that had closed it.
+  ///
+  /// `copyWith` cannot express this — `fulfilledOn ?? this.fulfilledOn` keeps
+  /// what is there — so the transition is written against the factory, which
+  /// is also why it is a method and not a `copyWith` spread around a
+  /// ViewModel (rule 7). **`removedOn` is deliberately carried over**: a line
+  /// this purchase closed and that someone then removed by hand stays
+  /// removed, and that is the whole reason the two columns are separate (D1).
+  ShoppingListItem restoredToList() => ShoppingListItem(
+    id: id,
+    type: type,
+    category: category,
+    preferredBrand: preferredBrand,
+    preferredProduct: preferredProduct,
+    quantity: quantity,
+    enteredOn: enteredOn,
+    picked: picked,
+    notFound: notFound,
+    writtenOffQuantity: writtenOffQuantity,
+    writeOffCount: writeOffCount,
+    removedOn: removedOn,
+  );
+
   /// Still on the list: neither bought nor removed by hand. It is the filter
   /// every read of the list uses, and the partial index in the schema mirrors
   /// it — a query that forgets one half makes a bought item reappear in the
@@ -206,6 +253,32 @@ final class ShoppingListItem {
   /// other person has just asked for.
   bool canBeClearedBy(DateTime purchaseDay) =>
       !enteredOn.isAfter(dayOf(purchaseDay));
+
+  /// The preference falls SILENTLY when its catalog row is deactivated
+  /// (requirement 16) — on the READ, with no second write to undo, and it
+  /// comes back on its own the day the brand is reactivated (D7).
+  Brand? get effectivePreferredBrand =>
+      preferredBrand?.active == true ? preferredBrand : null;
+
+  /// The same for the packaging, and it looks at the LEAF's own flag only.
+  ///
+  /// `handoff §H10` also says deactivating a registration takes its leaves
+  /// with it, and that half is `Product.isEffectivelyActiveIn` — it needs the
+  /// registration, which this line does not carry and has no reason to: the
+  /// maintenance screen (H10) is where both are in hand, and there the write
+  /// deactivates the leaves along with the registration.
+  Product? get effectivePreferredProduct =>
+      preferredProduct?.active == true ? preferredProduct : null;
+
+  /// What the line writes once the deactivated preferences have fallen: it is
+  /// [label] asked of the EFFECTIVE preferences, so "Leite Italac 1 L"
+  /// becomes "Leite" the moment the Italac is deactivated.
+  String get effectiveLabel => [
+    type.name,
+    if (effectivePreferredBrand != null) effectivePreferredBrand!.name,
+    if (effectivePreferredProduct?.packaging != null)
+      effectivePreferredProduct!.packaging!.label,
+  ].join(' ');
 
   /// An item with no quantity leaves on the first purchase of the type; one
   /// with a quantity leaves by balance. H7 decides what to do about it — what
@@ -238,6 +311,7 @@ final class ShoppingListItem {
     bool? picked,
     bool? notFound,
     int? writtenOffQuantity,
+    int? writeOffCount,
     DateTime? fulfilledOn,
     DateTime? removedOn,
     bool clearBrand = false,
@@ -256,6 +330,7 @@ final class ShoppingListItem {
     picked: picked ?? this.picked,
     notFound: notFound ?? this.notFound,
     writtenOffQuantity: writtenOffQuantity ?? this.writtenOffQuantity,
+    writeOffCount: writeOffCount ?? this.writeOffCount,
     fulfilledOn: fulfilledOn ?? this.fulfilledOn,
     removedOn: removedOn ?? this.removedOn,
   );
@@ -274,6 +349,7 @@ final class ShoppingListItem {
           other.picked == picked &&
           other.notFound == notFound &&
           other.writtenOffQuantity == writtenOffQuantity &&
+          other.writeOffCount == writeOffCount &&
           other.fulfilledOn == fulfilledOn &&
           other.removedOn == removedOn);
 
@@ -289,6 +365,7 @@ final class ShoppingListItem {
     picked,
     notFound,
     writtenOffQuantity,
+    writeOffCount,
     fulfilledOn,
     removedOn,
   );

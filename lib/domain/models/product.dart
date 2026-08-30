@@ -1,4 +1,5 @@
 import 'packaging.dart';
+import 'product_registration.dart';
 
 /// The LEAF: a registration plus one packaging. It is what a purchase points
 /// at, and where price and history live.
@@ -44,6 +45,18 @@ final class Product {
   };
 
   bool get isSoldByWeight => packaging == null;
+
+  /// Is the leaf on the shelf? `handoff §H10` is explicit: "desativar o
+  /// produto desativa o cadastro e, com ele, todas as folhas". A leaf is
+  /// inactive when IT or its registration is — a `&&` on the READ (D7), and
+  /// not a second write that would have to walk the leaves one by one and
+  /// that nobody would know how to undo.
+  ///
+  /// `fetchProductOptions` already filters both flags in SQL and does not
+  /// change. What asks this is the maintenance screen, and any list that
+  /// loads leaves without that filter.
+  bool isEffectivelyActiveIn(ProductRegistration registration) =>
+      active && registration.active;
 
   /// Two leaves of the same registration are the same packaging when they
   /// hold the same amount — "1 × 0,35 L" and "1 × 350 ml" included. A
