@@ -15,6 +15,7 @@ import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
+import 'package:shopping_list/ui/purchase/widgets/product_field.dart';
 import 'package:shopping_list/ui/purchase/widgets/purchase_item_row.dart';
 
 import '../helpers/catalog.dart';
@@ -120,7 +121,10 @@ void main() {
     String product = 'Coca',
     String quantity = '1',
   }) async {
-    await tester.enterText(find.byKey(const ValueKey('field-product')), product);
+    await tester.enterText(
+      find.byKey(const ValueKey('field-product')),
+      product,
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coca-Cola original 12 × 350 ml').last);
     await tester.pumpAndSettle();
@@ -207,31 +211,23 @@ void main() {
     expect(find.text('Tentar de novo'), findsNothing);
   });
 
-  testWidgets('searching finds by stretch, case and accent alike', (
+  // The search itself moved to `product_field_test.dart` with the widget
+  // (step 18): what screen 3 owes is that it MOUNTS the picker, with the
+  // options it loaded.
+  testWidgets('mounts the shared picker with the loaded options', (
     tester,
   ) async {
     await pumpScreen(tester);
 
-    for (final query in ['coca', 'COCA', 'cocá']) {
-      await tester.enterText(
-        find.byKey(const ValueKey('field-product')),
-        query,
-      );
-      await tester.pumpAndSettle();
+    expect(find.byType(ProductField), findsOneWidget);
+    expect(
+      tester.widget<ProductField>(find.byType(ProductField)).options,
+      isNotEmpty,
+    );
 
-      expect(
-        find.text('Coca-Cola original 12 × 350 ml'),
-        findsOneWidget,
-        reason: query,
-      );
-      // Grouped by type, with the type's name as the header.
-      expect(find.text('Refrigerante'), findsWidgets, reason: query);
-    }
-
-    // And by the packaging, which is how a shelf is actually searched.
-    await tester.enterText(find.byKey(const ValueKey('field-product')), '269');
+    await tester.enterText(find.byKey(const ValueKey('field-product')), 'coca');
     await tester.pumpAndSettle();
-    expect(find.text('Coca-Cola original 269 ml'), findsOneWidget);
+    expect(find.text('Coca-Cola original 12 × 350 ml'), findsOneWidget);
   });
 
   testWidgets('the value comes pre-filled from the last purchase', (
@@ -333,9 +329,7 @@ void main() {
     expect(find.byType(PurchaseItemRow), findsOneWidget);
   });
 
-  testWidgets('[Descartar] throws the recovered purchase away', (
-    tester,
-  ) async {
+  testWidgets('[Descartar] throws the recovered purchase away', (tester) async {
     await pumpScreen(tester, draft: draftWithItem());
 
     await tester.tap(find.text('Descartar'));

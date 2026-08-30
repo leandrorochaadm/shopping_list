@@ -21,6 +21,7 @@ import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
 import '../view_model/new_purchase_view_model.dart';
 import '../view_model/purchase_draft_view_model.dart';
+import 'product_field.dart';
 import 'purchase_item_row.dart';
 
 /// Screen 3 — registering a purchase, against the two-minute budget of
@@ -206,7 +207,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       Routes.newProduct,
       // What tells screen 4 to hand the leaf back instead of navigating to
       // the list.
-      extra: true,
+      extra: const NewProductRequest(returnsSelection: true),
     );
     if (!mounted || picked == null) return;
 
@@ -624,40 +625,17 @@ class _ProductField extends StatelessWidget {
       children: [
         Row(
           children: [
+            // The picker itself lives in `product_field.dart`, shared with
+            // the correction screen: what stays here is the loading/error
+            // hint and the two buttons around it, which are screen 3's.
             Expanded(
-              child: Autocomplete<ProductOption>(
-                // Both handed over together, which is what Autocomplete
-                // requires — and what lets a product registered on screen 4
-                // arrive already written in the field.
-                textEditingController: controller,
+              child: ProductField(
+                options: options,
+                controller: controller,
                 focusNode: focusNode,
-                displayStringForOption: (option) => option.label,
-                optionsBuilder: (value) {
-                  final query = value.text;
-                  // C1: a STRETCH of the name, ignoring case, blanks and
-                  // accents. An empty field shows everything, in the ranked
-                  // order.
-                  if (query.trim().isEmpty) return options;
-                  return options.where((option) => option.matches(query));
-                },
+                enabled: enabled && state.hasValue,
+                hintText: _hint(options),
                 onSelected: onChosen,
-                fieldViewBuilder:
-                    (context, controller, node, onFieldSubmitted) => TextField(
-                      key: const ValueKey('field-product'),
-                      controller: controller,
-                      focusNode: node,
-                      enabled: enabled && state.hasValue,
-                      decoration: InputDecoration(
-                        labelText: 'Produto',
-                        hintText: _hint(options),
-                      ),
-                      onSubmitted: (_) => onFieldSubmitted(),
-                    ),
-                optionsViewBuilder: (context, onSelected, iterable) =>
-                    _GroupedOptions(
-                      groups: groupForPicker(iterable.toIList()),
-                      onSelected: onSelected,
-                    ),
               ),
             ),
             IconButton(
@@ -692,52 +670,5 @@ class _ProductField extends StatelessWidget {
     return options.isEmpty
         ? 'Nenhum produto ainda — cadastre o primeiro'
         : null;
-  }
-}
-
-/// The picker is GROUPED BY TYPE, with the type he buys most opening the
-/// list — decision C1. A flat list would put a soft drink between two milks.
-class _GroupedOptions extends StatelessWidget {
-  const _GroupedOptions({required this.groups, required this.onSelected});
-
-  final IList<ProductGroup> groups;
-  final ValueChanged<ProductOption> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Align(
-      alignment: Alignment.topLeft,
-      child: Material(
-        elevation: 4,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 320, maxWidth: 520),
-          child: ListView(
-            padding: EdgeInsets.zero,
-            shrinkWrap: true,
-            children: [
-              for (final group in groups) ...[
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(
-                    group.type.name,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                ),
-                for (final option in group.options)
-                  ListTile(
-                    dense: true,
-                    title: Text(option.label),
-                    onTap: () => onSelected(option),
-                  ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
