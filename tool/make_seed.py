@@ -305,6 +305,12 @@ def build(anchor: date) -> str:
     lines.append(
         f"-- Prices rise from {bump_from.isoformat()} on, so H15 has an increase to find."
     )
+    # The last purchase, remembered so the trail of H9 can point at REAL
+    # purchase items: a write-off whose `purchase_item_id` does not exist
+    # would be refused by the foreign key, and one that points at a purchase
+    # of another day would make the undo give back the wrong amount.
+    last_purchase: dict[str, object] = {}
+
     for order, day in enumerate(days):
         store = STORES[order % len(STORES)]
         buyer = BUYERS[order % len(BUYERS)]
@@ -333,14 +339,18 @@ def build(anchor: date) -> str:
                     quantity = 1 + (order % 2)
                     in_base_unit = quantity * packaging.total_content
                     paid = price * quantity
+                item_id = uid("item", purchase_id, registration.key, index)
                 lines.append(
                     "insert into public.purchase_item (id, purchase_id, "
                     "product_id, quantity, quantity_in_base_unit, total_paid) "
-                    f"values ({sql_text(uid('item', purchase_id, registration.key, index))}, "
+                    f"values ({sql_text(item_id)}, "
                     f"{sql_text(purchase_id)}, "
                     f"{sql_text(registration.leaf_ids[index])}, "
                     f"{quantity}, {in_base_unit}, {paid});"
                 )
+                if index == 0:
+                    last_purchase[registration.key] = (item_id, in_base_unit)
+        last_purchase["day"] = day
         lines.append("")
 
     # ── The list, as it would be found in the aisle ──────────────────────
@@ -372,6 +382,102 @@ def build(anchor: date) -> str:
             f"{'null' if quantity is None else quantity}, "
             f"{sql_text(entered_on.isoformat())});"
         )
+
+    # ── What H9 undoes, and what H10 has to be able to show ─────────────
+    #
+    # Three situations the four lines above do not cover, and without which
+    # the two screens of delivery 4 open on `dev` with nothing to work on.
+    lines.append("")
+    lines.append("-- H9: a list item CLOSED by a purchase, with its trail")
+
+    last_day = last_purchase["day"]
+    assert isinstance(last_day, date)
+    # Entered well before the purchase: an item that entered AFTER it is
+    # precisely the one decision 25 says the purchase must not touch.
+    entered_before = first_day(anchor, 3)
+
+    beef_item, _ = last_purchase["acem"]  # type: ignore[misc]
+    lines.append(
+        "insert into public.shopping_list_item (id, product_type_id, "
+        "quantity, entered_on, fulfilled_on) values ("
+        f"{sql_text(uid('list', 'fechado'))}, {sql_text(uid('type', 'Acém'))}, "
+        f"1000, {sql_text(entered_before.isoformat())}, "
+        f"{sql_text(last_day.isoformat())});"
+    )
+    lines.append(
+        "insert into public.list_write_off (purchase_item_id, "
+        "shopping_list_item_id, quantity_written_off, cleared_not_found) "
+        f"values ({sql_text(beef_item)}, {sql_text(uid('list', 'fechado'))}, "
+        "1000, true);"
+    )
+    lines.append("")
+
+    lines.append(
+        "-- H9: a PARTIAL write-off — 6 L asked, part bought, still on the list"
+    )
+    milk_item, milk_amount = last_purchase["leite"]  # type: ignore[misc]
+    lines.append(
+        "insert into public.shopping_list_item (id, product_type_id, "
+        "quantity, entered_on) values ("
+        f"{sql_text(uid('list', 'parcial'))}, {sql_text(uid('type', 'Leite'))}, "
+        f"6000, {sql_text(entered_before.isoformat())});"
+    )
+    lines.append(
+        "insert into public.list_write_off (purchase_item_id, "
+        "shopping_list_item_id, quantity_written_off, cleared_not_found) "
+        f"values ({sql_text(milk_item)}, {sql_text(uid('list', 'parcial'))}, "
+        f"{milk_amount}, false);"
+    )
+    lines.append("")
+
+    # ── H10: one deactivated row of each of the six catalogs ─────────────
+    #
+    # Nothing is ever deleted (decision 19), so "mostrar desativados" is a
+    # filter over rows that have to EXIST for it to have anything to show.
+    lines.append("-- H10: one deactivated row of each of the six catalogs")
+    lines.append(
+        "insert into public.category (id, name, active) values "
+        f"({sql_text(uid('category', 'Padaria'))}, 'Padaria', false);"
+    )
+    lines.append(
+        "insert into public.product_type (id, name, category_id, base_unit, "
+        f"active) values ({sql_text(uid('type', 'Iogurte'))}, 'Iogurte', "
+        f"{sql_text(uid('category', 'Bebidas'))}, 'liter', false);"
+    )
+    lines.append(
+        "insert into public.brand (id, name, active) values "
+        f"({sql_text(uid('brand', 'Marca Antiga'))}, 'Marca Antiga', false);"
+    )
+    lines.append(
+        "insert into public.product_registration (id, product_type_id, "
+        "brand_id, description, selling_mode, active) values ("
+        f"{sql_text(uid('registration', 'leite-desnatado'))}, "
+        f"{sql_text(uid('type', 'Leite'))}, null, 'desnatado', "
+        "'by_piece', false);"
+    )
+    lines.append(
+        "insert into public.product (id, product_registration_id, piece_count, "
+        "piece_size, piece_size_unit, total_content) values ("
+        f"{sql_text(uid('product', 'leite-desnatado', 0))}, "
+        f"{sql_text(uid('registration', 'leite-desnatado'))}, "
+        "1, 1000, 'milliliter', 1000);"
+    )
+    lines.append(
+        "-- A leaf deactivated on its own, under an ACTIVE registration "
+        "(decision 23):"
+    )
+    lines.append(
+        "insert into public.product (id, product_registration_id, piece_count, "
+        "piece_size, piece_size_unit, total_content, active) values ("
+        f"{sql_text(uid('product', 'refri', 99))}, "
+        f"{sql_text(uid('registration', 'refri'))}, "
+        "1, 1500, 'milliliter', 1500, false);"
+    )
+    lines.append(
+        "insert into public.store (id, name, active) values "
+        f"({sql_text(uid('store', 'Mercearia do Zé'))}, "
+        "'Mercearia do Zé', false);"
+    )
 
     lines += ["", "commit;", ""]
     return "\n".join(lines)
