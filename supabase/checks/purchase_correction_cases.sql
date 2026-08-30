@@ -106,7 +106,8 @@ select 'fixture — the purchase to correct' as case,
              'quantity_written_off', 0,
              'cleared_not_found', true, 'fulfills', true
            )
-         )
+         ),
+         '[]'::jsonb
        ) as result;  -- expected: {"already_registered": false, ...}
 
 -- ── 1. A purchase that does not exist raises P0002 and writes nothing ────
@@ -118,7 +119,8 @@ begin
       'purchase_date', '2026-08-19',
       'store_id', '00000000-0000-4000-8000-0000000000d5'
     ),
-    '[]'::jsonb, '[]'::jsonb, '[]'::jsonb
+    '[]'::jsonb, '[]'::jsonb, '[]'::jsonb,
+    '[]'::jsonb
   );
   raise notice 'case 1 — FAILED: a missing purchase was accepted';
 exception when no_data_found then
@@ -164,7 +166,8 @@ select 'case 2 — correcting 8 L to 2 L' as case,
              'id', '00000000-0000-4000-8000-0000000000e3',
              'fulfilled_on', null, 'not_found', false
            )
-         )
+         ),
+         '[]'::jsonb
        ) as returns_void;
 -- expected: an EMPTY cell. `void` renders as '' in a target list and is not
 -- NULL, so `is null` here would print f and mean nothing.
@@ -209,7 +212,8 @@ select 'case 3 — same correction again' as case,
          jsonb_build_array(jsonb_build_object(
            'id', '00000000-0000-4000-8000-0000000000e1',
            'fulfilled_on', null, 'not_found', false
-         ))
+         )),
+         '[]'::jsonb
        ) as returns_void;  -- expected: an empty cell
 
 select 'case 3 — nothing accumulated' as case,
@@ -252,7 +256,8 @@ select 'case 7 — a hand-removed item is not resurrected' as case,
              'id', '00000000-0000-4000-8000-0000000000e3',
              'fulfilled_on', null, 'not_found', false
            )
-         )
+         ),
+         '[]'::jsonb
        ) as returns_void;  -- expected: an empty cell
 
 select 'case 7 — removed_on survived, and the header changed' as case,
@@ -292,6 +297,7 @@ begin
       'quantity_written_off', 1000,
       'cleared_not_found', false, 'fulfills', false
     )),
+    '[]'::jsonb,
     '[]'::jsonb
   );
   raise notice 'case 6 — FAILED: a dangling write-off was accepted';
@@ -331,7 +337,8 @@ select 'case 4 — a purchase to delete' as case,
            'shopping_list_item_id', '00000000-0000-4000-8000-0000000000e2',
            'quantity_written_off', 0,
            'cleared_not_found', true, 'fulfills', true
-         ))
+         )),
+         '[]'::jsonb
        ) as result;
 
 select 'case 4 — delete_purchase gives it back' as case,
@@ -340,7 +347,8 @@ select 'case 4 — delete_purchase gives it back' as case,
          jsonb_build_array(jsonb_build_object(
            'id', '00000000-0000-4000-8000-0000000000e2',
            'fulfilled_on', null, 'not_found', true
-         ))
+         )),
+         '[]'::jsonb
        ) as returns_void;  -- expected: an empty cell
 
 select 'case 4 — item, balance and the not-found mark are back' as case,
