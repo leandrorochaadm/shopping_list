@@ -135,6 +135,12 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | gasto por tipo | `TypeSpending` | o nível que soma: quantidade na unidade base, preço médio e total |
 | gasto por marca | `BrandSpending` | dentro do tipo. `brandId`/`name` **nulos** são o grupo sem marca, que o C2 descarta |
 | seção do relatório | `ReportSection` / `ReportTypeLine` | a árvore que a Tela 5 desenha, montada por `buildReportSections` |
+| teto de gasto | `SpendingCap` | valor + mês em que passou a valer. Uma linha por **alteração**, nunca por mês |
+| os dois cortes | `CapThreshold.approaching` / `.exceeded` | 80% e 100%. **O único lugar onde os dois números existem** |
+| aviso de teto já dado | `CapAlerts` | as duas marcas de um mês. `false` é "não está cruzado", que é o que o **rearme** escreve |
+| onde o mês está | `MonthCapStatus` | teto vigente + gasto + marcas. É o que `cap_states` responde |
+| o que a avaliação produziu | `SpendingCapEvaluation` | o que **gravar** (`alerts`) e o que **mostrar** (`triggered` / `headline`) |
+| aviso de item repetido | `SameDayAlert` | o tipo que o outro também comprou no mesmo dia. Nível do **tipo**, nunca da marca |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -502,6 +508,16 @@ vigor no código** — não reabrir sem o usuário pedir.
 | Seletor de período da Tela 5 (**D-b**) | `wireframes §Tela 5`: dois campos de data | **os dois campos + dois atalhos de mês** (`‹ Julho` / `Setembro ›`) | ler o mês anterior é a pergunta mais frequente da tela, e duas voltas de calendário para fazê-la é atrito. Remover é apagar um widget |
 | Quantidade por categoria (**D-c**) | `handoff §H11`: "o **total consumido** e o **total gasto** agrupados por **categoria**" | **a categoria só tem dinheiro** | somar 6 kg de carne com 12 L de refrigerante não dá número nenhum, e o `wireframes §Tela 5` desenha "Carnes  R$ 480" sem quantidade ao lado. `CategorySpending` não tem o campo: o erro não é representável |
 | O `›` da Tela 5 (**D-d**) | — não estava escrito | **para no mês em curso** (`ReportPeriod.canShiftForward`) | não há relatório de amanhã — e não é enfeite: sem ele o período vai para setembro e o campo de data abre com `initialDate` 01/09 contra `lastDate`, que é o assert `!initialDate.isAfter(lastDate)` de `showDatePicker`. **Crash de tela, não relatório vazio.** O outro lado da mesma regra é `latestSelectableDay`, que é o **fim do mês em curso** e não "hoje": o relatório abre no mês inteiro, então o próprio 31/08 tem de ser um dia que o calendário mostra |
+| Onde os cortes são comparados (**D-e**) | `tecnico §5`: a regra fica no domínio | **em Dart, ANTES da escrita**; o SQL recebe o estado desejado das duas marcas e só grava | o que atravessa não é uma ordem de marcar: `true` grava preservando o carimbo, `false` **apaga** — e é o mesmo código nos dois casos, o que torna o rearme uma linha em vez de um ramo |
+| Os nomes da H13 (**D-f**) | — não estavam escritos | `SpendingCap`, `CapAlerts`, `CapThreshold`, `MonthCapStatus`, `SameDayAlert` | respondido pelo usuário em 30/08/2026; estão no glossário acima |
+| O reenvio automático da H8 (**D-g**) | — não estava escrito | **grava as marcas e não mostra diálogo nenhum** | não há tela aberta para receber um diálogo. Quem quiser ver a situação lê o "Gastou X de Y" do relatório, que é o que o requisito 9 manda |
+| Os dois cortes na mesma escrita (**D-h**) | `wireframes §Tela 3` desenha as duas frases | **só a mais grave aparece** — "⚠ O teto do mês estourou." | as **duas marcas são gravadas** assim mesmo, que é o que impede o lançamento seguinte de soltar o estouro sozinho. Dizer "passou de 80%" ao lado de "estourou" é ruído |
+| A frase do teto nomeia o mês? (**D-i**) | — não estava escrito | **não nomeia** — "O teto do mês estourou.", palavra por palavra como o `wireframes §Tela 3` escreve | a variante "O teto de agosto/2026 estourou" é mais honesta na compra atrasada (lançada em setembro, cruzando um corte de **agosto**), e foi recusada: divergir de um documento acima do plano para cobrir um caso de borda não paga o preço. O caso de borda **está aceito**, e a volta é uma linha |
+| Teto de R$ 0,00 (**D-j**) | o `check` da tabela aceita `>= 0` | **o domínio recusa** (`InvalidSpendingCap`) | um teto zero nasce estourado, e `usagePercent` dividiria por zero |
+| O "Gastou R$ X" da Tela 5 (**D-k**) | — não estava escrito | usa o **`PeriodReport.total` que já está na tela**; o `MonthCapStatus` só responde o "de R$ Y" | somar o mês duas vezes por dois caminhos é como um relatório passa a divergir de si mesmo |
+| Onde a consulta da H14 roda (**D-l**) | `handoff §H14` não diz | **antes da escrita**, junto das outras duas leituras | dois lançamentos no mesmo instante não se enxergam e aquele aviso se perde. É aceito: a janela é de milissegundos e a compra é registrada normalmente. **É a única corrida desta entrega que não se auto-corrige** |
+| Quem semeia o aviso de item repetido (**D-m**) | — não estava escrito | **só o fake**; o `seed.sql` fica como está | as compras do fake têm data fixa e caem fora da janela "hoje ou ontem" em dois dias, e o seed gera **uma pessoa por dia** — nenhum dos dois consegue disparar a H14. No `dev` hospedado ela nunca aparece sozinha: verificá-la lá é lançar duas compras à mão, do mesmo tipo e no mesmo dia, com as duas etiquetas |
+| O percentual do teto (`usagePercent`) | o plano da H13 dizia "divisão inteira: 87" | **arredonda para o inteiro mais próximo** | R$ 1.300 de R$ 1.500 é 86,66…%, e `requisitos §9` e `wireframes §Tela E3` escrevem esse caso como **87%**. Truncar responderia 86 e faria a tela contradizer a frase que o cliente lê. Arredondamento **em inteiros** (`+ amount ~/ 2` antes da divisão) — e ele não decide nada: qual corte disparou é `CapThreshold.isCrossedBy`, comparação exata e sem divisão nenhuma |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 
@@ -596,11 +612,12 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 30/08/2026**, ao fim da Entrega 5
-(`temp/plan/plano-h11-h12-relatorio-do-periodo-2026-08-30.md`, os 27 passos — H11 e H12).
-`flutter analyze` limpo, **942 testes verdes**, cobertura de linha **91,6%** — acima do
-piso de 90% do `deploy.yml`, com margem um pouco maior do que a que a Entrega 4 deixou.
-Antes dela vieram a Entrega 1 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
+**Atualizado em 30/08/2026**, ao fim da Entrega 6
+(`temp/plan/plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos — H13 e H14).
+`flutter analyze` limpo, **1063 testes verdes**, cobertura de linha **92,0%** — acima do
+piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve. Antes dela veio a
+Entrega 5 (`plano-h11-h12-relatorio-do-periodo-2026-08-30.md`, os 27 passos), e antes a
+Entrega 1 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
 (`plano-entrega-2-lista-no-corredor-2026-08-28.md`), a Entrega 3
 (`plano-h7-h8-lancar-compra-2026-08-28.md`, os 28 passos), a doutrina de erro
 (`plano-doutrina-de-erro-e-fim-dos-records-2026-08-29.md`) e a Entrega 4
@@ -685,6 +702,16 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   função `report_period(p_from, p_to)`, dois notifiers (`ReportPeriodNotifier` —
   **onde o relógio entra no sistema** — e `ReportViewModel`) e a **Tela 5, aba Resumo**,
   com a `PeriodBar`, o `ReportSummary` e o `ReportDetail`.
+- **H13/H14 — o controle do mês (Entrega 6):** o domínio novo (`CapThreshold` com os
+  **dois únicos números da regra**, `SpendingCap` com `usagePercent`, `CapAlerts`,
+  `MonthCapStatus`, `SpendingCapEvaluation` e a função pura `evaluateSpendingCap` — a
+  regra inteira da H13, chamada pelas **quatro portas**; mais `SameDayAlert` e
+  `isWithinRepeatWindow`, e o `ReportPeriod.wholeMonth` e o `firstDayOfMonth` que
+  nasceram junto), o `spending_cap_repository` (abstract + `_local` + `_remote`), a
+  migration com `apply_cap_alerts`, `cap_states`, `save_spending_cap`, `same_day_types` e
+  o `drop`+`create` das três funções de escrita, o `SpendingCapViewModel` (um `family`
+  por `ReportPeriod`), o `showWarnings` de `ui/core/widgets/`, a **tela de
+  Configurações completa** com a `SpendingCapSection`, e a `SpendingCapLine` da Tela 5.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -718,16 +745,20 @@ publica um preview contra o `dev`**. Não há remote nem branch neste repositór
 **abrir uma branch antes do primeiro push é obrigatório** — senão a primeira publicação
 sai de `main` contra a base sem backup do `R13`.
 
-O `supabase/` existe com o `config.toml`, **sete migrations** (a função `normalize_name`
+O `supabase/` existe com o `config.toml`, **oito migrations** (a função `normalize_name`
 `IMMUTABLE`; as 12 tabelas com a função transacional de cadastro; a RLS permissiva com os
 `grant`; a view `product_type_purchase_count`; a escrita da compra com `fulfilled_on`,
 `removed_on` e `create_purchase`; a correção com `update_purchase`, `delete_purchase` e
-o índice do histórico paginado; e a `report_period` da Entrega 5) e o **seed de 4 meses**,
+o índice do histórico paginado; a `report_period` da Entrega 5; e a `spending_cap` da
+Entrega 6) e o **seed de 4 meses**,
 gerado por `uv run tool/make_seed.py` — reancorar é rodar de novo. Todas elas e o seed
 foram **aplicados e verificados** no Postgres 17 local (ver o parágrafo seguinte): as
 travas de duplicidade, o `NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros, o
-rollback das funções transacionais, os **sete casos de `purchase_correction_cases.sql`**
-e os **catorze de `period_report_cases.sql`** foram exercitados um a um.
+rollback das funções transacionais, os **sete casos de `purchase_correction_cases.sql`**,
+os **catorze de `period_report_cases.sql`** e os **dezenove de
+`spending_cap_cases.sql`** foram exercitados um a um — estes últimos também **pela chave
+anon**, contra o PostgREST local, que é o único jeito de um `grant` perdido no `drop` e a
+conversão de `uuid[]` aparecerem.
 **Nada foi aplicado em `dev` nem em `prod`** — os projetos não existem (pendência A1).
 
 **O seed ganhou na Entrega 4 o que a H9 e a H10 mostram** e as quatro linhas de lista
@@ -841,20 +872,39 @@ comentário é mais otimista do que o observado. Se um dia a
 `UnderConstructionScreen` continua viva por causa delas, e o `pendingDestinations` ficou
 com **duas** entradas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
 bloco B está fechado** (as cinco decisões de 28/08 mais a **B6**, que nasceu na H7), a
-**C1** e a **D3** foram respondidas na H7, a **C2** na H11, e o que resta é o **bloco A** —
-contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
+**C1** e a **D3** foram respondidas na H7, a **C2** na H11, a **C4 (L4)** na H13 —
+**America/Porto_Velho (UTC−4)**, que fica registrada e não vira código —, e o que resta é
+o **bloco A**: contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
 
-**Sete migrations esperam um banco hospedado.** As três últimas são as das Entregas 3, 4
-e 5: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
+**Oito migrations esperam um banco hospedado.** As quatro últimas são as das Entregas 3,
+4, 5 e 6: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
 `shopping_list_item`, relaxa o `check` de `list_write_off` para `>= 0` e cria a
 `create_purchase`; a `20260828140000_purchase_correction.sql` cria o índice
 `purchase_history_idx`, as funções `update_purchase` e `delete_purchase` e — **dentro dela
-mesma, nunca no `rls.sql` já aplicado** — os dois `grant execute`; e a
+mesma, nunca no `rls.sql` já aplicado** — os dois `grant execute`; a
 `20260830120000_period_report.sql` cria a `report_period(date, date)`, que devolve as
-**três agregações do mesmo intervalo** num `jsonb` só, com o seu `grant execute` dentro
-dela. As três foram **aplicadas e conferidas** no `shopping_list_dev` local, com
-`supabase/checks/purchase_write_cases.sql`, `purchase_correction_cases.sql` e
-`period_report_cases.sql`; o que falta é `dev` e `prod`, que dependem do A1.
+**três agregações do mesmo intervalo** num `jsonb` só; e a
+`20260830130000_spending_cap.sql` cria as quatro funções do teto e da H14 **e dropa e
+recria as três de escrita** com o `p_cap_alerts` novo. Todas foram **aplicadas e
+conferidas** no `shopping_list_dev` local, com os quatro arquivos de
+`supabase/checks/`; o que falta é `dev` e `prod`, que dependem do A1.
+
+**O `drop`+`create` da Entrega 6 é a coisa mais perigosa que já entrou numa migration
+deste projeto, e vale saber por quê.** Parâmetro novo em Postgres é **assinatura nova**:
+`create or replace` não a alcança, e criar sem dropar deixaria duas sobrecargas do mesmo
+nome — com o PostgREST escolhendo por nome de parâmetro, o que falha **em silêncio**. Daí
+as três serem recriadas inteiras, corpo por corpo. E o `drop` leva junto o `grant execute`
+e o `comment on function`: os sete grants e os três comentários são refeitos na mesma
+migration, e sem eles a role `anon` passaria a levar `42501` — que o `AppFailure` lê como
+`AccessDenied` — numa tela que funcionava ontem. Foi por isso que o passo de verificação
+chamou as sete funções **pela chave anon**, e não por `psql`.
+
+**Dois arquivos de `supabase/checks/` estavam quebrados desde que nasceram**, e a Entrega
+6 os consertou porque precisava rodá-los: `purchase_write_cases.sql` e
+`purchase_correction_cases.sql` usavam ids como `…-0000000000t1` e `…-0000000000r1`, que
+**não são hexadecimais** — o Postgres recusa o primeiro `insert` com *"sintaxe de entrada
+é inválida para tipo uuid"*. Os oito ids afetados viraram `…b1` a `…b8`. Os dois arquivos
+passam hoje, e é o que prova que os corpos copiados não perderam uma linha.
 
 Três armadilhas da `report_period` estão escritas dentro dela e vale saber de cor:
 **`::bigint` em cada `sum`** (`sum()` sobre `bigint` devolve `numeric`, que no `jsonb`
@@ -867,10 +917,10 @@ iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 esti
 respondida (passo 25 do plano).
 
 **A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
-iPhone 12 (precisa de A1, A2 e A3) e aplicar as sete migrations no `dev` (precisa de
-A1) —, e depois o **teto de gasto** (H13, que precisa da C4 respondida) e a **aba de
-comparação de preço** (H16), que entra na Tela 5 ao lado do Resumo — e é só quando ela
-existir que a `TabBar` nasce.
+iPhone 12 (precisa de A1, A2 e A3) e aplicar as oito migrations no `dev` (precisa de
+A1) —, e depois o **alerta de alta de preço** (H15) e a **aba de comparação de preço**
+(H16), que entra na Tela 5 ao lado do Resumo — e é só quando ela existir que a `TabBar`
+nasce.
 
 **Dois critérios de aceite da H7 ficaram deliberadamente de fora**, e estão registrados
 para não sumirem: abrir a Tela 3 **a partir de um item da lista**, com a embalagem
@@ -882,6 +932,40 @@ usuário:** `Packaging.label` **não escreve o "1 ×" da embalagem de peça úni
 "350 ml", não "1 × 350 ml" —, porque é esse o nome da prateleira que se procura no
 lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais ele volta:
 "12 × 350 ml".
+
+---
+
+## O que a Entrega 6 mudou fora das telas dela
+
+**`/settings` deixou de ser a tela mínima da H1.** Ela ganhou a `SpendingCapSection`
+acima da etiqueta, um `RefreshIndicator` sobre um `ListView` que existe em **todos** os
+estados — o *loading* e o erro das duas seções vivem **dentro** dele —, e um `_today`
+calculado uma vez no campo, que é o que impede o `family` do teto de reler o mês a cada
+frame. O teste dela nasceu junto (`test/ui/settings_screen_test.dart`, 13 casos); os três
+casos da etiqueta ficaram onde estavam, em `device_user_screens_test.dart`.
+
+**`EditPurchaseViewModel.save` e `.delete` mudaram de forma, e a regra 16 é o motivo.**
+Eram `Future<String?>` enquanto uma correção tinha dois desfechos sem carga; a H13 dá
+carga ao sucesso — o aviso de teto que ela pode disparar —, então viraram o `sealed
+CorrectionOutcome`. Junto com isso, o `'Aguarde a compra carregar.'` deixou de ser um
+`String?` de erro e virou `CorrectionFailed`: o `null` ficou **reservado à guarda de
+reentrância**, que é o único caso em que nada aconteceu.
+
+**Os fakes ganharam um interruptor, e ele é de teste, não de produção.**
+`PurchaseRepositoryLocal.sameDayBuyer` é **nulo por padrão** e responde nada; quem o liga
+é o `overridesLocal` de `config/dependencies.dart`, com `'esposa'`. E o
+`spendingCapOverride()` de `test/helpers/` monta o fake **sem gasto nenhum no mês**,
+enquanto o de debug semeia os R$ 1.300 da história do requisito 9. Sem as duas coisas,
+cada um dos ~10 testes que apenas salvam uma compra passaria a receber um diálogo de uma
+história que não é a deles — e o diálogo **bloqueia a navegação**, então eles falhariam
+por um motivo que não é o que testam.
+
+**`purchaseOverrides()` passou de três overrides para quatro**, e há **seis** pontos de
+override no projeto, não um: `new_purchase_view_model_test`,
+`pending_purchase_submitter_test` (**dois blocos**), `new_purchase_screen_test`,
+`edit_purchase_view_model_test` e `device_user_screens_test` montam a própria lista. O
+`spendingCapRepositoryProvider` nasce lançando `UnimplementedError`, então um ponto
+esquecido é uma parede de falhas que não são dele.
 
 ---
 

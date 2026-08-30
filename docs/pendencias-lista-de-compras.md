@@ -16,7 +16,7 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 |---|---|---|
 | A — Contas e aparelhos | 3 | a 1ª migration e o 1º deploy |
 | B — Decisões de schema | 6 | **as seis respondidas — cinco em 28/08, a B6 na H7** |
-| C — Perguntas de negócio | 4 | **C1 respondida na H7, C2 na H11**; restam C3 e C4 |
+| C — Perguntas de negócio | 4 | **C1 respondida na H7, C2 na H11, C4 na H13**; resta a C3 |
 | D — Status dos documentos | 3 | nada; são higiene de documento |
 | E — Riscos aceitos | 2 | nada; são confirmação por escrito |
 
@@ -379,7 +379,7 @@ a ordem do corredor, alfabética pode não ser o que você quer.**
 
 ---
 
-### C4 (L4) — Fuso horário → confirmar até **H13**
+### C4 (L4) — Fuso horário → **RESPONDIDA na H13 (30/08/2026)**
 
 O `tecnico §7.4` assume **America/Porto_Velho (UTC−4)** como premissa; os requisitos não
 registram cidade. Três regras dependem de "hoje" — mês do teto, aviso de item repetido e
@@ -388,7 +388,15 @@ a janela rolante — e o erro é **silencioso** (`R9`).
 **Mitigação já em vigor:** o "hoje" nasce no relógio do aparelho, em Dart, e viaja como
 parâmetro (decisão 13). Nenhum `now()` no SQL.
 
-**Resposta:** cidade/fuso: ` `
+**Resposta:** cidade/fuso: **America/Porto_Velho (UTC−4)** — a premissa do `tecnico §7.4`
+confirmada.
+
+**E ela não vira código.** A mitigação continua sendo a resposta inteira: o único `now()`
+que a H13 acrescentou ao SQL é o **carimbo** de `warned_80_at`/`warned_100_at`, e nada o
+lê de volta para comparar com coisa alguma. Qual é o mês do teto, o que é "hoje ou ontem"
+e onde começa a janela rolante são decididos em Dart, sobre o relógio do aparelho. A
+cidade fica registrada para o dia em que alguém olhar um carimbo e precisar saber em que
+hora local ele caiu.
 
 ---
 
