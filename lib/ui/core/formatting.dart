@@ -53,6 +53,26 @@ String formatDate(DateTime date) => DateFormat('dd/MM/yyyy', 'pt_BR').format(dat
 String formatShortDate(DateTime date) =>
     DateFormat('dd/MM', 'pt_BR').format(date);
 
+/// 'Julho' — the label of a month shortcut on screen 5.
+///
+/// **It capitalizes the first letter**, and that is not cosmetic:
+/// `DateFormat('MMMM', 'pt_BR')` answers 'julho' in lower case, and a button
+/// reading `‹ julho` is the kind of thing only seen on the phone.
+String formatMonthName(DateTime month) =>
+    _capitalize(DateFormat('MMMM', 'pt_BR').format(month));
+
+/// 'Agosto/2026' — the period currently on screen, between the two shortcuts.
+/// The year is there because the two shortcuts walk across December.
+String formatMonthYear(DateTime month) =>
+    '${formatMonthName(month)}/${month.year}';
+
+/// The first rune, not the first code unit: an accented month name would be
+/// cut in half by `substring(0, 1)` on a surrogate pair, and pt-BR has none
+/// today — but the next locale is not this file's problem to discover.
+String _capitalize(String value) => value.isEmpty
+    ? value
+    : value[0].toUpperCase() + value.substring(1);
+
 /// Hard-coded rather than taken from `NumberFormat.currency`: the symbol of
 /// pt-BR carries a non-breaking space that a `find.text('R$ 62,00')` in a
 /// test would never match, and chasing that costs an afternoon.

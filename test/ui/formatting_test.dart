@@ -61,6 +61,23 @@ void main() {
     });
   });
 
+  group('the month labels of screen 5', () {
+    test('formatMonthName capitalizes what DateFormat lowers', () {
+      // A button reading `‹ julho` is the kind of thing only seen on the
+      // phone: pt-BR writes month names in lower case.
+      expect(formatMonthName(DateTime(2026, 7, 1)), 'Julho');
+      expect(formatMonthName(DateTime(2026, 8, 1)), 'Agosto');
+      expect(formatMonthName(DateTime(2026, 9, 1)), 'Setembro');
+      expect(formatMonthName(DateTime(2026, 3, 1)), 'Março');
+    });
+
+    test('formatMonthYear carries the year, because the shortcuts cross it', () {
+      expect(formatMonthYear(DateTime(2026, 8, 15)), 'Agosto/2026');
+      expect(formatMonthYear(DateTime(2025, 12, 31)), 'Dezembro/2025');
+      expect(formatMonthYear(DateTime(2027, 1, 1)), 'Janeiro/2027');
+    });
+  });
+
   group('formatDate', () {
     test('writes the Brazilian order', () {
       expect(formatDate(DateTime(2026, 8, 18)), '18/08/2026');
