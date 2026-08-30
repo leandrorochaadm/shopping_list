@@ -1,6 +1,7 @@
 # Pendências — o que depende de você
 
-**Data:** 27/08/2026 · **Fonte:** `tecnico §13`, `handoff §13` e `handoff §14`
+**Data:** 27/08/2026 · **revisado em 30/08/2026**, ao fim da Entrega 4 (H9 e H10)
+**Fonte:** `tecnico §13`, `handoff §13` e `handoff §14`
 **Este arquivo não é fonte da verdade** — é o inventário do que está aberto e **só você
 pode fechar**. Tudo o que é código está no plano, não aqui.
 
@@ -23,6 +24,17 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 respostas, e a **B6** nasceu e foi respondida ao escrever a H7 (abaixo). **O que trava o
 próximo passo agora é só o bloco A:** sem os projetos Supabase (A1) nada do que está
 versionado chega a um banco, e sem o Cloudflare (A3) nada chega ao iPhone.
+
+**A Entrega 4 (30/08/2026) não abriu pendência nenhuma**, e fechou uma coisa que estava
+implícita: a frase que barrava a criação por já existir um cadastro **desativado** mandava
+a pessoa *"para a manutenção do cadastro"*. Com a H10 essa tela passou a existir — e a
+decisão de 29/08 foi melhor que o desvio: **o `[ Reativar ]` está no próprio diálogo**,
+nas quatro portas da Tela 4 e no `NewStoreDialog` da Tela 3, e a frase perdeu o destino.
+Nada disso precisa de resposta sua; está registrado para não ser reaberto.
+
+**Duas coisas continuam esperando A1**, e são as cinco migrations e o seed: tudo foi
+aplicado e conferido num Postgres 17 local (inclusive os sete casos de
+`purchase_correction_cases.sql`), e **nada foi aplicado em `dev` nem em `prod`**.
 
 ---
 
@@ -380,7 +392,10 @@ abertas** e por isso passam despercebidas.
 - **D2 — Wireframes v2.1.** O checklist do v2.0 afirma "nenhuma suposição em aberto", e
   isso era verdade em 26/08. Em 27/08 os requisitos reabriram quatro perguntas e **duas
   são de tela**: C1 (ordem do seletor de Produto, Tela 3) e C3 (ordem dentro da categoria,
-  Tela 1). **Ação:** responder C1 e C3 e publicar a v2.1. `[ ] feito`
+  Tela 1). **C1 foi respondida na H7** e está no código (`compareForPicker`/`groupForPicker`,
+  hoje em `ui/purchase/widgets/product_field.dart`); resta a C3. **Ação:** responder a C3 e
+  publicar a v2.1 — com as **três telas da Entrega 4**, que os wireframes nunca desenharam:
+  o histórico paginado, a correção e a manutenção do cadastro. `[ ] feito`
 - **D3 — `[x]` O texto da Tela 3 promete mais do que a plataforma entrega.** "Esta compra
   será salva quando o sinal voltar" — o WebKit não tem Background Sync, então isso só
   acontece com **o app aberto** ou **na abertura seguinte** (`R16`).

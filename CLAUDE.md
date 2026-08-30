@@ -123,6 +123,12 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | saldo de uma linha da compra | `AvailableAmount` | o que resta de um `PurchaseItem` enquanto `planWriteOffs` distribui a compra pelos itens da lista |
 | grupo do painel `#1a` | `ProductTypeGroup` | nome da categoria + os tipos sob ela. A gêmea de `ShoppingListGroup` para o painel de acrescentar |
 | porta de saída de uma tela | `MenuEntry` | rota + ícone + rótulo. A barra de baixo e o `≡` da Tela 1 listam as mesmas |
+| estado ao qual um item volta | `RestoredListItem` | o que a correção manda em `p_restored`: id, `fulfilled_on` e `not_found`. **Nulo é resposta**, não ausência |
+| desfazer a baixa | `undoWriteOffs` / `UndoResult` | a volta de `planWriteOffs`. Devolve os itens já descontados **e** o que vai para o SQL |
+| linha do histórico | `PurchaseSummary` | data, mercado, quem lançou e o total já somado. **Não é uma `Purchase`** — não carrega item nenhum |
+| a compra aberta para correção | `PurchaseDetail` | compra + itens + **rastro**. Os dois lados do desfazer |
+| um dos seis cadastros | `CatalogKind` | o seletor da tela de manutenção. Carrega o rótulo e o artigo da frase de conflito |
+| o que se pede à Tela 4 | `NewProductRequest` | `returnsSelection` (Tela 3) e `registrationId` (manutenção). Era um `bool` até a H10 |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -352,6 +358,83 @@ continua em inglês (`MessageView`, `emptyLabel`).
 - Usar `ProviderContainer.test(...)`, não `ProviderContainer()` + `addTearDown`.
 - Nunca `DateTime.now()` em teste: instante fixo sempre.
 
+### Como rodar os testes — escopo mínimo, sempre
+
+**Nunca rodar `flutter test` sem caminho.** A suíte inteira leva minutos e enche o
+contexto com centenas de linhas que não têm relação com o que está sendo editado.
+Rodar **só o arquivo ou a pasta que está sendo mexida**:
+
+```bash
+flutter test test/domain/purchase_test.dart          # um arquivo
+flutter test test/ui/edit_purchase_screen_test.dart  # um arquivo
+flutter test test/domain/                            # uma pasta, quando mexi em várias
+flutter test test/ui/catalog_view_model_test.dart --name 'guards against double tap'
+```
+
+**`--name` não tem abreviação `-n`** neste Flutter — `flutter test --help` só lista
+`--name=<regexp>`, e o `-n` é engolido como caminho.
+
+**Achar o teste do arquivo editado é palpite mais confirmação, não tabela.** O palpite é o
+basename (`purchase.dart` → `purchase_test.dart`, `new_product_screen.dart` →
+`new_product_screen_test.dart`), e ele acerta na maioria — mas **erra na família do
+catálogo**, onde `category.dart`, `brand.dart`, `product_type.dart` e `catalog_entry.dart`
+são cobertos por um `test/domain/catalog_test.dart` só. Então confirme antes de rodar:
+
+```bash
+find test -name 'purchase_test.dart'   # o palpite existe?
+grep -rl 'PurchaseItem' test/          # quem mais toca o que editei
+```
+
+O `grep` pelo símbolo é o que vale quando o palpite falha, quando o arquivo é um helper de
+`test/helpers/`, ou quando a entidade é montada por várias telas. Para rodar todos de uma
+vez, **`xargs -r`** — sem o `-r`, um grep que não acha nada chama `flutter test` sem
+argumento nenhum e dispara justamente a suíte inteira que esta seção proíbe:
+
+```bash
+grep -rl 'PurchaseItem' test/ | xargs -r flutter test
+```
+
+**O mesmo vale para o `flutter analyze`**, que aceita arquivo solto (0,2s de análise,
+~3s de relógio com o `pub get` na frente):
+`flutter analyze lib/domain/models/purchase.dart` ou `flutter analyze lib/ui/purchase/`,
+não o projeto inteiro.
+
+**A cobertura também é medida no escopo mínimo**, com uma ressalva que muda como o número
+é lido:
+
+```bash
+flutter test --coverage --coverage-path coverage/scoped.info test/domain/purchase_test.dart
+awk -F: '/^SF:/{f=$2} /^LF:/{lf=$2} /^LH:/{printf "%6.1f%%  %s\n", lf?100*$2/lf:0, f}' \
+  coverage/scoped.info | grep 'models/purchase.dart'
+```
+
+**Filtre pelo arquivo editado; não leia a lista inteira.** O relatório parcial traz toda
+biblioteca que a cadeia de imports **carregou**, não só a testada: `uuid_test.dart`
+sozinho produz 26 entradas, e 25 delas aparecem com 0,0% apenas por terem sido
+importadas. Ordenar isso por percentual põe justamente esse ruído no topo e parece um
+projeto sem teste nenhum.
+
+**O número parcial é PISO, não a cobertura do arquivo.** Um arquivo de produção costuma
+ser exercitado por vários testes — `Purchase` aparece em cinco (`purchase_test`,
+`purchase_types_test`, `purchase_repository_remote_test`, `new_purchase_screen_test`,
+`edit_purchase_view_model_test`) —, e medir só um deles credita apenas as linhas que
+aquele arquivo alcançou. Serve para responder *"o que acabei de escrever tem teste?"*;
+**não** serve para dizer que um arquivo está abaixo do piso. Para essa conclusão, o
+`grep -rl` acima define o conjunto, e ele inteiro entra na medição.
+
+**O `--coverage-path` não é opcional.** Sem ele o `--coverage` **sobrescreve**
+`coverage/lcov.info` com apenas as bibliotecas que aquele teste tocou — o relatório do
+projeto inteiro vira o de um arquivo, e a conta dos 90% passa a mentir para menos sem
+nenhum aviso. Rodar parcial sempre em `coverage/scoped.info`, que é git-ignored junto com
+o resto de `coverage/`.
+
+**A única hora de rodar tudo** — e é o usuário quem pede: antes de um commit que fecha uma
+história ou um plano. Aí sim `flutter analyze` sem caminho e `flutter test --coverage` sem
+caminho, porque **o piso de 90% do `deploy.yml` é do projeto inteiro** e nenhuma soma
+parcial responde por ele.
+
+Fora disso, **peça** antes de rodar a suíte completa.
+
 ## Não fazer sem eu pedir
 
 - use-case, `Result<T>`/`Either`, `Command`, DTO separado da entidade, **e `typedef` de
@@ -458,11 +541,18 @@ história a entrega. **Cada história troca uma entrada do router pela tela real
 `/` é a Tela 1. `/purchases/new` é a Tela 3, e é declarada **antes** de
 `/purchases/:id/edit`: o `go_router` casa na ordem, e senão `new` viraria um id.
 
-`/products/new` é a única rota que lê `state.extra`, e é um `bool`: a Tela 3 a abre com
-`context.push(Routes.newProduct, extra: true)` para pedir a folha escolhida **de volta**,
-em vez de a Tela 4 navegar para a lista. Quem chega pelo menu não passa nada e cai no
-`false`. **`push`, nunca `go`:** `go` trocaria a rota e levaria embora a Tela 3 com a
-compra digitada nela.
+`/products/new` é a única rota que lê `state.extra`, e desde a H10 ele é um
+**`NewProductRequest`**, não um `bool`: a Tela 3 a abre com
+`extra: const NewProductRequest(returnsSelection: true)` para pedir a folha escolhida **de
+volta**, e a manutenção do cadastro a abre com `registrationId` para dizer **qual**
+cadastro carregar. Quem chega pelo menu não passa nada e cai no `const
+NewProductRequest()`. **`push`, nunca `go`:** `go` trocaria a rota e levaria embora a Tela
+3 com a compra digitada nela.
+
+`/purchases` abre a correção com `pushNamed`, pelo mesmo motivo escrito ao contrário: as
+rotas são **planas**, sem `routes:` aninhado, então o `go_router` não monta pilha a partir
+do path — um `go` deixaria `canPop()` falso e a correção abriria com o ícone de casa em
+vez do Voltar, perdendo o histórico de onde a pessoa veio.
 
 **Nenhuma rota é protegida** — não há sessão. O único `redirect` do app nasce na **H1**:
 enquanto a etiqueta de `deviceUser` não estiver no Hive, toda rota cai em `/welcome`.
@@ -491,12 +581,14 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 29/08/2026**, ao fim do plano
-`temp/plan/plano-doutrina-de-erro-e-fim-dos-records-2026-08-29.md`. `flutter analyze`
-limpo, **578 testes verdes**, cobertura de linha **86,1%**. Antes dele vieram a Entrega 1
+**Atualizado em 30/08/2026**, ao fim da Entrega 4
+(`temp/plan/plano-entrega-4-consertar-2026-08-28.md`, os 33 passos — H9 e H10).
+`flutter analyze` limpo, **824 testes verdes**, cobertura de linha **90,8%** — pela
+primeira vez **acima do piso de 90% do `deploy.yml`**. Antes dela vieram a Entrega 1
 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
-(`plano-entrega-2-lista-no-corredor-2026-08-28.md`) e a Entrega 3
-(`plano-h7-h8-lancar-compra-2026-08-28.md`, os 28 passos).
+(`plano-entrega-2-lista-no-corredor-2026-08-28.md`), a Entrega 3
+(`plano-h7-h8-lancar-compra-2026-08-28.md`, os 28 passos) e a doutrina de erro
+(`plano-doutrina-de-erro-e-fim-dos-records-2026-08-29.md`).
 
 **O que o plano de 29/08 mudou, e não é feature:** a doutrina de erro passou a estar
 escrita — as **regras 16 e 17** e a seção "A corrente da igualdade" acima —, os **15
@@ -522,13 +614,12 @@ grep -rnE "(^|[^A-Za-z0-9_])\(\s*[a-z][A-Za-z0-9_]*:" lib/ \
 Ele devolve hoje uma linha só, e ela é falso positivo: `Radio<int>(value: ...)`, cujo
 `<int>` é o que engana a segunda metade do comando.
 
-**A cobertura está ABAIXO do piso de 90% do `deploy.yml`, e a dívida é toda de dois
-arquivos:** `ui/shopping_list/widgets/item_dialog.dart` (0 de 140 linhas) e
-`add_item_panel.dart` (1 de 130) — os dois da Entrega 2, sem teste de widget nenhum. Sem
-eles o projeto está em **93,0%**, e os arquivos da H7/H8 ficaram em ~97% (o domínio inteiro
-em 100%). **O CI reprova enquanto esses dois não tiverem teste**, e é a primeira coisa a
-fazer antes do primeiro push. O `add_item_panel` encolheu de 137 para 130 linhas em
-29/08: as ~7 do agrupamento foram para `domain/`, onde agora têm teste.
+**A cobertura passou o piso de 90% do `deploy.yml`, e a dívida que a segurava foi paga.**
+Era de dois arquivos da Entrega 2 sem teste de widget nenhum —
+`ui/shopping_list/widgets/item_dialog.dart` (0 de 140 linhas) e `add_item_panel.dart`
+(1 de 130) —, e os dois ganharam o seu na linha 1 da Entrega 4, **antes** de qualquer
+código dela. Hoje o projeto está em **90,8%**: o piso fecha, e a margem é estreita — uma
+tela nova sem teste volta a derrubá-lo.
 
 **Existe:** o esqueleto — `pubspec` (com o Flutter 3.44.0 pinado), `config/`, `routing/`
 com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 claro,
@@ -536,7 +627,7 @@ com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 c
 `MenuEntry` e o `OnlineStatus`), `data/services/` (exceções, o tradutor do Supabase e a
 leitura de plataforma do online/offline — o estado que a expõe é
 `ui/core/online_status.dart`) — e
-**seis telas** de onze:
+**nove telas** de onze:
 
 - **H1 — `DeviceUser`:** `device_user_repository` (abstract + `_local` + `_hive`),
   `DeviceUserViewModel`, a tela de boas-vindas, uma `/settings` mínima e o **único
@@ -544,8 +635,9 @@ leitura de plataforma do online/offline — o estado que a expõe é
 - **H2 — cadastro de produto em cinco níveis:** o domínio inteiro (`BaseUnit`/
   `MeasureUnit`, `Packaging`, `Category`, `ProductType`, `Brand`, `ProductRegistration`,
   `Product`, `normalizeName`, `findNameConflict`), o `catalog_repository`
-  (abstract + `_local` + `_remote`), o `NewProductViewModel`, a **Tela 4** e os três
-  diálogos que ela abre (categoria, marca e o mini-cadastro de tipo).
+  (abstract + `_local` + `_remote`), o **`CatalogViewModel`** (não `NewProductViewModel`,
+  como este parágrafo dizia até 30/08), a **Tela 4** e os três diálogos que ela abre
+  (categoria, marca e o mini-cadastro de tipo).
 - **H3 — mercados:** `Store`, `store_repository` (abstract + `_local` + `_remote`),
   `StoreViewModel` e o `NewStoreDialog`. **Sem tela própria** — o diálogo mora dentro da
   Tela 3, e é ela quem finalmente o abre.
@@ -560,6 +652,16 @@ leitura de plataforma do online/offline — o estado que a expõe é
   ViewModels (`NewPurchaseViewModel`, `PurchaseDraftViewModel`,
   `PendingPurchaseSubmitter`) e a **Tela 3** — que é também quem abre o `NewStoreDialog`
   da H3 e quem manda a Tela 4 devolver a folha escolhida.
+- **H9/H10 — consertar (Entrega 4):** o domínio novo (`undoWriteOffs`/`UndoResult`/
+  `RestoredListItem` em `write_off_undo.dart`, `PurchaseSummary`, `catalog_maintenance.dart`
+  com `typesCompatibleWith`, `canChangeBaseUnit` e as três exceções de regra), a leitura e
+  a correção no `PurchaseRepository` (`fetchPage`, `fetchDetail`, `correct`, `delete`), os
+  três métodos novos da lista (`fetchItemsByIds`, `countOpenItemsOfType`,
+  `removeOpenItemsOfType`) mais o `expectEcho` público, os **oito** métodos de manutenção
+  do `CatalogRepository` e o `StoreRepository.update`, três ViewModels
+  (`PurchaseHistoryViewModel`, `EditPurchaseViewModel` — um `family` —,
+  `CatalogMaintenanceViewModel`), o `ProductField` **extraído** da Tela 3 e as **três
+  telas atrás do `≡`**: o histórico paginado, a correção e a manutenção do cadastro.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -593,14 +695,24 @@ publica um preview contra o `dev`**. Não há remote nem branch neste repositór
 **abrir uma branch antes do primeiro push é obrigatório** — senão a primeira publicação
 sai de `main` contra a base sem backup do `R13`.
 
-O `supabase/` existe com o `config.toml`, **três migrations** (a função `normalize_name`
-`IMMUTABLE`, as 12 tabelas com a função transacional de cadastro, e a RLS permissiva com
-os `grant`) e o **seed de 4 meses**, gerado por `uv run tool/make_seed.py` — reancorar é
-rodar de novo. As três migrations e o seed foram **aplicados e verificados** num banco
-descartável no Postgres 17 local (ver o parágrafo seguinte): as travas de duplicidade, o
-`NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros e o rollback da função
-transacional foram exercitados um a um.
+O `supabase/` existe com o `config.toml`, **cinco migrations** (a função `normalize_name`
+`IMMUTABLE`; as 12 tabelas com a função transacional de cadastro; a RLS permissiva com os
+`grant`; a view `product_type_purchase_count`; a escrita da compra com `fulfilled_on`,
+`removed_on` e `create_purchase`; e a correção com `update_purchase`, `delete_purchase` e
+o índice do histórico paginado) e o **seed de 4 meses**, gerado por
+`uv run tool/make_seed.py` — reancorar é rodar de novo. Todas elas e o seed foram
+**aplicados e verificados** no Postgres 17 local (ver o parágrafo seguinte): as travas de
+duplicidade, o `NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros, o rollback das
+funções transacionais e os **sete casos de `purchase_correction_cases.sql`** foram
+exercitados um a um.
 **Nada foi aplicado em `dev` nem em `prod`** — os projetos não existem (pendência A1).
+
+**O seed ganhou na Entrega 4 o que a H9 e a H10 mostram** e as quatro linhas de lista
+originais não cobriam: um item **fechado por compra** com o rastro correspondente (para
+a exclusão ter o que devolver), uma **baixa parcial** (o "restam 4 litros" da tela) e
+**um cadastro desativado de cada um dos seis** — sem eles o filtro "mostrar desativados"
+abre vazio. Os dois rastros apontam para `purchase_item` reais da última compra gerada,
+porque uma FK não perdoa e um rastro de outro dia devolveria a quantidade errada.
 
 **O banco local de desenvolvimento é o `postgresql@17` nativo do Homebrew, não o stack
 Docker do Supabase** (decisão de 28/08/2026). É escolha, não limitação: o Docker Desktop
@@ -702,25 +814,31 @@ comentário é mais otimista do que o observado. Se um dia a
 `MisconfiguredApp.storageUnavailable()` aparecer sem explicação, **comece por aqui**.
 
 **Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e as
-outras cinco telas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
+outras duas telas — `/suggestions` (H17) e `/reports` (H11), mais `/remaining` (H18).
+`UnderConstructionScreen` continua viva por causa delas, e o `pendingDestinations` ficou
+com **três** entradas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
 bloco B está fechado** (as cinco decisões de 28/08 mais a **B6**, que nasceu na H7), a
 **C1** e a **D3** foram respondidas na H7, e o que resta é o **bloco A** — contas do
 Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
 
-**Duas migrations esperam um banco hospedado**, não uma: a
-`20260828130000_purchase_write.sql` da H7 acrescenta `fulfilled_on` e `removed_on` a
-`shopping_list_item`, relaxa o `check` de `list_write_off` para `>= 0` e cria a função
-transacional `create_purchase`. Os casos a exercitar estão em
-`supabase/checks/purchase_write_cases.sql`, escritos para rodar num Postgres 17
-descartável — **ainda não executados**, porque o A1 continua aberto.
+**Cinco migrations esperam um banco hospedado.** As duas últimas são as das Entregas 3 e
+4: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
+`shopping_list_item`, relaxa o `check` de `list_write_off` para `>= 0` e cria a
+`create_purchase`; a `20260828140000_purchase_correction.sql` cria o índice
+`purchase_history_idx`, as funções `update_purchase` e `delete_purchase` e — **dentro dela
+mesma, nunca no `rls.sql` já aplicado** — os dois `grant execute`. As duas foram
+**aplicadas e conferidas** no `shopping_list_dev` local, com
+`supabase/checks/purchase_write_cases.sql` e `purchase_correction_cases.sql`; o que falta
+é `dev` e `prod`, que dependem do A1.
 
 **A rota `/spike` e `lib/ui/spike/` são descartáveis:** existem para a medição S1 no
 iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 estiver
 respondida (passo 25 do plano).
 
 **A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
-iPhone 12 (precisa de A1, A2 e A3) e aplicar as migrations no `dev` (precisa de A1) —, e
-depois a **H9** (corrigir e apagar compra), que é quem desfaz o rastro que a H7 grava.
+iPhone 12 (precisa de A1, A2 e A3) e aplicar as cinco migrations no `dev` (precisa de
+A1) —, e depois os **relatórios** (H11/H12/H16), que leem o dado que a H9 agora deixa
+certo.
 
 **Dois critérios de aceite da H7 ficaram deliberadamente de fora**, e estão registrados
 para não sumirem: abrir a Tela 3 **a partir de um item da lista**, com a embalagem
@@ -735,7 +853,48 @@ lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais e
 
 ---
 
-## Três armadilhas que a H7 revelou, e que custam caro de redescobrir
+## O que a Entrega 4 mudou fora das telas dela
+
+**O `≡` perdeu uma entrada e o mapa perdeu quatro.** `pendingDestinations` ficou com
+`suggestions`, `reports` e `remainingThisMonth`; saíram as três desta entrega e o
+`newPurchase`, que a Entrega 3 esqueceu. **A ordem importa e é um crash se invertida:** o
+`_PendingButton` da Tela 1 lê o mapa com `!` (`shopping_list_screen.dart`), então o
+`[ Lançar compra ]` virou um botão de verdade **antes** de a entrada sair. "Corrigir
+compra" saiu do menu em vez de ficar habilitada — `/purchases/:id/edit` não navega sem um
+id, e quem sabe o id é o histórico, uma linha acima.
+
+**O `[ Reativar ]` deixou de exigir uma viagem até `/catalog`** (decisão de 29/08/2026).
+A frase do conflito desativado perdeu o destino — é só *"O cadastro X existe, mas está
+desativado."* — e o botão aparece no próprio diálogo, nas **quatro** portas da Tela 4 e
+no `NewStoreDialog` da Tela 3. O `SingleFieldDialog` ganhou quatro parâmetros para isso
+(`footnote`, `leadingActions`, `findReactivable`, `onReactivate`), e o
+`NewProductTypeDialog` — que tem três campos e não usa o shell — escreve o mesmo botão à
+mão. Um `grep` por "manutenção do cadastro" em `lib/` não devolve nada.
+
+**O campo Produto saiu da Tela 3 para `ui/purchase/widgets/product_field.dart`**, porque
+a correção precisa do mesmo. Ele **não recebe `ref`**: quem o monta já tem as opções na
+mão, e é isso que deixa o teste dos dois lados sem container. O caso da busca com
+`"coca"`/`"COCA"`/`"cocá"`/`"269"` migrou junto, para `product_field_test.dart`.
+
+**Um bug encontrado ao escrever o teste do `CatalogMaintenanceViewModel`, e vale a
+regra:** as quatro escritas de nome faziam `return _writeCategory(...)` **sem `await`**
+dentro do `try`. A exceção escapava do `catch` — subia crua para a tela em vez de virar
+frase — e o `finally` liberava `_running` antes de a escrita terminar, então o toque duplo
+disparava duas requisições. `return await` nos dez pontos resolveu. **`return future;`
+dentro de um `try` é `try` nenhum.**
+
+---
+
+## As armadilhas que a H7 revelou, e uma que a H9 acrescentou
+
+**0. `await` numa chamada de fake ANTES do primeiro `pump` trava o teste por dez
+minutos.** É a outra face da armadilha do relógio falso registrada no fim desta seção:
+`CatalogRepositoryLocal.updateCategory` faz `Future.delayed(latency)`, e com o relógio
+parado ele nunca completa. Preparar um cenário ("esta categoria nasce desativada") **não
+se faz chamando o fake**: faz-se com uma subclasse que sobrescreve a LEITURA — é o
+`_WithDeactivated` de `new_product_screen_test.dart`. O sintoma é um teste que não falha,
+só nunca termina.
+
 
 **1. O item do rascunho carrega a folha INTEIRA, não o id dela.** `PurchaseItem` guarda o
 `ProductOption` completo, e o `toDraftJson` o serializa junto. O motivo é o critério de
