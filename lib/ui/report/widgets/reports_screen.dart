@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/period_report.dart';
 import '../../../domain/models/report_section.dart';
+import '../../../domain/models/spending_cap.dart';
 import '../../../routing/routes.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -10,10 +11,13 @@ import '../../core/widgets/main_bottom_bar.dart';
 import '../../core/widgets/main_menu.dart';
 import '../../core/widgets/message_view.dart';
 import '../../device_user/widgets/who_is_using_dialog.dart';
+import '../../settings/view_model/spending_cap_view_model.dart';
+import '../view_model/report_period_notifier.dart';
 import '../view_model/report_view_model.dart';
 import 'period_bar.dart';
 import 'report_detail.dart';
 import 'report_summary.dart';
+import 'spending_cap_line.dart';
 
 /// Screen 5, the **Resumo** tab — `/reports`, where the money went (H11) and
 /// how much of the period each category took (H12).
@@ -43,6 +47,23 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(reportViewModelProvider);
+    final period = ref.watch(reportPeriodProvider);
+
+    // The rule the wireframe's `*` states, ASKED of the domain (rule 11):
+    // "Gastou X de Y" only exists when the period is a whole month, because
+    // comparing an arbitrary slice with a monthly cap is a number with no
+    // meaning.
+    //
+    // A CONDITIONAL `ref.watch`, and it is allowed: the ban on conditional
+    // hooks is Flutter's, not Riverpod's — a dependency this build did not
+    // register is simply not one.
+    //
+    // And it is watched IN PARALLEL with the report, never summed into it: a
+    // failure to read the cap takes the line away and leaves the report
+    // standing.
+    final cap = period.wholeMonth == null
+        ? null
+        : ref.watch(spendingCapViewModelProvider(period)).value?.cap;
 
     return Scaffold(
       appBar: AppBar(
@@ -108,6 +129,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   ),
                   _ => _Body(
                     report: state.value!,
+                    cap: cap,
                     showByType: _showByType,
                     onToggle: () => setState(() => _showByType = !_showByType),
                   ),
@@ -162,11 +184,16 @@ class _ErrorBody extends ConsumerWidget {
 class _Body extends StatelessWidget {
   const _Body({
     required this.report,
+    required this.cap,
     required this.showByType,
     required this.onToggle,
   });
 
   final PeriodReport report;
+
+  /// The cap in force in this month, or null — a free interval, a month that
+  /// never had one, or a cap the read failed on.
+  final SpendingCap? cap;
   final bool showByType;
   final VoidCallback onToggle;
 
@@ -189,6 +216,11 @@ class _Body extends StatelessWidget {
             sections: sections,
             total: report.total,
             onShowDetail: onToggle,
+            // The "Gastou R$ X" is the total ALREADY on screen (D-k); the cap
+            // only answers the "de R$ Y".
+            capLine: cap == null
+                ? null
+                : SpendingCapLine(spent: report.total, cap: cap!),
           );
   }
 }

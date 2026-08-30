@@ -1,12 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/report/report_repository.dart';
 import 'package:shopping_list/data/repositories/report/report_repository_local.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/period_report.dart';
+import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/report_period.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/report/view_model/report_period_notifier.dart';
@@ -54,6 +59,7 @@ void main() {
   Future<ProviderContainer> pumpReports(
     WidgetTester tester, {
     ReportRepository? repository,
+    SpendingCapRepository? caps,
   }) async {
     // A tall viewport: the summary, the divider, the total and the button do
     // not fit the default 800×600, and a widget outside the render tree
@@ -67,7 +73,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
-        ...purchaseOverrides(),
+        ...purchaseOverrides(caps: caps),
         reportOverride(
           repository: repository ?? _SpyRepository(fixed: referenceReport),
         ),
@@ -380,4 +386,83 @@ void main() {
       expect(find.text('Total do período'), findsOneWidget);
     });
   });
+
+  group('the spending cap line (H13)', () {
+    /// A cap of R$ 1.500 in force since August 2026.
+    SpendingCapRepositoryLocal capsInForce() => SpendingCapRepositoryLocal(
+      latency: Duration.zero,
+      today: today,
+      cap: SpendingCap(
+        amount: const Money(150000),
+        effectiveFrom: DateTime(2026, 8, 1),
+      ),
+      spending: {DateTime(2026, 8, 1): const Money(32800)},
+    );
+
+    testWidgets('the whole month with a cap shows "Gastou X de Y"', (
+      tester,
+    ) async {
+      await pumpReports(tester, caps: capsInForce());
+
+      // The "Gastou R$ X" is the total ALREADY on screen — the R$ 328,00 of
+      // the reference report — and not a second sum of the month (D-k).
+      expect(find.text(r'Gastou R$ 328,00 de R$ 1.500,00'), findsOneWidget);
+    });
+
+    testWidgets('a free interval shows no cap line at all', (tester) async {
+      final container = await pumpReports(tester, caps: capsInForce());
+
+      // Ten days of August: comparing a slice with a monthly cap is a number
+      // with no meaning.
+      container
+          .read(reportPeriodProvider.notifier)
+          .setFrom(DateTime(2026, 8, 10));
+      container.read(reportPeriodProvider.notifier).setTo(DateTime(2026, 8, 20));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('cap-line')), findsNothing);
+      // …and the report itself is untouched.
+      expect(find.text('Total do período'), findsOneWidget);
+    });
+
+    testWidgets('a whole month with NO cap shows no line either', (
+      tester,
+    ) async {
+      await pumpReports(
+        tester,
+        caps: SpendingCapRepositoryLocal(
+          latency: Duration.zero,
+          today: today,
+          // In force only from September: August never had one.
+          cap: SpendingCap(
+            amount: const Money(150000),
+            effectiveFrom: DateTime(2026, 9, 1),
+          ),
+        ),
+      );
+
+      expect(find.byKey(const ValueKey('cap-line')), findsNothing);
+      expect(find.text('Total do período'), findsOneWidget);
+    });
+
+    testWidgets('a cap that fails to load leaves the report standing', (
+      tester,
+    ) async {
+      // It is watched in PARALLEL with the report, never summed into it.
+      await pumpReports(tester, caps: _FailingCaps());
+
+      expect(find.byKey(const ValueKey('cap-line')), findsNothing);
+      expect(find.text('Total do período'), findsOneWidget);
+      expect(find.text('Carnes'), findsOneWidget);
+    });
+  });
+}
+
+/// A cap repository that always says no — the report has to survive it.
+class _FailingCaps extends SpendingCapRepositoryLocal {
+  _FailingCaps() : super(latency: Duration.zero);
+
+  @override
+  Future<IList<MonthCapStatus>> fetchStatuses(IList<ReportPeriod> months) async =>
+      throw NetworkException('offline');
 }

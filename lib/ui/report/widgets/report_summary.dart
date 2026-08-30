@@ -23,6 +23,7 @@ class ReportSummary extends StatelessWidget {
     required this.sections,
     required this.total,
     required this.onShowDetail,
+    this.capLine,
     super.key,
   });
 
@@ -33,10 +34,16 @@ class ReportSummary extends StatelessWidget {
 
   final VoidCallback onShowDetail;
 
+  /// H13's "Gastou R$ X de R$ Y", drawn above the first category — or null,
+  /// which is a free interval or a month that had no cap. Whether it exists at
+  /// all is the SCREEN's decision; this widget only places it.
+  final Widget? capLine;
+
   @override
   Widget build(BuildContext context) => ListView(
     physics: const AlwaysScrollableScrollPhysics(),
     children: [
+      ?capLine,
       for (final section in sections)
         ListTile(
           key: ValueKey('category-${section.category.categoryId}'),
