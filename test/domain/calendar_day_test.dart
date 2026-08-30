@@ -33,5 +33,22 @@ void main() {
       expect(rounded.second, 0);
       expect(rounded.millisecond, 0);
     });
+
+    test('takes a day back to the 1st of its month', () {
+      expect(firstDayOfMonth(DateTime(2026, 8, 1)), DateTime(2026, 8, 1));
+      expect(firstDayOfMonth(DateTime(2026, 8, 31)), DateTime(2026, 8, 1));
+      // An instant with an hour comes back rounded too: the cap is keyed by
+      // this value, and a stray hour would make two months that are the same
+      // month compare unequal.
+      expect(
+        firstDayOfMonth(DateTime(2026, 8, 15, 23, 59)),
+        DateTime(2026, 8, 1),
+      );
+    });
+
+    test('crosses the turn of the year', () {
+      expect(firstDayOfMonth(DateTime(2026, 12, 31)), DateTime(2026, 12, 1));
+      expect(firstDayOfMonth(DateTime(2027, 1, 1)), DateTime(2027, 1, 1));
+    });
   });
 }

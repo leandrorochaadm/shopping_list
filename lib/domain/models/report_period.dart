@@ -84,6 +84,21 @@ final class ReportPeriod {
   bool canShiftForward(DateTime today) =>
       from.isBefore(ReportPeriod.monthOf(today).from);
 
+  /// The first day of the month when this interval is EXACTLY one whole
+  /// month, and null otherwise.
+  ///
+  /// It is the rule behind the wireframe's `*`: "Gastou R$ X de R$ Y só
+  /// aparece quando o período escolhido é o mês inteiro — em período livre o
+  /// teto não é mostrado, porque comparar o gasto de um recorte qualquer com
+  /// um teto mensal daria um número sem significado".
+  ///
+  /// The View ASKS this (rule 11); it does not write
+  /// `from.day == 1 && to.month == from.month && ...` inside `build()`.
+  DateTime? get wholeMonth {
+    final candidate = ReportPeriod.monthOf(from);
+    return candidate.from == from && candidate.to == to ? from : null;
+  }
+
   /// **May throw [InvalidPeriod]** — the factory above is what validates, and
   /// this is the only `copyWith` in the project that is not total. Its two
   /// callers are `setFrom` and `setTo`, and both already wrap it in a `try`;

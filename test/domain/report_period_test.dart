@@ -257,6 +257,63 @@ void main() {
     });
   });
 
+  group('wholeMonth', () {
+    test('a whole month answers its first day', () {
+      expect(
+        ReportPeriod.monthOf(DateTime(2026, 8, 15)).wholeMonth,
+        DateTime(2026, 8, 1),
+      );
+    });
+
+    test('a month missing its last day is NOT a whole month', () {
+      expect(
+        ReportPeriod(
+          from: DateTime(2026, 8, 1),
+          to: DateTime(2026, 8, 30),
+        ).wholeMonth,
+        isNull,
+      );
+    });
+
+    test('a free interval inside the month is NOT a whole month', () {
+      expect(
+        ReportPeriod(
+          from: DateTime(2026, 8, 10),
+          to: DateTime(2026, 8, 20),
+        ).wholeMonth,
+        isNull,
+      );
+    });
+
+    test('two whole months are not one whole month', () {
+      expect(
+        ReportPeriod(
+          from: DateTime(2026, 7, 1),
+          to: DateTime(2026, 8, 31),
+        ).wholeMonth,
+        isNull,
+      );
+    });
+
+    test('February of a leap year is a whole month on the 29th', () {
+      expect(
+        ReportPeriod(
+          from: DateTime(2028, 2, 1),
+          to: DateTime(2028, 2, 29),
+        ).wholeMonth,
+        DateTime(2028, 2, 1),
+      );
+      // …and the 28th is one day short of it.
+      expect(
+        ReportPeriod(
+          from: DateTime(2028, 2, 1),
+          to: DateTime(2028, 2, 28),
+        ).wholeMonth,
+        isNull,
+      );
+    });
+  });
+
   test('the earliest selectable day is a constant, not a moving window', () {
     // A bound that walked with the clock would hide, in the sixth year of
     // use, a purchase that is in the database.

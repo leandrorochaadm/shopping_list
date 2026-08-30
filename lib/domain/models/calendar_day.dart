@@ -21,3 +21,8 @@ DateTime decodeCalendarDay(String value) => dayOf(DateTime.parse(value));
 /// frame would break the entity's `==` and repaint the whole list.
 DateTime dayOf(DateTime instant) =>
     DateTime(instant.year, instant.month, instant.day);
+
+/// Day 1 of the month [day] belongs to. It is what the spending cap is keyed
+/// by: the cap is monthly, one row per CHANGE, and a mid-month date would make
+/// "the month's total" ambiguous.
+DateTime firstDayOfMonth(DateTime day) => DateTime(day.year, day.month, 1);
