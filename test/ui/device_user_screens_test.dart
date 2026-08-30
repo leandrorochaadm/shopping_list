@@ -16,6 +16,7 @@ import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
 import '../helpers/report.dart';
 import '../helpers/shopping_list.dart';
+import '../helpers/spending_cap.dart';
 
 /// The `_local` fake that always says no, for the two screens' error paths.
 class _FailingRepository extends DeviceUserRepositoryLocal {
@@ -59,6 +60,7 @@ void main() {
         // Since H11 `/reports` is a real screen: without this the contract's
         // UnimplementedError is thrown the moment it mounts.
         reportOverride(),
+        spendingCapOverride(),
       ],
     );
     final router = container.read(appRouterProvider);
