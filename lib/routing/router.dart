@@ -9,6 +9,7 @@ import '../ui/device_user/widgets/welcome_screen.dart';
 import '../ui/purchase/widgets/edit_purchase_screen.dart';
 import '../ui/purchase/widgets/new_purchase_screen.dart';
 import '../ui/purchase/widgets/purchase_history_screen.dart';
+import '../ui/report/widgets/reports_screen.dart';
 import '../ui/settings/widgets/settings_screen.dart';
 import '../ui/shopping_list/widgets/shopping_list_screen.dart';
 import '../ui/spike/widgets/typing_spike_screen.dart';
@@ -105,8 +106,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.reports,
         name: RouteNames.reports,
-        builder: (context, state) =>
-            const UnderConstructionScreen(title: 'Relatórios', story: 'H11'),
+        builder: (context, state) => const ReportsScreen(),
       ),
       GoRoute(
         path: Routes.remainingThisMonth,

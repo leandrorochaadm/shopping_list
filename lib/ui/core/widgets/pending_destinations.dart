@@ -10,12 +10,11 @@ import '../../../routing/routes.dart';
 /// file can be deleted.
 const pendingDestinations = <String, String>{
   Routes.suggestions: 'A sugestão de itens chega na H17.',
-  Routes.reports: 'Os relatórios chegam na H11.',
   Routes.remainingThisMonth: '"Falta comprar este mês" chega na H18.',
 };
 
 /// `/settings` is deliberately absent: it exists since H1 (minimal, with the
 /// device label) and is completed in H13. So are `/purchases/new` (H7),
-/// `/purchases` and `/purchases/:id/edit` (H9) and `/catalog` (H10) — the
-/// four this delivery took out of the map.
+/// `/purchases` and `/purchases/:id/edit` (H9), `/catalog` (H10) and
+/// `/reports` (H11/H12) — the fifth one this map lost.
 bool isPending(String route) => pendingDestinations.containsKey(route);

@@ -9,9 +9,12 @@ import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/device_user.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
+import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
+import '../helpers/locale.dart';
+import '../helpers/report.dart';
 import '../helpers/shopping_list.dart';
 
 /// The `_local` fake that always says no, for the two screens' error paths.
@@ -36,6 +39,10 @@ class _FailingRepository extends DeviceUserRepositoryLocal {
 }
 
 void main() {
+  // Since H11 this file reaches `/reports`, which draws dates and month
+  // names — and `main()` does not run in a test.
+  setUpAll(initializePtBr);
+
   Future<GoRouter> pumpApp(
     WidgetTester tester, {
     required List<Override> overrides,
@@ -45,7 +52,14 @@ void main() {
     // pumped without the list's repository — even to open settings, because
     // `/` is what the router starts on.
     final container = ProviderContainer.test(
-      overrides: [...overrides, shoppingListOverride(), catalogOverride()],
+      overrides: [
+        ...overrides,
+        shoppingListOverride(),
+        catalogOverride(),
+        // Since H11 `/reports` is a real screen: without this the contract's
+        // UnimplementedError is thrown the moment it mounts.
+        reportOverride(),
+      ],
     );
     final router = container.read(appRouterProvider);
 
@@ -118,7 +132,9 @@ void main() {
 
       router.go(Routes.reports);
       await tester.pumpAndSettle();
-      expect(find.text('Relatórios'), findsOneWidget);
+      // By the WIDGET and not by the text: 'Relatórios' is the app bar title
+      // AND the bottom bar's own label, so `find.text` finds two.
+      expect(find.byType(ReportsScreen), findsOneWidget);
     });
 
     testWidgets('stays put and explains itself when the save fails', (

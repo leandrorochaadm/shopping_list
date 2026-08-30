@@ -1,0 +1,383 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/data/repositories/report/report_repository.dart';
+import 'package:shopping_list/data/repositories/report/report_repository_local.dart';
+import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/period_report.dart';
+import 'package:shopping_list/domain/models/report_period.dart';
+import 'package:shopping_list/routing/router.dart';
+import 'package:shopping_list/routing/routes.dart';
+import 'package:shopping_list/ui/report/view_model/report_period_notifier.dart';
+import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
+
+import '../helpers/catalog.dart';
+import '../helpers/device_user.dart';
+import '../helpers/locale.dart';
+import '../helpers/purchase.dart';
+import '../helpers/report.dart';
+import '../helpers/shopping_list.dart';
+
+/// The fake with a switch that makes the next query fail, and an answer that
+/// can be pinned to the reference report.
+class _SpyRepository extends ReportRepositoryLocal {
+  _SpyRepository({this.fixed}) : super(latency: Duration.zero);
+
+  /// When given, every period answers this — which is how the screen's cases
+  /// count the numbers of requirement 4 without depending on the seed's dates.
+  final PeriodReport? fixed;
+
+  Object? failNextCall;
+  int calls = 0;
+
+  @override
+  Future<PeriodReport> fetchPeriodReport(ReportPeriod period) async {
+    calls++;
+    final failure = failNextCall;
+    failNextCall = null;
+    if (failure != null) throw failure;
+    if (fixed != null) return fixed!;
+    return super.fetchPeriodReport(period);
+  }
+}
+
+void main() {
+  // The screen draws dates, amounts and month names, and `main()` does not run
+  // in a test.
+  setUpAll(initializePtBr);
+
+  /// The instant is PINNED in every case: without it `Agosto/2026` is a read
+  /// of the calendar of whatever machine runs the CI.
+  final today = DateTime(2026, 8, 15);
+
+  Future<ProviderContainer> pumpReports(
+    WidgetTester tester, {
+    ReportRepository? repository,
+  }) async {
+    // A tall viewport: the summary, the divider, the total and the button do
+    // not fit the default 800×600, and a widget outside the render tree
+    // cannot be tapped.
+    tester.view.physicalSize = const Size(1200, 4000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer.test(
+      overrides: <Override>[
+        deviceUserOverride(),
+        catalogOverride(),
+        shoppingListOverride(),
+        ...purchaseOverrides(),
+        reportOverride(
+          repository: repository ?? _SpyRepository(fixed: referenceReport),
+        ),
+        reportPeriodProvider.overrideWith(
+          () => ReportPeriodNotifier(today: today),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: container.read(appRouterProvider),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    container.read(appRouterProvider).go(Routes.reports);
+    await tester.pumpAndSettle();
+    return container;
+  }
+
+  group('the five states', () {
+    testWidgets('the summary answers where the money went, with H12', (
+      tester,
+    ) async {
+      await pumpReports(tester);
+
+      expect(find.text('Carnes'), findsOneWidget);
+      expect(find.text(r'R$ 192,00   (59%)'), findsOneWidget);
+      expect(find.text('Limpeza'), findsOneWidget);
+      expect(find.text(r'R$ 136,00   (41%)'), findsOneWidget);
+      expect(find.text('Total do período'), findsOneWidget);
+      expect(find.text(r'R$ 328,00'), findsOneWidget);
+    });
+
+    testWidgets('a period with no purchase draws the empty state', (
+      tester,
+    ) async {
+      await pumpReports(tester, repository: _SpyRepository(fixed: PeriodReport.empty));
+
+      expect(
+        find.text('Nenhuma compra lançada nesse período.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a failed load occupies the screen, without the exception', (
+      tester,
+    ) async {
+      final repository = _SpyRepository(fixed: referenceReport)
+        ..failNextCall = ApiException(500, 'boom');
+      await pumpReports(tester, repository: repository);
+
+      expect(
+        find.text('O servidor está indisponível. Tente de novo em instantes.'),
+        findsOneWidget,
+      );
+      // The raw exception never reaches the screen.
+      expect(find.textContaining('ApiException'), findsNothing);
+      expect(find.textContaining('boom'), findsNothing);
+    });
+
+    testWidgets('a network failure says the connection is missing', (
+      tester,
+    ) async {
+      final repository = _SpyRepository(fixed: referenceReport)
+        ..failNextCall = NetworkException('offline');
+      await pumpReports(tester, repository: repository);
+
+      expect(
+        find.text('Sem conexão. Verifique a internet e tente de novo.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('[ Tentar de novo ] asks the repository again', (tester) async {
+      final repository = _SpyRepository(fixed: referenceReport)
+        ..failNextCall = ApiException(500, 'boom');
+      await pumpReports(tester, repository: repository);
+
+      await tester.tap(find.byKey(const ValueKey('retry-report')));
+      await tester.pumpAndSettle();
+
+      expect(repository.calls, 2);
+      expect(find.text('Total do período'), findsOneWidget);
+    });
+  });
+
+  group('the breakdown', () {
+    testWidgets('[ Ver por tipo de produto ] swaps the view', (tester) async {
+      await pumpReports(tester);
+
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+
+      // The written acceptance criterion of requirement 4, both examples.
+      expect(find.text('Acém moído'), findsOneWidget);
+      expect(find.text(r'6 kg   R$ 32,00/kg   R$ 192,00'), findsOneWidget);
+      expect(find.text('Sabão em pó'), findsOneWidget);
+      expect(find.text(r'6,8 kg   R$ 20,00/kg   R$ 136,00'), findsOneWidget);
+      // And the way back.
+      expect(find.byKey(const ValueKey('show-summary')), findsOneWidget);
+    });
+
+    testWidgets('the way back returns to the categories', (tester) async {
+      await pumpReports(tester);
+
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('show-summary')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Total do período'), findsOneWidget);
+      expect(find.text('Acém moído'), findsNothing);
+    });
+
+    testWidgets('a type with two brands opens into both of them', (
+      tester,
+    ) async {
+      await pumpReports(tester);
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Omo'), findsNothing);
+
+      await tester.tap(find.text('Sabão em pó'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Omo'), findsOneWidget);
+      expect(find.text(r'4,3 kg   R$ 86,00'), findsOneWidget);
+      expect(find.text('Tixan'), findsOneWidget);
+      expect(find.text(r'2,5 kg   R$ 50,00'), findsOneWidget);
+    });
+
+    testWidgets('D-a — a type with no brand has no arrow to open', (
+      tester,
+    ) async {
+      // The ground beef: C2 leaves the unbranded group out of the breakdown,
+      // so there would not be a single line to show.
+      await pumpReports(tester);
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('type-type-2')), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ExpansionTile),
+          matching: find.text('Acém moído'),
+        ),
+        findsNothing,
+      );
+    });
+
+    testWidgets('the description of a registration never appears', (
+      tester,
+    ) async {
+      // `wireframes §Tela 5`: a report groups by type and by brand, never by
+      // description.
+      await pumpReports(tester);
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('original'), findsNothing);
+    });
+  });
+
+  group('the period', () {
+    testWidgets('a month shortcut reloads the report', (tester) async {
+      final repository = _SpyRepository(fixed: referenceReport);
+      await pumpReports(tester, repository: repository);
+      expect(repository.calls, 1);
+
+      await tester.tap(find.text('Julho'));
+      await tester.pumpAndSettle();
+
+      expect(repository.calls, 2);
+      expect(find.text('Julho/2026'), findsOneWidget);
+    });
+
+    testWidgets('the report on screen is not erased while the next arrives', (
+      tester,
+    ) async {
+      // The `when !state.hasValue` guards: the reload is a pure AsyncLoading
+      // and Riverpod 3 keeps the previous value, so a period change must not
+      // blank the report being read.
+      await pumpReports(tester);
+
+      await tester.tap(find.text('Julho'));
+      await tester.pump();
+
+      expect(find.text('Total do período'), findsOneWidget);
+      expect(find.text('Somando as compras do período...'), findsNothing);
+      await tester.pumpAndSettle();
+    });
+  });
+
+  group('the screen itself', () {
+    testWidgets('carries the bottom bar, marking its own destination', (
+      tester,
+    ) async {
+      await pumpReports(tester);
+
+      expect(find.byType(ReportsScreen), findsOneWidget);
+      expect(find.text('Lista'), findsOneWidget);
+      expect(find.text('Falta'), findsOneWidget);
+      // Twice: the app bar title AND the bar's own label.
+      expect(find.text('Relatórios'), findsNWidgets(2));
+    });
+
+    testWidgets('has no Back button — it IS one of the three destinations', (
+      tester,
+    ) async {
+      // The wireframe's own note: switching between the three permanent
+      // destinations is not going back.
+      await pumpReports(tester);
+
+      expect(find.byType(BackButton), findsNothing);
+      expect(find.byTooltip('Menu'), findsOneWidget);
+    });
+
+    testWidgets('the three icon targets of the app bar carry labels', (
+      tester,
+    ) async {
+      await pumpReports(tester);
+
+      expect(find.byTooltip('Menu'), findsOneWidget);
+      expect(find.byTooltip('Quem está usando'), findsOneWidget);
+      expect(find.byTooltip('Recarregar'), findsOneWidget);
+    });
+
+    testWidgets('the `≡` opens the same three doors screen 1 opens', (
+      tester,
+    ) async {
+      await pumpReports(tester);
+
+      await tester.tap(find.byTooltip('Menu'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Histórico de compras'), findsOneWidget);
+      expect(find.text('Manutenção do cadastro'), findsOneWidget);
+      expect(find.text('Configurações'), findsOneWidget);
+    });
+
+    testWidgets('the `👤` asks who is using the phone', (tester) async {
+      await pumpReports(tester);
+
+      await tester.tap(find.byTooltip('Quem está usando'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quem está usando?'), findsOneWidget);
+    });
+
+    testWidgets('`↻` asks the repository again', (tester) async {
+      final repository = _SpyRepository(fixed: referenceReport);
+      await pumpReports(tester, repository: repository);
+
+      await tester.tap(find.byTooltip('Recarregar'));
+      await tester.pumpAndSettle();
+
+      expect(repository.calls, 2);
+    });
+
+    testWidgets('the pull-to-refresh reloads, and says when it fails', (
+      tester,
+    ) async {
+      // The RefreshIndicator, which is a different path from the `↻`: it takes
+      // its messenger from the Builder BELOW the Scaffold.
+      final repository = _SpyRepository(fixed: referenceReport);
+      await pumpReports(tester, repository: repository);
+
+      // 1500 and not 300: RefreshIndicator's trigger is a PERCENTAGE of the
+      // viewport (25%), and the viewport this file pumps is 4000 tall.
+      await tester.fling(find.byType(ListView), const Offset(0, 1500), 2000);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(repository.calls, 2);
+
+      repository.failNextCall = NetworkException('offline');
+      await tester.fling(find.byType(ListView), const Offset(0, 1500), 2000);
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Sem conexão. Verifique a internet e tente de novo.'),
+        findsOneWidget,
+      );
+      expect(find.text('Total do período'), findsOneWidget);
+    });
+
+    testWidgets('a failing refresh keeps the report and shows a SnackBar', (
+      tester,
+    ) async {
+      final repository = _SpyRepository(fixed: referenceReport);
+      await pumpReports(tester, repository: repository);
+
+      repository.failNextCall = NetworkException('offline');
+      await tester.tap(find.byTooltip('Recarregar'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Sem conexão. Verifique a internet e tente de novo.'),
+        findsOneWidget,
+      );
+      // The report stays on the screen.
+      expect(find.text('Total do período'), findsOneWidget);
+    });
+  });
+}

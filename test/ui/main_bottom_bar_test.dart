@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/core/widgets/main_bottom_bar.dart';
+import 'package:shopping_list/ui/core/widgets/pending_destinations.dart';
 
 void main() {
   Future<void> pumpBar(WidgetTester tester) => tester.pumpWidget(
@@ -11,6 +13,35 @@ void main() {
       ),
     ),
   );
+
+  /// A router of two routes, because a tap on a DELIVERED destination calls
+  /// `context.go` — and without a GoRouter in the tree that throws. The bar
+  /// alone can only be asked about the destinations that do not navigate.
+  Future<GoRouter> pumpRoutedBar(WidgetTester tester) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: Routes.shoppingList,
+          builder: (context, state) => const Scaffold(
+            body: Text('a lista'),
+            bottomNavigationBar: MainBottomBar(current: Routes.shoppingList),
+          ),
+        ),
+        GoRoute(
+          path: Routes.reports,
+          builder: (context, state) => const Scaffold(
+            body: Text('o relatório'),
+            bottomNavigationBar: MainBottomBar(current: Routes.reports),
+          ),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+    await tester.pumpAndSettle();
+    return router;
+  }
 
   testWidgets('carries the three permanent destinations', (tester) async {
     await pumpBar(tester);
@@ -35,13 +66,40 @@ void main() {
     );
   });
 
-  testWidgets('says which story brings "Relatórios"', (tester) async {
-    await pumpBar(tester);
+  testWidgets('"Relatórios" stopped being pending and now navigates', (
+    tester,
+  ) async {
+    // It used to answer 'Os relatórios chegam na H11.'; H11 is this delivery.
+    // The tap needs a GoRouter in the tree — a delivered destination calls
+    // `context.go`, and the helper above has no router.
+    await pumpRoutedBar(tester);
+
+    expect(isPending(Routes.reports), isFalse);
 
     await tester.tap(find.text('Relatórios'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Os relatórios chegam na H11.'), findsOneWidget);
+    expect(find.text('o relatório'), findsOneWidget);
+  });
+
+  testWidgets('a delivered destination is not greyed out, and reads its name', (
+    tester,
+  ) async {
+    // The other half of the same rule, and it needs no router: the icon is not
+    // in `disabledColor` any more, and the tooltip went back to being the
+    // label instead of the pendency's sentence.
+    await pumpBar(tester);
+
+    final context = tester.element(find.byType(MainBottomBar));
+    final icon = tester.widget<Icon>(find.byIcon(Icons.bar_chart));
+
+    expect(icon.color, isNot(Theme.of(context).disabledColor));
+    expect(find.byTooltip('Relatórios'), findsOneWidget);
+    // And the one still pending keeps its sentence.
+    expect(
+      find.byTooltip('"Falta comprar este mês" chega na H18.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('the destination already on screen does nothing loud', (

@@ -7,12 +7,14 @@ import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/core/widgets/under_construction_screen.dart';
 import 'package:shopping_list/ui/device_user/widgets/welcome_screen.dart';
+import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 import 'package:shopping_list/ui/settings/widgets/settings_screen.dart';
 
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
 import '../helpers/purchase.dart';
+import '../helpers/report.dart';
 import '../helpers/shopping_list.dart';
 
 void main() {
@@ -25,12 +27,11 @@ void main() {
   /// the phone.
   const placeholderTitleByPath = <String, String>{
     Routes.suggestions: 'Sugestão de itens',
-    Routes.reports: 'Relatórios',
     Routes.remainingThisMonth: 'Falta comprar este mês',
   };
 
   /// The paths whose real screen already exists. Every story moves one line
-  /// from the map above to this one — three more times — and the SUM of the
+  /// from the map above to this one — two more times — and the SUM of the
   /// two has to stay eleven. Loosening that count is how `tecnico §3.4` would
   /// quietly stop being true.
   const realTitleByPath = <String, String>{
@@ -44,6 +45,7 @@ void main() {
     // fake actually holds: the screen loads it.
     '/purchases/purchase-1/edit': 'Corrigir compra',
     Routes.catalog: 'Manutenção do cadastro',
+    Routes.reports: 'Relatórios',
   };
 
   Future<GoRouter> pumpRouter(
@@ -76,7 +78,18 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
+    );
+
+    // The title is asserted where a title LIVES. A screen that carries the
+    // bottom bar has its own name written twice — '/reports' is the app bar
+    // title AND the bar's label — and a plain `find.text` would report two.
+    // Loosening it to `findsWidgets` would stop catching a wrong title, which
+    // is the whole point of these two maps.
+    Finder titleOf(String title) => find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text(title),
     );
 
     for (final entry in placeholderTitleByPath.entries) {
@@ -88,7 +101,7 @@ void main() {
         findsOneWidget,
         reason: entry.key,
       );
-      expect(find.text(entry.value), findsOneWidget, reason: entry.key);
+      expect(titleOf(entry.value), findsOneWidget, reason: entry.key);
     }
 
     for (final entry in realTitleByPath.entries) {
@@ -100,7 +113,7 @@ void main() {
         findsNothing,
         reason: entry.key,
       );
-      expect(find.text(entry.value), findsOneWidget, reason: entry.key);
+      expect(titleOf(entry.value), findsOneWidget, reason: entry.key);
     }
   });
 
@@ -117,6 +130,7 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
 
@@ -135,6 +149,7 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
     await tester.pumpAndSettle();
@@ -186,10 +201,15 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
 
-    router.push(Routes.reports);
+    // The history and NOT `/reports`: the report is one of the three permanent
+    // destinations of the bottom bar, and it carries no Back button — the case
+    // right below says so. The history is a real screen behind the `≡`, and it
+    // has the `canPop() ? BackButton : home` logic this case is about.
+    router.push(Routes.purchaseHistory);
     await tester.pumpAndSettle();
     expect(find.byType(BackButton), findsOneWidget);
 
@@ -223,6 +243,7 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
 
@@ -231,6 +252,42 @@ void main() {
 
     expect(find.byType(BackButton), findsNothing);
     expect(find.byTooltip('Ir para a lista'), findsNothing);
+  });
+
+  testWidgets('gives the report no exit either — it is a destination', (
+    tester,
+  ) async {
+    // The same exception the shopping list has, for the same reason: the three
+    // permanent destinations of the bottom bar are switched BETWEEN, and the
+    // wireframe's own note says "alternar entre eles não é voltar". Without
+    // this case the next screen to grow a bottom bar grows a button that
+    // navigates to itself.
+    final router = await pumpRouter(
+      tester,
+      overrides: [
+        deviceUserOverride(),
+        catalogOverride(),
+        shoppingListOverride(),
+        ...purchaseOverrides(),
+        reportOverride(),
+      ],
+    );
+
+    // Pushed, which is the case that WOULD grow one.
+    router.push(Routes.reports);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ReportsScreen), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byTooltip('Ir para a lista'), findsNothing);
+    expect(find.byTooltip('Menu'), findsOneWidget);
+
+    // And opened directly, with an empty stack: still the `≡` and the bar.
+    router.go(Routes.reports);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byTooltip('Menu'), findsOneWidget);
   });
 
   testWidgets('sends an unmarked phone to the welcome screen, from anywhere', (
@@ -246,6 +303,7 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
     await tester.pumpAndSettle();
@@ -268,6 +326,7 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
     await tester.pumpAndSettle();
@@ -293,6 +352,7 @@ void main() {
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
+        reportOverride(),
       ],
     );
 
