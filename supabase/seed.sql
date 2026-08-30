@@ -143,4 +143,8 @@ insert into public.product (id, product_registration_id, piece_count, piece_size
 insert into public.product (id, product_registration_id, piece_count, piece_size, piece_size_unit, total_content, active) values ('8f529db0-e7cb-5605-94af-30c17133a7eb', 'ee29d2d1-278e-5bec-9bd0-3291bc1de3c1', 1, 1500, 'milliliter', 1500, false);
 insert into public.store (id, name, active) values ('819e0103-1d80-55f4-a581-8f934c04f282', 'Mercearia do Zé', false);
 
+-- H13: the cap in force, and the 80% of this month already given
+insert into public.spending_cap (id, amount, effective_from) values ('f3800515-63e6-5502-8b14-017ca9855ab1', 150000, '2026-05-01');
+insert into public.spending_cap_alert (id, month, warned_80_at) values ('b557c4ef-ec10-5943-b15e-345c4b577bff', '2026-08-01', '2026-08-01');
+
 commit;

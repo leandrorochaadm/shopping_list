@@ -479,6 +479,42 @@ def build(anchor: date) -> str:
         "'Mercearia do Zé', false);"
     )
 
+    # ── H13: a cap in force, and one of its two marks already given ──────
+    #
+    # A cap of R$ 1.500 since the 1st of three months ago, which is the number
+    # every acceptance criterion of requirement 9 is written with. It is ONE
+    # row and it crosses months on its own (decision 14), so the report of a
+    # closed month finds the cap of its time without a row per month.
+    #
+    # The alert row is the current month with the 80% already given: without
+    # it the "aviso dado uma vez só" of H13 has nothing to be seen against —
+    # every month would open unmarked and every purchase would warn.
+    #
+    # **Nothing of H14 is seeded**, and that is a decision, not an oversight
+    # (D-m): the generator writes ONE purchase per day, each by one person, so
+    # no day ever has two labels on it — which is exactly what
+    # `same_day_types` looks for. Checking H14 on `dev` means registering two
+    # purchases by hand, and `supabase/checks/spending_cap_cases.sql` builds
+    # that pair itself, in a transaction.
+    lines.append("")
+    lines.append("-- H13: the cap in force, and the 80% of this month already given")
+    cap_from = first_day(anchor, 3)
+    current_month = first_day(anchor, 0)
+    lines.append(
+        "insert into public.spending_cap (id, amount, effective_from) values ("
+        f"{sql_text(uid('cap', cap_from.isoformat()))}, 150000, "
+        f"{sql_text(cap_from.isoformat())});"
+    )
+    lines.append(
+        "insert into public.spending_cap_alert (id, month, warned_80_at) "
+        f"values ({sql_text(uid('cap-alert', current_month.isoformat()))}, "
+        f"{sql_text(current_month.isoformat())}, "
+        # A stamp and not a decision — nothing ever reads it back to compare
+        # it with anything. The date is the month's own first day, so the seed
+        # carries no clock of its own either.
+        f"{sql_text(current_month.isoformat())});"
+    )
+
     lines += ["", "commit;", ""]
     return "\n".join(lines)
 
