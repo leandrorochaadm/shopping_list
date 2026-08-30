@@ -2,17 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../routing/routes.dart';
-import '../../core/widgets/menu_entry.dart';
-import '../../core/widgets/pending_destinations.dart';
+import 'main_bottom_bar.dart';
+import 'menu_entry.dart';
+import 'pending_destinations.dart';
 
-/// The `≡` of screen 1 — and, as the `handoff` puts it, "a única porta das
-/// quatro telas não desenhadas". Without it being born here they would have no
-/// door at all, and the only way in would be typing the route.
+/// The `≡` — and, as the `handoff` puts it, "a única porta das quatro telas
+/// não desenhadas". Without it being born here they would have no door at all,
+/// and the only way in would be typing the route.
 ///
-/// **"Corrigir compra" is not one of them any more**, and it did not become
+/// It lives in `ui/core/` and not in `ui/shopping_list/`, for the same reason
+/// [MainBottomBar] does: the wireframe draws this same `≡` in the header of
+/// screen 5, and a second copy of it is where two different menus begin. It
+/// can live here because it only depends on `routing/` and on `core` itself —
+/// the `👤` dialog beside it cannot, and that is why it went to
+/// `ui/device_user/` instead.
+///
+/// **"Corrigir compra" is not one of the doors**, and it did not become
 /// enabled either: `/purchases/:id/edit` does not navigate without an id, and
 /// the only screen that knows which id is the history — one line above it.
-abstract final class ShoppingListMenu {
+abstract final class MainMenu {
   static const _entries = <MenuEntry>[
     MenuEntry(
       route: Routes.purchaseHistory,

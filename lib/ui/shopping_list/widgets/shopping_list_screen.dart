@@ -9,15 +9,14 @@ import '../../../routing/routes.dart';
 import '../../core/error_translation.dart';
 import '../../core/app_failure.dart';
 import '../../core/widgets/main_bottom_bar.dart';
+import '../../core/widgets/main_menu.dart';
 import '../../core/widgets/message_view.dart';
 import '../../core/widgets/pending_destinations.dart';
-import '../../device_user/view_model/device_user_view_model.dart';
-import '../../device_user/widgets/device_user_options.dart';
+import '../../device_user/widgets/who_is_using_dialog.dart';
 import '../view_model/pending_changes_notifier.dart';
 import '../view_model/shopping_list_view_model.dart';
 import 'add_item_panel.dart';
 import 'item_dialog.dart';
-import 'shopping_list_menu.dart';
 import 'shopping_list_tile.dart';
 
 /// Screen 1 — the shared list, grouped by category, that **warns instead of
@@ -40,14 +39,14 @@ class ShoppingListScreen extends ConsumerWidget {
         leading: IconButton(
           icon: const Icon(Icons.menu),
           tooltip: 'Menu',
-          onPressed: () => ShoppingListMenu.show(context),
+          onPressed: () => MainMenu.show(context),
         ),
         title: const Text('Lista de compras'),
         actions: [
           IconButton(
             icon: const Icon(Icons.person_outline),
             tooltip: 'Quem está usando',
-            onPressed: () => _askWhoIsUsing(context, ref),
+            onPressed: () => showWhoIsUsingDialog(context, ref),
           ),
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -93,29 +92,6 @@ class ShoppingListScreen extends ConsumerWidget {
       bottomNavigationBar: const MainBottomBar(current: Routes.shoppingList),
     );
   }
-
-  /// The same `DeviceUserOptions` picker H1 wrote — written a third time it
-  /// would be three touch targets drifting apart.
-  static Future<void> _askWhoIsUsing(BuildContext context, WidgetRef ref) =>
-      showDialog<void>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Quem está usando?'),
-          content: Consumer(
-            builder: (context, ref, _) => DeviceUserOptions(
-              selected: ref.watch(deviceUserViewModelProvider).value?.name,
-              onChanged: (name) async {
-                if (name == null) return;
-                final navigator = Navigator.of(dialogContext);
-                await ref
-                    .read(deviceUserViewModelProvider.notifier)
-                    .save(name);
-                navigator.pop();
-              },
-            ),
-          ),
-        ),
-      );
 }
 
 /// What arrived from the other phone. **Nothing moves until it is tapped** —
@@ -275,9 +251,9 @@ class _PendingButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => OutlinedButton(
-    onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(pendingDestinations[route]!)),
-    ),
+    onPressed: () => ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(pendingDestinations[route]!))),
     style: OutlinedButton.styleFrom(
       foregroundColor: Theme.of(context).disabledColor,
     ),

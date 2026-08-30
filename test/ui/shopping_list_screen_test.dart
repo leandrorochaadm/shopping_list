@@ -336,5 +336,13 @@ void main() {
 
     expect(find.text('Quem está usando?'), findsOneWidget);
     expect(find.byKey(const Key('device-user-Esposa')), findsOneWidget);
+
+    // And picking one saves it and closes the dialog. Since H11 the picker is
+    // `showWhoIsUsingDialog`, in a file of its own — screens 1 and 5 both open
+    // it, and the write is the half a `findsOneWidget` never reaches.
+    await tester.tap(find.byKey(const Key('device-user-Esposa')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Quem está usando?'), findsNothing);
   });
 }
