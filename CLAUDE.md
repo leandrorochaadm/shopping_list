@@ -129,6 +129,12 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | a compra aberta para correção | `PurchaseDetail` | compra + itens + **rastro**. Os dois lados do desfazer |
 | um dos seis cadastros | `CatalogKind` | o seletor da tela de manutenção. Carrega o rótulo e o artigo da frase de conflito |
 | o que se pede à Tela 4 | `NewProductRequest` | `returnsSelection` (Tela 3) e `registrationId` (manutenção). Era um `bool` até a H10 |
+| período do relatório | `ReportPeriod` | dois dias de calendário. Carrega o mês em curso, o deslocamento de mês e o teto do `›` |
+| relatório do período | `PeriodReport` | as **três** agregações do mesmo intervalo, planas, como a função devolve |
+| gasto por categoria | `CategorySpending` | **só dinheiro** — categoria não tem quantidade (divergência D-c) |
+| gasto por tipo | `TypeSpending` | o nível que soma: quantidade na unidade base, preço médio e total |
+| gasto por marca | `BrandSpending` | dentro do tipo. `brandId`/`name` **nulos** são o grupo sem marca, que o C2 descarta |
+| seção do relatório | `ReportSection` / `ReportTypeLine` | a árvore que a Tela 5 desenha, montada por `buildReportSections` |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -493,6 +499,9 @@ vigor no código** — não reabrir sem o usuário pedir.
 | `analysis_options.yaml` | `tecnico §3.13`: o padrão do `flutter_lints` | **mantido o padrão** | a skill sugere 3 lints extras; a decisão congelada vence, e a diferença é irrelevante |
 | Detecção de conexão | `tecnico §3`: cinco pacotes, "nada além disso" | **`web` entra**, como 3ª adição | a decisão 22 proíbe `connectivity_plus`, e os eventos `online`/`offline` vêm do `package:web`. Ele já era `transitive`; declará-lo é o que cala o lint `depend_on_referenced_packages`. Fica atrás de um *conditional import*, para a VM do `flutter test` nunca o compilar |
 | Valor pré-preenchido na Tela 3 | `handoff §H7`: "quantidade convertida × preço da unidade base da última compra" | **regra de três inteira**: `pago × quantidadeNova ÷ quantidadeAnterior`, meio-para-cima | as duas fórmulas são a mesma **antes** do arredondamento, e só esta não erra: 12 L por R$ 62,00 são R$ 5,1667/L, que arredondados para 517 centavos devolvem **R$ 62,04** para a mesma compra |
+| Seletor de período da Tela 5 (**D-b**) | `wireframes §Tela 5`: dois campos de data | **os dois campos + dois atalhos de mês** (`‹ Julho` / `Setembro ›`) | ler o mês anterior é a pergunta mais frequente da tela, e duas voltas de calendário para fazê-la é atrito. Remover é apagar um widget |
+| Quantidade por categoria (**D-c**) | `handoff §H11`: "o **total consumido** e o **total gasto** agrupados por **categoria**" | **a categoria só tem dinheiro** | somar 6 kg de carne com 12 L de refrigerante não dá número nenhum, e o `wireframes §Tela 5` desenha "Carnes  R$ 480" sem quantidade ao lado. `CategorySpending` não tem o campo: o erro não é representável |
+| O `›` da Tela 5 (**D-d**) | — não estava escrito | **para no mês em curso** (`ReportPeriod.canShiftForward`) | não há relatório de amanhã — e não é enfeite: sem ele o período vai para setembro e o campo de data abre com `initialDate` 01/09 contra `lastDate`, que é o assert `!initialDate.isAfter(lastDate)` de `showDatePicker`. **Crash de tela, não relatório vazio.** O outro lado da mesma regra é `latestSelectableDay`, que é o **fim do mês em curso** e não "hoje": o relatório abre no mês inteiro, então o próprio 31/08 tem de ser um dia que o calendário mostra |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 
@@ -554,6 +563,12 @@ rotas são **planas**, sem `routes:` aninhado, então o `go_router` não monta p
 do path — um `go` deixaria `canPop()` falso e a correção abriria com o ícone de casa em
 vez do Voltar, perdendo o histórico de onde a pessoa veio.
 
+`/reports` é o contrário dos dois acima: ela **não carrega Voltar nenhum**, nem empilhada.
+É um dos **três destinos permanentes** da barra de baixo, e a nota do wireframe é
+explícita — "alternar entre eles não é voltar". A Tela 1 já era assim; a Tela 5 é a
+segunda, e `router_test` tem um caso para cada uma, para a próxima tela com barra não
+nascer com um botão que navega para ela mesma.
+
 **Nenhuma rota é protegida** — não há sessão. O único `redirect` do app nasce na **H1**:
 enquanto a etiqueta de `deviceUser` não estiver no Hive, toda rota cai em `/welcome`.
 
@@ -581,14 +596,15 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 30/08/2026**, ao fim da Entrega 4
-(`temp/plan/plano-entrega-4-consertar-2026-08-28.md`, os 33 passos — H9 e H10).
-`flutter analyze` limpo, **824 testes verdes**, cobertura de linha **90,8%** — pela
-primeira vez **acima do piso de 90% do `deploy.yml`**. Antes dela vieram a Entrega 1
-(`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
+**Atualizado em 30/08/2026**, ao fim da Entrega 5
+(`temp/plan/plano-h11-h12-relatorio-do-periodo-2026-08-30.md`, os 27 passos — H11 e H12).
+`flutter analyze` limpo, **942 testes verdes**, cobertura de linha **91,6%** — acima do
+piso de 90% do `deploy.yml`, com margem um pouco maior do que a que a Entrega 4 deixou.
+Antes dela vieram a Entrega 1 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
 (`plano-entrega-2-lista-no-corredor-2026-08-28.md`), a Entrega 3
-(`plano-h7-h8-lancar-compra-2026-08-28.md`, os 28 passos) e a doutrina de erro
-(`plano-doutrina-de-erro-e-fim-dos-records-2026-08-29.md`).
+(`plano-h7-h8-lancar-compra-2026-08-28.md`, os 28 passos), a doutrina de erro
+(`plano-doutrina-de-erro-e-fim-dos-records-2026-08-29.md`) e a Entrega 4
+(`plano-entrega-4-consertar-2026-08-28.md`, os 33 passos).
 
 **O que o plano de 29/08 mudou, e não é feature:** a doutrina de erro passou a estar
 escrita — as **regras 16 e 17** e a seção "A corrente da igualdade" acima —, os **15
@@ -614,20 +630,20 @@ grep -rnE "(^|[^A-Za-z0-9_])\(\s*[a-z][A-Za-z0-9_]*:" lib/ \
 Ele devolve hoje uma linha só, e ela é falso positivo: `Radio<int>(value: ...)`, cujo
 `<int>` é o que engana a segunda metade do comando.
 
-**A cobertura passou o piso de 90% do `deploy.yml`, e a dívida que a segurava foi paga.**
-Era de dois arquivos da Entrega 2 sem teste de widget nenhum —
+**A cobertura passou o piso de 90% do `deploy.yml` na Entrega 4, e a dívida que a segurava
+foi paga.** Era de dois arquivos da Entrega 2 sem teste de widget nenhum —
 `ui/shopping_list/widgets/item_dialog.dart` (0 de 140 linhas) e `add_item_panel.dart`
-(1 de 130) —, e os dois ganharam o seu na linha 1 da Entrega 4, **antes** de qualquer
-código dela. Hoje o projeto está em **90,8%**: o piso fecha, e a margem é estreita — uma
-tela nova sem teste volta a derrubá-lo.
+(1 de 130) —, e os dois ganharam o seu na linha 1 daquela entrega, **antes** de qualquer
+código dela. Hoje o projeto está em **91,6%**, e **todo arquivo de `ui/report/` está em
+100%**. A margem continua estreita: uma tela nova sem teste volta a derrubá-la.
 
 **Existe:** o esqueleto — `pubspec` (com o Flutter 3.44.0 pinado), `config/`, `routing/`
 com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 claro,
 `MessageView`, `AppFailure`, tradução de erro, `SingleFieldDialog`, `formatting.dart`,
-`MenuEntry` e o `OnlineStatus`), `data/services/` (exceções, o tradutor do Supabase e a
-leitura de plataforma do online/offline — o estado que a expõe é
+`MenuEntry`, o `MainMenu` e o `OnlineStatus`), `data/services/` (exceções, o tradutor do
+Supabase e a leitura de plataforma do online/offline — o estado que a expõe é
 `ui/core/online_status.dart`) — e
-**nove telas** de onze:
+**dez telas** de onze:
 
 - **H1 — `DeviceUser`:** `device_user_repository` (abstract + `_local` + `_hive`),
   `DeviceUserViewModel`, a tela de boas-vindas, uma `/settings` mínima e o **único
@@ -662,6 +678,13 @@ leitura de plataforma do online/offline — o estado que a expõe é
   (`PurchaseHistoryViewModel`, `EditPurchaseViewModel` — um `family` —,
   `CatalogMaintenanceViewModel`), o `ProductField` **extraído** da Tela 3 e as **três
   telas atrás do `≡`**: o histórico paginado, a correção e a manutenção do cadastro.
+- **H11/H12 — para onde foi o dinheiro (Entrega 5):** o domínio novo (`ReportPeriod` com
+  `monthOf`/`shiftedByMonths`/`canShiftForward`/`latestSelectableDay`, `PeriodReport` com
+  as três agregações e o `percentageOf` da H12, e `buildReportSections` com a ordenação
+  de três níveis e a regra C2), o `report_repository` (abstract + `_local` + `_remote`), a
+  função `report_period(p_from, p_to)`, dois notifiers (`ReportPeriodNotifier` —
+  **onde o relógio entra no sistema** — e `ReportViewModel`) e a **Tela 5, aba Resumo**,
+  com a `PeriodBar`, o `ReportSummary` e o `ReportDetail`.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -695,16 +718,16 @@ publica um preview contra o `dev`**. Não há remote nem branch neste repositór
 **abrir uma branch antes do primeiro push é obrigatório** — senão a primeira publicação
 sai de `main` contra a base sem backup do `R13`.
 
-O `supabase/` existe com o `config.toml`, **cinco migrations** (a função `normalize_name`
+O `supabase/` existe com o `config.toml`, **sete migrations** (a função `normalize_name`
 `IMMUTABLE`; as 12 tabelas com a função transacional de cadastro; a RLS permissiva com os
 `grant`; a view `product_type_purchase_count`; a escrita da compra com `fulfilled_on`,
-`removed_on` e `create_purchase`; e a correção com `update_purchase`, `delete_purchase` e
-o índice do histórico paginado) e o **seed de 4 meses**, gerado por
-`uv run tool/make_seed.py` — reancorar é rodar de novo. Todas elas e o seed foram
-**aplicados e verificados** no Postgres 17 local (ver o parágrafo seguinte): as travas de
-duplicidade, o `NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros, o rollback das
-funções transacionais e os **sete casos de `purchase_correction_cases.sql`** foram
-exercitados um a um.
+`removed_on` e `create_purchase`; a correção com `update_purchase`, `delete_purchase` e
+o índice do histórico paginado; e a `report_period` da Entrega 5) e o **seed de 4 meses**,
+gerado por `uv run tool/make_seed.py` — reancorar é rodar de novo. Todas elas e o seed
+foram **aplicados e verificados** no Postgres 17 local (ver o parágrafo seguinte): as
+travas de duplicidade, o `NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros, o
+rollback das funções transacionais, os **sete casos de `purchase_correction_cases.sql`**
+e os **catorze de `period_report_cases.sql`** foram exercitados um a um.
 **Nada foi aplicado em `dev` nem em `prod`** — os projetos não existem (pendência A1).
 
 **O seed ganhou na Entrega 4 o que a H9 e a H10 mostram** e as quatro linhas de lista
@@ -813,32 +836,41 @@ caminho se resolve. Ou seja, o "no pior caso imprime uma linha no console" daque
 comentário é mais otimista do que o observado. Se um dia a
 `MisconfiguredApp.storageUnavailable()` aparecer sem explicação, **comece por aqui**.
 
-**Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e as
-outras duas telas — `/suggestions` (H17) e `/reports` (H11), mais `/remaining` (H18).
+**Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e a
+última tela — `/suggestions` (H17), mais `/remaining` (H18).
 `UnderConstructionScreen` continua viva por causa delas, e o `pendingDestinations` ficou
-com **três** entradas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
+com **duas** entradas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
 bloco B está fechado** (as cinco decisões de 28/08 mais a **B6**, que nasceu na H7), a
-**C1** e a **D3** foram respondidas na H7, e o que resta é o **bloco A** — contas do
-Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
+**C1** e a **D3** foram respondidas na H7, a **C2** na H11, e o que resta é o **bloco A** —
+contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
 
-**Cinco migrations esperam um banco hospedado.** As duas últimas são as das Entregas 3 e
-4: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
+**Sete migrations esperam um banco hospedado.** As três últimas são as das Entregas 3, 4
+e 5: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
 `shopping_list_item`, relaxa o `check` de `list_write_off` para `>= 0` e cria a
 `create_purchase`; a `20260828140000_purchase_correction.sql` cria o índice
 `purchase_history_idx`, as funções `update_purchase` e `delete_purchase` e — **dentro dela
-mesma, nunca no `rls.sql` já aplicado** — os dois `grant execute`. As duas foram
-**aplicadas e conferidas** no `shopping_list_dev` local, com
-`supabase/checks/purchase_write_cases.sql` e `purchase_correction_cases.sql`; o que falta
-é `dev` e `prod`, que dependem do A1.
+mesma, nunca no `rls.sql` já aplicado** — os dois `grant execute`; e a
+`20260830120000_period_report.sql` cria a `report_period(date, date)`, que devolve as
+**três agregações do mesmo intervalo** num `jsonb` só, com o seu `grant execute` dentro
+dela. As três foram **aplicadas e conferidas** no `shopping_list_dev` local, com
+`supabase/checks/purchase_write_cases.sql`, `purchase_correction_cases.sql` e
+`period_report_cases.sql`; o que falta é `dev` e `prod`, que dependem do A1.
+
+Três armadilhas da `report_period` estão escritas dentro dela e vale saber de cor:
+**`::bigint` em cada `sum`** (`sum()` sobre `bigint` devolve `numeric`, que no `jsonb`
+pode chegar `19200.00`), **`coalesce(…, '[]'::jsonb)` nas três chaves** (`jsonb_agg` de
+zero linhas devolve `NULL`, e o período vazio é um estado a desenhar, não um erro) e
+**nenhuma ordenação** (quem ordena é `buildReportSections`, em Dart).
 
 **A rota `/spike` e `lib/ui/spike/` são descartáveis:** existem para a medição S1 no
 iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 estiver
 respondida (passo 25 do plano).
 
 **A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
-iPhone 12 (precisa de A1, A2 e A3) e aplicar as cinco migrations no `dev` (precisa de
-A1) —, e depois os **relatórios** (H11/H12/H16), que leem o dado que a H9 agora deixa
-certo.
+iPhone 12 (precisa de A1, A2 e A3) e aplicar as sete migrations no `dev` (precisa de
+A1) —, e depois o **teto de gasto** (H13, que precisa da C4 respondida) e a **aba de
+comparação de preço** (H16), que entra na Tela 5 ao lado do Resumo — e é só quando ela
+existir que a `TabBar` nasce.
 
 **Dois critérios de aceite da H7 ficaram deliberadamente de fora**, e estão registrados
 para não sumirem: abrir a Tela 3 **a partir de um item da lista**, com a embalagem
@@ -857,7 +889,8 @@ lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais e
 
 **O `≡` perdeu uma entrada e o mapa perdeu quatro.** `pendingDestinations` ficou com
 `suggestions`, `reports` e `remainingThisMonth`; saíram as três desta entrega e o
-`newPurchase`, que a Entrega 3 esqueceu. **A ordem importa e é um crash se invertida:** o
+`newPurchase`, que a Entrega 3 esqueceu. (**Hoje são duas** — a Entrega 5 tirou o
+`reports`; esta seção é o registro daquele momento.) **A ordem importa e é um crash se invertida:** o
 `_PendingButton` da Tela 1 lê o mapa com `!` (`shopping_list_screen.dart`), então o
 `[ Lançar compra ]` virou um botão de verdade **antes** de a entrada sair. "Corrigir
 compra" saiu do menu em vez de ficar habilitada — `/purchases/:id/edit` não navega sem um
@@ -882,6 +915,51 @@ dentro do `try`. A exceção escapava do `catch` — subia crua para a tela em v
 frase — e o `finally` liberava `_running` antes de a escrita terminar, então o toque duplo
 disparava duas requisições. `return await` nos dez pontos resolveu. **`return future;`
 dentro de um `try` é `try` nenhum.**
+
+---
+
+## O que a Entrega 5 mudou fora da Tela 5
+
+**O `≡` e o `👤` saíram de `ui/shopping_list/`**, porque o wireframe desenha os dois no
+cabeçalho da Tela 5 e a alternativa era uma segunda cópia deles. Foram para lugares
+**diferentes**, e a diferença é a regra: `ShoppingListMenu` virou
+`ui/core/widgets/main_menu.dart` — `MainMenu` —, que é onde `MainBottomBar` já morava pelo
+mesmo motivo; mas o `_askWhoIsUsing` privado da Tela 1 virou
+`ui/device_user/widgets/who_is_using_dialog.dart`, e **não** `ui/core/`, porque ele precisa
+do `deviceUserViewModelProvider`: nenhum arquivo de `ui/core/widgets/` importa pasta de
+feature hoje, e pôr o diálogo ali inverteria a dependência.
+
+**O catálogo fake cresceu um tipo e uma marca** — `type-4` "Sabão em pó" (Limpeza,
+`kilogram`) e `brand-4` "Tixan" —, em `catalog_repository_local.dart` e em
+`test/helpers/purchase.dart`. Sem eles a fixture do relatório não conta a história escrita
+do requisito 4 (6,8 kg somando Omo e Tixan), e inventá-los só dentro do
+`ReportRepositoryLocal` faria a Tela 5 nomear, em debug, um tipo que a Tela 3 não oferece.
+O custo foi um teste: `catalog_maintenance_view_model_test.dart` conta os cadastros, e os
+dois `hasLength(3)` viraram `hasLength(4)`.
+
+**`Routes.reports` saiu do `pendingDestinations`, e a barra de baixo passou a navegar.**
+Isso quebrou o teste que afirmava a frase `'Os relatórios chegam na H11.'` — e o
+substituto **exige um `GoRouter` na árvore**: o `pumpBar` daquele arquivo monta um
+`MaterialApp` sem router, e um destino entregue chama `context.go`, que sem router lança.
+A metade que não precisa de router continua valendo sozinha: o ícone deixou de estar em
+`disabledColor` e o `tooltip` voltou a ser o rótulo.
+
+**Uma armadilha de teste que "Relatórios" estreou:** ele é ao mesmo tempo o **título da
+tela** e o **rótulo do destino na barra**, então há dois `Text('Relatórios')` na mesma
+árvore e todo `find.text` sobre ele devolve **dois**. A Tela 1 escapava disso por acidente
+— título "Lista de compras", rótulo "Lista". O conserto não é afrouxar para
+`findsWidgets`, que deixaria de pegar um título errado: é afirmar onde o título mora
+(`find.descendant(of: find.byType(AppBar), …)`) ou pelo widget da tela. A H18 volta a
+pisar nisso — "Falta comprar este mês" no título, "Falta" no rótulo.
+
+**Um bug de tela que o teste do `PeriodBar` encontrou, e que o plano não previa:** a
+decisão **D-d** guardava só a ponta `from`. Mas o relatório abre no **mês inteiro em
+curso**, cujo `to` é 31/08 com um "hoje" de 15/08 — então o segundo campo de data abria com
+`initialDate` **depois** do `lastDate` e disparava o assert
+`!initialDate.isAfter(lastDate)` de `showDatePicker`. A correção é a outra ponta da mesma
+regra, e mora no domínio: **`ReportPeriod.latestSelectableDay(today)` é o fim do mês em
+curso**, não "hoje". `canShiftForward` impede o período de sair deste mês; ela torna todo
+dia **dentro** dele alcançável.
 
 ---
 

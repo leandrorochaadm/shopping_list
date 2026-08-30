@@ -16,7 +16,7 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 |---|---|---|
 | A — Contas e aparelhos | 3 | a 1ª migration e o 1º deploy |
 | B — Decisões de schema | 6 | **as seis respondidas — cinco em 28/08, a B6 na H7** |
-| C — Perguntas de negócio | 4 | **C1 respondida na H7**; restam C2, C3 e C4 |
+| C — Perguntas de negócio | 4 | **C1 respondida na H7, C2 na H11**; restam C3 e C4 |
 | D — Status dos documentos | 3 | nada; são higiene de documento |
 | E — Riscos aceitos | 2 | nada; são confirmação por escrito |
 
@@ -347,12 +347,24 @@ Onde mora: `compareForPicker` e `groupForPicker`, em
 
 ---
 
-### C2 (L2) — Como o produto sem marca aparece na divisão por marca → **H11**
+### C2 (L2) — Como o produto sem marca aparece na divisão por marca → **RESPONDIDA na H11**
 
 O requisito 4 promete "abrir o tipo mostra a divisão por marca, com quantidade e valor de
 cada uma", e o acém moído não tem marca nenhuma.
 
-**Resposta:** ( ) linha "Sem marca" ( ) fica fora do detalhamento ( ) outra: ` `
+**Resposta (30/08/2026):** ( ) linha "Sem marca" (**x**) **fica fora do detalhamento**.
+
+O total do tipo continua contando o que o produto sem marca gastou — a soma das linhas de
+marca abertas pode ser **menor** que o total logo acima, e isso é aceito. E é o que faz um
+tipo comprado **só** sem marca não oferecer expansão nenhuma (decisão **D-a**): não haveria
+uma única linha para mostrar.
+
+Onde mora: `buildReportSections`, em `lib/domain/models/report_section.dart`, com teste por
+critério. **A regra é do domínio, não do SQL** — `report_period` devolve o grupo de marca
+nula junto com os outros, e é o Dart que o descarta (decisão 7). Reabrir o C2 é uma linha.
+
+A consulta e o schema **não mudam** com essa resposta: `brand_id` continua podendo ser
+nulo, e nulo continua sendo um valor (B2).
 
 ---
 

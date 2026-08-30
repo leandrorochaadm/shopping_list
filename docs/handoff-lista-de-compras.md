@@ -1371,7 +1371,7 @@ ser fechada na migration.
 | H8 | Nenhuma tabela nova — Hive local + o mesmo `INSERT` de H7 | [x] decidido |
 | H9 | `compra`, `compra_item`, rastro, `item_lista` (e `aviso_teto` **a partir de H13**); desfazer + reaplicar na **mesma transação** | [ ] transação a escrever |
 | H10 | `ativo` nos seis cadastros; `UPDATE` de nome e de classificação | [x] decidido |
-| H11 | Consulta por período, **três agregações do mesmo intervalo** (por parâmetro): total consumido e total gasto **por categoria**, **por tipo** e, dentro do tipo, **por marca** | [ ] a escrever |
+| H11 | Consulta por período, **três agregações do mesmo intervalo** (por parâmetro): total consumido e total gasto **por categoria**, **por tipo** e, dentro do tipo, **por marca** | [x] escrita — `report_period(p_from date, p_to date)`, em `supabase/migrations/20260830120000_period_report.sql` |
 | H12 | **Nenhuma consulta nova** — o percentual sai em Dart, sobre o total por categoria que a consulta de H11 já devolve | [x] decidido |
 | H13 | `teto`, `aviso_teto` | [x] decidido (decisão 14) |
 | H14 | Consulta de compras do mesmo dia por `lancado_por` diferente | [ ] a escrever |
@@ -1539,7 +1539,7 @@ delas trava o início: cada uma pode ser respondida até a história que a usa.
 | # | Lacuna | Bloqueia qual história | Status |
 |---|---|---|---|
 | L1 | **Como o seletor de Produto da Tela 3 ordena e filtra.** Os requisitos dizem "os produtos de sempre já sugeridos" e "o mais comprado daquele tipo aparece primeiro", mas não dizem **em que janela** se mede "mais comprado", como se desempata, nem se o seletor lista todos os produtos ou só os do tipo já em contexto. É o campo mais tocado do app e o primeiro dos três toques por item — mexe direto na meta de 2 minutos | H7 (parcial) | Aberta |
-| L2 | **Como o produto sem marca aparece na divisão por marca** do relatório. O requisito 4 promete "abrir o tipo mostra a divisão por marca, com quantidade e valor de cada uma", e o acém moído não tem marca nenhuma. Rótulo "sem marca"? Linha própria? Fica fora? | H11 (detalhe) | Aberta |
+| L2 | **Como o produto sem marca aparece na divisão por marca** do relatório. O requisito 4 promete "abrir o tipo mostra a divisão por marca, com quantidade e valor de cada uma", e o acém moído não tem marca nenhuma. Rótulo "sem marca"? Linha própria? Fica fora? | H11 (detalhe) | **Respondida em 30/08/2026: fica fora do detalhamento** |
 | L3 | **Ordenação dentro de cada categoria na lista de compras**, e a ordem entre as categorias. O requisito 8 declara "agrupada por categoria e, dentro de cada uma, em ordem alfabética — a mesma organização da lista de compras", mas a lista em si (requisito 11) só declara o agrupamento. Se a intenção é a ordem do corredor, alfabética pode não ser o que ele quer | H5 (detalhe) | Aberta |
 | L4 | **Fuso horário.** `tecnico §7.4` assume **America/Porto_Velho (UTC−4)** como premissa do documento técnico; os requisitos não registram cidade. Três regras dependem de "hoje" (mês do teto, aviso de item repetido, janela rolante), e o erro é silencioso (`R9`) | Nenhuma trava o início — o "hoje" nasce no relógio do aparelho (decisão 13). **Confirmar até H13**, o primeiro consumidor na ordem entre as regras que erram em silêncio (mês do teto, 12ª); H14, H15, H16, **H17**, H18 e H19 vêm depois — a janela **fechada** da H17 também precisa saber qual é o mês em curso | Aberta |
 
