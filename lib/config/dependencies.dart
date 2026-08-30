@@ -21,6 +21,9 @@ import '../data/repositories/report/report_repository_remote.dart';
 import '../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../data/repositories/shopping_list/shopping_list_repository_local.dart';
 import '../data/repositories/shopping_list/shopping_list_repository_remote.dart';
+import '../data/repositories/spending_cap/spending_cap_repository.dart';
+import '../data/repositories/spending_cap/spending_cap_repository_local.dart';
+import '../data/repositories/spending_cap/spending_cap_repository_remote.dart';
 import '../data/repositories/store/store_repository.dart';
 import '../data/repositories/store/store_repository_local.dart';
 import '../data/repositories/store/store_repository_remote.dart';
@@ -74,8 +77,17 @@ final List<Override> overridesLocal = [
   shoppingListRepositoryProvider.overrideWith(
     (ref) => ShoppingListRepositoryLocal(),
   ),
-  purchaseRepositoryProvider.overrideWith((ref) => PurchaseRepositoryLocal()),
+  // `sameDayBuyer` is what makes H14 visible in debug: the fake answers that
+  // "esposa" already bought the soft drink on whatever day is asked about, and
+  // the seeded purchases cannot do it — their dates are fixed and fall out of
+  // the "hoje ou ontem" window (D-m).
+  purchaseRepositoryProvider.overrideWith(
+    (ref) => PurchaseRepositoryLocal(sameDayBuyer: 'esposa'),
+  ),
   reportRepositoryProvider.overrideWith((ref) => ReportRepositoryLocal()),
+  spendingCapRepositoryProvider.overrideWith(
+    (ref) => SpendingCapRepositoryLocal(),
+  ),
   // In memory, not Hive: a draft that survived a restart of a fake-data
   // session would outlive the fake catalog it points at.
   purchaseDraftRepositoryProvider.overrideWith(
@@ -107,6 +119,9 @@ final List<Override> overridesRemote = [
   ),
   reportRepositoryProvider.overrideWith(
     (ref) => ReportRepositoryRemote(ref.watch(supabaseClientProvider)),
+  ),
+  spendingCapRepositoryProvider.overrideWith(
+    (ref) => SpendingCapRepositoryRemote(ref.watch(supabaseClientProvider)),
   ),
   // The second exception, for the same reason as the label: the draft is a
   // purchase that is not a purchase yet, and it must survive precisely when

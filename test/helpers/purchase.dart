@@ -3,6 +3,7 @@ import 'package:shopping_list/data/repositories/purchase/purchase_repository.dar
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
@@ -18,6 +19,7 @@ import 'package:shopping_list/domain/models/purchase_item.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 
 import 'catalog.dart';
+import 'spending_cap.dart';
 
 /// The catalog H7's tests are written against, in ONE place — the same three
 /// types `CatalogRepositoryLocal` and `ShoppingListRepositoryLocal` already
@@ -163,16 +165,17 @@ ShoppingListItem listItem({
   removedOn: removedOn,
 );
 
-/// The three overrides screen 3 needs, in ONE place — the purchase
-/// repository, the draft box's fake, and the stores. Every widget test that
-/// can reach `/purchases/new` needs all three, and the router test reaches it
-/// just by enumerating the routes.
+/// The four overrides screen 3 needs, in ONE place — the purchase repository,
+/// the draft box's fake, the stores and, since H13, the spending cap. Every
+/// widget test that can reach `/purchases/new` needs all four, and the router
+/// test reaches it just by enumerating the routes.
 ///
 /// The latency is zero, not the fakes' 400 ms: what is being tested is the
 /// screen, and every pumpAndSettle would otherwise carry the delay.
 List<Override> purchaseOverrides({
   PurchaseRepository? purchases,
   PurchaseDraft? draft,
+  SpendingCapRepository? caps,
 }) => [
   purchaseRepositoryProvider.overrideWith(
     (ref) => purchases ?? PurchaseRepositoryLocal(latency: Duration.zero),
@@ -180,5 +183,6 @@ List<Override> purchaseOverrides({
   purchaseDraftRepositoryProvider.overrideWith(
     (ref) => PurchaseDraftRepositoryLocal(initial: draft),
   ),
+  spendingCapOverride(repository: caps),
   storeOverride(),
 ];

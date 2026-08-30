@@ -7,26 +7,41 @@ import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/purchase_summary.dart';
+import '../../../domain/models/same_day_alert.dart';
+import '../../../domain/models/spending_cap.dart';
 import '../../../domain/models/write_off_undo.dart';
 
 /// A purchase and what it takes off the list — the package of ONE
 /// transaction. It is not a DTO: both halves are entities, and they travel
 /// together because the write that stores them is single.
 final class PurchaseSubmission {
-  const PurchaseSubmission({required this.purchase, required this.writeOffs});
+  const PurchaseSubmission({
+    required this.purchase,
+    required this.writeOffs,
+    // Nothing to write: it is what a month with no cap sends. The default is
+    // a convenience of CALLING and not of equality — the field is compared
+    // like any other below (rule 8).
+    this.capAlerts = const IList.empty(),
+  });
 
   final Purchase purchase;
   final IList<ListWriteOff> writeOffs;
+
+  /// The desired state of the month's two marks, as `evaluateSpendingCap`
+  /// decided it (H13). It travels with the purchase because the mark and the
+  /// write that moved the month across a cut have to commit TOGETHER.
+  final IList<CapAlerts> capAlerts;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is PurchaseSubmission &&
           other.purchase == purchase &&
-          other.writeOffs == writeOffs;
+          other.writeOffs == writeOffs &&
+          other.capAlerts == capAlerts;
 
   @override
-  int get hashCode => Object.hash(purchase, writeOffs);
+  int get hashCode => Object.hash(purchase, writeOffs, capAlerts);
 }
 
 /// One line of a past purchase, reduced to the four numbers screen 3 needs:
@@ -152,12 +167,26 @@ abstract class PurchaseRepository {
     required Purchase purchase,
     required IList<ListWriteOff> writeOffs,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   });
 
   /// Deletes the purchase and gives the list back what it had taken.
   Future<void> delete({
     required String purchaseId,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
+  });
+
+  /// The types of this purchase that SOMEONE ELSE also bought on [date]
+  /// (H14). [registeredBy] is the label of whoever is registering, and the
+  /// filter is `<>`: a purchase of one's own never warns.
+  ///
+  /// [date] is decided in the ViewModel, off the phone's clock — never
+  /// `current_date`, which at 21:00 UTC−4 on the 30th answers the 31st.
+  Future<IList<SameDayAlert>> fetchSameDayTypes({
+    required DateTime date,
+    required String registeredBy,
+    required ISet<String> productTypeIds,
   });
 }
 

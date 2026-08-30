@@ -8,6 +8,8 @@ import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/purchase_summary.dart';
+import '../../../domain/models/same_day_alert.dart';
+import '../../../domain/models/spending_cap.dart';
 import '../../../domain/models/write_off_undo.dart';
 import '../../services/supabase_error.dart';
 import 'purchase_repository.dart';
@@ -94,6 +96,12 @@ final class PurchaseRepositoryRemote implements PurchaseRepository {
           ],
           'p_write_offs': [
             for (final writeOff in submission.writeOffs) writeOff.toJson(),
+          ],
+          // The month's two marks, written INSIDE this same transaction: a
+          // second write after it could commit the purchase and lose the
+          // mark, and the alert would then fire twice.
+          'p_cap_alerts': [
+            for (final alerts in submission.capAlerts) alerts.toJson(),
           ],
         },
       );
@@ -221,6 +229,7 @@ purchase_item (
     required Purchase purchase,
     required IList<ListWriteOff> writeOffs,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     try {
       await _client.rpc<void>(
@@ -234,6 +243,10 @@ purchase_item (
           // Each entry sends `fulfilled_on` PRESENT and null when the item
           // reopens — an omitted key would reopen nothing, and in silence.
           'p_restored': [for (final entry in restored) entry.toJson()],
+          // TWO months when the correction moved the purchase across the turn
+          // of one: the month it left may have rearmed, and the month it
+          // arrived in may have crossed a cut.
+          'p_cap_alerts': [for (final alerts in capAlerts) alerts.toJson()],
         },
       );
     } on Object catch (e, st) {
@@ -245,6 +258,7 @@ purchase_item (
   Future<void> delete({
     required String purchaseId,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     try {
       await _client.rpc<void>(
@@ -252,8 +266,43 @@ purchase_item (
         params: {
           'p_purchase_id': purchaseId,
           'p_restored': [for (final entry in restored) entry.toJson()],
+          // Deleting only ever DROPS the month, so what travels here is the
+          // rearm — and it commits with the deletion for the same reason.
+          'p_cap_alerts': [for (final alerts in capAlerts) alerts.toJson()],
         },
       );
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<IList<SameDayAlert>> fetchSameDayTypes({
+    required DateTime date,
+    required String registeredBy,
+    required ISet<String> productTypeIds,
+  }) async {
+    try {
+      // A function and not a PostgREST embed on purpose: the filter falls on
+      // `product_registration.product_type_id`, THREE levels down the embed
+      // chain, and a third-level filter is exactly where PostgREST's syntax
+      // stops being obvious.
+      final response = await _client.rpc<List<dynamic>>(
+        'same_day_types',
+        params: {
+          'p_date': encodeCalendarDay(date),
+          'p_registered_by': registeredBy,
+          'p_type_ids': productTypeIds.toList(),
+        },
+      );
+
+      return response
+          .cast<Map<String, dynamic>>()
+          // The day comes from HERE and not from the query: it is the same
+          // day that was asked about, and the sentence needs it to choose
+          // between "hoje" and "no dia 25/08".
+          .map((row) => SameDayAlert.fromJson(row, date))
+          .toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }

@@ -9,6 +9,7 @@ import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/domain/models/write_off_undo.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -90,6 +91,20 @@ class _FakeVoidRpc extends Fake implements PostgrestFilterBuilder<void> {
   }) => Future<void>.value().then(onValue, onError: onError);
 }
 
+/// H14's read. Same trap as `_FakeRpc`: `rpc` is not a Future.
+class _FakeSameDayRpc extends Fake
+    implements PostgrestFilterBuilder<List<dynamic>> {
+  _FakeSameDayRpc(this.value);
+
+  final List<dynamic> value;
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(List<dynamic>) onValue, {
+    Function? onError,
+  }) => Future.value(value).then(onValue, onError: onError);
+}
+
 class _FakeTable extends Fake implements SupabaseQueryBuilder {
   _FakeTable(this.rows);
 
@@ -165,6 +180,11 @@ void main() {
       ).thenThrow(
         const PostgrestException(message: 'duplicate key', code: '23505'),
       );
+      when(
+        () => client.rpc<List<dynamic>>(any(), params: any(named: 'params')),
+      ).thenThrow(
+        const PostgrestException(message: 'duplicate key', code: '23505'),
+      );
     });
 
     final calls = <String, Future<void> Function()>{
@@ -182,6 +202,11 @@ void main() {
       'delete': () => repository.delete(
         purchaseId: 'a1',
         restored: const IList<RestoredListItem>.empty(),
+      ),
+      'fetchSameDayTypes': () => repository.fetchSameDayTypes(
+        date: DateTime(2026, 8, 18),
+        registeredBy: 'Leandro',
+        productTypeIds: const ISet<String>.empty(),
       ),
     };
 
@@ -265,6 +290,144 @@ void main() {
         isFalse,
       );
       expect(sent!['p_write_offs'], isEmpty);
+      // H13: the month's marks travel WITH the purchase, in the same
+      // transaction — empty here, which is a month with no cap.
+      expect(sent!['p_cap_alerts'], isEmpty);
+    });
+
+    test('sends the month marks the domain decided', () async {
+      Map<String, dynamic>? sent;
+      when(
+        () => client.rpc<Map<String, dynamic>>(
+          any(),
+          params: any(named: 'params'),
+        ),
+      ).thenAnswer((invocation) {
+        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
+        return _FakeRpc({'already_registered': false});
+      });
+
+      await repository.save(
+        PurchaseSubmission(
+          purchase: submission.purchase,
+          writeOffs: const IList<ListWriteOff>.empty(),
+          capAlerts: [
+            CapAlerts(
+              month: DateTime(2026, 8, 1),
+              warned80: true,
+              warned100: false,
+            ),
+          ].lock,
+        ),
+      );
+
+      expect(sent!['p_cap_alerts'], [
+        {'month': '2026-08-01', 'warned_80': true, 'warned_100': false},
+      ]);
+    });
+  });
+
+  group('the correction and the deletion carry the marks too', () {
+    setUp(() {
+      client = _MockClient();
+      repository = PurchaseRepositoryRemote(client);
+    });
+
+    test('correct sends p_cap_alerts, one entry per month affected', () async {
+      Map<String, dynamic>? sent;
+      when(
+        () => client.rpc<void>(any(), params: any(named: 'params')),
+      ).thenAnswer((invocation) {
+        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
+        return _FakeVoidRpc();
+      });
+
+      await repository.correct(
+        purchase: submission.purchase,
+        writeOffs: const IList<ListWriteOff>.empty(),
+        restored: const IList<RestoredListItem>.empty(),
+        // TWO months: the correction moved the purchase across the turn of
+        // one, so the month it left may have rearmed.
+        capAlerts: [
+          CapAlerts(month: DateTime(2026, 8, 1)),
+          CapAlerts(month: DateTime(2026, 9, 1), warned80: true),
+        ].lock,
+      );
+
+      expect(sent!['p_cap_alerts'], [
+        {'month': '2026-08-01', 'warned_80': false, 'warned_100': false},
+        {'month': '2026-09-01', 'warned_80': true, 'warned_100': false},
+      ]);
+    });
+
+    test('delete sends the rearm', () async {
+      Map<String, dynamic>? sent;
+      when(
+        () => client.rpc<void>(any(), params: any(named: 'params')),
+      ).thenAnswer((invocation) {
+        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
+        return _FakeVoidRpc();
+      });
+
+      await repository.delete(
+        purchaseId: 'a1',
+        restored: const IList<RestoredListItem>.empty(),
+        capAlerts: [CapAlerts(month: DateTime(2026, 8, 1))].lock,
+      );
+
+      expect(sent!['p_cap_alerts'], [
+        {'month': '2026-08-01', 'warned_80': false, 'warned_100': false},
+      ]);
+    });
+  });
+
+  group('fetchSameDayTypes', () {
+    setUp(() {
+      client = _MockClient();
+      repository = PurchaseRepositoryRemote(client);
+    });
+
+    test('sends the day, the label and the types', () async {
+      Map<String, dynamic>? sent;
+      when(
+        () => client.rpc<List<dynamic>>(any(), params: any(named: 'params')),
+      ).thenAnswer((invocation) {
+        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
+        return _FakeSameDayRpc(const []);
+      });
+
+      await repository.fetchSameDayTypes(
+        date: DateTime(2026, 8, 18),
+        registeredBy: 'Leandro',
+        productTypeIds: const ISetConst({'type-1'}),
+      );
+
+      // The day comes from the phone's clock — never `current_date`, which at
+      // 21:00 UTC−4 on the 30th answers the 31st.
+      expect(sent!['p_date'], '2026-08-18');
+      expect(sent!['p_registered_by'], 'Leandro');
+      expect(sent!['p_type_ids'], ['type-1']);
+    });
+
+    test('reads the types, keeping the day that was asked about', () async {
+      when(
+        () => client.rpc<List<dynamic>>(any(), params: any(named: 'params')),
+      ).thenAnswer(
+        (_) => _FakeSameDayRpc([
+          {'product_type_id': 'type-1', 'name': 'Refrigerante'},
+        ]),
+      );
+
+      final alerts = await repository.fetchSameDayTypes(
+        date: DateTime(2026, 8, 18),
+        registeredBy: 'Leandro',
+        productTypeIds: const ISetConst({'type-1'}),
+      );
+
+      expect(alerts.single.typeName, 'Refrigerante');
+      // The day is NOT in the answer: it is the one asked about, and the
+      // sentence needs it to choose between "hoje" and "no dia 18/08".
+      expect(alerts.single.purchasedOn, DateTime(2026, 8, 18));
     });
   });
 

@@ -12,6 +12,8 @@ import '../../../domain/models/product_type.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/purchase_summary.dart';
+import '../../../domain/models/same_day_alert.dart';
+import '../../../domain/models/spending_cap.dart';
 import '../../../domain/models/write_off_undo.dart';
 import 'purchase_repository.dart';
 
@@ -31,8 +33,19 @@ import 'purchase_repository.dart';
 class PurchaseRepositoryLocal implements PurchaseRepository {
   PurchaseRepositoryLocal({
     Iterable<PurchaseHistoryEntry>? history,
+    this.sameDayBuyer,
     this.latency = const Duration(milliseconds: 400),
   }) : _history = [...history ?? _seedHistory()];
+
+  /// The label the fake pretends bought the soft drink on WHATEVER day is
+  /// asked about (H14) — see [fetchSameDayTypes].
+  ///
+  /// **Null answers nothing, and that is the default on purpose.** `debug`
+  /// passes 'esposa' in `config/dependencies.dart`, which is what makes H14
+  /// demonstrable without a database; a test that wants the alert asks for it
+  /// by name, and the ten tests that only happen to save a purchase are not
+  /// interrupted by a dialog belonging to another story.
+  final String? sameDayBuyer;
 
   /// Roughly what the real thing costs, so the loading state is exercised
   /// while developing instead of being discovered on the phone. Tests pass
@@ -57,6 +70,11 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   final List<Purchase> corrected = [];
   final List<String> deleted = [];
   final List<RestoredListItem> restoredByCorrection = [];
+
+  /// Every cap mark the three write doors sent, in order — the fake's half of
+  /// `apply_cap_alerts`. It is what lets a test prove the automatic resend
+  /// WRITES the mark while showing no dialog (D-g), which no screen can show.
+  final List<CapAlerts> capAlertsWritten = [];
 
   static final _drinks = ProductType(
     id: 'type-1',
@@ -282,6 +300,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     if (already) return true;
 
     saved.add(submission);
+    capAlertsWritten.addAll(submission.capAlerts);
     for (final item in submission.purchase.items) {
       _history.add(
         PurchaseHistoryEntry(
@@ -335,9 +354,11 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     required Purchase purchase,
     required IList<ListWriteOff> writeOffs,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     await Future<void>.delayed(latency);
     corrected.add(purchase);
+    capAlertsWritten.addAll(capAlerts);
     restoredByCorrection
       ..clear()
       ..addAll(restored);
@@ -361,14 +382,57 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   Future<void> delete({
     required String purchaseId,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     await Future<void>.delayed(latency);
     deleted.add(purchaseId);
+    capAlertsWritten.addAll(capAlerts);
     restoredByCorrection
       ..clear()
       ..addAll(restored);
     _purchases.removeWhere((entry) => entry.purchase.id == purchaseId);
   }
+
+  /// **The seeded purchases cannot answer this, and that is why it is
+  /// written the way it is** (D-m). `_seedPurchases` uses FIXED dates — the
+  /// most recent is 28/08/2026 — and the caller only asks inside
+  /// `isWithinRepeatWindow(date, today)`, whose `today` is the real clock. In
+  /// any month after August 2026 the seed is outside the window forever, so
+  /// searching it would make H14 undemonstrable in debug.
+  ///
+  /// So the fake ANSWERS for any day: whoever is not [sameDayBuyer] is told
+  /// the buyer already brought [_sameDayType] home that day. No
+  /// `DateTime.now()` enters here, and a test that wants the empty answer
+  /// registers as [sameDayBuyer].
+  @override
+  Future<IList<SameDayAlert>> fetchSameDayTypes({
+    required DateTime date,
+    required String registeredBy,
+    required ISet<String> productTypeIds,
+  }) async {
+    await Future<void>.delayed(latency);
+
+    // The `<>` of the query: a purchase of one's own never warns. And with
+    // nobody configured there is nobody to have bought anything.
+    if (sameDayBuyer == null || registeredBy == sameDayBuyer) {
+      return const IList.empty();
+    }
+    if (!productTypeIds.contains(_sameDayTypeId)) return const IList.empty();
+
+    return [
+      SameDayAlert(
+        productTypeId: _sameDayTypeId,
+        typeName: _sameDayTypeName,
+        purchasedOn: date,
+      ),
+    ].lock;
+  }
+
+  /// The soft drink — the type every leaf of the picker but the beef hangs
+  /// from, so the alert shows up in debug on the most ordinary purchase. Two
+  /// constants and not a record: this project has none (rule 16).
+  static const _sameDayTypeId = 'type-1';
+  static const _sameDayTypeName = 'Refrigerante';
 
   /// The store's NAME is resolved here the way the real query resolves it
   /// through the embed — the purchase itself only holds the key.
