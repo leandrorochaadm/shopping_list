@@ -11,6 +11,7 @@ import '../../../domain/models/store.dart';
 import '../../../routing/routes.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
+import '../../core/widgets/warning_dialog.dart';
 import '../../core/formatting.dart';
 import '../../core/widgets/message_view.dart';
 import '../../store/view_model/store_view_model.dart';
@@ -216,7 +217,7 @@ class _EditPurchaseScreenState extends ConsumerState<EditPurchaseScreen> {
     final canPop = context.canPop();
 
     setState(() => _saving = true);
-    final error = await ref
+    final outcome = await ref
         .read(editPurchaseViewModelProvider(widget.purchaseId).notifier)
         .save(
           purchaseDate: _date!,
@@ -229,14 +230,27 @@ class _EditPurchaseScreenState extends ConsumerState<EditPurchaseScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
 
-    if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
-      return;
+    switch (outcome) {
+      // The reentrancy guard barred a second tap: nothing to show.
+      case null:
+        return;
+      case CorrectionFailed(:final message):
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      case CorrectionSaved(:final capAlert):
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Correção salva.')),
+        );
+        // A correction can push the month across a cut too — the same dialog
+        // screen 3 uses. There is no repeat warning here: `handoff §H14` puts
+        // that on screen 3 and nowhere else, and correcting a purchase of
+        // three weeks ago has no repetition to decide.
+        // `context` here is the Builder's, not the State's, so the `mounted`
+        // above does not speak for it.
+        if (capAlert != null && context.mounted) {
+          await showWarnings(context, [capAlert.message]);
+        }
+        _leave(router, canPop: canPop);
     }
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Correção salva.')),
-    );
-    _leave(router, canPop: canPop);
   }
 
   Future<void> _delete(BuildContext context) async {
@@ -267,20 +281,25 @@ class _EditPurchaseScreenState extends ConsumerState<EditPurchaseScreen> {
     final canPop = context.canPop();
 
     setState(() => _saving = true);
-    final error = await ref
+    final outcome = await ref
         .read(editPurchaseViewModelProvider(widget.purchaseId).notifier)
         .delete();
     if (!mounted) return;
     setState(() => _saving = false);
 
-    if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
-      return;
+    switch (outcome) {
+      case null:
+        return;
+      case CorrectionFailed(:final message):
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+      // A deletion only ever drops the month, so it has nothing to warn
+      // about — `capAlert` is always null on this path.
+      case CorrectionSaved():
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Compra apagada.')),
+        );
+        _leave(router, canPop: canPop);
     }
-    messenger.showSnackBar(
-      const SnackBar(content: Text('Compra apagada.')),
-    );
-    _leave(router, canPop: canPop);
   }
 
   /// Back to the history — `pop`, the pair of the `push` the history does.

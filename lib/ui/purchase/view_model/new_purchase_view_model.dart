@@ -3,14 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/purchase/purchase_repository.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
+import '../../../data/repositories/spending_cap/spending_cap_repository.dart';
 import '../../core/online_status.dart';
 import '../../../domain/models/price_reference.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_draft.dart';
+import '../../../domain/models/report_period.dart';
+import '../../../domain/models/same_day_alert.dart';
+import '../../../domain/models/spending_cap.dart';
 import '../../../domain/models/write_off_plan.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
+import '../../settings/view_model/spending_cap_view_model.dart';
 import 'purchase_draft_view_model.dart';
 
 /// How a save ended. **Three outcomes, not two**, which under rule 16 is what
@@ -29,7 +34,17 @@ sealed class SaveOutcome {
 }
 
 final class PurchaseSaved extends SaveOutcome {
-  const PurchaseSaved();
+  const PurchaseSaved({this.capAlert, required this.sameDay});
+
+  /// The graver of the two cuts, when this purchase crossed one (D-h). Null
+  /// when the month has no cap, when nothing was crossed, or when the cut had
+  /// already been warned about.
+  final CapThreshold? capAlert;
+
+  /// One entry per type someone ELSE also bought on the same day (H14).
+  final IList<SameDayAlert> sameDay;
+
+  bool get hasWarnings => capAlert != null || sameDay.isNotEmpty;
 }
 
 /// No signal: the purchase is on the phone, marked as pending, and will go up
@@ -147,12 +162,34 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
         items: draft.items,
       );
 
-      // 3. The list, read at the LAST possible moment — the smaller the
-      //    window between reading and writing, the smaller the chance the
-      //    other phone touched it in between.
-      final listItems = await ref
-          .read(shoppingListRepositoryProvider)
-          .fetchAll();
+      // 3. The three reads, STARTED together and awaited together — three
+      //    round trips in sequence would be three waits on a phone, in an
+      //    aisle. The list is read at the last possible moment for the same
+      //    reason it always was: the smaller the window between reading and
+      //    writing, the smaller the chance the other phone touched it.
+      final month = ReportPeriod.monthOf(purchase.date);
+      final listRead = ref.read(shoppingListRepositoryProvider).fetchAll();
+      final capRead = ref
+          .read(spendingCapRepositoryProvider)
+          .fetchStatuses([month].lock);
+      // Outside the window there is no question to ask, so the query does not
+      // happen at all — "hoje ou ontem" is decided HERE, in Dart, over the
+      // day the screen handed down (rule 9).
+      final sameDayRead = isWithinRepeatWindow(purchase.date, today)
+          ? ref
+                .read(purchaseRepositoryProvider)
+                .fetchSameDayTypes(
+                  date: purchase.date,
+                  registeredBy: purchase.registeredBy,
+                  productTypeIds: {
+                    for (final amount in purchase.amounts) amount.productTypeId,
+                  }.lock,
+                )
+          : Future.value(const IList<SameDayAlert>.empty());
+
+      final listItems = await listRead;
+      final capStatus = (await capRead).first;
+      final sameDay = await sameDayRead;
       if (!ref.mounted) return null;
 
       // 4. The write-off rule, pure. Every line of the purchase already
@@ -166,18 +203,54 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
         purchaseDate: purchase.date,
       );
 
-      // 5. The single write. A `true` means the purchase was already there —
+      // 5. The cap rule, pure as well, over the month's total AFTER this
+      //    purchase. It is the SAME function the correction, the deletion and
+      //    the cap screen call — none of the four re-implements a comparison.
+      //
+      //    And it is the month of the PURCHASE, not the current one: a
+      //    forgotten receipt of August registered in September pushes AUGUST
+      //    across its cut, and it is August's cap that applies.
+      final evaluation = evaluateSpendingCap(
+        cap: capStatus.cap,
+        month: capStatus.month,
+        spent: capStatus.spent + purchase.total,
+        current: capStatus.alerts,
+      );
+
+      // 6. The single write. A `true` means the purchase was already there —
       //    the resend that arrived twice. Not an error, and the draft has to
       //    die all the same.
-      await ref
+      final alreadyThere = await ref
           .read(purchaseRepositoryProvider)
-          .save(PurchaseSubmission(purchase: purchase, writeOffs: writeOffs));
+          .save(
+            PurchaseSubmission(
+              purchase: purchase,
+              writeOffs: writeOffs,
+              // Empty for a month with no cap: there is no row to touch.
+              capAlerts: evaluation.alerts == null
+                  ? const IList<CapAlerts>.empty()
+                  : [evaluation.alerts!].lock,
+            ),
+          );
       if (!ref.mounted) return null;
 
-      // 6. The draft dies HERE, and only here: it is the one guard against
+      // 7. The draft dies HERE, and only here: it is the one guard against
       //    the same purchase being registered twice.
       await ref.read(purchaseDraftViewModelProvider.notifier).clear();
-      return const PurchaseSaved();
+      if (!ref.mounted) return null;
+
+      // 8. `/settings` and screen 5 are stale by exactly this purchase. No
+      //    provider of this project is autoDispose, so without this the
+      //    "Gastou X de Y" of both stays at what it was until the app
+      //    restarts.
+      ref.invalidate(spendingCapViewModelProvider);
+
+      // The resend that arrived twice warns about NOTHING: the first send
+      // already re-evaluated the month, and this attempt's `spent` was read
+      // before it — adding the total again would overstate the month.
+      return alreadyThere
+          ? const PurchaseSaved(sameDay: IList.empty())
+          : PurchaseSaved(capAlert: evaluation.headline, sameDay: sameDay);
     } on FutureDate catch (e) {
       // A rule of the domain saying no is not a failure: nothing to log, and
       // the sentence is the entity's own.

@@ -5,10 +5,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
 import 'package:shopping_list/domain/models/purchase.dart';
 import 'package:shopping_list/domain/models/write_off_undo.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
@@ -37,6 +41,7 @@ class _SpyRepository extends PurchaseRepositoryLocal {
     required Purchase purchase,
     required IList<ListWriteOff> writeOffs,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     correctCalls++;
     final failure = failNextCall;
@@ -47,6 +52,7 @@ class _SpyRepository extends PurchaseRepositoryLocal {
       purchase: purchase,
       writeOffs: writeOffs,
       restored: restored,
+      capAlerts: capAlerts,
     );
   }
 
@@ -54,12 +60,17 @@ class _SpyRepository extends PurchaseRepositoryLocal {
   Future<void> delete({
     required String purchaseId,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     deleteCalls++;
     final failure = failNextCall;
     failNextCall = null;
     if (failure != null) throw failure;
-    return super.delete(purchaseId: purchaseId, restored: restored);
+    return super.delete(
+      purchaseId: purchaseId,
+      restored: restored,
+      capAlerts: capAlerts,
+    );
   }
 }
 
@@ -77,6 +88,7 @@ void main() {
   Future<ProviderContainer> pumpEdit(
     WidgetTester tester, {
     String purchaseId = 'purchase-1',
+    SpendingCapRepository? caps,
   }) async {
     tester.view.physicalSize = const Size(1200, 2400);
     tester.view.devicePixelRatio = 1;
@@ -87,7 +99,7 @@ void main() {
         deviceUserOverride(),
         catalogOverride(),
         shoppingListOverride(),
-        ...purchaseOverrides(purchases: purchases),
+        ...purchaseOverrides(purchases: purchases, caps: caps),
       ],
     );
 
@@ -138,6 +150,41 @@ void main() {
     expect(purchases.correctCalls, 1);
     expect(find.text('Correção salva.'), findsOneWidget);
     // Back to the history, which is what the `push` of the line promised.
+    expect(find.text('Histórico de compras'), findsOneWidget);
+  });
+
+  testWidgets('a correction that crosses a cut shows the cap warning', (
+    tester,
+  ) async {
+    // The purchase of the fake is of 28/08/2026, and this correction does not
+    // change its amount — so what the re-evaluation finds is the month as it
+    // stands: R$ 1.250 over a R$ 1.500 cap, past the R$ 1.200 cut, with
+    // neither mark set. That is the state a cap raised and then lowered again
+    // leaves behind, and it is exactly what has to warn.
+    await pumpEdit(
+      tester,
+      caps: SpendingCapRepositoryLocal(
+        latency: Duration.zero,
+        today: DateTime(2026, 8, 28),
+        cap: SpendingCap(
+          amount: const Money(150000),
+          effectiveFrom: DateTime(2026, 8, 1),
+        ),
+        spending: {DateTime(2026, 8, 1): const Money(125000)},
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('save-correction')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('O gasto do mês passou de 80% do teto.'), findsOneWidget);
+    // …and there is NO repeat warning here: `handoff §H14` puts that on
+    // screen 3 and nowhere else.
+    expect(find.textContaining('Vocês dois compraram'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('acknowledge-warnings')));
+    await tester.pumpAndSettle();
+
     expect(find.text('Histórico de compras'), findsOneWidget);
   });
 

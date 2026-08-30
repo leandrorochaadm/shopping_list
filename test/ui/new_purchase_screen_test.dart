@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import 'package:shopping_list/data/repositories/store/store_repository.dart';
@@ -12,7 +14,9 @@ import 'package:shopping_list/data/repositories/store/store_repository_local.dar
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/ui/core/online_status.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
+import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/purchase/widgets/product_field.dart';
@@ -23,9 +27,10 @@ import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
 import '../helpers/purchase.dart';
 import '../helpers/shopping_list.dart';
+import '../helpers/spending_cap.dart';
 
 class _SpyPurchases extends PurchaseRepositoryLocal {
-  _SpyPurchases() : super(latency: Duration.zero);
+  _SpyPurchases({super.sameDayBuyer}) : super(latency: Duration.zero);
 
   Object? failNextCall;
   Object? failNextSave;
@@ -72,6 +77,7 @@ void main() {
     PurchaseRepository? purchases,
     StoreRepository? stores,
     PurchaseDraft? draft,
+    SpendingCapRepository? caps,
     List<Override> overrides = const [],
   }) async {
     // A tall viewport: the form is long, and the default 800×600 leaves the
@@ -83,6 +89,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        spendingCapOverride(repository: caps),
         catalogOverride(),
         shoppingListOverride(),
         purchaseRepositoryProvider.overrideWith(
@@ -405,6 +412,81 @@ void main() {
 
     expect(purchases.saveCalls, 1);
     expect(find.text('Lista de compras'), findsOneWidget);
+    // Nothing was crossed and nothing repeated: no dialog at all.
+    expect(find.byKey(const ValueKey('warnings')), findsNothing);
+  });
+
+  testWidgets('the cap warning appears, and [ Entendi ] leads to the list', (
+    tester,
+  ) async {
+    // R$ 1.150 already spent + the R$ 62 of this purchase crosses the R$ 1.200
+    // cut of a R$ 1.500 cap.
+    await pumpScreen(
+      tester,
+      draft: draftWithItem(),
+      caps: SpendingCapRepositoryLocal(
+        latency: Duration.zero,
+        today: DateTime(2026, 8, 18),
+        cap: SpendingCap(
+          amount: const Money(150000),
+          effectiveFrom: DateTime(2026, 8, 1),
+        ),
+        spending: {DateTime(2026, 8, 1): const Money(115000)},
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('O gasto do mês passou de 80% do teto.'), findsOneWidget);
+    // The purchase is registered either way: the dialog acknowledges it.
+    expect(find.text('Compra salva.'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('acknowledge-warnings')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lista de compras'), findsOneWidget);
+  });
+
+  testWidgets('both warnings stack on the same screen, the cap on top', (
+    tester,
+  ) async {
+    // The purchase has to be of TODAY for H14's window, and the screen reads
+    // the phone's clock for it.
+    final today = DateTime.now();
+    final month = DateTime(today.year, today.month);
+    final draft = PurchaseDraft(
+      purchaseId: 'a1',
+      date: today,
+      registeredBy: 'Leandro',
+      storeId: 'store-1',
+    ).withItem(purchaseItem(id: 'i1', option: crate, cents: 6200));
+
+    await pumpScreen(
+      tester,
+      purchases: _SpyPurchases(sameDayBuyer: 'esposa'),
+      draft: draft,
+      caps: SpendingCapRepositoryLocal(
+        latency: Duration.zero,
+        today: today,
+        cap: SpendingCap(amount: const Money(150000), effectiveFrom: month),
+        spending: {month: const Money(115000)},
+      ),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('save')));
+    await tester.pumpAndSettle();
+
+    final cap = tester.getTopLeft(
+      find.text('O gasto do mês passou de 80% do teto.'),
+    );
+    final repeat = tester.getTopLeft(
+      find.text('Vocês dois compraram Refrigerante hoje.'),
+    );
+
+    // The wireframe: the cap above, the repeat below, ONE button.
+    expect(cap.dy, lessThan(repeat.dy));
+    expect(find.text('Entendi'), findsOneWidget);
   });
 
   testWidgets('a double tap on save writes once', (tester) async {

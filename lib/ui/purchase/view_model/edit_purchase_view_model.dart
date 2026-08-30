@@ -3,14 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/purchase/purchase_repository.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
+import '../../../data/repositories/spending_cap/spending_cap_repository.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/list_write_off.dart';
+import '../../../domain/models/money.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_item.dart';
+import '../../../domain/models/report_period.dart';
 import '../../../domain/models/shopping_list_item.dart';
+import '../../../domain/models/spending_cap.dart';
 import '../../../domain/models/write_off_plan.dart';
 import '../../../domain/models/write_off_undo.dart';
 import '../../core/error_translation.dart';
+import '../../settings/view_model/spending_cap_view_model.dart';
 
 /// What the correction screen has in hand: the purchase with its items and
 /// its trail, and the list items that trail cites — the two sides of the undo.
@@ -34,6 +39,32 @@ final class EditPurchaseState {
 
   @override
   int get hashCode => Object.hash(detail, listItems);
+}
+
+/// How a correction — or a deletion — ended.
+///
+/// `save` and `delete` were `Future<String?>` while a correction had exactly
+/// two outcomes carrying nothing. H13 gives the success a payload — the cap
+/// alert it may have fired — and **the number of outcomes is what picks the
+/// form** (rule 16), not taste.
+sealed class CorrectionOutcome {
+  const CorrectionOutcome();
+}
+
+final class CorrectionSaved extends CorrectionOutcome {
+  const CorrectionSaved(this.capAlert);
+
+  /// The cut this correction crossed in the month of the CORRECTED purchase,
+  /// or null. The month it may have LEFT can only have been rearmed, and a
+  /// rearm is not a warning: it does not speak.
+  final CapThreshold? capAlert;
+}
+
+final class CorrectionFailed extends CorrectionOutcome {
+  const CorrectionFailed(this.message);
+
+  /// pt-BR, already translated — the raw exception never reaches a screen.
+  final String message;
 }
 
 /// Screen `/purchases/:id/edit` — correcting and deleting one purchase, which
@@ -100,16 +131,16 @@ final class EditPurchaseViewModel extends AsyncNotifier<EditPurchaseState> {
     }
   }
 
-  /// Saves the correction. Returns null, or the pt-BR sentence for the
-  /// SnackBar.
+  /// Saves the correction.
   ///
-  /// **Two outcomes, neither carrying a payload: it is `Future<String?>`** —
-  /// the first of rule 16's two forms. It is NOT the sealed `SaveOutcome` of
-  /// delivery 3, and the difference is the NUMBER of outcomes, not taste:
-  /// there they are three, because registering a purchase has the "guardei no
-  /// aparelho" of airplane mode. A correction is not drafted, not resent and
-  /// does not happen offline — a sealed type of two branches here would be a
-  /// `switch` answering what a `null` already answers.
+  /// Returns `null` when the reentrancy guard barred a second tap — that null
+  /// is "não fiz nada", never a third branch (rule 16).
+  ///
+  /// **Two outcomes, and since H13 the success carries a payload** — which is
+  /// what makes this a sealed type and not the `Future<String?>` it was until
+  /// delivery 5. A correction that pushes the month across a cut has a
+  /// sentence to show, and a `String?` would force the screen to guess from
+  /// the text whether it had failed.
   ///
   /// The order is D2's, and it cannot change:
   ///   1. undo the OLD purchase's effect on the list (`undoWriteOffs`), which
@@ -119,7 +150,7 @@ final class EditPurchaseViewModel extends AsyncNotifier<EditPurchaseState> {
   ///      again, which is what stops the re-apply from being a blind replay;
   ///   3. tell the channel the echo is ours;
   ///   4. send both results in ONE transaction.
-  Future<String?> save({
+  Future<CorrectionOutcome?> save({
     required DateTime purchaseDate,
     required String storeId,
     required IList<PurchaseItem> items,
@@ -127,7 +158,11 @@ final class EditPurchaseViewModel extends AsyncNotifier<EditPurchaseState> {
   }) async {
     if (_running) return null;
     final current = state.value;
-    if (current == null) return 'Aguarde a compra carregar.';
+    // A FAILURE and not the guard: the null is reserved for `if (_running)`,
+    // which is the one case where nothing at all happened.
+    if (current == null) {
+      return const CorrectionFailed('Aguarde a compra carregar.');
+    }
 
     _running = true;
     try {
@@ -168,23 +203,70 @@ final class EditPurchaseViewModel extends AsyncNotifier<EditPurchaseState> {
           .read(shoppingListRepositoryProvider)
           .expectEcho(_echoIds(undone.restored, writeOffs));
 
-      // 4. One transaction.
+      // 4. The cap of every month this correction touches — ONE when the
+      //    date stayed inside its month, TWO when it crossed the turn of one.
+      //    The month it LEFT loses this purchase and may rearm; the month it
+      //    arrived in gains it and may cross a cut.
+      final previous = current.detail.purchase;
+      final months = <DateTime, ReportPeriod>{
+        firstDayOfMonth(previous.date): ReportPeriod.monthOf(previous.date),
+        firstDayOfMonth(corrected.date): ReportPeriod.monthOf(corrected.date),
+      };
+      final statuses = await ref
+          .read(spendingCapRepositoryProvider)
+          .fetchStatuses(months.values.toIList());
+      if (!ref.mounted) return null;
+
+      final evaluations = <DateTime, SpendingCapEvaluation>{};
+      for (final status in statuses) {
+        // Matched by MONTH and never by index: `cap_states` answers ordered by
+        // month, not in the order asked.
+        final after =
+            status.spent -
+            (status.month == firstDayOfMonth(previous.date)
+                ? previous.total
+                : Money.zero) +
+            (status.month == firstDayOfMonth(corrected.date)
+                ? corrected.total
+                : Money.zero);
+        evaluations[status.month] = evaluateSpendingCap(
+          cap: status.cap,
+          month: status.month,
+          spent: after,
+          current: status.alerts,
+        );
+      }
+
+      // 5. One transaction — the purchase, the list and the marks together.
       await ref
           .read(purchaseRepositoryProvider)
           .correct(
             purchase: corrected,
             writeOffs: writeOffs,
             restored: undone.restored,
+            capAlerts: [
+              for (final evaluation in evaluations.values)
+                if (evaluation.alerts != null) evaluation.alerts!,
+            ].lock,
           );
-      return null;
+      if (!ref.mounted) return null;
+
+      // 6. `/settings` and screen 5 are stale by exactly this correction.
+      ref.invalidate(spendingCapViewModelProvider);
+
+      // Only the month the purchase now belongs to has anything to say: the
+      // one it left can only have been rearmed, and a rearm is silent.
+      return CorrectionSaved(
+        evaluations[firstDayOfMonth(corrected.date)]?.headline,
+      );
     } on FutureDate catch (e) {
       // A rule of the domain saying no is not a failure: nothing to log, and
       // the sentence is the entity's own.
-      return e.message;
+      return CorrectionFailed(e.message);
     } on EmptyPurchase catch (e) {
-      return e.message;
+      return CorrectionFailed(e.message);
     } on Object catch (e, st) {
-      return translateError(e, st, 'salvar a correção');
+      return CorrectionFailed(translateError(e, st, 'salvar a correção'));
     } finally {
       _running = false;
     }
@@ -193,14 +275,17 @@ final class EditPurchaseViewModel extends AsyncNotifier<EditPurchaseState> {
   /// Deletes the purchase and gives the list back what it had taken — the
   /// same undo, without the re-applying. The confirmation belongs to the
   /// View; this asks nothing.
-  Future<String?> delete() async {
+  Future<CorrectionOutcome?> delete() async {
     if (_running) return null;
     final current = state.value;
-    if (current == null) return 'Aguarde a compra carregar.';
+    if (current == null) {
+      return const CorrectionFailed('Aguarde a compra carregar.');
+    }
 
     _running = true;
     try {
       final undone = undoWriteOffs(current.listItems, current.detail.trail);
+      final purchase = current.detail.purchase;
 
       // Only one block to expect here: `delete_purchase` has no new
       // write-offs to write.
@@ -208,12 +293,40 @@ final class EditPurchaseViewModel extends AsyncNotifier<EditPurchaseState> {
           .read(shoppingListRepositoryProvider)
           .expectEcho([for (final entry in undone.restored) entry.id]);
 
+      // Deleting only ever DROPS the month, so what this produces is the
+      // rearm — the cut that stops being crossed becomes available again.
+      final month = ReportPeriod.monthOf(purchase.date);
+      final statuses = await ref
+          .read(spendingCapRepositoryProvider)
+          .fetchStatuses([month].lock);
+      if (!ref.mounted) return null;
+
+      final status = statuses.first;
+      final evaluation = evaluateSpendingCap(
+        cap: status.cap,
+        month: status.month,
+        spent: status.spent - purchase.total,
+        current: status.alerts,
+      );
+
       await ref
           .read(purchaseRepositoryProvider)
-          .delete(purchaseId: purchaseId, restored: undone.restored);
-      return null;
+          .delete(
+            purchaseId: purchaseId,
+            restored: undone.restored,
+            capAlerts: evaluation.alerts == null
+                ? const IList<CapAlerts>.empty()
+                : [evaluation.alerts!].lock,
+          );
+      if (!ref.mounted) return null;
+
+      ref.invalidate(spendingCapViewModelProvider);
+
+      // A deletion has nothing to announce: whatever it crossed, it crossed
+      // downwards, and the mark for it was already there.
+      return const CorrectionSaved(null);
     } on Object catch (e, st) {
-      return translateError(e, st, 'apagar a compra');
+      return CorrectionFailed(translateError(e, st, 'apagar a compra'));
     } finally {
       _running = false;
     }

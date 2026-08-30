@@ -7,21 +7,26 @@ import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_re
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/ui/core/online_status.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
+import 'package:shopping_list/domain/models/same_day_alert.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/ui/purchase/view_model/new_purchase_view_model.dart';
 
 import '../helpers/device_user.dart';
 import '../helpers/purchase.dart';
+import '../helpers/spending_cap.dart';
 
 /// The fake with a switch that makes the next call fail — the two error paths
 /// without mocktail, which is how the rest of this project does it.
 class _SpyPurchases extends PurchaseRepositoryLocal {
-  _SpyPurchases() : super(latency: Duration.zero);
+  _SpyPurchases({super.sameDayBuyer}) : super(latency: Duration.zero);
 
   /// Two switches and not one: reading the notifier triggers `build()`,
   /// which calls `fetchProductOptions` — a single switch would be eaten
@@ -29,6 +34,24 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
   Object? failNextCall;
   Object? failNextSave;
   int saveCalls = 0;
+
+  /// How many times H14's query was made — zero is the assertion that a
+  /// purchase outside the window is not even asked about.
+  int sameDayCalls = 0;
+
+  @override
+  Future<IList<SameDayAlert>> fetchSameDayTypes({
+    required DateTime date,
+    required String registeredBy,
+    required ISet<String> productTypeIds,
+  }) {
+    sameDayCalls++;
+    return super.fetchSameDayTypes(
+      date: date,
+      registeredBy: registeredBy,
+      productTypeIds: productTypeIds,
+    );
+  }
 
   @override
   Future<IList<ProductOption>> fetchProductOptions() async {
@@ -61,10 +84,12 @@ void main() {
     _SpyPurchases? purchases,
     ShoppingListRepository? list,
     PurchaseDraftRepository? drafts,
+    SpendingCapRepository? caps,
     bool online = true,
   }) => ProviderContainer.test(
     overrides: [
       deviceUserOverride(),
+      spendingCapOverride(repository: caps),
       purchaseRepositoryProvider.overrideWith(
         (ref) => purchases ?? _SpyPurchases(),
       ),
@@ -469,6 +494,206 @@ void main() {
       expect(outcome, isA<PurchaseHeldOffline>());
       expect(purchases.saveCalls, 0);
       expect(drafts.readNow(), isNotNull);
+    });
+  });
+
+  group('the spending cap (H13)', () {
+    /// A cap of R$ 1.500 in force since August, over a month that has already
+    /// spent [spent] cents. The purchase every case below saves costs R$ 62.
+    SpendingCapRepositoryLocal capsWith({
+      required int spent,
+      bool warned80 = false,
+      bool warned100 = false,
+      bool hasCap = true,
+    }) => SpendingCapRepositoryLocal(
+      latency: Duration.zero,
+      today: today,
+      cap: hasCap
+          ? SpendingCap(
+              amount: const Money(150000),
+              effectiveFrom: DateTime(2026, 8, 1),
+            )
+          // A cap that only starts in September is a month with none.
+          : SpendingCap(
+              amount: const Money(150000),
+              effectiveFrom: DateTime(2026, 9, 1),
+            ),
+      spending: {DateTime(2026, 8, 1): Money(spent)},
+      alerts: {
+        DateTime(2026, 8, 1): CapAlerts(
+          month: DateTime(2026, 8, 1),
+          warned80: warned80,
+          warned100: warned100,
+        ),
+      },
+    );
+
+    test('the purchase that takes the month past 80% warns', () async {
+      // R$ 1.150 + R$ 62 = R$ 1.212, over the R$ 1.200 cut.
+      final purchases = _SpyPurchases();
+      final container = containerWith(
+        purchases: purchases,
+        caps: capsWith(spent: 115000),
+      );
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(), today: today);
+
+      expect((outcome! as PurchaseSaved).capAlert, CapThreshold.approaching);
+      // The mark travels WITH the purchase, in the same submission — never as
+      // a second write after it.
+      expect(purchases.saved.single.capAlerts.single.warned80, isTrue);
+      expect(purchases.saved.single.capAlerts.single.month, DateTime(2026, 8, 1));
+    });
+
+    test('the one that blows the cap says only the graver sentence', () async {
+      // R$ 1.490 + R$ 62 crosses BOTH cuts in the same write (D-h).
+      final purchases = _SpyPurchases();
+      final container = containerWith(
+        purchases: purchases,
+        caps: capsWith(spent: 149000),
+      );
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(), today: today);
+
+      expect((outcome! as PurchaseSaved).capAlert, CapThreshold.exceeded);
+      // …and both marks go up, which is what stops the next purchase from
+      // firing the 100% on its own.
+      expect(purchases.saved.single.capAlerts.single.warned80, isTrue);
+      expect(purchases.saved.single.capAlerts.single.warned100, isTrue);
+    });
+
+    test('the next purchase of the month does not repeat the warning', () async {
+      final purchases = _SpyPurchases();
+      final container = containerWith(
+        purchases: purchases,
+        caps: capsWith(spent: 130000, warned80: true),
+      );
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(), today: today);
+
+      expect((outcome! as PurchaseSaved).capAlert, isNull);
+      // The mark is written again all the same: the SQL preserves the first
+      // stamp, and `false` here would be a rearm nobody asked for.
+      expect(purchases.saved.single.capAlerts.single.warned80, isTrue);
+    });
+
+    test('a month with no cap warns nothing and writes no mark', () async {
+      final purchases = _SpyPurchases();
+      final container = containerWith(
+        purchases: purchases,
+        caps: capsWith(spent: 900000, hasCap: false),
+      );
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(), today: today);
+
+      expect((outcome! as PurchaseSaved).capAlert, isNull);
+      // Empty and not "both false": there is no row to touch.
+      expect(purchases.saved.single.capAlerts, isEmpty);
+    });
+
+    test('it is the month of the PURCHASE, not the current one', () async {
+      // A forgotten receipt of August registered in September pushes AUGUST
+      // across its cut, and it is August's cap that applies.
+      final purchases = _SpyPurchases();
+      final container = containerWith(
+        purchases: purchases,
+        caps: capsWith(spent: 115000),
+      );
+
+      await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(
+            draft: draft(date: DateTime(2026, 8, 18)),
+            today: DateTime(2026, 9, 30),
+          );
+
+      expect(purchases.saved.single.capAlerts.single.month, DateTime(2026, 8, 1));
+    });
+
+    test('a resend that arrived twice warns about nothing', () async {
+      // Its `spent` was read BEFORE the first send, so adding the total again
+      // would overstate the month — and the purchase is already there.
+      final purchases = _SpyPurchases();
+      final container = containerWith(
+        purchases: purchases,
+        caps: capsWith(spent: 149000),
+      );
+      final notifier = container.read(newPurchaseViewModelProvider.notifier);
+
+      await notifier.save(draft: draft(), today: today);
+      final second = await notifier.save(draft: draft(), today: today);
+
+      expect((second! as PurchaseSaved).capAlert, isNull);
+      expect((second as PurchaseSaved).sameDay, isEmpty);
+    });
+  });
+
+  group('the same-day repeat (H14)', () {
+    _SpyPurchases spyWithBuyer() => _SpyPurchases(sameDayBuyer: 'esposa');
+
+    test('a purchase of TODAY warns, and says "hoje"', () async {
+      final container = containerWith(purchases: spyWithBuyer());
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(date: today), today: today);
+
+      final alerts = (outcome! as PurchaseSaved).sameDay;
+      expect(alerts, hasLength(1));
+      expect(
+        alerts.single.messageFor(today: today, shortDate: '28/08'),
+        'Vocês dois compraram Refrigerante hoje.',
+      );
+    });
+
+    test('a purchase of YESTERDAY warns, and names the day', () async {
+      final yesterday = DateTime(2026, 8, 27);
+      final container = containerWith(purchases: spyWithBuyer());
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(date: yesterday), today: today);
+
+      expect(
+        (outcome! as PurchaseSaved).sameDay.single.messageFor(
+          today: today,
+          shortDate: '27/08',
+        ),
+        'Vocês dois compraram Refrigerante no dia 27/08.',
+      );
+    });
+
+    test('a purchase older than yesterday is not even asked about', () async {
+      final purchases = spyWithBuyer();
+      final container = containerWith(purchases: purchases);
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(date: DateTime(2026, 8, 5)), today: today);
+
+      expect((outcome! as PurchaseSaved).sameDay, isEmpty);
+      // Outside the window there is no question to ask, so the query does not
+      // happen at all.
+      expect(purchases.sameDayCalls, 0);
+    });
+
+    test('a purchase of one\'s own never warns', () async {
+      // The `<>` of the query: the label registering is the one filtered out.
+      final container = containerWith(purchases: _SpyPurchases(sameDayBuyer: 'Leandro'));
+
+      final outcome = await container
+          .read(newPurchaseViewModelProvider.notifier)
+          .save(draft: draft(date: today), today: today);
+
+      expect((outcome! as PurchaseSaved).sameDay, isEmpty);
     });
   });
 }

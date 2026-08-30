@@ -6,15 +6,20 @@ import 'package:shopping_list/data/repositories/purchase/purchase_repository_loc
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/ui/core/online_status.dart';
+import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/ui/purchase/view_model/pending_purchase_submitter.dart';
 
 import '../helpers/device_user.dart';
 import '../helpers/purchase.dart';
+import '../helpers/spending_cap.dart';
 
 class _SpyPurchases extends PurchaseRepositoryLocal {
   _SpyPurchases() : super(latency: Duration.zero);
@@ -83,9 +88,11 @@ void main() {
     PurchaseDraft? draft,
     bool online = true,
     PurchaseDraftRepositoryLocal? drafts,
+    SpendingCapRepository? caps,
   }) => ProviderContainer.test(
     overrides: [
       deviceUserOverride(),
+      spendingCapOverride(repository: caps),
       purchaseRepositoryProvider.overrideWith(
         (ref) => purchases ?? _SpyPurchases(),
       ),
@@ -117,6 +124,43 @@ void main() {
     );
     // The draft is gone, which is what stops it being sent a third time.
     expect(drafts.readNow(), isNull);
+  });
+
+  test('the automatic resend WRITES the cap mark and shows no dialog', () async {
+    // Decision D-g: there is no screen open to receive a dialog, so the marks
+    // are written and nothing is shown. Whoever wants to know where the month
+    // stands reads the "Gastou X de Y" of the report, which is what
+    // requirement 9 asks for.
+    final purchases = _SpyPurchases();
+    final drafts = PurchaseDraftRepositoryLocal(initial: pending());
+    final container = containerWith(
+      purchases: purchases,
+      drafts: drafts,
+      // R$ 1.150 + the R$ 62 of the pending purchase crosses the 80% cut of a
+      // R$ 1.500 cap.
+      caps: SpendingCapRepositoryLocal(
+        latency: Duration.zero,
+        today: DateTime(2026, 8, 18),
+        cap: SpendingCap(
+          amount: const Money(150000),
+          effectiveFrom: DateTime(2026, 8, 1),
+        ),
+        spending: {DateTime(2026, 8, 1): const Money(115000)},
+      ),
+    );
+
+    keepAlive(container);
+    await settle(container);
+
+    // The mark went up, in the same submission as the purchase…
+    expect(purchases.capAlertsWritten.single.warned80, isTrue);
+    expect(purchases.capAlertsWritten.single.month, DateTime(2026, 8, 1));
+    // …and the state is simply `sent`: this notifier has no way to show
+    // anything, and that is the decision, not a limitation discovered late.
+    expect(
+      container.read(pendingPurchaseSubmitterProvider),
+      PendingSubmission.sent,
+    );
   });
 
   test('does not touch the catalog when nothing is pending', () async {
@@ -197,6 +241,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        spendingCapOverride(),
         purchaseRepositoryProvider.overrideWith((ref) => purchases),
         purchaseDraftRepositoryProvider.overrideWith(
           (ref) => PurchaseDraftRepositoryLocal(initial: pending()),

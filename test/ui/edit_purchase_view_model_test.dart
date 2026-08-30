@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
@@ -13,9 +15,11 @@ import 'package:shopping_list/domain/models/purchase.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/domain/models/write_off_undo.dart';
+import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/ui/purchase/view_model/edit_purchase_view_model.dart';
 
 import '../helpers/purchase.dart';
+import '../helpers/spending_cap.dart';
 
 /// The purchase fake, seeded with ONE purchase whose trail this test controls,
 /// and with a switch that fails the next call.
@@ -47,6 +51,7 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
     required Purchase purchase,
     required IList<ListWriteOff> writeOffs,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     correctCalls++;
     sentWriteOffs = writeOffs;
@@ -56,6 +61,7 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
       purchase: purchase,
       writeOffs: writeOffs,
       restored: restored,
+      capAlerts: capAlerts,
     );
   }
 
@@ -63,11 +69,16 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
   Future<void> delete({
     required String purchaseId,
     required IList<RestoredListItem> restored,
+    IList<CapAlerts> capAlerts = const IList.empty(),
   }) async {
     deleteCalls++;
     final failure = _take();
     if (failure != null) throw failure;
-    return super.delete(purchaseId: purchaseId, restored: restored);
+    return super.delete(
+      purchaseId: purchaseId,
+      restored: restored,
+      capAlerts: capAlerts,
+    );
   }
 }
 
@@ -152,11 +163,13 @@ void main() {
 
   ProviderContainer containerWith(
     PurchaseRepository purchases,
-    ShoppingListRepository lists,
-  ) => ProviderContainer.test(
+    ShoppingListRepository lists, {
+    SpendingCapRepository? caps,
+  }) => ProviderContainer.test(
     overrides: <Override>[
       purchaseRepositoryProvider.overrideWith((ref) => purchases),
       shoppingListRepositoryProvider.overrideWith((ref) => lists),
+      spendingCapOverride(repository: caps),
     ],
   );
 
@@ -209,7 +222,7 @@ void main() {
       final container = containerWith(purchases, lists);
       await container.read(editPurchaseViewModelProvider('a1').future);
 
-      final error = await container
+      final outcome = await container
           .read(editPurchaseViewModelProvider('a1').notifier)
           .save(
             purchaseDate: purchaseDay,
@@ -225,7 +238,7 @@ void main() {
             today: DateTime(2026, 8, 29),
           );
 
-      expect(error, isNull);
+      expect(outcome, isA<CorrectionSaved>());
       expect(purchases.correctCalls, 1);
       // 4200 ml of one crate against the 6000 asked for: a partial write-off
       // that does NOT close the line.
@@ -241,7 +254,7 @@ void main() {
       final container = containerWith(purchases, _SpyList(initial: seedList()));
       await container.read(editPurchaseViewModelProvider('a1').future);
 
-      final error = await container
+      final outcome = await container
           .read(editPurchaseViewModelProvider('a1').notifier)
           .save(
             purchaseDate: purchaseDay,
@@ -252,7 +265,10 @@ void main() {
 
       // Whoever wants a purchase with no items wants to delete the purchase,
       // and the button for that is right below.
-      expect(error, 'Acrescente ao menos um item à compra.');
+      expect(
+        (outcome! as CorrectionFailed).message,
+        'Acrescente ao menos um item à compra.',
+      );
       expect(purchases.correctCalls, 0);
     });
 
@@ -261,7 +277,7 @@ void main() {
       final container = containerWith(purchases, _SpyList(initial: seedList()));
       await container.read(editPurchaseViewModelProvider('a1').future);
 
-      final error = await container
+      final outcome = await container
           .read(editPurchaseViewModelProvider('a1').notifier)
           .save(
             purchaseDate: DateTime(2026, 8, 30),
@@ -277,7 +293,10 @@ void main() {
             today: DateTime(2026, 8, 29),
           );
 
-      expect(error, 'A compra não pode ter data futura.');
+      expect(
+        (outcome! as CorrectionFailed).message,
+        'A compra não pode ter data futura.',
+      );
       expect(purchases.correctCalls, 0);
     });
 
@@ -290,7 +309,7 @@ void main() {
       await container.read(editPurchaseViewModelProvider('a1').future);
       purchases.failNextCall = NetworkException('down');
 
-      final error = await container
+      final outcome = await container
           .read(editPurchaseViewModelProvider('a1').notifier)
           .save(
             purchaseDate: purchaseDay,
@@ -306,8 +325,7 @@ void main() {
             today: DateTime(2026, 8, 29),
           );
 
-      expect(error, isNotNull);
-      expect(error, isNot(contains('down')));
+      expect((outcome! as CorrectionFailed).message, isNot(contains('down')));
       // The screen stays: the correction failed, it did not disappear.
       expect(container.read(editPurchaseViewModelProvider('a1')).hasValue, isTrue);
     });
@@ -345,9 +363,189 @@ void main() {
       ]);
 
       expect(purchases.correctCalls, 1);
-      // The second `null` is the guard saying "I did nothing" — which is why
-      // the screen needs a `_saving` of its own before it pops.
-      expect(results, [null, null]);
+      // The first one succeeded and the second `null` is the guard saying "I
+      // did nothing" — which is why the screen needs a `_saving` of its own
+      // before it pops, and why that null is not a third branch (rule 16).
+      expect(results.first, isA<CorrectionSaved>());
+      expect(results.last, isNull);
+    });
+  });
+
+  group('the spending cap (H13)', () {
+    /// A cap of R$ 1.500 since August, over months that have already spent
+    /// what [spending] says, with both marks as [warned80]/[warned100].
+    SpendingCapRepositoryLocal capsWith({
+      required Map<DateTime, Money> spending,
+      bool warned80 = false,
+      bool warned100 = false,
+    }) => SpendingCapRepositoryLocal(
+      latency: Duration.zero,
+      today: purchaseDay,
+      cap: SpendingCap(
+        amount: const Money(150000),
+        effectiveFrom: DateTime(2026, 8, 1),
+      ),
+      spending: spending,
+      alerts: {
+        for (final month in spending.keys)
+          month: CapAlerts(
+            month: month,
+            warned80: warned80,
+            warned100: warned100,
+          ),
+      },
+    );
+
+    IList<PurchaseItem> itemsPaying(int cents) => [
+      PurchaseItem(id: 'pi-1', option: crate, quantity: 1, paid: Money(cents)),
+    ].lock;
+
+    test('a correction that pushes the month past a cut warns', () async {
+      // The month holds R$ 1.150 INCLUDING this purchase's R$ 62; correcting
+      // it to R$ 200 takes the month to R$ 1.288, over the R$ 1.200 cut.
+      final purchases = _SpyPurchases(detail: seedDetail());
+      final caps = capsWith(spending: {DateTime(2026, 8, 1): const Money(115000)});
+      final container = containerWith(
+        purchases,
+        _SpyList(initial: seedList()),
+        caps: caps,
+      );
+      await container.read(editPurchaseViewModelProvider('a1').future);
+
+      final outcome = await container
+          .read(editPurchaseViewModelProvider('a1').notifier)
+          .save(
+            purchaseDate: purchaseDay,
+            storeId: 'store-1',
+            items: itemsPaying(20000),
+            today: DateTime(2026, 8, 29),
+          );
+
+      expect((outcome! as CorrectionSaved).capAlert, CapThreshold.approaching);
+      expect(purchases.capAlertsWritten.single.warned80, isTrue);
+    });
+
+    test('a correction that drops the month REARMS the alert', () async {
+      // R$ 1.250 with this purchase's R$ 62 inside it, corrected down to
+      // R$ 1: the month falls to R$ 1.188,01, below the cut.
+      final purchases = _SpyPurchases(detail: seedDetail());
+      final caps = capsWith(
+        spending: {DateTime(2026, 8, 1): const Money(125000)},
+        warned80: true,
+      );
+      final container = containerWith(
+        purchases,
+        _SpyList(initial: seedList()),
+        caps: caps,
+      );
+      await container.read(editPurchaseViewModelProvider('a1').future);
+
+      final outcome = await container
+          .read(editPurchaseViewModelProvider('a1').notifier)
+          .save(
+            purchaseDate: purchaseDay,
+            storeId: 'store-1',
+            items: itemsPaying(100),
+            today: DateTime(2026, 8, 29),
+          );
+
+      // A rearm is not a warning: it does not speak.
+      expect((outcome! as CorrectionSaved).capAlert, isNull);
+      // `false` is the rearm, and it is what makes the cut fire again later.
+      expect(purchases.capAlertsWritten.single.warned80, isFalse);
+    });
+
+    test('a correction that changes MONTH writes both months', () async {
+      // August loses the purchase and September gains it: two months, and
+      // they are matched by month and never by the order asked.
+      final purchases = _SpyPurchases(detail: seedDetail());
+      final caps = capsWith(
+        spending: {
+          DateTime(2026, 8, 1): const Money(125000),
+          DateTime(2026, 9, 1): const Money(119000),
+        },
+        warned80: true,
+      );
+      final container = containerWith(
+        purchases,
+        _SpyList(initial: seedList()),
+        caps: caps,
+      );
+      await container.read(editPurchaseViewModelProvider('a1').future);
+
+      final outcome = await container
+          .read(editPurchaseViewModelProvider('a1').notifier)
+          .save(
+            purchaseDate: DateTime(2026, 9, 5),
+            storeId: 'store-1',
+            items: itemsPaying(6200),
+            today: DateTime(2026, 9, 30),
+          );
+
+      final written = {
+        for (final alerts in purchases.capAlertsWritten) alerts.month: alerts,
+      };
+      expect(written.keys, containsAll([DateTime(2026, 8, 1), DateTime(2026, 9, 1)]));
+      // August drops to R$ 1.188 and rearms…
+      expect(written[DateTime(2026, 8, 1)]!.warned80, isFalse);
+      // …September rises to R$ 1.252 and stays crossed.
+      expect(written[DateTime(2026, 9, 1)]!.warned80, isTrue);
+      // Only the month the purchase now belongs to has anything to say — and
+      // September's cut was already marked, so nothing does.
+      expect((outcome! as CorrectionSaved).capAlert, isNull);
+    });
+
+    test('deleting a purchase rearms and says nothing', () async {
+      final purchases = _SpyPurchases(detail: seedDetail());
+      final caps = capsWith(
+        spending: {DateTime(2026, 8, 1): const Money(125000)},
+        warned80: true,
+      );
+      final container = containerWith(
+        purchases,
+        _SpyList(initial: seedList()),
+        caps: caps,
+      );
+      await container.read(editPurchaseViewModelProvider('a1').future);
+
+      final outcome = await container
+          .read(editPurchaseViewModelProvider('a1').notifier)
+          .delete();
+
+      expect((outcome! as CorrectionSaved).capAlert, isNull);
+      // R$ 1.250 − R$ 62 = R$ 1.188, below the R$ 1.200 cut.
+      expect(purchases.capAlertsWritten.single.warned80, isFalse);
+    });
+
+    test('a month with no cap writes no mark at all', () async {
+      final purchases = _SpyPurchases(detail: seedDetail());
+      final container = containerWith(
+        purchases,
+        _SpyList(initial: seedList()),
+        caps: SpendingCapRepositoryLocal(
+          latency: Duration.zero,
+          today: purchaseDay,
+          // In force only from September: August has none, forever.
+          cap: SpendingCap(
+            amount: const Money(150000),
+            effectiveFrom: DateTime(2026, 9, 1),
+          ),
+          spending: {DateTime(2026, 8, 1): const Money(900000)},
+        ),
+      );
+      await container.read(editPurchaseViewModelProvider('a1').future);
+
+      final outcome = await container
+          .read(editPurchaseViewModelProvider('a1').notifier)
+          .save(
+            purchaseDate: purchaseDay,
+            storeId: 'store-1',
+            items: itemsPaying(20000),
+            today: DateTime(2026, 8, 29),
+          );
+
+      expect((outcome! as CorrectionSaved).capAlert, isNull);
+      expect(purchases.capAlertsWritten, isEmpty);
     });
   });
 
@@ -503,11 +701,11 @@ void main() {
       final container = containerWith(purchases, lists);
       await container.read(editPurchaseViewModelProvider('a1').future);
 
-      final error = await container
+      final outcome = await container
           .read(editPurchaseViewModelProvider('a1').notifier)
           .delete();
 
-      expect(error, isNull);
+      expect(outcome, isA<CorrectionSaved>());
       expect(purchases.deleteCalls, 1);
       final restored = purchases.restoredByCorrection;
       expect(restored.map((entry) => entry.id).toSet(), {'l1', 'l2'});
@@ -525,12 +723,11 @@ void main() {
       await container.read(editPurchaseViewModelProvider('a1').future);
 
       purchases.failNextCall = NetworkException('down');
-      final error = await container
+      final outcome = await container
           .read(editPurchaseViewModelProvider('a1').notifier)
           .delete();
 
-      expect(error, isNotNull);
-      expect(error, isNot(contains('down')));
+      expect((outcome! as CorrectionFailed).message, isNot(contains('down')));
       expect(container.read(editPurchaseViewModelProvider('a1')).hasValue, isTrue);
     });
 

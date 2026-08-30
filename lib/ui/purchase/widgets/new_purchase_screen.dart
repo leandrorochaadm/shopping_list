@@ -17,6 +17,7 @@ import '../../catalog/widgets/new_product_screen.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 import '../../core/formatting.dart';
+import '../../core/widgets/warning_dialog.dart';
 import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
 import '../view_model/new_purchase_view_model.dart';
@@ -247,9 +248,23 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       // The reentrancy guard barred a second tap: nothing to show.
       case null:
         return;
-      case PurchaseSaved():
+      case PurchaseSaved(:final capAlert, :final sameDay):
         messenger.showSnackBar(const SnackBar(content: Text('Compra salva.')));
         _clearForm();
+        // The two warnings of H13 and H14, STACKED on the same confirmation
+        // screen with a single `[ Entendi ]` — the cap on top, exactly as the
+        // wireframe of screen 3 draws it. `showWarnings` opens nothing when
+        // there is nothing to say, so there is no `if` here.
+        await showWarnings(context, [
+          if (capAlert != null) capAlert.message,
+          for (final alert in sameDay)
+            alert.messageFor(
+              today: _today,
+              shortDate: formatShortDate(alert.purchasedOn),
+            ),
+        ]);
+        // The purchase is registered either way: the dialog acknowledges it,
+        // it does not decide anything.
         router.go(Routes.shoppingList);
       case PurchaseHeldOffline():
         // No SnackBar and NO navigation: the banner above already says what
