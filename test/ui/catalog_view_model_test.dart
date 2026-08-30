@@ -275,8 +275,8 @@ void main() {
         await container
             .read(catalogViewModelProvider.notifier)
             .createBrand('guarana antarctica'),
-        'O cadastro Guaraná Antarctica existe, mas está desativado. '
-        'Reative-o na manutenção do cadastro.',
+        // No destination in it since H10 — see `nameConflictMessage`.
+        'O cadastro Guaraná Antarctica existe, mas está desativado.',
       );
       expect(repository.createBrandCalls, 0);
     });

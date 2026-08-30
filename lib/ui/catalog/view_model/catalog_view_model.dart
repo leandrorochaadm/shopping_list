@@ -98,6 +98,33 @@ final class AddPackagingsFailed extends AddPackagingsOutcome {
   final String message;
 }
 
+/// How opening a registration by id ended — the `≡` door into screen 4, and
+/// the maintenance screen's `[ Abrir e acrescentar embalagem ]`.
+///
+/// Two outcomes WITH a payload, so it is a sealed type and not a
+/// `RegistrationConflict?` (rule 16). The reason is the damage: a quiet null
+/// here would open screen 4 BLANK — identical to `[+Novo]` — and the person
+/// would register all over again the very product they came to correct, which
+/// is exactly what the duplicate guard exists to prevent. `checkIdentity` can
+/// answer null because there null means "não achei conflito" and the save
+/// goes on.
+sealed class OpenRegistrationOutcome {
+  const OpenRegistrationOutcome();
+}
+
+final class RegistrationOpened extends OpenRegistrationOutcome {
+  const RegistrationOpened(this.conflict);
+
+  final RegistrationConflict conflict;
+}
+
+final class OpenRegistrationFailed extends OpenRegistrationOutcome {
+  const OpenRegistrationFailed(this.message);
+
+  /// pt-BR, already translated.
+  final String message;
+}
+
 /// A registration that already holds the typed identity, and the leaves it
 /// already has — what `[ Abrir e acrescentar embalagem ]` needs to open.
 final class RegistrationConflict {
@@ -274,7 +301,12 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       // The duplicate guard answers HERE — the unique index is the net
       // underneath, and a net is not an explanation.
       final conflict = findNameConflict(existing(options), name);
-      if (conflict != null) return _conflictMessage(conflict, noun);
+      // Decision B3: the guard sees the deactivated rows too, and the way out
+      // of a deactivated match is to REACTIVATE the one that exists — never
+      // to create a second one, which would split its history in two. The
+      // sentence lives in `domain/` and carries no destination: since H10 the
+      // dialog showing it offers `[ Reativar ]` right there.
+      if (conflict != null) return nameConflictMessage(conflict, noun);
 
       final created = await write(ref.read(catalogRepositoryProvider), entry);
       if (!ref.mounted) return null;
@@ -327,6 +359,125 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     }
   }
 
+  /// Reactivates the category the duplicate guard found deactivated — the
+  /// `[ Reativar ]` the dialog offers right there, instead of sending anyone
+  /// off to another screen with a receipt in hand (decision of 29/08/2026).
+  Future<String?> reactivateCategory(Category category) async {
+    if (_running) return null;
+    _running = true;
+    try {
+      final written = await ref
+          .read(catalogRepositoryProvider)
+          .updateCategory(category.reactivated());
+      if (!ref.mounted) return null;
+
+      final options = state.value;
+      if (options != null) {
+        state = AsyncData(
+          options.copyWith(
+            categories: options.categories
+                .map((entry) => entry.id == written.id ? written : entry)
+                .toIList(),
+          ),
+        );
+      }
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'reativar a categoria');
+    } finally {
+      _running = false;
+    }
+  }
+
+  /// The same for a brand.
+  Future<String?> reactivateBrand(Brand brand) async {
+    if (_running) return null;
+    _running = true;
+    try {
+      final written = await ref
+          .read(catalogRepositoryProvider)
+          .updateBrand(brand.reactivated());
+      if (!ref.mounted) return null;
+
+      final options = state.value;
+      if (options != null) {
+        state = AsyncData(
+          options.copyWith(
+            brands: options.brands
+                .map((entry) => entry.id == written.id ? written : entry)
+                .toIList(),
+          ),
+        );
+      }
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'reativar a marca');
+    } finally {
+      _running = false;
+    }
+  }
+
+  /// Reactivates a registration and hands it back opened — the fourth door of
+  /// the conflict, where the guard is not a name but the triple identity.
+  /// Screen 4 turns `[ Abrir e acrescentar embalagem ]` into
+  /// `[ Reativar e acrescentar embalagem ]` when the conflict is inactive,
+  /// because adding leaves to a deactivated registration is writing what
+  /// nobody will see.
+  Future<String?> reactivateRegistration(ProductRegistration entry) async {
+    if (_writingRegistration) return null;
+    _writingRegistration = true;
+    try {
+      await ref
+          .read(catalogRepositoryProvider)
+          .updateRegistration(entry.reactivated());
+      if (!ref.mounted) return null;
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'reativar o produto');
+    } finally {
+      _writingRegistration = false;
+    }
+  }
+
+  /// One registration by id, with its leaves — the `≡` door into screen 4.
+  ///
+  /// It composes `findRegistrationById` with the `fetchProductsOf` that
+  /// already exists and builds the SAME `RegistrationConflict` `checkIdentity`
+  /// builds. That composition is here and not in the repository because
+  /// `RegistrationConflict` lives in `ui/`, and a repository handing back a
+  /// type from `ui/` would invert the flow of rule 12.
+  ///
+  /// The `null` is the reentrancy guard of rule 14 saying "I did nothing"; a
+  /// failure is a branch of its own, because a quiet null would open the
+  /// screen blank — see [OpenRegistrationOutcome].
+  Future<OpenRegistrationOutcome?> openRegistration(String id) async {
+    if (_checkingIdentity) return null;
+    _checkingIdentity = true;
+    try {
+      final repository = ref.read(catalogRepositoryProvider);
+      final registration = await repository.findRegistrationById(id);
+      if (!ref.mounted) return null;
+      if (registration == null) {
+        return const OpenRegistrationFailed(
+          'Não encontrei esse produto. Atualize a lista.',
+        );
+      }
+
+      final products = await repository.fetchProductsOf(id);
+      if (!ref.mounted) return null;
+
+      return RegistrationOpened(
+        RegistrationConflict(registration: registration, products: products),
+      );
+    } on Object catch (e, st) {
+      return OpenRegistrationFailed(
+        translateError(e, st, 'abrir o produto'),
+      );
+    } finally {
+      _checkingIdentity = false;
+    }
+  }
+
   /// The count that orders the `#1a` panel while the search box is empty.
   ///
   /// An empty map on failure, not a sentence: order is a comfort, and a count
@@ -368,21 +519,6 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       _loadingLeaves = false;
     }
   }
-
-  /// Decision B3: the guard sees the deactivated rows too, and the way out of
-  /// a deactivated match is to REACTIVATE the one that exists — never to
-  /// create a second one, which would split its history in two.
-  ///
-  /// **The sentence survives the `#1a` panel on purpose.** Inside the panel a
-  /// deactivated type shows up in the search with a `[ Reativar ]` and the
-  /// `[ + Criar "…" ]` is not even offered, so this sentence is never read
-  /// there. Screen 4 does reach it, and will keep reaching it until H10:
-  /// offering to reactivate from there would be H10 being born by accident
-  /// inside H2.
-  String _conflictMessage(CatalogEntry conflict, String noun) => conflict.active
-      ? 'Já existe $noun ${conflict.name}.'
-      : 'O cadastro ${conflict.name} existe, mas está desativado. '
-            'Reative-o na manutenção do cadastro.';
 
   /// Asks whether type + brand + description is already taken, and brings the
   /// leaves of whatever it finds so the screen can say "com 4 embalagens".

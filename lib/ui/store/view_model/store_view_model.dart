@@ -44,7 +44,7 @@ final class StoreViewModel extends AsyncNotifier<IList<Store>> {
       }
 
       final conflict = findNameConflict(stores, name);
-      if (conflict != null) return _conflictMessage(conflict);
+      if (conflict != null) return nameConflictMessage(conflict, 'o mercado');
 
       final created = await ref.read(storeRepositoryProvider).create(store);
       if (!ref.mounted) return null;
@@ -57,6 +57,32 @@ final class StoreViewModel extends AsyncNotifier<IList<Store>> {
       return e.message;
     } on Object catch (e, st) {
       return translateError(e, st, 'salvar o mercado');
+    } finally {
+      _running = false;
+    }
+  }
+
+  /// Reactivates the store the duplicate guard found deactivated — the
+  /// `[ Reativar ]` the `NewStoreDialog` offers right there, with the receipt
+  /// still in hand and the purchase still on screen 3 behind it (decision of
+  /// 29/08/2026).
+  Future<String?> reactivate(Store store) async {
+    if (_running) return null;
+    _running = true;
+    try {
+      final written = await ref
+          .read(storeRepositoryProvider)
+          .update(store.reactivated());
+      if (!ref.mounted) return null;
+
+      state = AsyncData(
+        (state.value ?? const IList<Store>.empty())
+            .map((entry) => entry.id == written.id ? written : entry)
+            .toIList(),
+      );
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'reativar o mercado');
     } finally {
       _running = false;
     }
@@ -92,14 +118,6 @@ final class StoreViewModel extends AsyncNotifier<IList<Store>> {
     }
   }
 
-  /// Decision B3: the guard sees the deactivated rows too, and the way out of
-  /// a deactivated match is to REACTIVATE the one that exists — never to
-  /// create a second one, which would split its purchase history in two.
-  /// Reactivating itself belongs to the catalog maintenance screen (H10).
-  String _conflictMessage(Store conflict) => conflict.active
-      ? 'Já existe o mercado ${conflict.name}.'
-      : 'O mercado ${conflict.name} existe, mas está desativado. '
-            'Reative-o na manutenção do cadastro.';
 }
 
 /// `retry: null` on purpose: Riverpod 3 retries a failing provider ten times

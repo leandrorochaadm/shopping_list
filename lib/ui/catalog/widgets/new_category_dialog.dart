@@ -21,6 +21,21 @@ abstract final class NewCategoryDialog {
         fieldLabel: 'Nome da categoria',
         onSubmit: (name) =>
             ref.read(catalogViewModelProvider.notifier).createCategory(name),
+        // The way out of decision B3, offered RIGHT HERE (decision of
+        // 29/08/2026): whoever is blocked by a deactivated category is
+        // holding a receipt, and sending them to another screen to tap one
+        // button was the wait, not the design.
+        findReactivable: (name) {
+          final conflict = findNameConflict(
+            ref.read(catalogViewModelProvider).value?.categories ??
+                const <Category>[],
+            name,
+          );
+          return conflict == null || conflict.active ? null : conflict;
+        },
+        onReactivate: (entry) => ref
+            .read(catalogViewModelProvider.notifier)
+            .reactivateCategory(entry as Category),
       ),
     );
     if (name == null) return null;

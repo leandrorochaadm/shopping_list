@@ -30,6 +30,7 @@ void main() {
   Future<ProviderContainer> pumpScreen(
     WidgetTester tester, {
     CatalogRepository? repository,
+    NewProductRequest? request,
   }) async {
     // A tall viewport: screen 4 is a long form, and the default 800×600 puts
     // the second packaging row outside the render tree, where a tap misses.
@@ -53,7 +54,7 @@ void main() {
         child: MaterialApp.router(routerConfig: router),
       ),
     );
-    router.go(Routes.newProduct);
+    router.go(Routes.newProduct, extra: request);
     await tester.pumpAndSettle();
     return container;
   }
@@ -105,8 +106,10 @@ void main() {
     await pumpScreen(tester);
 
     expect(find.text('Escolha o tipo do produto primeiro.'), findsOneWidget);
-    expect(find.text('Unidade: escolha o tipo do produto primeiro'),
-        findsOneWidget);
+    expect(
+      find.text('Unidade: escolha o tipo do produto primeiro'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('takes the base unit from the type, never from the product', (
@@ -294,9 +297,7 @@ void main() {
     expect(find.text('Já existe a marca Omo.'), findsOneWidget);
   });
 
-  testWidgets('creates a type with its category and base unit', (
-    tester,
-  ) async {
+  testWidgets('creates a type with its category and base unit', (tester) async {
     await pumpScreen(tester);
 
     await tapOn(tester, find.byTooltip('Novo tipo'));
@@ -429,10 +430,7 @@ void main() {
 
     await tapOn(tester, find.byType(Radio<int>).last);
 
-    expect(
-      tester.widget<Radio<int>>(find.byType(Radio<int>).last).value,
-      2,
-    );
+    expect(tester.widget<Radio<int>>(find.byType(Radio<int>).last).value, 2);
   });
 
   testWidgets('asks a type counted by unit for the count and nothing else', (
@@ -578,9 +576,151 @@ void main() {
       expect(picked().hashCode, picked().hashCode);
       expect(picked(), isNot(picked(leafId: 'prod-2')));
       // Null is "Sem marca" (decision B2) — a real answer, and a different one.
-      expect(picked(), isNot(picked(brand: Brand(id: 'b1', name: 'Coca'))));
+      expect(
+        picked(),
+        isNot(
+          picked(
+            brand: Brand(id: 'b1', name: 'Coca'),
+          ),
+        ),
+      );
     });
   });
+  testWidgets('the ≡ door opens the registration already loaded', (
+    tester,
+  ) async {
+    // Arriving from the catalog maintenance: the fields come filled and
+    // LOCKED, and the four packagings that exist are on screen. It lands in
+    // the very state H2 wrote for the registration blocked by repetition —
+    // no second path through this screen.
+    await pumpScreen(
+      tester,
+      request: const NewProductRequest(registrationId: 'reg-1'),
+    );
+
+    expect(
+      find.text('Acrescentando embalagem a um produto que já existe.'),
+      findsOneWidget,
+    );
+    expect(find.text('já cadastrada'), findsNWidgets(4));
+  });
+
+  testWidgets('a registration that is not there says so, and opens blank', (
+    tester,
+  ) async {
+    await pumpScreen(
+      tester,
+      request: const NewProductRequest(registrationId: 'nope'),
+    );
+
+    expect(
+      find.text('Não encontrei esse produto. Atualize a lista.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the category door offers to reactivate right there', (
+    tester,
+  ) async {
+    final container = await pumpScreen(
+      tester,
+      repository: _WithDeactivated(categoryId: 'cat-3'),
+    );
+
+    await tapOn(tester, find.byTooltip('Nova categoria'));
+    await tester.enterText(dialogField, 'limpeza');
+    await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('O cadastro Limpeza existe, mas está desativado.'),
+      findsOneWidget,
+    );
+    // The sentence lost its destination when the button arrived.
+    expect(find.textContaining('manutenção do cadastro'), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('reactivate')));
+    await tester.pumpAndSettle();
+
+    // The dialog closed handing the name back, and the row is active again —
+    // which is what puts it in the screen's dropdown.
+    expect(find.byType(AlertDialog), findsNothing);
+    final categories = container
+        .read(catalogViewModelProvider)
+        .value!
+        .categories;
+    expect(categories.where((c) => c.id == 'cat-3').single.active, isTrue);
+  });
+
+  testWidgets('the brand door offers to reactivate right there', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    // 'Guaraná Antarctica' is the deactivated brand of the fake.
+    await tapOn(tester, find.byTooltip('Nova marca'));
+    await tester.enterText(dialogField, 'guarana antarctica');
+    await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('reactivate')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('reactivate')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('the type door offers to reactivate, written by hand', (
+    tester,
+  ) async {
+    // This dialog has three fields, so it does not use SingleFieldDialog:
+    // the same button is written beside the message it raised.
+    await pumpScreen(tester, repository: _WithDeactivated(typeId: 'type-3'));
+
+    await tapOn(tester, find.byTooltip('Novo tipo'));
+    await tester.enterText(dialogField, 'papel higienico');
+    await choose(tester, const ValueKey('field-type-category'), 'Limpeza');
+    await tapOn(tester, find.text('Unidade (contagem)'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Criar'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('reactivate')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('reactivate')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets(
+    'the fourth door: reactivating the registration before adding packaging',
+    (tester) async {
+      await pumpScreen(
+        tester,
+        repository: _WithDeactivated(registrationId: 'reg-1'),
+      );
+
+      await choose(tester, const ValueKey('field-category'), 'Bebidas');
+      await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+      await choose(tester, const ValueKey('field-brand'), 'Coca-Cola');
+      await type(tester, const ValueKey('field-description'), 'original');
+      await leaveField(tester);
+
+      // Adding leaves to a deactivated registration is writing what nobody
+      // will ever see, so the button reactivates first — and says so.
+      expect(
+        find.text('Esse produto já existe, mas está desativado.'),
+        findsOneWidget,
+      );
+      await tapOn(tester, find.text('Reativar e acrescentar embalagem'));
+
+      expect(
+        find.text('Acrescentando embalagem a um produto que já existe.'),
+        findsOneWidget,
+      );
+    },
+  );
 }
 
 /// Never finishes the write, so the reentrancy guard stays down for as long as
@@ -609,7 +749,6 @@ class _StuckRepository extends CatalogRepositoryLocal {
   }) => _held.future;
 }
 
-
 /// Refuses the load, so the error state gets exercised instead of being seen
 /// for the first time on a phone with no connection.
 class _FailingRepository extends CatalogRepositoryLocal {
@@ -634,4 +773,44 @@ class _RefusingRepository extends CatalogRepositoryLocal {
     required ProductRegistration registration,
     required IList<Packaging> packagings,
   }) async => throw NetworkException('offline');
+}
+
+/// The fake with one row already DEACTIVATED, done by overriding the read.
+///
+/// Not by awaiting `updateCategory` before the first pump: inside
+/// `testWidgets` the clock is fake, so the fakes' `Future.delayed` only fires
+/// when a frame is pumped WITH a duration — and an `await` before
+/// `pumpWidget` deadlocks the test for ten minutes instead of failing.
+class _WithDeactivated extends CatalogRepositoryLocal {
+  _WithDeactivated({this.categoryId, this.typeId, this.registrationId})
+    : super(latency: Duration.zero);
+
+  final String? categoryId;
+  final String? typeId;
+  final String? registrationId;
+
+  @override
+  Future<IList<Category>> fetchCategories() async =>
+      (await super.fetchCategories())
+          .map((entry) => entry.id == categoryId ? entry.deactivated() : entry)
+          .toIList();
+
+  @override
+  Future<IList<ProductType>> fetchTypes() async => (await super.fetchTypes())
+      .map((entry) => entry.id == typeId ? entry.deactivated() : entry)
+      .toIList();
+
+  @override
+  Future<ProductRegistration?> findRegistration({
+    required String productTypeId,
+    String? brandId,
+    required String description,
+  }) async {
+    final found = await super.findRegistration(
+      productTypeId: productTypeId,
+      brandId: brandId,
+      description: description,
+    );
+    return found?.id == registrationId ? found!.deactivated() : found;
+  }
 }

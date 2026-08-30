@@ -23,6 +23,20 @@ abstract final class NewStoreDialog {
         fieldLabel: 'Nome do mercado',
         onSubmit: (name) =>
             ref.read(storeViewModelProvider.notifier).create(name),
+        // The market goes with the four doors of screen 4, and it opens from
+        // screen 3 — with the purchase typed behind it. Leaving only screen 4
+        // with the button would be two answers to the same block in the same
+        // app.
+        findReactivable: (name) {
+          final conflict = findNameConflict(
+            ref.read(storeViewModelProvider).value ?? const <Store>[],
+            name,
+          );
+          return conflict == null || conflict.active ? null : conflict;
+        },
+        onReactivate: (entry) => ref
+            .read(storeViewModelProvider.notifier)
+            .reactivate(entry as Store),
       ),
     );
     if (name == null) return null;

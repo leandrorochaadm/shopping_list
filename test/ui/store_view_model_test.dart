@@ -118,8 +118,10 @@ void main() {
       await container
           .read(storeViewModelProvider.notifier)
           .create('mercearia do ze'),
-      'O mercado Mercearia do Zé existe, mas está desativado. '
-      'Reative-o na manutenção do cadastro.',
+      // No destination in it since H10: the dialog showing this sentence
+      // offers `[ Reativar ]` right there, so sending anyone to another
+      // screen would be a detour, not a way out.
+      'O cadastro Mercearia do Zé existe, mas está desativado.',
     );
     expect(repository.createCalls, 0);
   });

@@ -101,12 +101,52 @@ void main() {
     await openAndSubmit(tester, 'MERCEARIA DO ZE');
 
     expect(
-      find.text(
-        'O mercado Mercearia do Zé existe, mas está desativado. '
-        'Reative-o na manutenção do cadastro.',
-      ),
+      find.text('O cadastro Mercearia do Zé existe, mas está desativado.'),
       findsOneWidget,
     );
+    // The button is right there, and the sentence no longer sends anyone to
+    // another screen: whoever reads it has a receipt in hand (decision of
+    // 29/08/2026).
+    expect(find.byKey(const ValueKey('reactivate')), findsOneWidget);
+    expect(find.textContaining('manutenção do cadastro'), findsNothing);
+  });
+
+  testWidgets('[ Reativar ] brings the store back and selects it', (
+    tester,
+  ) async {
+    Store? result;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [storeOverride()],
+        child: MaterialApp(home: _Host(onPicked: (store) => result = store)),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Novo mercado'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'MERCEARIA DO ZE');
+    await tester.tap(find.widgetWithText(FilledButton, 'Salvar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('reactivate')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    // The caller got the row back WITH its id — that is what screen 3
+    // selects — and it is active again.
+    expect(result?.id, 'store-3');
+    expect(result?.active, isTrue);
+  });
+
+  testWidgets('a conflict with an ACTIVE store offers nothing', (
+    tester,
+  ) async {
+    // There is no way out to offer: a second "Carrefour" is simply refused.
+    await openAndSubmit(tester, 'carrefour');
+
+    expect(find.text('Já existe o mercado Carrefour.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('reactivate')), findsNothing);
   });
 
   testWidgets('refuses a name made of blanks', (tester) async {

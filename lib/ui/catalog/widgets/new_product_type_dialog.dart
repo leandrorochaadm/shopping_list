@@ -71,6 +71,12 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
   String? _error;
   bool _saving = false;
 
+  /// The deactivated type the last refusal was about, and the `[ Reativar ]`
+  /// beside the error. This dialog does not use `SingleFieldDialog` — it has
+  /// three fields — so the same button of the other three doors is written by
+  /// hand here, next to the message that raised it (decision of 29/08/2026).
+  ProductType? _reactivable;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -88,6 +94,7 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
     setState(() {
       _saving = true;
       _error = null;
+      _reactivable = null;
     });
     final error = await ref
         .read(catalogViewModelProvider.notifier)
@@ -101,8 +108,44 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
     setState(() {
       _saving = false;
       _error = error;
+      _reactivable = error == null ? null : _findReactivable();
     });
     if (error == null) navigator.pop(_controller.text);
+  }
+
+  /// The type already using the typed name, when it is DEACTIVATED — null
+  /// when the conflict was with an active one, because then there is no way
+  /// out to offer.
+  ProductType? _findReactivable() {
+    final conflict = findNameConflict(
+      ref.read(catalogViewModelProvider).value?.types ??
+          const <ProductType>[],
+      _controller.text,
+    );
+    return conflict == null || conflict.active ? null : conflict;
+  }
+
+  Future<void> _reactivate() async {
+    final entry = _reactivable;
+    if (entry == null) return;
+    final navigator = Navigator.of(context);
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+    final error = await ref
+        .read(catalogViewModelProvider.notifier)
+        .reactivateType(entry);
+    if (!mounted) return;
+
+    setState(() {
+      _saving = false;
+      _error = error;
+    });
+    // Closes handing back the NAME, exactly as a successful create does: the
+    // caller finds the row in the list the ViewModel has just updated.
+    if (error == null) navigator.pop(entry.name);
   }
 
   Future<void> _newCategory() async {
@@ -138,8 +181,19 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
                 errorText: _error,
                 errorMaxLines: 3,
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) => setState(() {
+                if (_reactivable != null) _reactivable = null;
+              }),
             ),
+            if (_reactivable != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  key: const ValueKey('reactivate'),
+                  onPressed: _saving ? null : _reactivate,
+                  child: const Text('Reativar'),
+                ),
+              ),
             const SizedBox(height: 16),
             Row(
               children: [

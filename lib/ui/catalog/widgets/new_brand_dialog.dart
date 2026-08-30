@@ -18,6 +18,18 @@ abstract final class NewBrandDialog {
         fieldLabel: 'Nome da marca',
         onSubmit: (name) =>
             ref.read(catalogViewModelProvider.notifier).createBrand(name),
+        // Same door, same reason as the category's — see there.
+        findReactivable: (name) {
+          final conflict = findNameConflict(
+            ref.read(catalogViewModelProvider).value?.brands ??
+                const <Brand>[],
+            name,
+          );
+          return conflict == null || conflict.active ? null : conflict;
+        },
+        onReactivate: (entry) => ref
+            .read(catalogViewModelProvider.notifier)
+            .reactivateBrand(entry as Brand),
       ),
     );
     if (name == null) return null;

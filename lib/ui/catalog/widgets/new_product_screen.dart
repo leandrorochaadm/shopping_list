@@ -50,18 +50,61 @@ final class PickedProduct {
   int get hashCode => Object.hash(product, registration, type, brand);
 }
 
+/// What whoever opens screen 4 may ask of it.
+///
+/// It was born a plain `bool` in delivery 3 — "hand the chosen leaf back to
+/// screen 3" — and becomes a class here, because the catalog maintenance
+/// (H10) needs to say WHICH registration to open, and a bool holds one
+/// answer. A null `state.extra` — the door from the menu — is the default of
+/// both.
+///
+/// A `final class` and not a record (rule 16): the same shape as
+/// [PickedProduct], which makes the trip back and lives right above.
+final class NewProductRequest {
+  const NewProductRequest({
+    this.returnsSelection = false,
+    this.registrationId,
+  });
+
+  final bool returnsSelection;
+  final String? registrationId;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NewProductRequest &&
+          other.returnsSelection == returnsSelection &&
+          other.registrationId == registrationId;
+
+  @override
+  int get hashCode => Object.hash(returnsSelection, registrationId);
+}
+
 /// Screen 4 — the product registration, in five levels.
 ///
 /// The form lives here and the I/O lives in the ViewModel. Every rule is
 /// ASKED of the domain: whether two packagings are the same amount, whether
 /// the selling mode allows a packaging list, what a valid measure is.
 class NewProductScreen extends ConsumerStatefulWidget {
-  const NewProductScreen({this.returnsSelection = false, super.key});
+  const NewProductScreen({
+    this.returnsSelection = false,
+    this.registrationId,
+    super.key,
+  });
 
   /// True when screen 3 opened it to register something it is about to buy:
   /// saving then POPS with the chosen leaf instead of navigating to the list.
   /// Whoever arrives from the menu leaves it false and nothing changes.
   final bool returnsSelection;
+
+  /// Arriving from the catalog maintenance (requirement 16), the screen opens
+  /// with the registration LOADED, the fields above locked and the packagings
+  /// it already has on the list — the "comprou o Omo de 2,3 kg tendo só o de
+  /// 500 g" case. Null is the `[+Novo]` door, which opens blank.
+  ///
+  /// It fills the very `_opened`/`_existing` state H2 already wrote for the
+  /// registration blocked by repetition: no second path.
+  final String? registrationId;
 
   @override
   ConsumerState<NewProductScreen> createState() => _NewProductScreenState();
@@ -99,6 +142,48 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     // for a product sold by piece, and the radio has to have somewhere to be.
     _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++));
     _selectedDraftId = _drafts.first.id;
+
+    final registrationId = widget.registrationId;
+    if (registrationId != null) {
+      // After the frame, because it touches the ViewModel and shows a
+      // SnackBar — neither belongs inside an initState.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _openFromCatalog(registrationId),
+      );
+    }
+  }
+
+  /// The `≡` door: the maintenance screen said WHICH registration to open.
+  ///
+  /// It lands in the same `_opened`/`_existing` state H2 already wrote, so
+  /// there is no second path through this screen. The failure is a branch of
+  /// its own on purpose: a quiet null would open screen 4 BLANK — identical
+  /// to `[+Novo]` — and the person would register again the very product they
+  /// came to correct.
+  Future<void> _openFromCatalog(String registrationId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final outcome = await ref
+        .read(catalogViewModelProvider.notifier)
+        .openRegistration(registrationId);
+    if (!mounted) return;
+
+    switch (outcome) {
+      // The reentrancy guard fired: nothing to show and nothing to open.
+      case null:
+        return;
+      case RegistrationOpened(:final conflict):
+        setState(() {
+          _opened = conflict.registration;
+          _existing = conflict.products;
+          _sellingMode = conflict.registration.sellingMode;
+          _typeId = conflict.registration.productTypeId;
+          _brandId = conflict.registration.brandId;
+          _descriptionController.text = conflict.registration.description;
+          _conflict = null;
+        });
+      case OpenRegistrationFailed(:final message):
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
   }
 
   @override
@@ -216,14 +301,36 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// `[ Abrir e acrescentar embalagem ]` — the way out of the block, and what
   /// keeps it from being a dead end. What was typed does not get lost: the
   /// line being built goes down into the loaded list.
-  void _openConflict() {
+  ///
+  /// **When the registration in the way is DEACTIVATED it reactivates first**,
+  /// and the button says so. Adding leaves to a deactivated registration is
+  /// writing what nobody will ever see — and until H10 the only way out
+  /// offered was to leave the screen, with the receipt still in hand.
+  Future<void> _openConflict() async {
     final conflict = _conflict;
     if (conflict == null) return;
 
+    var registration = conflict.registration;
+    if (!registration.active) {
+      final messenger = ScaffoldMessenger.of(context);
+      setState(() => _saving = true);
+      final error = await ref
+          .read(catalogViewModelProvider.notifier)
+          .reactivateRegistration(registration);
+      if (!mounted) return;
+      setState(() => _saving = false);
+
+      if (error != null) {
+        messenger.showSnackBar(SnackBar(content: Text(error)));
+        return;
+      }
+      registration = registration.reactivated();
+    }
+
     setState(() {
-      _opened = conflict.registration;
+      _opened = registration;
       _existing = conflict.products;
-      _sellingMode = conflict.registration.sellingMode;
+      _sellingMode = registration.sellingMode;
       _conflict = null;
     });
   }
@@ -516,7 +623,8 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           const SizedBox(height: 16),
           _ConflictWarning(
             packagingCount: conflict.products.length,
-            onOpen: _openConflict,
+            active: conflict.registration.active,
+            onOpen: _saving ? null : _openConflict,
           ),
         ],
         if (_locked) ...[
@@ -807,10 +915,19 @@ class _SellingModeField extends StatelessWidget {
 }
 
 class _ConflictWarning extends StatelessWidget {
-  const _ConflictWarning({required this.packagingCount, required this.onOpen});
+  const _ConflictWarning({
+    required this.packagingCount,
+    required this.active,
+    required this.onOpen,
+  });
 
   final int packagingCount;
-  final VoidCallback onOpen;
+
+  /// Whether the registration in the way is on. Deactivated, the button
+  /// reactivates before opening — and says so.
+  final bool active;
+
+  final VoidCallback? onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -824,21 +941,32 @@ class _ConflictWarning extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              packagingCount == 1
-                  ? 'Esse produto já está cadastrado, com 1 embalagem.'
-                  : 'Esse produto já está cadastrado, com $packagingCount '
-                        'embalagens.',
+              _sentence,
               style: TextStyle(color: scheme.onErrorContainer),
             ),
             const SizedBox(height: 8),
             FilledButton.tonal(
+              key: const ValueKey('open-conflict'),
               onPressed: onOpen,
-              child: const Text('Abrir e acrescentar embalagem'),
+              child: Text(
+                active
+                    ? 'Abrir e acrescentar embalagem'
+                    : 'Reativar e acrescentar embalagem',
+              ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// The deactivated sentence carries no destination: the button is right
+  /// there, and "reative-o na manutenção do cadastro" was a detour.
+  String get _sentence {
+    if (!active) return 'Esse produto já existe, mas está desativado.';
+    return packagingCount == 1
+        ? 'Esse produto já está cadastrado, com 1 embalagem.'
+        : 'Esse produto já está cadastrado, com $packagingCount embalagens.';
   }
 }
 
