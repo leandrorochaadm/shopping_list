@@ -73,6 +73,47 @@ abstract class CatalogRepository {
   /// Full maintenance is H10.
   Future<ProductType> updateType(ProductType type);
 
+  /// Renaming and reclassifying: the whole entity comes back, and its
+  /// `active` with it — deactivating and reactivating ARE these methods, with
+  /// the transition coming from `deactivated()`/`reactivated()` (rule 7).
+  ///
+  /// **The first two do not serve the maintenance screen alone**: they are
+  /// what holds up the `[ Reativar ]` screen 4 offers on a deactivated
+  /// conflict, which is why they are born before any screen of H10.
+  Future<Category> updateCategory(Category category);
+
+  Future<Brand> updateBrand(Brand brand);
+
+  Future<ProductRegistration> updateRegistration(
+    ProductRegistration registration,
+  );
+
+  Future<Product> updateProduct(Product product);
+
+  /// The registrations and the leaves, so the maintenance screen can list the
+  /// two levels of decision 23 — WITHOUT filtering the inactive ones, because
+  /// "mostrar desativados" is precisely the filter that screen offers.
+  ///
+  /// Their neighbour already exists and does not replace them:
+  /// `fetchLeavesOfType` answers per TYPE and is what the item dialog uses.
+  /// The maintenance lists both levels whole, across every type.
+  Future<IList<ProductRegistration>> fetchRegistrations();
+
+  Future<IList<Product>> fetchProducts();
+
+  /// One registration by id — the `≡` door into screen 4 (H10).
+  ///
+  /// [findRegistration] asks by IDENTITY (type + brand + description), which
+  /// is a different question.
+  ///
+  /// **It returns the ENTITY, not a `RegistrationConflict`**: that class
+  /// lives in `ui/catalog/view_model/`, and a repository handing back a type
+  /// from `ui/` would invert the flow of rule 12. Whoever puts the
+  /// registration and its leaves together is the ViewModel, with this and the
+  /// `fetchProductsOf` that already exists — exactly what `checkIdentity`
+  /// already does.
+  Future<ProductRegistration?> findRegistrationById(String id);
+
   /// How many purchase items each type already has — what orders the `#1a`
   /// panel when the search box is empty. The count comes from a view that
   /// only sums and groups; the decision of what to do with it is here.

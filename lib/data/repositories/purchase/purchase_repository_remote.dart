@@ -2,8 +2,13 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../domain/models/calendar_day.dart';
+import '../../../domain/models/list_write_off.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/product_option.dart';
+import '../../../domain/models/purchase.dart';
+import '../../../domain/models/purchase_item.dart';
+import '../../../domain/models/purchase_summary.dart';
+import '../../../domain/models/write_off_undo.dart';
 import '../../services/supabase_error.dart';
 import 'purchase_repository.dart';
 
@@ -96,6 +101,159 @@ final class PurchaseRepositoryRemote implements PurchaseRepository {
       // True means the purchase was already registered — H8's resend that
       // arrived twice. Not an error, and not a second purchase.
       return response['already_registered'] as bool? ?? false;
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<PurchaseHistoryPage> fetchPage({
+    required int offset,
+    required int limit,
+  }) async {
+    try {
+      // `range` in PostgREST is INCLUSIVE at both ends — it becomes
+      // `offset=<from>&limit=<to − from + 1>` — so asking for `offset + limit`
+      // brings `limit + 1` rows. The extra one is dropped, and its existence
+      // IS the answer to "há próxima?" with no second query.
+      final rows = await _client
+          .from('purchase')
+          .select(
+            'id, purchase_date, registered_by, store ( name ), '
+            'purchase_item ( total_paid )',
+          )
+          .order('purchase_date', ascending: false)
+          // The tiebreaker, and it is what the new index is for: two
+          // purchases of the same day with no stable order swap places
+          // between one page and the next.
+          .order('created_at', ascending: false)
+          .range(offset, offset + limit);
+
+      final all = rows.map(PurchaseSummary.fromJson).toIList();
+      return PurchaseHistoryPage(
+        purchases: all.length > limit ? all.sublist(0, limit) : all,
+        hasMore: all.length > limit,
+      );
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<PurchaseDetail> fetchDetail(String purchaseId) async {
+    try {
+      // ONE select, with the trail embedded INSIDE the item. Not two:
+      // `list_write_off` has no purchase column, so filtering it by purchase
+      // would mean building an `in.(…)` out of the ids the first select
+      // returned — a second round trip that depends on the first, in the
+      // middle of opening a screen.
+      //
+      // `fulfills` does not come back (it is not a column) and the undo does
+      // not need it: it DERIVES it (D6).
+      final row = await _client
+          .from('purchase')
+          .select('''
+id, purchase_date, store_id, registered_by,
+purchase_item (
+  id, product_id, quantity, quantity_in_base_unit, total_paid,
+  product ( *, product_registration ( *, product_type ( * ), brand ( * ) ) ),
+  list_write_off ( * )
+)
+''')
+          .eq('id', purchaseId)
+          .single();
+
+      final rawItems =
+          (row['purchase_item'] as List?)?.cast<Map<String, dynamic>>() ??
+          const [];
+
+      final items = <PurchaseItem>[];
+      final trail = <ListWriteOff>[];
+      for (final raw in rawItems) {
+        final id = raw['id'] as String;
+        items.add(
+          PurchaseItem(
+            id: id,
+            // The embed is exactly the nested shape `ProductOption.fromJson`
+            // reads, which is what makes every line come back complete —
+            // with no view around it, and with no second query to the catalog.
+            option: ProductOption.fromJson(
+              raw['product'] as Map<String, dynamic>,
+            ),
+            quantity: (raw['quantity'] as num).toInt(),
+            paid: Money.fromJson(raw['total_paid']),
+          ),
+        );
+        for (final off
+            in (raw['list_write_off'] as List?)
+                    ?.cast<Map<String, dynamic>>() ??
+                const <Map<String, dynamic>>[]) {
+          trail.add(
+            ListWriteOff(
+              purchaseItemId: id,
+              shoppingListItemId: off['shopping_list_item_id'] as String,
+              quantityWrittenOff:
+                  (off['quantity_written_off'] as num?)?.toInt() ?? 0,
+              clearedNotFound: off['cleared_not_found'] as bool? ?? false,
+            ),
+          );
+        }
+      }
+
+      return PurchaseDetail(
+        purchase: Purchase(
+          id: row['id'] as String,
+          date: decodeCalendarDay(row['purchase_date'] as String),
+          storeId: row['store_id'] as String,
+          registeredBy: row['registered_by'] as String? ?? '',
+          items: items.toIList(),
+        ),
+        items: items.toIList(),
+        trail: trail.toIList(),
+      );
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> correct({
+    required Purchase purchase,
+    required IList<ListWriteOff> writeOffs,
+    required IList<RestoredListItem> restored,
+  }) async {
+    try {
+      await _client.rpc<void>(
+        'update_purchase',
+        params: {
+          // Three columns only: `registered_by` is a historical fact a
+          // correction never rewrites.
+          'p_purchase': purchase.toCorrectionJson(),
+          'p_items': [for (final item in purchase.items) item.toJson()],
+          'p_write_offs': [for (final off in writeOffs) off.toJson()],
+          // Each entry sends `fulfilled_on` PRESENT and null when the item
+          // reopens — an omitted key would reopen nothing, and in silence.
+          'p_restored': [for (final entry in restored) entry.toJson()],
+        },
+      );
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> delete({
+    required String purchaseId,
+    required IList<RestoredListItem> restored,
+  }) async {
+    try {
+      await _client.rpc<void>(
+        'delete_purchase',
+        params: {
+          'p_purchase_id': purchaseId,
+          'p_restored': [for (final entry in restored) entry.toJson()],
+        },
+      );
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }

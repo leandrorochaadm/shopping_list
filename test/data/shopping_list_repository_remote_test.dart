@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_remote.dart';
@@ -16,6 +18,49 @@ class _MockClient extends Mock implements SupabaseClient {}
 /// `supabase_flutter`. The two callbacks are `@visibleForTesting` precisely so
 /// the RULES can be tested without capturing the `callback:` argument.
 class _MockChannel extends Mock implements RealtimeChannel {}
+
+/// The success path of `removeOpenItemsOfType`: an update, four filters, and
+/// a `.select('id')` that hands back the rows that actually left. None of
+/// these builders is a Future — they only IMPLEMENT one — so `then` is what
+/// `await` reaches.
+class _FakeUpdate extends Fake implements PostgrestFilterBuilder<dynamic> {
+  _FakeUpdate(this.ids);
+
+  final List<String> ids;
+
+  @override
+  PostgrestFilterBuilder<dynamic> eq(String column, Object value) => this;
+
+  @override
+  PostgrestFilterBuilder<dynamic> isFilter(String column, Object? value) =>
+      this;
+
+  @override
+  PostgrestTransformBuilder<PostgrestList> select([String columns = '*']) =>
+      _FakeRows([for (final id in ids) {'id': id}]);
+}
+
+class _FakeRows extends Fake
+    implements PostgrestTransformBuilder<PostgrestList> {
+  _FakeRows(this.rows);
+
+  final PostgrestList rows;
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(PostgrestList) onValue, {
+    Function? onError,
+  }) => Future.value(rows).then(onValue, onError: onError);
+}
+
+class _FakeTable extends Fake implements SupabaseQueryBuilder {
+  _FakeTable(this.ids);
+
+  final List<String> ids;
+
+  @override
+  PostgrestFilterBuilder<dynamic> update(Map values) => _FakeUpdate(ids);
+}
 
 PostgresChangePayload _payload(
   PostgresChangeEvent event, {
@@ -99,6 +144,83 @@ void main() {
         () => repository.remove(_item(), DateTime(2026, 8, 28)),
         throwsA(_is409),
       );
+    });
+
+    test('fetchItemsByIds', () {
+      expect(() => repository.fetchItemsByIds(['item-1']), throwsA(_is409));
+    });
+
+    test('countOpenItemsOfType', () {
+      expect(() => repository.countOpenItemsOfType('type-1'), throwsA(_is409));
+    });
+
+    test('removeOpenItemsOfType', () {
+      expect(
+        () => repository.removeOpenItemsOfType('type-1', DateTime(2026, 8, 28)),
+        throwsA(_is409),
+      );
+    });
+  });
+
+  group('the reads H9 and H10 add', () {
+    test('removeOpenItemsOfType swallows the echo of every row it removed', () async {
+      // Deactivating a type writes on `shopping_list_item`, same channel,
+      // same banner — and unlike the correction, the writer here IS this
+      // repository, so the echo is its own problem. Without the `.select('id')`
+      // it would not even know which rows it touched.
+      when(() => client.from(any())).thenAnswer(
+        (_) => _FakeTable(['item-1', 'item-2']),
+      );
+
+      final removed = await repository.removeOpenItemsOfType(
+        'type-1',
+        DateTime(2026, 8, 28),
+      );
+      expect(removed, ['item-1', 'item-2']);
+
+      final seen = <ListChangeKind>[];
+      repository.watchChanges().listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+
+      repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
+      repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-2'));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, isEmpty);
+
+      // A THIRD echo for the same row is the other phone, and it does show.
+      repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, [ListChangeKind.changed]);
+    });
+
+    test('expectEcho counts WITH repetition', () async {
+      // An item the correction writes twice — the undo reopens it and the
+      // corrected purchase closes it again, two UPDATEs in one transaction —
+      // sends two echoes. A `Set` here would let the second one through and
+      // paint the banner on the phone that made the correction.
+      repository.expectEcho(['item-1', 'item-1']);
+
+      final seen = <ListChangeKind>[];
+      repository.watchChanges().listen(seen.add);
+      await Future<void>.delayed(Duration.zero);
+
+      repository.onChange(_payload(PostgresChangeEvent.update));
+      repository.onChange(_payload(PostgresChangeEvent.update));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, isEmpty);
+
+      repository.onChange(_payload(PostgresChangeEvent.update));
+      await Future<void>.delayed(Duration.zero);
+      expect(seen, [ListChangeKind.changed]);
+    });
+
+    test('fetchItemsByIds with an empty set does NOT touch the client', () async {
+      // An empty `in.()` is a round trip that comes back with zero rows, and
+      // a purchase that wrote nothing off lands here on every correction.
+      final items = await repository.fetchItemsByIds(const <String>[]);
+
+      expect(items, isEmpty);
+      verifyNever(() => client.from(any()));
     });
   });
 

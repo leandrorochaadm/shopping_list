@@ -43,4 +43,23 @@ final class StoreRepositoryRemote implements StoreRepository {
       rethrowAsKnownFailure(e, st);
     }
   }
+
+  @override
+  Future<Store> update(Store store) async {
+    try {
+      // The id leaves the payload because it is already in the `.eq`, and
+      // sending a primary key inside an update is asking to swap it by
+      // accident one day.
+      final payload = store.toJson()..remove('id');
+      final row = await _client
+          .from(_table)
+          .update(payload)
+          .eq('id', store.id!)
+          .select()
+          .single();
+      return Store.fromJson(row);
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
 }

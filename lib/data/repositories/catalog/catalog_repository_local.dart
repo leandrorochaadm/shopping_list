@@ -156,6 +156,60 @@ class CatalogRepositoryLocal implements CatalogRepository {
   }
 
   @override
+  Future<Category> updateCategory(Category category) async {
+    await Future<void>.delayed(latency);
+    final index = _categories.indexWhere((entry) => entry.id == category.id);
+    if (index >= 0) _categories[index] = category;
+    return category;
+  }
+
+  @override
+  Future<Brand> updateBrand(Brand brand) async {
+    await Future<void>.delayed(latency);
+    final index = _brands.indexWhere((entry) => entry.id == brand.id);
+    if (index >= 0) _brands[index] = brand;
+    return brand;
+  }
+
+  @override
+  Future<ProductRegistration> updateRegistration(
+    ProductRegistration registration,
+  ) async {
+    await Future<void>.delayed(latency);
+    final index = _registrations.indexWhere(
+      (entry) => entry.id == registration.id,
+    );
+    if (index >= 0) _registrations[index] = registration;
+    return registration;
+  }
+
+  @override
+  Future<Product> updateProduct(Product product) async {
+    await Future<void>.delayed(latency);
+    final index = _products.indexWhere((entry) => entry.id == product.id);
+    if (index >= 0) _products[index] = product;
+    return product;
+  }
+
+  @override
+  Future<IList<ProductRegistration>> fetchRegistrations() async {
+    await Future<void>.delayed(latency);
+    return _registrations.toIList();
+  }
+
+  @override
+  Future<IList<Product>> fetchProducts() async {
+    await Future<void>.delayed(latency);
+    return _products.toIList();
+  }
+
+  @override
+  Future<ProductRegistration?> findRegistrationById(String id) async {
+    await Future<void>.delayed(latency);
+    return _registrations.where((entry) => entry.id == id).firstOrNull;
+  }
+
+  @override
   Future<IMap<String, int>> fetchPurchaseCountsByType() async {
     await Future<void>.delayed(latency);
     // The fake has no purchases — and that is exactly the case that makes the

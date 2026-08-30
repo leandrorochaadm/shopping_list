@@ -8,6 +8,7 @@ import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
+import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/store.dart';
@@ -95,6 +96,19 @@ void main() {
       'fetchPurchaseCountsByType': () =>
           repository.fetchPurchaseCountsByType(),
       'fetchLeavesOfType': () => repository.fetchLeavesOfType('type-1'),
+      // H10 — the maintenance writes and the two whole-level reads.
+      'updateCategory': () =>
+          repository.updateCategory(Category(id: 'cat-1', name: 'Bebidas')),
+      'updateBrand': () =>
+          repository.updateBrand(Brand(id: 'brand-1', name: 'Omo')),
+      'updateRegistration': () =>
+          repository.updateRegistration(registration.copyWith(id: 'reg-1')),
+      'updateProduct': () => repository.updateProduct(
+        const Product(id: 'prod-1', productRegistrationId: 'reg-1'),
+      ),
+      'fetchRegistrations': () => repository.fetchRegistrations(),
+      'fetchProducts': () => repository.fetchProducts(),
+      'findRegistrationById': () => repository.findRegistrationById('reg-1'),
     };
 
     for (final entry in calls.entries) {
@@ -140,6 +154,15 @@ void main() {
     test('create translates the SQLSTATE instead of leaking it', () {
       expect(
         () => repository.create(Store(name: 'Carrefour')),
+        throwsA(isA<ApiException>()),
+      );
+    });
+
+    test('update translates the SQLSTATE instead of leaking it', () {
+      // Renaming "Carrefur" to "Carrefour" collides with a store that
+      // already holds the name, and 23505 is what comes back.
+      expect(
+        () => repository.update(Store(id: 'store-1', name: 'Carrefour')),
         throwsA(isA<ApiException>()),
       );
     });

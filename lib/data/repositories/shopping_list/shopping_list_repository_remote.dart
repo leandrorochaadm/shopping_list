@@ -89,6 +89,88 @@ preferred_product:preferred_product_id (
   }
 
   @override
+  Future<IList<ShoppingListItem>> fetchItemsByIds(Iterable<String> ids) async {
+    final list = ids.toList();
+    // An empty `in.()` is a round trip that comes back with zero rows. A
+    // purchase that wrote nothing off — someone bought what nobody had asked
+    // for — lands here on every correction.
+    if (list.isEmpty) return const IList.empty();
+    try {
+      // The same select and the same embed `fetchAll` uses — that is where
+      // the sum AND the count of the trail come from — with the two
+      // `isFilter` swapped for the ids: an item that LEFT the list is
+      // precisely the one the undo has to see.
+      final rows = await _client
+          .from(_table)
+          .select(_selection)
+          .inFilter('id', list);
+      return rows.map(ShoppingListItem.fromJson).toIList();
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<int> countOpenItemsOfType(String productTypeId) async {
+    try {
+      // `count()` comes BEFORE the filters here, and that is not a style
+      // choice: `PostgrestQueryBuilder.count()` lives right after `.from()`,
+      // emits a HEAD with no `select`, and returns the
+      // `PostgrestFilterBuilder<int>` that carries `.eq`/`.isFilter`. The
+      // other `count()` — the one that accepts an `!inner` embed — lives on
+      // `PostgrestTransformBuilder`, AFTER a `.select()`. This query only
+      // filters columns of its own table, so it is the first.
+      return await _client
+          .from(_table)
+          .count(CountOption.exact)
+          .eq('product_type_id', productTypeId)
+          .isFilter('fulfilled_on', null)
+          .isFilter('removed_on', null);
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<IList<String>> removeOpenItemsOfType(
+    String productTypeId,
+    DateTime day,
+  ) async {
+    try {
+      // `.select('id')` closes the update because the repository does NOT
+      // know which rows it touched — this is a `where product_type_id = ?`,
+      // not a list of ids — and it has to know in order to swallow the echo.
+      // Without it, deactivating a type paints "a lista mudou" on the very
+      // phone that deactivated it.
+      final rows = await _client
+          .from(_table)
+          .update({'removed_on': encodeCalendarDay(dayOf(day))})
+          .eq('product_type_id', productTypeId)
+          .isFilter('fulfilled_on', null)
+          .isFilter('removed_on', null)
+          .select('id');
+
+      final ids = rows.map((row) => row['id'] as String).toIList();
+      // Consumed HERE, inside the repository, and before the Future
+      // completes: unlike the correction, the writer is this repository, so
+      // the echo is its own problem and the ViewModel never hears about it.
+      for (final id in ids) {
+        _expectEcho(id);
+      }
+      return ids;
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  void expectEcho(Iterable<String> ids) {
+    for (final id in ids) {
+      _expectEcho(id);
+    }
+  }
+
+  @override
   Future<ShoppingListItem> add(ShoppingListItem item) async {
     // BEFORE the await, and this is the whole point: Realtime broadcasts on
     // commit and the HTTP response comes back after that same commit. The two

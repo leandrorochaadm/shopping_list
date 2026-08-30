@@ -13,6 +13,12 @@ abstract class StoreRepository {
 
   /// Creates and returns the row, with the id the database generated.
   Future<Store> create(Store store);
+
+  /// Renaming "Carrefur" to "Carrefour" — and the store comparison then shows
+  /// ONE store, with the history of both under it. Deactivating and
+  /// reactivating are this same method, with the transition coming from the
+  /// entity (rule 7).
+  Future<Store> update(Store store);
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without

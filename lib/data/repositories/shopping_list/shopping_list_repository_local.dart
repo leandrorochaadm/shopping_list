@@ -155,6 +155,50 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
     return _items.where((item) => item.isOpen).toIList();
   }
 
+  /// The ids the fake was told to expect an echo for. The `_remote` has a
+  /// counter; the fake has no channel of its own, so it only records — which
+  /// is what the ViewModel test reads to prove the call happened BEFORE the
+  /// write, and with repetition.
+  final List<String> expectedEchoes = [];
+
+  @override
+  Future<IList<ShoppingListItem>> fetchItemsByIds(Iterable<String> ids) async {
+    final wanted = ids.toSet();
+    if (wanted.isEmpty) return const IList.empty();
+    await Future<void>.delayed(latency);
+    // No `isOpen` filter, mirroring the real query: an item that left the
+    // list is precisely the one the undo has to see.
+    return _items.where((item) => wanted.contains(item.id)).toIList();
+  }
+
+  @override
+  Future<int> countOpenItemsOfType(String productTypeId) async {
+    await Future<void>.delayed(latency);
+    return _items
+        .where((item) => item.isOpen && item.type.id == productTypeId)
+        .length;
+  }
+
+  @override
+  Future<IList<String>> removeOpenItemsOfType(
+    String productTypeId,
+    DateTime day,
+  ) async {
+    await Future<void>.delayed(latency);
+    final removed = <String>[];
+    for (var i = 0; i < _items.length; i++) {
+      final item = _items[i];
+      if (!item.isOpen || item.type.id != productTypeId) continue;
+      _items[i] = item.markedRemoved(day);
+      if (item.id != null) removed.add(item.id!);
+    }
+    expectedEchoes.addAll(removed);
+    return removed.toIList();
+  }
+
+  @override
+  void expectEcho(Iterable<String> ids) => expectedEchoes.addAll(ids);
+
   @override
   Future<ShoppingListItem> add(ShoppingListItem item) async {
     await Future<void>.delayed(latency);

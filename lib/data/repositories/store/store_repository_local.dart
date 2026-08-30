@@ -44,4 +44,12 @@ class StoreRepositoryLocal implements StoreRepository {
     _stores.add(created);
     return created;
   }
+
+  @override
+  Future<Store> update(Store store) async {
+    await Future<void>.delayed(latency);
+    final index = _stores.indexWhere((entry) => entry.id == store.id);
+    if (index >= 0) _stores[index] = store;
+    return store;
+  }
 }

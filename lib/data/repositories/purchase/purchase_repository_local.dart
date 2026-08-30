@@ -2,12 +2,17 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
+import '../../../domain/models/list_write_off.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/purchase.dart';
+import '../../../domain/models/purchase_item.dart';
+import '../../../domain/models/purchase_summary.dart';
+import '../../../domain/models/write_off_undo.dart';
 import 'purchase_repository.dart';
 
 /// In-memory fake: debug without --dart-define, and every test.
@@ -36,11 +41,22 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
 
   final List<PurchaseHistoryEntry> _history;
 
+  /// The registered purchases, newest first — what the history pages over and
+  /// what the correction opens. Twenty-five of them, because pages are twenty:
+  /// this is the ONLY place "carregar mais" is exercised without a database.
+  late final List<PurchaseDetail> _purchases = _seedPurchases();
+
   /// What was written, so a test can look at it — and so the SECOND save of
   /// the same purchase answers `true`, exactly like the `on conflict` of the
   /// real function. Without that here, the resend of H8 would be exercised
   /// against a fake that has no idea what idempotence is.
   final List<PurchaseSubmission> saved = [];
+
+  /// What the correction and the deletion wrote, so a test can look at them
+  /// without a database.
+  final List<Purchase> corrected = [];
+  final List<String> deleted = [];
+  final List<RestoredListItem> restoredByCorrection = [];
 
   static final _drinks = ProductType(
     id: 'type-1',
@@ -92,6 +108,122 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
       purchasedOn: DateTime(2026, 8, 10),
     ),
   ];
+
+  /// The three situations H9 and H10 have to SHOW, and none of them can be
+  /// seen against a fake that only knows how to register:
+  ///
+  ///   * a list item CLOSED by a purchase, with its trail — so deleting has
+  ///     something to give back;
+  ///   * a PARTIAL write-off — 6 L asked, 2 L bought, item still open — which
+  ///     is the "restam 4 litros" of the screen;
+  ///   * a purchase that knocked a "não encontrei" down, so undoing puts the
+  ///     mark back.
+  static List<PurchaseDetail> _seedPurchases() {
+    final crate = _byPiece('prod-4', 12, 350, MeasureUnit.milliliter);
+    final bottle = _byPiece('prod-3', 1, 2000, MeasureUnit.liter);
+
+    ListWriteOff off({
+      required String purchaseItem,
+      required String item,
+      required int amount,
+      bool clearedNotFound = false,
+    }) => ListWriteOff(
+      purchaseItemId: purchaseItem,
+      shoppingListItemId: item,
+      quantityWrittenOff: amount,
+      clearedNotFound: clearedNotFound,
+    );
+
+    PurchaseDetail detail({
+      required String id,
+      required DateTime date,
+      required String storeId,
+      required String registeredBy,
+      required List<PurchaseItem> items,
+      List<ListWriteOff> trail = const [],
+    }) {
+      final purchase = Purchase(
+        id: id,
+        date: date,
+        storeId: storeId,
+        registeredBy: registeredBy,
+        items: items.lock,
+      );
+      return PurchaseDetail(
+        purchase: purchase,
+        items: items.lock,
+        trail: trail.lock,
+      );
+    }
+
+    return [
+      // 1. Closed an item, and knocked its "não encontrei" down along the way
+      //    — `item-3` of `ShoppingListRepositoryLocal`, the only line of the
+      //    fake list that carries brand AND packaging.
+      detail(
+        id: 'purchase-1',
+        date: DateTime(2026, 8, 28),
+        storeId: 'store-1',
+        registeredBy: 'Leandro',
+        items: [
+          PurchaseItem(
+            id: 'pi-1',
+            option: crate,
+            quantity: 1,
+            paid: const Money(6200),
+          ),
+        ],
+        trail: [
+          off(
+            purchaseItem: 'pi-1',
+            item: 'item-3',
+            amount: 4200,
+            clearedNotFound: true,
+          ),
+        ],
+      ),
+      // 2. A PARTIAL write-off: `item-1` asked for 6 kg and this took 2 —
+      //    the line stays on the list with 4 left.
+      detail(
+        id: 'purchase-2',
+        date: DateTime(2026, 8, 27),
+        storeId: 'store-2',
+        registeredBy: 'esposa',
+        items: [
+          PurchaseItem(
+            id: 'pi-2',
+            option: _groundBeefOption,
+            quantity: 2000,
+            paid: const Money(4500),
+          ),
+        ],
+        trail: [off(purchaseItem: 'pi-2', item: 'item-1', amount: 2000)],
+      ),
+      // 3. …and twenty-three more, so the second page exists. They write
+      //    nothing off: what they are for is the paging.
+      for (var i = 3; i <= 25; i++)
+        detail(
+          id: 'purchase-$i',
+          date: DateTime(2026, 8, 26).subtract(Duration(days: i - 3)),
+          storeId: i.isEven ? 'store-1' : 'store-2',
+          registeredBy: i.isEven ? 'Leandro' : 'esposa',
+          items: [
+            PurchaseItem(
+              id: 'pi-$i',
+              option: bottle,
+              quantity: 1,
+              paid: Money(500 + i * 10),
+            ),
+          ],
+        ),
+    ];
+  }
+
+  static final _groundBeefOption = ProductOption(
+    product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
+    registration: _groundBeef,
+    type: _beef,
+  );
 
   static ProductOption _byPiece(
     String id,
@@ -162,4 +294,99 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     }
     return false;
   }
+
+  @override
+  Future<PurchaseHistoryPage> fetchPage({
+    required int offset,
+    required int limit,
+  }) async {
+    await Future<void>.delayed(latency);
+    // Newest first, and the tiebreaker is the id — the same stable order the
+    // real query gets from `created_at`, without which a purchase on the
+    // boundary shows up twice or vanishes.
+    final ordered = [..._purchases]..sort((a, b) {
+      final byDate = b.purchase.date.compareTo(a.purchase.date);
+      return byDate != 0 ? byDate : a.purchase.id.compareTo(b.purchase.id);
+    });
+
+    final page = ordered.skip(offset).take(limit + 1).toList();
+    return PurchaseHistoryPage(
+      purchases: [
+        for (final entry in page.take(limit)) _summaryOf(entry),
+      ].lock,
+      hasMore: page.length > limit,
+    );
+  }
+
+  @override
+  Future<PurchaseDetail> fetchDetail(String purchaseId) async {
+    await Future<void>.delayed(latency);
+    final found = _purchases
+        .where((entry) => entry.purchase.id == purchaseId)
+        .firstOrNull;
+    if (found == null) {
+      throw ArgumentError.value(purchaseId, 'purchaseId', 'purchase not found');
+    }
+    return found;
+  }
+
+  @override
+  Future<void> correct({
+    required Purchase purchase,
+    required IList<ListWriteOff> writeOffs,
+    required IList<RestoredListItem> restored,
+  }) async {
+    await Future<void>.delayed(latency);
+    corrected.add(purchase);
+    restoredByCorrection
+      ..clear()
+      ..addAll(restored);
+
+    final index = _purchases.indexWhere(
+      (entry) => entry.purchase.id == purchase.id,
+    );
+    final next = PurchaseDetail(
+      purchase: purchase,
+      items: purchase.items,
+      trail: writeOffs,
+    );
+    if (index >= 0) {
+      _purchases[index] = next;
+    } else {
+      _purchases.add(next);
+    }
+  }
+
+  @override
+  Future<void> delete({
+    required String purchaseId,
+    required IList<RestoredListItem> restored,
+  }) async {
+    await Future<void>.delayed(latency);
+    deleted.add(purchaseId);
+    restoredByCorrection
+      ..clear()
+      ..addAll(restored);
+    _purchases.removeWhere((entry) => entry.purchase.id == purchaseId);
+  }
+
+  /// The store's NAME is resolved here the way the real query resolves it
+  /// through the embed — the purchase itself only holds the key.
+  PurchaseSummary _summaryOf(PurchaseDetail entry) => PurchaseSummary(
+    id: entry.purchase.id,
+    purchaseDate: entry.purchase.date,
+    storeName: _storeNames[entry.purchase.storeId] ?? '',
+    registeredBy: entry.purchase.registeredBy,
+    total: entry.purchase.total,
+    itemCount: entry.items.length,
+  );
+
+  /// The very stores `StoreRepositoryLocal` has: two fakes telling different
+  /// stories would make the history and the picker disagree in debug for a
+  /// reason that is only the fake's.
+  static const _storeNames = {
+    'store-1': 'Carrefour',
+    'store-2': 'Feira do Bairro',
+    'store-3': 'Mercearia do Zé',
+  };
 }

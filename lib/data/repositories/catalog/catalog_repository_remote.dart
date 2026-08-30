@@ -114,6 +114,94 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   }
 
   @override
+  Future<Category> updateCategory(Category category) async =>
+      _update('category', category.id!, category.toJson(), Category.fromJson);
+
+  @override
+  Future<Brand> updateBrand(Brand brand) async =>
+      _update('brand', brand.id!, brand.toJson(), Brand.fromJson);
+
+  @override
+  Future<ProductRegistration> updateRegistration(
+    ProductRegistration registration,
+  ) async => _update(
+    'product_registration',
+    registration.id!,
+    registration.toJson(),
+    ProductRegistration.fromJson,
+  );
+
+  @override
+  Future<Product> updateProduct(Product product) async =>
+      _update('product', product.id!, product.toJson(), Product.fromJson);
+
+  /// The five updates differ in their table and their `fromJson`, and in
+  /// nothing else. The id leaves the payload because it is already in the
+  /// `.eq`, and sending a primary key inside an update is asking to swap it
+  /// by accident one day.
+  Future<T> _update<T>(
+    String table,
+    String id,
+    Map<String, dynamic> payload,
+    T Function(Map<String, dynamic> json) fromJson,
+  ) async {
+    try {
+      final row = await _client
+          .from(table)
+          .update(payload..remove('id'))
+          .eq('id', id)
+          .select()
+          .single();
+      return fromJson(row);
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<IList<ProductRegistration>> fetchRegistrations() async {
+    try {
+      // No `active` filter, like every other read in this file: the
+      // maintenance screen is what offers "mostrar desativados", and the
+      // duplicate guard needs to see them anyway (decision B3).
+      final rows = await _client
+          .from('product_registration')
+          .select()
+          .order('description');
+      return rows.map(ProductRegistration.fromJson).toIList();
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<IList<Product>> fetchProducts() async {
+    try {
+      final rows = await _client
+          .from('product')
+          .select()
+          .order('total_content');
+      return rows.map(Product.fromJson).toIList();
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<ProductRegistration?> findRegistrationById(String id) async {
+    try {
+      final rows = await _client
+          .from('product_registration')
+          .select()
+          .eq('id', id)
+          .limit(1);
+      return rows.isEmpty ? null : ProductRegistration.fromJson(rows.first);
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
   Future<IMap<String, int>> fetchPurchaseCountsByType() async {
     try {
       // A view that only sums and groups — no now(), no window, no threshold

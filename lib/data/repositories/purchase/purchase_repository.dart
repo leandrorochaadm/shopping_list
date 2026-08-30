@@ -5,6 +5,9 @@ import '../../../domain/models/list_write_off.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
+import '../../../domain/models/purchase_item.dart';
+import '../../../domain/models/purchase_summary.dart';
+import '../../../domain/models/write_off_undo.dart';
 
 /// A purchase and what it takes off the list — the package of ONE
 /// transaction. It is not a DTO: both halves are entities, and they travel
@@ -59,6 +62,54 @@ final class PurchaseHistoryEntry {
       Object.hash(productId, quantityInBaseUnit, paid, purchasedOn);
 }
 
+/// A page of the history, and what the screen needs in order to know whether
+/// to ask for the next one.
+final class PurchaseHistoryPage {
+  const PurchaseHistoryPage({required this.purchases, required this.hasMore});
+
+  final IList<PurchaseSummary> purchases;
+  final bool hasMore;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PurchaseHistoryPage &&
+          other.purchases == purchases &&
+          other.hasMore == hasMore;
+
+  @override
+  int get hashCode => Object.hash(purchases, hasMore);
+}
+
+/// The purchase opened for correction, with everything the screen shows and
+/// everything the undo needs: the items and the TRAIL it left on the list.
+///
+/// `items` is `IList<PurchaseItem>` and nothing more: the purchase item
+/// already carries the whole `ProductOption`, so leaf, registration, type and
+/// brand arrive with it. There is no view to build around it.
+final class PurchaseDetail {
+  const PurchaseDetail({
+    required this.purchase,
+    required this.items,
+    required this.trail,
+  });
+
+  final Purchase purchase;
+  final IList<PurchaseItem> items;
+  final IList<ListWriteOff> trail;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PurchaseDetail &&
+          other.purchase == purchase &&
+          other.items == items &&
+          other.trail == trail;
+
+  @override
+  int get hashCode => Object.hash(purchase, items, trail);
+}
+
 /// Registering a purchase, and the two reads screen 3 opens with. I/O only:
 /// the write-off is decided by `planWriteOffs`, in the domain, before a
 /// method here is called.
@@ -78,6 +129,36 @@ abstract class PurchaseRepository {
   /// arrived twice. It is not an error and it must not become a duplicate:
   /// the caller treats it as the same success, and the draft dies either way.
   Future<bool> save(PurchaseSubmission submission);
+
+  /// The app's only paginated screen (`tecnico §1.9`), newest first. [limit]
+  /// is how many fit on a page; the repository asks for ONE more and drops
+  /// it, which is how `hasMore` is answered without a second query.
+  Future<PurchaseHistoryPage> fetchPage({
+    required int offset,
+    required int limit,
+  });
+
+  /// One purchase with its items and the trail those items left.
+  Future<PurchaseDetail> fetchDetail(String purchaseId);
+
+  /// The correction (H9), through `update_purchase`. It is NOT [save]: that
+  /// one is insert-only, and turning it into an upsert would kill the
+  /// idempotence of H8's resend (D3).
+  ///
+  /// [restored] is what `undoWriteOffs` computed and [writeOffs] what
+  /// `planWriteOffs` computed over the restored list — this method decides
+  /// nothing, it only writes.
+  Future<void> correct({
+    required Purchase purchase,
+    required IList<ListWriteOff> writeOffs,
+    required IList<RestoredListItem> restored,
+  });
+
+  /// Deletes the purchase and gives the list back what it had taken.
+  Future<void> delete({
+    required String purchaseId,
+    required IList<RestoredListItem> restored,
+  });
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
