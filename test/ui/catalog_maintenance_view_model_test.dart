@@ -166,8 +166,12 @@ void main() {
     final state = await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(state.categories, hasLength(3));
-    expect(state.types, hasLength(3));
-    expect(state.brands, hasLength(3));
+    // Four since H11: the report's fixture needed "Sabão em pó" and "Tixan"
+    // in the shared catalog, so it could tell the written story of
+    // requirement 4. What this case protects is that the load brings the SIX
+    // catalogs at once, not how many rows each of them holds.
+    expect(state.types, hasLength(4));
+    expect(state.brands, hasLength(4));
     expect(state.registrations, hasLength(2));
     expect(state.products, hasLength(5));
     expect(state.stores, hasLength(3));

@@ -45,8 +45,17 @@ final paperType = ProductType(
   categoryId: 'cat-3',
   baseUnit: BaseUnit.unit,
 );
+/// The second example of requirement 4: the type that adds up two brands.
+final powderType = ProductType(
+  id: 'type-4',
+  name: 'Sabão em pó',
+  categoryId: 'cat-3',
+  baseUnit: BaseUnit.kilogram,
+);
 
 final cokeBrand = Brand(id: 'brand-1', name: 'Coca-Cola');
+final omoBrand = Brand(id: 'brand-2', name: 'Omo');
+final tixanBrand = Brand(id: 'brand-4', name: 'Tixan');
 
 /// A leaf sold by piece: `pieceCount × pieceSize` of [unit].
 ProductOption optionByPiece({

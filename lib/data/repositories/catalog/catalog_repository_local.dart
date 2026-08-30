@@ -51,6 +51,15 @@ class CatalogRepositoryLocal implements CatalogRepository {
       categoryId: 'cat-3',
       baseUnit: BaseUnit.unit,
     ),
+    // The second example of requirement 4: one type that adds up two brands,
+    // every description and every packaging — 6,8 kg for R$ 136,00. Without it
+    // the report fake could not tell the story the client reads.
+    ProductType(
+      id: 'type-4',
+      name: 'Sabão em pó',
+      categoryId: 'cat-3',
+      baseUnit: BaseUnit.kilogram,
+    ),
   ];
 
   final List<Brand> _brands = [
@@ -59,6 +68,9 @@ class CatalogRepositoryLocal implements CatalogRepository {
     // Deactivated on purpose: it is what makes the B3 guard visible while
     // developing against the fakes.
     Brand(id: 'brand-3', name: 'Guaraná Antarctica', active: false),
+    // The other half of requirement 4's washing powder: Omo and Tixan under
+    // the same type.
+    Brand(id: 'brand-4', name: 'Tixan'),
   ];
 
   final List<ProductRegistration> _registrations = [

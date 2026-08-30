@@ -15,6 +15,9 @@ import '../data/repositories/purchase/purchase_repository_remote.dart';
 import '../data/repositories/purchase_draft/purchase_draft_repository.dart';
 import '../data/repositories/purchase_draft/purchase_draft_repository_hive.dart';
 import '../data/repositories/purchase_draft/purchase_draft_repository_local.dart';
+import '../data/repositories/report/report_repository.dart';
+import '../data/repositories/report/report_repository_local.dart';
+import '../data/repositories/report/report_repository_remote.dart';
 import '../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../data/repositories/shopping_list/shopping_list_repository_local.dart';
 import '../data/repositories/shopping_list/shopping_list_repository_remote.dart';
@@ -72,6 +75,7 @@ final List<Override> overridesLocal = [
     (ref) => ShoppingListRepositoryLocal(),
   ),
   purchaseRepositoryProvider.overrideWith((ref) => PurchaseRepositoryLocal()),
+  reportRepositoryProvider.overrideWith((ref) => ReportRepositoryLocal()),
   // In memory, not Hive: a draft that survived a restart of a fake-data
   // session would outlive the fake catalog it points at.
   purchaseDraftRepositoryProvider.overrideWith(
@@ -100,6 +104,9 @@ final List<Override> overridesRemote = [
   ),
   purchaseRepositoryProvider.overrideWith(
     (ref) => PurchaseRepositoryRemote(ref.watch(supabaseClientProvider)),
+  ),
+  reportRepositoryProvider.overrideWith(
+    (ref) => ReportRepositoryRemote(ref.watch(supabaseClientProvider)),
   ),
   // The second exception, for the same reason as the label: the draft is a
   // purchase that is not a purchase yet, and it must survive precisely when
