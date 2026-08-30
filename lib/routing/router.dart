@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../data/repositories/device_user/device_user_repository.dart';
+import '../ui/catalog/widgets/catalog_maintenance_screen.dart';
 import '../ui/catalog/widgets/new_product_screen.dart';
 import '../ui/core/widgets/under_construction_screen.dart';
 import '../ui/device_user/widgets/welcome_screen.dart';
+import '../ui/purchase/widgets/edit_purchase_screen.dart';
 import '../ui/purchase/widgets/new_purchase_screen.dart';
+import '../ui/purchase/widgets/purchase_history_screen.dart';
 import '../ui/settings/widgets/settings_screen.dart';
 import '../ui/shopping_list/widgets/shopping_list_screen.dart';
 import '../ui/spike/widgets/typing_spike_screen.dart';
@@ -75,27 +78,29 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.editPurchase,
         name: RouteNames.editPurchase,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Corrigir compra',
-          story: 'H9',
-        ),
+        builder: (context, state) =>
+            EditPurchaseScreen(purchaseId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: Routes.purchaseHistory,
         name: RouteNames.purchaseHistory,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Histórico de compras',
-          story: 'H9',
-        ),
+        builder: (context, state) => const PurchaseHistoryScreen(),
       ),
       GoRoute(
         path: Routes.newProduct,
         name: RouteNames.newProduct,
-        // The `extra` is set only by screen 3's `[+Novo]`: it asks for the
-        // chosen leaf back instead of a navigation to the list. Whoever
+        // The `extra` says what was asked of screen 4: screen 3 asks for
+        // the chosen leaf BACK instead of a navigation to the list, and the
+        // catalog maintenance says WHICH registration to open. Whoever
         // arrives from the menu passes nothing and falls to the default.
-        builder: (context, state) =>
-            NewProductScreen(returnsSelection: state.extra as bool? ?? false),
+        builder: (context, state) {
+          final request =
+              state.extra as NewProductRequest? ?? const NewProductRequest();
+          return NewProductScreen(
+            returnsSelection: request.returnsSelection,
+            registrationId: request.registrationId,
+          );
+        },
       ),
       GoRoute(
         path: Routes.reports,
@@ -114,10 +119,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.catalog,
         name: RouteNames.catalog,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Manutenção do cadastro',
-          story: 'H10',
-        ),
+        builder: (context, state) => const CatalogMaintenanceScreen(),
       ),
       // Minimal for now — only the device user label, which is an acceptance
       // criterion of H1. The spending cap arrives with H13.

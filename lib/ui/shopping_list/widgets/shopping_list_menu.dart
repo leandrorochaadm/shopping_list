@@ -8,17 +8,16 @@ import '../../core/widgets/pending_destinations.dart';
 /// The `≡` of screen 1 — and, as the `handoff` puts it, "a única porta das
 /// quatro telas não desenhadas". Without it being born here they would have no
 /// door at all, and the only way in would be typing the route.
+///
+/// **"Corrigir compra" is not one of them any more**, and it did not become
+/// enabled either: `/purchases/:id/edit` does not navigate without an id, and
+/// the only screen that knows which id is the history — one line above it.
 abstract final class ShoppingListMenu {
   static const _entries = <MenuEntry>[
     MenuEntry(
       route: Routes.purchaseHistory,
       icon: Icons.receipt_long,
       label: 'Histórico de compras',
-    ),
-    MenuEntry(
-      route: Routes.editPurchase,
-      icon: Icons.edit,
-      label: 'Corrigir compra',
     ),
     MenuEntry(
       route: Routes.catalog,

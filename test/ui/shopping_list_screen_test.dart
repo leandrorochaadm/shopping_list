@@ -16,6 +16,8 @@ import 'package:shopping_list/ui/shopping_list/widgets/shopping_list_tile.dart';
 
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
+import '../helpers/locale.dart';
+import '../helpers/purchase.dart';
 import '../helpers/shopping_list.dart';
 
 /// The fake with a switch that makes the next call fail, and a hold that keeps
@@ -58,6 +60,10 @@ ShoppingListItem _item({
 );
 
 void main() {
+  // Screen 3 is one tap away from here now, and it draws a date —
+  // `main()` does not run in a test.
+  setUpAll(initializePtBr);
+
   final seed = [
     _item(id: '1', typeName: 'Leite', categoryName: 'Bebidas', quantity: 6000),
     _item(
@@ -271,20 +277,40 @@ void main() {
     expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isTrue);
   });
 
-  testWidgets('a destination that does not exist explains itself', (
+  testWidgets('a destination that does not exist still explains itself', (
     tester,
   ) async {
     await pumpScreen(tester, repository: _SpyRepository(initial: seed));
 
-    await tester.tap(find.text('Lançar compra'));
+    await tester.tap(find.text('Sugerir itens'));
     await tester.pumpAndSettle();
 
-    expect(find.text('O lançamento de compra chega na H7.'), findsOneWidget);
+    expect(find.text('A sugestão de itens chega na H17.'), findsOneWidget);
     // It did not navigate.
     expect(find.text('Lista de compras'), findsOneWidget);
   });
 
-  testWidgets('the ≡ opens the four doors, three of them explained', (
+  testWidgets('[ Lançar compra ] navigates, and the screen 1 opens at all', (
+    tester,
+  ) async {
+    // Two assertions in one, and the second is the reason the button stopped
+    // being a `_PendingButton` in the same step the map lost `newPurchase`:
+    // `_PendingButton` reads that map with a `!`, so a screen 1 that builds
+    // its footer at all is the proof the order was not inverted.
+    await pumpScreen(
+      tester,
+      repository: _SpyRepository(initial: seed),
+      overrides: purchaseOverrides(),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('new-purchase')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lançar compra'), findsWidgets);
+    expect(find.byKey(const ValueKey('field-product')), findsOneWidget);
+  });
+
+  testWidgets('the ≡ opens the three doors, none of them explained', (
     tester,
   ) async {
     await pumpScreen(tester, repository: _SpyRepository(initial: seed));
@@ -293,10 +319,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Histórico de compras'), findsOneWidget);
-    expect(find.text('Corrigir compra'), findsOneWidget);
     expect(find.text('Manutenção do cadastro'), findsOneWidget);
     expect(find.text('Configurações'), findsOneWidget);
-    expect(find.text('A correção de compra chega na H9.'), findsOneWidget);
+    // "Corrigir compra" left the menu instead of being enabled:
+    // `/purchases/:id/edit` does not navigate without an id, and the only
+    // screen that knows which is the history, one line above.
+    expect(find.text('Corrigir compra'), findsNothing);
+    expect(find.textContaining('chega na H'), findsNothing);
   });
 
   testWidgets('the 👤 asks who is using, with the H1 picker', (tester) async {

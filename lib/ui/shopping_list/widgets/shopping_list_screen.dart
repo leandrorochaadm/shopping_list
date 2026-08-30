@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
@@ -245,9 +246,15 @@ class _Body extends ConsumerWidget {
               const SizedBox(height: 8),
               _PendingButton(route: Routes.suggestions, label: 'Sugerir itens'),
               const SizedBox(height: 8),
-              _PendingButton(
-                route: Routes.newPurchase,
-                label: 'Lançar compra',
+              // A button of its own, and no longer a `_PendingButton`: the
+              // screen exists since H7, and `_PendingButton` reads the map
+              // with a `!` — leaving it here while `newPurchase` left the map
+              // would throw while building the footer of the app's first
+              // screen, on every phone.
+              OutlinedButton(
+                key: const ValueKey('new-purchase'),
+                onPressed: () => context.go(Routes.newPurchase),
+                child: const Text('Lançar compra'),
               ),
             ],
           ),

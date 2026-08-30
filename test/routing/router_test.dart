@@ -25,16 +25,13 @@ void main() {
   /// the phone.
   const placeholderTitleByPath = <String, String>{
     Routes.suggestions: 'Sugestão de itens',
-    Routes.purchaseHistory: 'Histórico de compras',
-    '/purchases/7f3c/edit': 'Corrigir compra',
     Routes.reports: 'Relatórios',
     Routes.remainingThisMonth: 'Falta comprar este mês',
-    Routes.catalog: 'Manutenção do cadastro',
   };
 
   /// The paths whose real screen already exists. Every story moves one line
-  /// from the map above to this one — six more times — and the SUM of the two
-  /// has to stay eleven. Loosening that count is how `tecnico §3.4` would
+  /// from the map above to this one — three more times — and the SUM of the
+  /// two has to stay eleven. Loosening that count is how `tecnico §3.4` would
   /// quietly stop being true.
   const realTitleByPath = <String, String>{
     Routes.shoppingList: 'Lista de compras',
@@ -42,6 +39,11 @@ void main() {
     Routes.settings: 'Configurações',
     Routes.newProduct: 'Novo produto',
     Routes.newPurchase: 'Lançar compra',
+    Routes.purchaseHistory: 'Histórico de compras',
+    // The one route that takes a parameter, and the id is one the purchase
+    // fake actually holds: the screen loads it.
+    '/purchases/purchase-1/edit': 'Corrigir compra',
+    Routes.catalog: 'Manutenção do cadastro',
   };
 
   Future<GoRouter> pumpRouter(
