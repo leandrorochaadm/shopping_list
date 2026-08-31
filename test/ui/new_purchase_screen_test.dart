@@ -617,6 +617,116 @@ void main() {
     // And the picker was NOT reloaded — the product field never went blank.
     expect(find.text('Carregando...'), findsNothing);
   });
+
+  group('the [ Comparar custo ] button (H19)', () {
+    testWidgets('appears when the type has two options or more', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      // Before a product is chosen there is no type, and no button.
+      expect(find.byKey(const ValueKey('compare-cost')), findsNothing);
+
+      // The crate — the soft drink type has four packagings.
+      await fillItem(tester);
+      expect(find.byKey(const ValueKey('compare-cost')), findsOneWidget);
+    });
+
+    testWidgets('does NOT appear for a type with a single option', (
+      tester,
+    ) async {
+      // The ground beef is the only product of its type in the fake.
+      await pumpScreen(tester);
+      await tester.enterText(
+        find.byKey(const ValueKey('field-product')),
+        'acém',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Acém moído (a peso)').last);
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('compare-cost')), findsNothing);
+    });
+
+    testWidgets('opens the panel and comes back with the product swapped', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await fillItem(tester);
+
+      await tester.tap(find.byKey(const ValueKey('compare-cost')));
+      await tester.pumpAndSettle();
+
+      // The 2 L bottle is the best cost with the seed of §7.5.
+      await tester.tap(find.byKey(const ValueKey('cost-check-prod-3')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('cost-use')));
+      await tester.pumpAndSettle();
+
+      // The product was swapped...
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('field-product')))
+            .controller!
+            .text,
+        'Coca-Cola original 2 L',
+      );
+      // ...and the suggested value was redone against ITS history: R$ 10,00
+      // for 2000 ml, one bottle -> R$ 10,00.
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('field-value')))
+            .controller!
+            .text,
+        '10,00',
+      );
+      // The cursor is on the quantity, which is what requirement 17 asks for.
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('field-quantity')))
+            .focusNode!
+            .hasFocus,
+        isTrue,
+      );
+    });
+
+    testWidgets('closing with [ X ] writes nothing and changes nothing', (
+      tester,
+    ) async {
+      // The draft is read from the container `pumpScreen` hands back — it
+      // overrides the provider with a `PurchaseDraftRepositoryLocal`, and it
+      // is the ONLY tree where there is a repository to spy on, because the
+      // panel is handed none. A test of the panel claiming "wrote nothing"
+      // would claim only what its constructor already reads as.
+      final container = await pumpScreen(tester);
+      final drafts =
+          container.read(purchaseDraftRepositoryProvider)
+              as PurchaseDraftRepositoryLocal;
+      await fillItem(tester);
+      final writesBefore = drafts.writes;
+
+      await tester.tap(find.byKey(const ValueKey('compare-cost')));
+      await tester.pumpAndSettle();
+      // Typing inside the panel is not writing anywhere.
+      await tester.enterText(
+        find.byKey(const ValueKey('cost-price-prod-3')),
+        '9,50',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('cost-close')));
+      await tester.pumpAndSettle();
+
+      // Neither Hive nor the draft: the panel leaves no trail.
+      expect(drafts.writes, writesBefore);
+      // And the purchase is exactly as it was.
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const ValueKey('field-value')))
+            .controller!
+            .text,
+        '62,00',
+      );
+    });
+  });
 }
 
 /// A catalog with nothing in it — the first opening of the app.

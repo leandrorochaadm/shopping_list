@@ -10,6 +10,7 @@ import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/price_increase.dart';
 import '../../../domain/models/product_option.dart';
+import '../../../domain/models/proportional_cost.dart';
 import '../../../domain/models/purchase_draft.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/store.dart';
@@ -23,6 +24,7 @@ import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
 import '../view_model/new_purchase_view_model.dart';
 import '../view_model/purchase_draft_view_model.dart';
+import 'cost_comparison_panel.dart';
 import 'price_increase_warning.dart';
 import 'product_field.dart';
 import 'purchase_item_row.dart';
@@ -52,6 +54,12 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// twenty items is twenty rounds of this loop.
   final _productController = TextEditingController();
   final _productFocus = FocusNode();
+
+  /// Where the cursor goes when the `#3a` panel hands an option back — it is
+  /// the "volta ao lançamento com o produto já trocado, o cursor na
+  /// quantidade" of requirement 17. `[ + Adicionar ]` keeps sending the
+  /// focus back to Produto.
+  final _quantityFocus = FocusNode();
 
   ProductOption? _option;
 
@@ -87,6 +95,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     _valueController.dispose();
     _productController.dispose();
     _productFocus.dispose();
+    _quantityFocus.dispose();
     super.dispose();
   }
 
@@ -226,6 +235,47 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     // Back to the product field: twenty items is twenty rounds of this loop,
     // and a tap saved here is twenty taps saved.
     _productFocus.requestFocus();
+  }
+
+  /// The options the panel sees: what the picker loaded **plus** what was
+  /// registered on screen 4 during this purchase (F-i). `_ProductField` does
+  /// the same sum; it is done again here because whoever builds the panel is
+  /// the screen, not the field.
+  IList<ProductOption> _allOptions(AsyncValue<IList<ProductOption>> state) =>
+      (state.value ?? const IList<ProductOption>.empty()).addAll(
+        _justRegistered,
+      );
+
+  /// The `[ Comparar custo ]→3a` of the wireframe.
+  ///
+  /// The way back is treated as ANY product choice — `_onProductChosen`
+  /// already clears `_valueTouched`, and the `_onQuantityChanged` right after
+  /// it redoes the suggested value against the new option's history. The ⚠ of
+  /// H15 redoes itself, because it is a getter over `_option`.
+  Future<void> _compareCost(IList<ProductOption> options) async {
+    final option = _option;
+    if (option == null) return;
+
+    final picked = await CostComparisonPanel.show(
+      context,
+      candidates: costCandidatesOf(
+        options: options,
+        typeId: option.type.id,
+        // F-j: the leaf being registered goes into `shown` even with no
+        // price of its own.
+        launching: option,
+      ),
+      launching: option,
+    );
+    // Closed choosing nothing: the item stays exactly as it was.
+    if (!mounted || picked == null) return;
+
+    // **The `setState` first and the controller after**, in the order of
+    // `_registerProduct`: writing into the Autocomplete's controller outside
+    // a `setState` reopens the options overlay over the field just filled in.
+    _onProductChosen(picked);
+    _productController.text = picked.label;
+    _quantityFocus.requestFocus();
   }
 
   /// The `[+Novo]→4` of the wireframe. `push`, never `go`: `go` replaces the
@@ -392,10 +442,31 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                   ref.read(newPurchaseViewModelProvider.notifier).refresh(),
               onCreate: _registerProduct,
             ),
+            // The `[ Comparar custo ]→3a`, optional and off the normal path:
+            // it only appears when the chosen product's type has TWO options
+            // or more. Whoever never taps it registers the purchase exactly
+            // as before.
+            if (_option case final option?)
+              if (costCandidatesOf(
+                options: _allOptions(options),
+                typeId: option.type.id,
+                launching: option,
+              ).canCompare)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    key: const ValueKey('compare-cost'),
+                    onPressed: _saving
+                        ? null
+                        : () => _compareCost(_allOptions(options)),
+                    child: const Text('Comparar custo'),
+                  ),
+                ),
             const SizedBox(height: 12),
             TextField(
               key: const ValueKey('field-quantity'),
               controller: _quantityController,
+              focusNode: _quantityFocus,
               enabled: _option != null && !_saving,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
