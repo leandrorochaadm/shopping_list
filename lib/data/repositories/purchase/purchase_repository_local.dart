@@ -133,6 +133,41 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
       paid: const Money(4500),
       purchasedOn: DateTime(2026, 8, 10),
     ),
+    // **H19** — the two other packagings of the soft drink, so the `#3a`
+    // panel opens with three priced lines in debug and tells the story of
+    // requirement 17: the 2 L bottle is the best cost.
+    //
+    // The CRATE is not moved: its R$ 62,00 is the pre-filled value two test
+    // files fix, and dropping it to the R$ 42,00 of the document would break
+    // H7 and H15 in one go. The verdict in debug is the wireframe's — the
+    // bottle — but the losers' percentages are NOT the document's, and this
+    // is what the screen shows in debug:
+    //
+    //   bottle 2 L      R$ 10,00 / 2000 ml  ->  R$  5,00/L   ★
+    //   can 350 ml      R$  4,00 /  350 ml  ->  R$ 11,43/L   −56%
+    //   crate 12×350    R$ 62,00 / 4200 ml  ->  R$ 14,76/L   −66%
+    //
+    // The footer repeats the BIGGEST difference, which is against the crate:
+    // "Coca-Cola original 2 L — 66% mais barato o litro". In the document
+    // that sentence says 56%, because there the crate costs R$ 42,00.
+    //
+    // H15 in debug is untouched: `prod-1` and `prod-3` belong to `reg-1`,
+    // which HAS a brand, so `PriceBaselines.forLeaf` reads `byProduct` and
+    // the crate's average stays its own R$ 14,51 a litre.
+    PurchaseHistoryEntry(
+      productId: 'prod-1',
+      productTypeId: 'type-1',
+      quantityInBaseUnit: 350,
+      paid: const Money(400),
+      purchasedOn: DateTime(2026, 8, 12),
+    ),
+    PurchaseHistoryEntry(
+      productId: 'prod-3',
+      productTypeId: 'type-1',
+      quantityInBaseUnit: 2000,
+      paid: const Money(1000),
+      purchasedOn: DateTime(2026, 8, 15),
+    ),
   ];
 
   /// The three situations H9 and H10 have to SHOW, and none of them can be
