@@ -148,6 +148,14 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | linha da comparação | `ComparisonLine` | um mercado, o preço por unidade base e o dia. **A data informa, não ordena** |
 | visão da comparação | `ComparisonScope.thisProduct` / `.wholeType` | marca com marca, ou o tipo inteiro por unidade base |
 | cabeçalho de grupo do seletor | `ProductGroup.header` | o nome do tipo na Tela 3, o da categoria na Tela 5. Era `ProductType` até a H16 |
+| consumo de um tipo nas duas janelas | `TypeConsumption` | a linha plana que o SQL devolve. Carrega a **data da primeira compra**, que é o que decide o divisor |
+| média mensal | `MonthlyAverage` | já **arredondada**, mais o consumido no mês. É o `T` das duas telas |
+| grupo das telas 2 e 6 | `MonthlyAverageGroup` | a terceira gêmea de `ShoppingListGroup` e `ProductTypeGroup` — e a única que serve **duas** telas |
+| janela fechada | `closedWindow` | os três meses fechados anteriores. Mora ao lado de `rollingWindowStart`, e as duas **nunca se misturam** |
+| meses fechados de vida | `closedMonthsOfLife` | 0 a 3. O **0 é resposta**: é o produto nascido no mês em curso |
+| passo do arredondamento | `averageStepOf` / `roundToAverageStep` | uma casa decimal da unidade base. **Nunca transforma positivo em zero** |
+| a sub-linha da Tela 6 | `listStatusLabel` | as quatro formas de "o que a lista está pedindo", mais o sufixo do "não encontrei" |
+| o item aberto de um tipo | `findOpenItemOfType` | o mais antigo quando há mais de um. É onde "editando o item que já existe, nunca criando um segundo" é decidido |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -574,10 +582,17 @@ no ramo `>= 500` e o usuário lê *"o servidor está indisponível"* quando o qu
 
 ## Rotas — `routing/routes.dart`
 
-São **11 telas** (`tecnico §3.4`), não as 6 do rascunho. Todas as rotas já estão
-registradas; a que ainda não tem tela aponta para `UnderConstructionScreen`, que diz qual
-história a entrega. **Cada história troca uma entrada do router pela tela real** — e
-`UnderConstructionScreen` é apagada quando a última tela existir.
+São **11 telas** (`tecnico §3.4`), não as 6 do rascunho, e **desde a Entrega 8 todas as
+onze têm tela**. Até ali a que ainda não tinha apontava para uma `UnderConstructionScreen`
+que dizia qual história a entregava, e cada história trocava uma entrada do router pela
+tela real. Aquela tela e o `pendingDestinations` ao lado dela foram apagados com as duas
+últimas entradas.
+
+`/suggestions` é a Tela 2 e a Tela 1 a abre com **`push`**: as rotas são planas, e o
+wireframe manda a Tela 2 **voltar** para a lista — tanto pelo Voltar quanto pelo
+`[ Adicionar selecionados ]`. `/remaining` é a Tela 6 e é o **terceiro destino
+permanente** da barra de baixo, alcançado com `go` e sem Voltar nenhum, pelo mesmo motivo
+de `/` e `/reports`.
 
 `/` é a Tela 1. `/purchases/new` é a Tela 3, e é declarada **antes** de
 `/purchases/:id/edit`: o `go_router` casa na ordem, e senão `new` viraria um id.
@@ -628,11 +643,13 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 30/08/2026**, ao fim da Entrega 7
-(`temp/plan/plano-h15-h16-estou-pagando-caro-2026-08-30.md`, os 27 passos — H15 e H16).
-`flutter analyze` limpo, **1166 testes verdes**, cobertura de linha **92,4%** — acima do
-piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve. Antes dela veio a
-Entrega 6 (`plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos), a
+**Atualizado em 31/08/2026**, ao fim da Entrega 8
+(`temp/plan/plano-h17-h18-planejar-2026-08-30.md`, os 32 passos — H17 e H18).
+`flutter analyze` limpo, **1281 testes verdes**, cobertura de linha **92,6%** — acima do
+piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve. **As onze telas
+existem**, e com elas morreram `pending_destinations.dart` e
+`under_construction_screen.dart`. Antes dela veio a Entrega 7
+(`plano-h15-h16-estou-pagando-caro-2026-08-30.md`, os 27 passos), a Entrega 6 (`plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos), a
 Entrega 5 (`plano-h11-h12-relatorio-do-periodo-2026-08-30.md`, os 27 passos), e antes a
 Entrega 1 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
 (`plano-entrega-2-lista-no-corredor-2026-08-28.md`), a Entrega 3
@@ -677,7 +694,7 @@ com as 11 rotas mais a 12ª descartável do spike, `ui/core/` (tema Material 3 c
 `MenuEntry`, o `MainMenu` e o `OnlineStatus`), `data/services/` (exceções, o tradutor do
 Supabase e a leitura de plataforma do online/offline — o estado que a expõe é
 `ui/core/online_status.dart`) — e
-**dez telas** de onze:
+**as onze telas**:
 
 - **H1 — `DeviceUser`:** `device_user_repository` (abstract + `_local` + `_hive`),
   `DeviceUserViewModel`, a tela de boas-vindas, uma `/settings` mínima e o **único
@@ -740,6 +757,18 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   `PriceComparisonViewModel`, o `PriceIncreaseWarning` da Tela 3, o `ReportSummaryTab`
   extraído de `reports_screen.dart` e a **Tela 5 com a `TabBar`**, cuja segunda aba é o
   `PriceComparisonTab`.
+- **H17/H18 — planejar (Entrega 8):** o domínio novo (`closedWindow` em
+  `reference_window.dart`, ao lado da rolante e no arquivo que já reservava o lugar dela;
+  `type_consumption.dart` com `TypeConsumption`; e `monthly_average.dart` com
+  `averageDecimalPlaces`, `averageStepOf`, `roundToAverageStep`, `closedMonthsOfLife`,
+  `monthlyAverageAmount`, `MonthlyAverage`, `MonthlyAverageGroup`, `monthlyAverages` e
+  `groupAveragesByCategory` — **a regra inteira do requisito 8, em inteiros e sem uma
+  divisão em ponto flutuante**), mais o `listStatusLabel` de `ShoppingListItem` e o
+  `findOpenItemOfType` de `shopping_list.dart`; o `consumption_repository`
+  (abstract + `_local` + `_remote`), a migration `type_consumption(date,date,date,date)`,
+  o `MonthlyAverageViewModel` — **um só para as duas telas** —, o `add(quantity:)` e o
+  `addMany` do `ShoppingListViewModel`, os **dois modos** do `ItemDialog`
+  (`.editing`/`.creating`), a **Tela 2** e a **Tela 6**.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -773,12 +802,12 @@ publica um preview contra o `dev`**. Não há remote nem branch neste repositór
 **abrir uma branch antes do primeiro push é obrigatório** — senão a primeira publicação
 sai de `main` contra a base sem backup do `R13`.
 
-O `supabase/` existe com o `config.toml`, **oito migrations** (a função `normalize_name`
+O `supabase/` existe com o `config.toml`, **nove migrations** (a função `normalize_name`
 `IMMUTABLE`; as 12 tabelas com a função transacional de cadastro; a RLS permissiva com os
 `grant`; a view `product_type_purchase_count`; a escrita da compra com `fulfilled_on`,
 `removed_on` e `create_purchase`; a correção com `update_purchase`, `delete_purchase` e
-o índice do histórico paginado; a `report_period` da Entrega 5; e a `spending_cap` da
-Entrega 6) e o **seed de 4 meses**,
+o índice do histórico paginado; a `report_period` da Entrega 5; a `spending_cap` da
+Entrega 6; e a `type_consumption` da Entrega 8) e o **seed de 4 meses**,
 gerado por `uv run tool/make_seed.py` — reancorar é rodar de novo. Todas elas e o seed
 foram **aplicados e verificados** no Postgres 17 local (ver o parágrafo seguinte): as
 travas de duplicidade, o `NULLS NOT DISTINCT`, a igualdade de embalagem em inteiros, o
@@ -895,17 +924,15 @@ caminho se resolve. Ou seja, o "no pior caso imprime uma linha no console" daque
 comentário é mais otimista do que o observado. Se um dia a
 `MisconfiguredApp.storageUnavailable()` aparecer sem explicação, **comece por aqui**.
 
-**Não existe ainda:** o deploy publicado, o schema aplicado em `dev`, a S1 medida, e a
-última tela — `/suggestions` (H17), mais `/remaining` (H18).
-`UnderConstructionScreen` continua viva por causa delas, e o `pendingDestinations` ficou
-com **duas** entradas. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
+**Não existe ainda:** o deploy publicado, o schema aplicado em `dev` e a S1 medida — não
+falta mais tela nenhuma. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
 bloco B está fechado** (as cinco decisões de 28/08 mais a **B6**, que nasceu na H7), a
 **C1** e a **D3** foram respondidas na H7, a **C2** na H11, a **C4 (L4)** na H13 —
 **America/Porto_Velho (UTC−4)**, que fica registrada e não vira código —, e o que resta é
 o **bloco A**: contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
 
-**Oito migrations esperam um banco hospedado.** As quatro últimas são as das Entregas 3,
-4, 5 e 6: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
+**Nove migrations esperam um banco hospedado.** As cinco últimas são as das Entregas 3,
+4, 5, 6 e 8: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
 `shopping_list_item`, relaxa o `check` de `list_write_off` para `>= 0` e cria a
 `create_purchase`; a `20260828140000_purchase_correction.sql` cria o índice
 `purchase_history_idx`, as funções `update_purchase` e `delete_purchase` e — **dentro dela
@@ -913,9 +940,11 @@ mesma, nunca no `rls.sql` já aplicado** — os dois `grant execute`; a
 `20260830120000_period_report.sql` cria a `report_period(date, date)`, que devolve as
 **três agregações do mesmo intervalo** num `jsonb` só; e a
 `20260830130000_spending_cap.sql` cria as quatro funções do teto e da H14 **e dropa e
-recria as três de escrita** com o `p_cap_alerts` novo. Todas foram **aplicadas e
-conferidas** no `shopping_list_dev` local, com os quatro arquivos de
-`supabase/checks/`; o que falta é `dev` e `prod`, que dependem do A1.
+recria as três de escrita** com o `p_cap_alerts` novo; e a
+`20260830140000_type_consumption.sql` cria a `type_consumption(date, date, date, date)`,
+que responde as **duas janelas mais a data da primeira compra** de cada tipo num `jsonb`
+só. Todas foram **aplicadas e conferidas** no `shopping_list_dev` local, com os cinco
+arquivos de `supabase/checks/`; o que falta é `dev` e `prod`, que dependem do A1.
 
 **O `drop`+`create` da Entrega 6 é a coisa mais perigosa que já entrou numa migration
 deste projeto, e vale saber por quê.** Parâmetro novo em Postgres é **assinatura nova**:
@@ -945,11 +974,10 @@ iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 esti
 respondida (passo 25 do plano).
 
 **A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
-iPhone 12 (precisa de A1, A2 e A3) e aplicar as oito migrations no `dev` (precisa de
-A1) —, e depois a **sugestão do que costuma acabar** (H17) e o **falta comprar no mês**
-(H18), as duas últimas telas. As duas leem a **janela fechada**, que ainda não existe: ela
-nasce em `domain/models/reference_window.dart`, ao lado da rolante que a Entrega 7 pôs
-lá, para que as duas nunca sejam escritas em telas diferentes.
+iPhone 12 (precisa de A1, A2 e A3) e aplicar as nove migrations no `dev` (precisa de
+A1) —, e depois a **H19**, a calculadora de custo proporcional e o painel `#3a` sobre a
+Tela 3, que é o último requisito essencial em aberto. Ela lê a janela **rolante**, que já
+existe desde a Entrega 7.
 
 **Um critério de aceite da H7 ficou deliberadamente de fora**, e está registrado para não
 sumir: abrir a Tela 3 **a partir de um item da lista**, com a embalagem preferida já
@@ -961,6 +989,60 @@ usuário:** `Packaging.label` **não escreve o "1 ×" da embalagem de peça úni
 "350 ml", não "1 × 350 ml" —, porque é esse o nome da prateleira que se procura no
 lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais ele volta:
 "12 × 350 ml".
+
+---
+
+## O que a Entrega 8 mudou fora das telas dela
+
+**`pending_destinations.dart` e `under_construction_screen.dart` foram apagados.** O
+dartdoc do mapa já dizia que um mapa vazio era o sinal, e as duas últimas entradas eram
+justamente as destas telas. Com eles saíram o ramo de SnackBar da `MainBottomBar`, o
+`subtitle` e o cinza do `MainMenu`, e o `_PendingButton` da Tela 1 — cujos **dois** usos
+(o rodapé e o estado vazio) viraram `OutlinedButton` de verdade. **A ordem importava e
+era um crash se invertida**, a mesma armadilha da Entrega 4: o `_PendingButton` lia o
+mapa com `!`.
+
+**O `ItemDialog` ganhou dois construtores, e o de screen 1 não mudou de assinatura.**
+`ItemDialog.editing` é a Tela 1 e o caminho "já está na lista" da Tela 6;
+`ItemDialog.creating` é a Tela 6 num tipo que ainda não está na lista, e nele **"Não
+encontrei" e "Remover da lista" não existem** — não há linha para marcar nem para
+remover. O `ItemDialog.show(context, item)` continua igual de propósito, para os
+chamadores da Tela 1 não se mexerem. Onze pontos do `State` liam `widget.item`; hoje leem
+`widget.type`/`widget.category`, ou `widget.item!` dentro de um ramo já guardado.
+
+**Decisão E-k, registrada porque é um campo que aceita e não grava:** no modo criar os
+dois dropdowns de marca e embalagem **aparecem** — esconder divergiria do "o **mesmo**
+diálogo de item da Tela 1" que o wireframe manda — e o que for escolhido neles é
+**descartado**, porque `ShoppingListViewModel.add` monta o item sem preferências. A volta
+são dois nomeados opcionais em `add`, e o `item_dialog_test` fixa o comportamento atual
+para que o dia em que isso mudar, mude de propósito.
+
+**`ShoppingListViewModel.add` ganhou `quantity`, e nasceu o `addMany`.** O segundo existe
+porque o primeiro **não pode ser chamado em laço**: a guarda de reentrância da regra 14
+engoliria toda chamada depois da primeira e devolveria `null`, que se lê como sucesso. A
+guarda é **da ação**, e acrescentar cinco itens é uma ação. Numa falha no meio ele para e
+devolve a frase, mantendo o que já entrou — e a tela não precisa de contador: as linhas
+que passaram voltam travadas por lerem a lista.
+
+**Os dois fakes passaram a contar a mesma história** (decisão E-l).
+`ConsumptionRepositoryLocal` guarda as **mesmas compras** de `ReportRepositoryLocal`, mês
+a mês e sem preço, e por isso o fake do relatório cresceu **oito linhas** — março, maio,
+junho e uma de julho. Sem isso a Tela 5 diria "Acém moído 6 kg em agosto" e a Tela 6
+diria "faltam 2 kg de uma média de 6", duas respostas sobre o mesmo tipo no mesmo mês, em
+debug. **A sincronia é manual e nenhum teste a defende**: o dartdoc de cada fake aponta
+para o outro pelo nome. Custou **um `expect`** — o total de julho, que passou de
+`Money(11990)` para `Money(27990)`.
+
+**O catálogo fake ganhou `cat-4 Mercearia` e `type-5 Café`**, exatamente como a Entrega 5
+ganhou `type-4` e `brand-4` e pelo mesmo motivo: sem eles a sugestão nomearia, em debug,
+um tipo que a Tela 3 não oferece. O custo foram **quatro contagens** em
+`catalog_maintenance_view_model_test.dart`.
+
+**O `router_test` perdeu um dos seus dois mapas.** `placeholderTitleByPath` esvaziou e
+suas duas entradas migraram para `realTitleByPath`, cujo comprimento passou a ser sozinho
+o **onze** que `tecnico §3.4` congelou. E o `main_menu_test` perdeu os três casos que
+perguntavam `isPending`: o que os substitui é a propriedade que sobreviveu ao mapa — cada
+uma das três portas alcança uma tela.
 
 ---
 
