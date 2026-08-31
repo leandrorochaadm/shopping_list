@@ -156,6 +156,14 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | passo do arredondamento | `averageStepOf` / `roundToAverageStep` | uma casa decimal da unidade base. **Nunca transforma positivo em zero** |
 | a sub-linha da Tela 6 | `listStatusLabel` | as quatro formas de "o que a lista está pedindo", mais o sufixo do "não encontrei" |
 | o item aberto de um tipo | `findOpenItemOfType` | o mais antigo quando há mais de um. É onde "editando o item que já existe, nunca criando um segundo" é decidido |
+| calculadora de custo proporcional | `proportional_cost.dart` | o painel `#3a`. **Não** `CostCalculator`: o que existe é a regra, e ela não é um objeto que calcula |
+| linha da calculadora | `CostLine` | folha + marcada + preço + custo + diferença + `★`. **Não confundir com `ComparisonLine`**, que é a linha de MERCADO da H16 |
+| as duas listas do painel | `CostCandidates` | o recorte da janela **mais a folha em lançamento** (`shown`) e o tipo inteiro (`all`). `canCompare` é a regra do botão da Tela 3 |
+| a folha que está sendo lançada | `launching` | o parâmetro de `costCandidatesOf` e do painel. É a **única que abre marcada**, e a única que entra em `shown` sem preço (F-j) |
+| resposta da calculadora | `CostRanking` | as linhas ordenadas, o `★`, para onde o `[ Usar… ]` aponta e a frase do rodapé |
+| empate técnico | `costTieThreshold` | 1%. `const` no domínio, e **o único lugar onde o número existe** |
+| conteúdo que um preço compra | `contentPricedOf` | o `totalContent` da embalagem, ou a unidade base no vendido a peso |
+| preço de abertura da linha | `openingPriceOf` | o pago por **uma** embalagem na última compra. `null` é a embalagem nunca comprada na janela |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -542,6 +550,18 @@ vigor no código** — não reabrir sem o usuário pedir.
 | O par de radios do `wireframes §Tela 5` (**D-t**) | dois radios | um `SegmentedButton<ComparisonScope>` | é o Material 3 do projeto para escolha binária, e o precedente é o `SegmentedButton<SellingMode>` de `new_product_screen.dart`. Divergência cosmética |
 | O cabeçalho do grupo do seletor (**D-u**) | `ProductGroup.type` (`ProductType`) | `ProductGroup.header` (`String`) | o mesmo seletor agrupa por **tipo** na Tela 3 e por **categoria** na Tela 5, e o único leitor lia `group.type.name`. Um parâmetro `groupBy` em vez de dois widgets que divergiriam na primeira mudança |
 | "Este produto" na folha **sem marca** (**D-v**) | `handoff §H16`: "um produto sem marca ... sobe para o tipo, pelo mesmo motivo de H15" | **não sobe**: quem sobe é o toque em "Tipo inteiro" | na H15 subir é a única saída — o alerta é uma linha só e não há para onde ir. Aqui há: a subida está a um toque, é o que o wireframe desenha, e é o usuário quem a controla. Subir sozinho daria o **mesmo resultado nas duas visões** para toda folha sem marca — metade do catálogo do casal —, deixando um botão que não faz nada |
+| A consulta da H19 (**F-a**) | `handoff §8`: "Último valor pago por embalagem = total do item ÷ quantidade — a escrever" | **nenhuma consulta e nenhuma migration** | `fetchRecentItems` já traz o par (pago, quantidade) de toda linha da janela, e `rankOptions` já escolhe a mais recente por folha. O "total ÷ quantidade" é `PriceReference.estimateFor`, testada desde a H7. Mesmo precedente da **D-q** |
+| Os estados "carregando" e "erro" do `#3a` (**F-b**) | `wireframes §#3a Estados` desenha os dois | **não existem** | eram estados do I/O que a F-a eliminou. O painel abre sobre dados que **já estão na tela**; se a carga falhou não há produto escolhido, não há tipo, e o botão nem aparece |
+| A ordem das linhas do `#3a` (**F-c**) | `wireframes §#3a` desenha fora da ordem de custo | **do menor para o maior custo por unidade base** | `requisitos §17` — "uma lista ordenada do mais barato para o mais caro" — e o `handoff §1.4` registra a ausência como **defeito do documento**. Requisitos vencem wireframes |
+| O `−%` no empate técnico (**F-d**) | — não estava escrito | **continua ao lado de toda linha cuja diferença chegue a 1%**; o que some é o `★` | é uma régua só, por linha. Uma linha 40% mais cara não deixa de ser 40% mais cara porque as duas primeiras empataram |
+| "Aparece e some sem animação" (**F-e**) | `wireframes §Efeitos` | **`showModalBottomSheet`**, com a animação padrão do Material | é o que o `#1a` já faz desde a Entrega 2. Tirar a animação exige uma `PageRouteBuilder` própria e leva a barra de arrasto junto |
+| Onde mora o estado do painel (**F-f**) | — não estava escrito | **`StatefulWidget` local, sem ViewModel e sem provider** | não há I/O (F-a), então não há carga inicial a proteger nem ação a guardar. O precedente é o `ProductField`, que não recebe `ref` — e é o que deixa o teste rodar sem container |
+| O que o fake conta em debug (**F-g**) | — | o seed ganha **duas linhas** (a lata a R$ 4,00 e a garrafa a R$ 10,00); o **fardo não muda** | sem elas o tipo Refrigerante tem uma folha só com preço. O veredito em debug é o do wireframe — a garrafa —, mas as porcentagens não são as do documento, porque o fardo continua nos R$ 62,00 que dois arquivos de teste fixam |
+| `[ Usar… ]` no empate técnico (**F-h**) | `wireframes §#3a`: "o botão continua, apontando para a de menor custo" | **igual ao documento** | fica registrado porque é contraintuitivo: o sistema para de **afirmar** vantagem, mas não tira dele a saída de escolher sem fechar o painel |
+| Produto cadastrado durante a compra (**F-i**) | — não estava escrito | **entra na lista do painel**, sem preço | o `_justRegistered` da Tela 3 é produto ativo do tipo, que é a definição de "opção" do requisito 17. Conta inclusive para o `>= 2` que faz o botão aparecer |
+| A folha em lançamento fora do recorte (**F-j**) | — não estava escrito | **ela SEMPRE aparece em `shown`**, e por isso `costCandidatesOf` recebe `launching` | sem isso o painel abre **sem caixa marcada nenhuma** justamente no caso motivador do requisito 17 — "vale a pena levar o tamanho grande que eu nunca levei" — e no caso da F-i |
+| A linha do painel (**F-k**) | `wireframes §#3a` desenha uma tabela de cinco colunas | **duas alturas**: o nome sozinho em cima, caixa + preço + custo + `−%` embaixo | as colunas fixas mais o alvo de toque somam ~220 pt; num iPhone 12 (390 pt) o nome longo quebra em três linhas e desalinha a coluna que o olho percorre. Em duas alturas o alinhamento é **melhor**, não pior |
+| O `if case` do `_selected` (**F-l**) | o plano escrevia `if (widget.launching.id case final id?) id` | **o null-aware element `{?widget.launching.id}`** | o `use_null_aware_elements` do `flutter_lints` do projeto acusa a forma do plano, e o checklist exige `flutter analyze` limpo. É a primeira ocorrência da sintaxe em `lib/`, e é o lint do projeto que a pede |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 
@@ -643,12 +663,15 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 31/08/2026**, ao fim da Entrega 8
-(`temp/plan/plano-h17-h18-planejar-2026-08-30.md`, os 32 passos — H17 e H18).
-`flutter analyze` limpo, **1281 testes verdes**, cobertura de linha **92,6%** — acima do
-piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve. **As onze telas
-existem**, e com elas morreram `pending_destinations.dart` e
-`under_construction_screen.dart`. Antes dela veio a Entrega 7
+**Atualizado em 31/08/2026**, ao fim da Entrega 9
+(`temp/plan/plano-h19-calculadora-de-custo-2026-08-31.md`, os 15 passos — H19).
+`flutter analyze` limpo, **1348 testes verdes**, cobertura de linha **92,8%** — acima do
+piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve, e **os dois
+arquivos novos desta entrega estão em 100%**. **As dezenove histórias estão fechadas, e
+com elas os 18 requisitos Essenciais.** As onze telas já existiam desde a Entrega 8 — a
+H19 não cria tela nenhuma: o `#3a` é um painel. Antes dela veio a Entrega 8
+(`plano-h17-h18-planejar-2026-08-30.md`, os 32 passos), onde morreram
+`pending_destinations.dart` e `under_construction_screen.dart`; a Entrega 7
 (`plano-h15-h16-estou-pagando-caro-2026-08-30.md`, os 27 passos), a Entrega 6 (`plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos), a
 Entrega 5 (`plano-h11-h12-relatorio-do-periodo-2026-08-30.md`, os 27 passos), e antes a
 Entrega 1 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
@@ -769,6 +792,15 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   o `MonthlyAverageViewModel` — **um só para as duas telas** —, o `add(quantity:)` e o
   `addMany` do `ShoppingListViewModel`, os **dois modos** do `ItemDialog`
   (`.editing`/`.creating`), a **Tela 2** e a **Tela 6**.
+- **H19 — a calculadora de custo proporcional (Entrega 9):** o domínio novo
+  (`proportional_cost.dart` com `costTieThreshold`, `contentPricedOf`, `openingPriceOf`,
+  `CostCandidates`/`costCandidatesOf`, `CostLine`, `CostRanking`, `rankCosts` e
+  `costHeaderFor` — **a regra inteira do requisito 17, em inteiros e sem uma divisão em
+  ponto flutuante**) e o `CostComparisonPanel`, o painel `#3a` que a Tela 3 abre pelo
+  `[ Comparar custo ]`. **Sem migration, sem repository, sem provider e sem rota**
+  (decisões F-a e F-f): o painel abre sobre o `priceReference` que `rankOptions` já
+  anexou a cada folha, e nada digitado nele vira registro — o que
+  `PurchaseDraftRepositoryLocal.writes` prova em teste.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -973,11 +1005,10 @@ zero linhas devolve `NULL`, e o período vazio é um estado a desenhar, não um 
 iPhone 12 e são apagadas junto com o teste delas assim que a pendência A2 estiver
 respondida (passo 25 do plano).
 
-**A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
-iPhone 12 (precisa de A1, A2 e A3) e aplicar as nove migrations no `dev` (precisa de
-A1) —, e depois a **H19**, a calculadora de custo proporcional e o painel `#3a` sobre a
-Tela 3, que é o último requisito essencial em aberto. Ela lê a janela **rolante**, que já
-existe desde a Entrega 7.
+**A próxima entrega não tem código de feature nenhum:** o que resta são os passos que
+dependem de você — publicar, medir a digitação no iPhone 12 (precisa de A1, A2 e A3) e
+aplicar as nove migrations no `dev` (precisa de A1). **Não há mais história em aberto:**
+a H19 fechou a última, e com ela o requisito 17.
 
 **Um critério de aceite da H7 ficou deliberadamente de fora**, e está registrado para não
 sumir: abrir a Tela 3 **a partir de um item da lista**, com a embalagem preferida já

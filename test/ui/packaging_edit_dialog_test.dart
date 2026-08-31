@@ -1,0 +1,419 @@
+import 'dart:async';
+
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
+import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/packaging.dart';
+import 'package:shopping_list/domain/models/product.dart';
+import 'package:shopping_list/ui/catalog/view_model/catalog_maintenance_view_model.dart';
+import 'package:shopping_list/ui/catalog/widgets/catalog_entry_edit_dialog.dart';
+import 'package:shopping_list/ui/catalog/widgets/packaging_edit_dialog.dart';
+
+import '../helpers/catalog.dart';
+
+/// The shared fake plus the two leaves this dialog needs and it has no room
+/// for: one counted BY UNIT — the type measured in `un` has no leaf there —
+/// and one already off, which is the only way to read the button as
+/// 'Reativar'.
+class _SpyCatalog extends CatalogRepositoryLocal {
+  _SpyCatalog() : super(latency: Duration.zero);
+
+  static final counted = Product(
+    id: 'prod-9',
+    productRegistrationId: 'reg-3',
+    packaging: Packaging(
+      pieceCount: 4,
+      pieceSize: 1,
+      pieceSizeUnit: MeasureUnit.unit,
+    ),
+  );
+
+  static final inactive = Product(
+    id: 'prod-8',
+    productRegistrationId: 'reg-1',
+    packaging: Packaging(
+      pieceCount: 1,
+      pieceSize: 600,
+      pieceSizeUnit: MeasureUnit.milliliter,
+    ),
+    active: false,
+  );
+
+  /// Every leaf the dialog asked to write, in order. An empty list is what
+  /// says the domain refused BEFORE any I/O.
+  final writes = <Product>[];
+
+  Object? failNextWrite;
+
+  /// Held open, the write never finishes: it is what keeps the dialog in its
+  /// saving state long enough to be read.
+  Completer<void>? gate;
+
+  @override
+  Future<IList<Product>> fetchProducts() async =>
+      (await super.fetchProducts()).addAll([counted, inactive]);
+
+  @override
+  Future<Product> updateProduct(Product product) async {
+    final failure = failNextWrite;
+    failNextWrite = null;
+    if (failure != null) throw failure;
+    await gate?.future;
+    writes.add(product);
+    return super.updateProduct(product);
+  }
+}
+
+void main() {
+  late _SpyCatalog catalog;
+
+  setUp(() => catalog = _SpyCatalog());
+
+  /// The four leaves of the fake all hang from 'reg-1', which is what makes
+  /// the collision guard reachable: 'prod-1' is 1 × 350 ml.
+  Product leafOf(
+    String id, {
+    required int pieceCount,
+    required int pieceSize,
+    required MeasureUnit unit,
+  }) => Product(
+    id: id,
+    productRegistrationId: 'reg-1',
+    packaging: Packaging(
+      pieceCount: pieceCount,
+      pieceSize: pieceSize,
+      pieceSizeUnit: unit,
+    ),
+  );
+
+  /// 'prod-2', the 269 ml of the fake: the leaf every correction here starts
+  /// from, since it is the one that can be typed onto another one.
+  final leaf269 = leafOf(
+    'prod-2',
+    pieceCount: 1,
+    pieceSize: 269,
+    unit: MeasureUnit.milliliter,
+  );
+
+  final countField = find.byKey(const ValueKey('field-piece-count'));
+  final sizeField = find.byKey(const ValueKey('field-piece-size'));
+  final unitField = find.byKey(const ValueKey('field-piece-unit'));
+  final saveButton = find.byKey(const ValueKey('save-packaging'));
+  final toggleButton = find.byKey(const ValueKey('toggle-active'));
+
+  String textOf(WidgetTester tester, Finder field) =>
+      tester.widget<TextField>(field).controller!.text;
+
+  Future<void> pumpDialog(
+    WidgetTester tester, {
+    required Product leaf,
+    required BaseUnit baseUnit,
+  }) async {
+    final container = ProviderContainer.test(
+      overrides: [catalogOverride(repository: catalog), storeOverride()],
+    );
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(
+            // Watching the ViewModel here is what the real screen does, and
+            // it is what puts the six catalogs in hand before the dialog
+            // saves — without it every save would answer 'Aguarde os
+            // cadastros carregarem.' and nothing else would be tested.
+            body: Consumer(
+              builder: (context, ref, _) {
+                final state = ref.watch(catalogMaintenanceViewModelProvider);
+                if (!state.hasValue) return const SizedBox.shrink();
+                return TextButton(
+                  onPressed: () => PackagingEditDialog.show(
+                    context,
+                    leaf: leaf,
+                    baseUnit: baseUnit,
+                  ),
+                  child: const Text('abrir'),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('opens written in the unit it was TYPED in', (tester) async {
+    // 'prod-3' holds 2000 ml and was typed in litres: it reads '2 L', never
+    // '2000'.
+    await pumpDialog(
+      tester,
+      leaf: leafOf(
+        'prod-3',
+        pieceCount: 1,
+        pieceSize: 2000,
+        unit: MeasureUnit.liter,
+      ),
+      baseUnit: BaseUnit.liter,
+    );
+
+    expect(find.text('Corrigir a embalagem'), findsOneWidget);
+    expect(textOf(tester, countField), '1');
+    expect(textOf(tester, sizeField), '2');
+    expect(find.text('L'), findsOneWidget);
+    expect(find.text(CatalogEntryEditDialog.footnote), findsOneWidget);
+  });
+
+  testWidgets('the measures on offer are the base unit\'s, and no others', (
+    tester,
+  ) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    await tester.tap(unitField);
+    await tester.pumpAndSettle();
+
+    expect(find.text('ml'), findsWidgets);
+    expect(find.text('L'), findsOneWidget);
+    // Weight never shows up under a type measured in litres — it is how a
+    // '350 g' of soft drink gets typed.
+    expect(find.text('g'), findsNothing);
+    expect(find.text('kg'), findsNothing);
+  });
+
+  testWidgets('corrects the packaging and closes', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    await tester.enterText(sizeField, '500');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      catalog.writes.single.packaging,
+      Packaging(
+        pieceCount: 1,
+        pieceSize: 500,
+        pieceSizeUnit: MeasureUnit.milliliter,
+      ),
+    );
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('refuses a content the registration already has, under the '
+      'field', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    // 'prod-1' is the 350 ml of the same registration.
+    await tester.enterText(sizeField, '350');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Este cadastro já tem uma embalagem com esse conteúdo.'),
+      findsOneWidget,
+    );
+    // Still open: the answer is about what was just typed, so it belongs
+    // beside it and not in a SnackBar.
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(catalog.writes, isEmpty);
+  });
+
+  testWidgets('the guard is CONTENT, not what was typed: 0,35 L is the '
+      '350 ml leaf', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    await tester.enterText(sizeField, '0,35');
+    await tester.tap(unitField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('L').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Este cadastro já tem uma embalagem com esse conteúdo.'),
+      findsOneWidget,
+    );
+    expect(catalog.writes, isEmpty);
+  });
+
+  testWidgets('a package with no pieces never reaches the repository', (
+    tester,
+  ) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    await tester.enterText(countField, '0');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Informe uma quantidade válida.'), findsOneWidget);
+    expect(catalog.writes, isEmpty);
+  });
+
+  testWidgets('a measure the unit cannot hold says how many places it has', (
+    tester,
+  ) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    // Millilitres hold no decimals: half a millilitre is not a thing here.
+    await tester.enterText(sizeField, '2,5');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Use um número inteiro.'), findsOneWidget);
+    expect(catalog.writes, isEmpty);
+  });
+
+  testWidgets('and the sentence DERIVES from the unit — litres hold three', (
+    tester,
+  ) async {
+    await pumpDialog(
+      tester,
+      leaf: leafOf(
+        'prod-3',
+        pieceCount: 1,
+        pieceSize: 2000,
+        unit: MeasureUnit.liter,
+      ),
+      baseUnit: BaseUnit.liter,
+    );
+
+    await tester.enterText(sizeField, '0,3505');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Use no máximo 3 casas decimais.'), findsOneWidget);
+  });
+
+  testWidgets('a type measured in units has no measure field: the piece IS '
+      'the unit', (tester) async {
+    await pumpDialog(
+      tester,
+      leaf: _SpyCatalog.counted,
+      baseUnit: BaseUnit.unit,
+    );
+
+    expect(find.text('Quantidade'), findsOneWidget);
+    expect(find.text('Peças'), findsNothing);
+    expect(sizeField, findsNothing);
+    expect(unitField, findsNothing);
+
+    await tester.enterText(countField, '6');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      catalog.writes.single.packaging,
+      Packaging(
+        pieceCount: 6,
+        pieceSize: 1,
+        pieceSizeUnit: MeasureUnit.unit,
+      ),
+    );
+  });
+
+  testWidgets('deactivating writes and closes', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    expect(find.text('Desativar'), findsOneWidget);
+    await tester.tap(toggleButton);
+    await tester.pumpAndSettle();
+
+    expect(catalog.writes.single.active, isFalse);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('a leaf that is off reads Reativar, and comes back', (
+    tester,
+  ) async {
+    await pumpDialog(
+      tester,
+      leaf: _SpyCatalog.inactive,
+      baseUnit: BaseUnit.liter,
+    );
+
+    expect(find.text('Reativar'), findsOneWidget);
+    await tester.tap(toggleButton);
+    await tester.pumpAndSettle();
+
+    expect(catalog.writes.single.active, isTrue);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('a failed deactivation goes to a SnackBar, and the dialog '
+      'stays', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    catalog.failNextWrite = ApiException(500, 'boom');
+    await tester.tap(toggleButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('O servidor está indisponível. Tente de novo em instantes.'),
+      findsOneWidget,
+    );
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.textContaining('ApiException'), findsNothing);
+  });
+
+  testWidgets('a failed save goes under the field, without the exception', (
+    tester,
+  ) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    catalog.failNextWrite = ApiException(500, 'boom');
+    await tester.enterText(sizeField, '500');
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('O servidor está indisponível. Tente de novo em instantes.'),
+      findsOneWidget,
+    );
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.textContaining('ApiException'), findsNothing);
+  });
+
+  testWidgets('Cancelar closes without writing', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    await tester.enterText(sizeField, '500');
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    expect(catalog.writes, isEmpty);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('the double tap fires one write: everything goes dead while it '
+      'saves', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+
+    catalog.gate = Completer<void>();
+    await tester.enterText(sizeField, '500');
+    await tester.tap(saveButton);
+    await tester.pump();
+
+    expect(find.text('Salvando...'), findsOneWidget);
+    expect(tester.widget<TextField>(countField).enabled, isFalse);
+    expect(tester.widget<TextField>(sizeField).enabled, isFalse);
+    expect(tester.widget<FilledButton>(saveButton).onPressed, isNull);
+    expect(tester.widget<TextButton>(toggleButton).onPressed, isNull);
+
+    await tester.tap(saveButton);
+    await tester.pump();
+
+    catalog.gate!.complete();
+    await tester.pumpAndSettle();
+
+    expect(catalog.writes, hasLength(1));
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+}

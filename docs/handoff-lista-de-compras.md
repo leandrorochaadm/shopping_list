@@ -1244,6 +1244,17 @@ embalagens e o rodapé pede os preços da etiqueta) · erro do servidor · suces
 própria pelo `[ X ]`** (`R11`), sem animação. **Tipo com uma opção só:** o painel não
 abre — o botão nem aparece na Tela 3.
 
+> **Nota de implementação, 31/08/2026 — dois destes estados não existem.**
+> **carregando** e **erro do servidor** eram estados do I/O que esta história imaginava
+> ter, e a decisão registrada como **F-a** o eliminou: **não há consulta nova e não há
+> migration.** O painel abre sobre o `priceReference` que `rankOptions` já anexou a cada
+> folha quando a Tela 3 carregou, então não há requisição a esperar nem a falhar —
+> `cost_comparison_panel.dart` não tem repository, não tem provider e não tem um único
+> `await`. E o caso "a carga falhou" não chega até aqui: sem as opções carregadas não há
+> produto escolhido, não há tipo, e o botão `[ Comparar custo ]` nem aparece na Tela 3.
+> Os outros quatro estados existem e têm teste. A decisão está na tabela de divergências
+> do `CLAUDE.md` como **F-b**; esta nota é o outro lado dela, no documento que manda.
+
 **Depende de:** H2 (embalagens cadastradas), H7 (histórico de preço). **É a última de
 propósito:** antes de haver histórico, ela abriria com todos os campos vazios e daria mais
 trabalho do que resposta.
@@ -1379,7 +1390,7 @@ ser fechada na migration.
 | H16 | Preço **mais recente por mercado** no intervalo, com a data | [ ] a escrever |
 | H17 | **Por tipo: total consumido no intervalo + data da primeira compra** — o divisor é do Dart | [ ] a escrever |
 | H18 | Mesma consulta de H17 + consumido no mês corrente | [ ] a escrever |
-| H19 | Último valor pago por embalagem = total do item ÷ quantidade | [ ] a escrever |
+| H19 | Último valor pago por embalagem = total do item ÷ quantidade | [x] decidido — **nenhuma consulta nova** (F-a). `fetchRecentItems` já traz o par (pago, quantidade) de toda linha da janela rolante, e `rankOptions` já escolhe a mais recente por folha: o "total do item ÷ quantidade" é `PriceReference.estimateFor(totalContent)`, escrita e testada desde a H7. Mesmo precedente da D-q |
 
 **Regras que valem para toda consulta:**
 

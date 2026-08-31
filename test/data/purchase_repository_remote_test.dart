@@ -26,8 +26,18 @@ class _FakeQuery extends Fake
 
   final PostgrestList rows;
 
+  /// The `eq` filters the chain applied, in the order they came. A fake that
+  /// answers `this` to everything swallows the WHERE silently, and there are
+  /// queries here whose filter IS the rule — `fetchProductOptions` keeps the
+  /// deactivated leaf out of screen 3 and out of the `#3a` panel, and it does
+  /// that in SQL and nowhere else.
+  final filters = <String, Object>{};
+
   @override
-  PostgrestFilterBuilder<PostgrestList> eq(String column, Object value) => this;
+  PostgrestFilterBuilder<PostgrestList> eq(String column, Object value) {
+    filters[column] = value;
+    return this;
+  }
 
   @override
   PostgrestFilterBuilder<PostgrestList> gte(String column, Object value) =>
@@ -110,9 +120,18 @@ class _FakeTable extends Fake implements SupabaseQueryBuilder {
 
   final PostgrestList rows;
 
+  /// The chains `select` handed back, so a test can ask which filters were
+  /// applied to them. A `final` list and not a nullable field: a mutable
+  /// field would put `must_be_immutable` on this class, and the project's
+  /// checklist wants `flutter analyze` clean.
+  final queries = <_FakeQuery>[];
+
   @override
-  PostgrestFilterBuilder<PostgrestList> select([String columns = '*']) =>
-      _FakeQuery(rows);
+  PostgrestFilterBuilder<PostgrestList> select([String columns = '*']) {
+    final query = _FakeQuery(rows);
+    queries.add(query);
+    return query;
+  }
 }
 
 /// `rpc` does not return a Future — it returns a `PostgrestFilterBuilder`,
@@ -503,6 +522,55 @@ void main() {
       // "Sem marca" is a real answer (decision B2), and it has to survive.
       expect(options.last.brand, isNull);
       expect(options.last.label, 'Acém moído (a peso)');
+    });
+
+    test('the deactivated leaf is left out — the filter is in SQL', () async {
+      // `handoff §H19`: "um produto desativado fica de fora" do painel `#3a`
+      // — and `handoff §H10` says the same about screen 3's picker. Neither
+      // is decided in Dart: `costCandidatesOf` only cuts what it is handed,
+      // and the panel opens over the very list this method returned.
+      //
+      // So the WHERE below IS the acceptance criterion. Without the assertion
+      // its removal breaks two screens and no test turns red — the fixture
+      // here is active either way, and the mapping keeps passing.
+      final table = _FakeTable([
+        {
+          'id': 'prod-4',
+          'product_registration_id': 'reg-1',
+          'active': true,
+          'piece_count': 12,
+          'piece_size': 350,
+          'piece_size_unit': 'milliliter',
+          'total_content': 4200,
+          'product_registration': {
+            'id': 'reg-1',
+            'product_type_id': 'type-1',
+            'brand_id': 'brand-1',
+            'description': '',
+            'selling_mode': 'by_piece',
+            'active': true,
+            'product_type': {
+              'id': 'type-1',
+              'name': 'Refrigerante',
+              'category_id': 'cat-1',
+              'base_unit': 'liter',
+              'active': true,
+            },
+            'brand': {'id': 'brand-1', 'name': 'Coca-Cola', 'active': true},
+          },
+        },
+      ]);
+      when(() => client.from('product')).thenAnswer((_) => table);
+
+      await repository.fetchProductOptions();
+
+      // Both flags, and the second one is the one easy to lose: a deactivated
+      // REGISTRATION takes its leaves with it (`Product.isEffectivelyActiveIn`
+      // is the same `&&`, on the read).
+      expect(table.queries.single.filters, {
+        'active': true,
+        'product_registration.active': true,
+      });
     });
 
     test('reads the history with the date from the PARENT table', () async {
