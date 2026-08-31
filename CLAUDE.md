@@ -141,6 +141,13 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | onde o mês está | `MonthCapStatus` | teto vigente + gasto + marcas. É o que `cap_states` responde |
 | o que a avaliação produziu | `SpendingCapEvaluation` | o que **gravar** (`alerts`) e o que **mostrar** (`triggered` / `headline`) |
 | aviso de item repetido | `SameDayAlert` | o tipo que o outro também comprou no mesmo dia. Nível do **tipo**, nunca da marca |
+| janela rolante | `rollingWindowStart` | três meses de calendário terminando hoje, **com o mês em curso dentro**. A **fechada** nasce na H17, no mesmo arquivo |
+| média da janela | `PriceBaseline` | o **par** (pago, quantidade) da janela inteira, nunca um preço por unidade arredondado. Ponderada, como o requisito 4 define |
+| alerta de alta de preço | `PriceIncrease` | **existir É o alerta**; `null` é o silêncio. O limiar é `priceIncreaseThreshold`, `const` no domínio |
+| cotação | `PriceQuote` | uma compra de uma folha em um mercado — a matéria-prima da aba de comparação, plana |
+| linha da comparação | `ComparisonLine` | um mercado, o preço por unidade base e o dia. **A data informa, não ordena** |
+| visão da comparação | `ComparisonScope.thisProduct` / `.wholeType` | marca com marca, ou o tipo inteiro por unidade base |
+| cabeçalho de grupo do seletor | `ProductGroup.header` | o nome do tipo na Tela 3, o da categoria na Tela 5. Era `ProductType` até a H16 |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
@@ -518,6 +525,15 @@ vigor no código** — não reabrir sem o usuário pedir.
 | Onde a consulta da H14 roda (**D-l**) | `handoff §H14` não diz | **antes da escrita**, junto das outras duas leituras | dois lançamentos no mesmo instante não se enxergam e aquele aviso se perde. É aceito: a janela é de milissegundos e a compra é registrada normalmente. **É a única corrida desta entrega que não se auto-corrige** |
 | Quem semeia o aviso de item repetido (**D-m**) | — não estava escrito | **só o fake**; o `seed.sql` fica como está | as compras do fake têm data fixa e caem fora da janela "hoje ou ontem" em dois dias, e o seed gera **uma pessoa por dia** — nenhum dos dois consegue disparar a H14. No `dev` hospedado ela nunca aparece sozinha: verificá-la lá é lançar duas compras à mão, do mesmo tipo e no mesmo dia, com as duas etiquetas |
 | O percentual do teto (`usagePercent`) | o plano da H13 dizia "divisão inteira: 87" | **arredonda para o inteiro mais próximo** | R$ 1.300 de R$ 1.500 é 86,66…%, e `requisitos §9` e `wireframes §Tela E3` escrevem esse caso como **87%**. Truncar responderia 86 e faria a tela contradizer a frase que o cliente lê. Arredondamento **em inteiros** (`+ amount ~/ 2` antes da divisão) — e ele não decide nada: qual corte disparou é `CapThreshold.isCrossedBy`, comparação exata e sem divisão nenhuma |
+| Com **um mercado só** na janela (**D-n**) | `handoff §H16` chama isso de estado vazio | a linha **aparece**, e abaixo dela vem *"Comprado em um mercado só nos últimos 3 meses — ainda não há com o que comparar."* | esconder o preço que ele tem é esconder dado. A frase entrega o estado sem apagar a informação |
+| A visão **Tipo inteiro** (**D-o**) | — não estava escrito | uma linha por **mercado** — a compra mais recente daquele tipo naquele mercado | é o que o wireframe desenha, e é a pergunta da tela ("**onde** sai mais barato"). Uma linha por mercado × produto viraria uma lista que não responde mais isso |
+| Onde o ⚠ da H15 aparece (**D-p**) | — não estava escrito | **só na Tela 3** | `handoff §H15`, "Telas envolvidas: Tela 3 `#3`". Na correção o aviso chega tarde e sem ação possível |
+| A consulta da H16 (**D-q**) | `handoff §fronteira SQL`: "preço mais recente por mercado no intervalo" | **nenhuma migration**: `select` do PostgREST + redução em Dart | o precedente é `rankOptions`, que já escolhe a compra mais recente em Dart pelo mesmo motivo (`order` sobre embed ordena os filhos). A visão "Tipo inteiro" sai de graça do mesmo `IList`, e nada disso depende do A1 |
+| Onde a janela rolante mora (**D-r**) | `threeMonthsBefore` em `ui/purchase/view_model/` | `rollingWindowStart` em `domain/models/reference_window.dart` | a H16 mora em `ui/report/` e precisaria importar `ui/purchase/` por causa de uma regra de negócio — import cruzado entre features, que é o lugar errado desde sempre |
+| Onde o limiar de 10% é comparado (**D-s**) | — não estava escrito | sobre o valor **cheio**; só a exibição arredonda | +9,6% **não** alerta, mesmo arredondando para 10%. É a mesma régua da porcentagem do teto: calculada sobre os valores cheios e só então arredondada |
+| O par de radios do `wireframes §Tela 5` (**D-t**) | dois radios | um `SegmentedButton<ComparisonScope>` | é o Material 3 do projeto para escolha binária, e o precedente é o `SegmentedButton<SellingMode>` de `new_product_screen.dart`. Divergência cosmética |
+| O cabeçalho do grupo do seletor (**D-u**) | `ProductGroup.type` (`ProductType`) | `ProductGroup.header` (`String`) | o mesmo seletor agrupa por **tipo** na Tela 3 e por **categoria** na Tela 5, e o único leitor lia `group.type.name`. Um parâmetro `groupBy` em vez de dois widgets que divergiriam na primeira mudança |
+| "Este produto" na folha **sem marca** (**D-v**) | `handoff §H16`: "um produto sem marca ... sobe para o tipo, pelo mesmo motivo de H15" | **não sobe**: quem sobe é o toque em "Tipo inteiro" | na H15 subir é a única saída — o alerta é uma linha só e não há para onde ir. Aqui há: a subida está a um toque, é o que o wireframe desenha, e é o usuário quem a controla. Subir sozinho daria o **mesmo resultado nas duas visões** para toda folha sem marca — metade do catálogo do casal —, deixando um botão que não faz nada |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 
@@ -612,10 +628,11 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 30/08/2026**, ao fim da Entrega 6
-(`temp/plan/plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos — H13 e H14).
-`flutter analyze` limpo, **1063 testes verdes**, cobertura de linha **92,0%** — acima do
+**Atualizado em 30/08/2026**, ao fim da Entrega 7
+(`temp/plan/plano-h15-h16-estou-pagando-caro-2026-08-30.md`, os 27 passos — H15 e H16).
+`flutter analyze` limpo, **1166 testes verdes**, cobertura de linha **92,4%** — acima do
 piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve. Antes dela veio a
+Entrega 6 (`plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos), a
 Entrega 5 (`plano-h11-h12-relatorio-do-periodo-2026-08-30.md`, os 27 passos), e antes a
 Entrega 1 (`plano-fundacao-e-entrega-1-2026-08-27.md`), a Entrega 2
 (`plano-entrega-2-lista-no-corredor-2026-08-28.md`), a Entrega 3
@@ -712,6 +729,17 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   o `drop`+`create` das três funções de escrita, o `SpendingCapViewModel` (um `family`
   por `ReportPeriod`), o `showWarnings` de `ui/core/widgets/`, a **tela de
   Configurações completa** com a `SpendingCapSection`, e a `SpendingCapLine` da Tela 5.
+- **H15/H16 — estou pagando caro? (Entrega 7):** o domínio novo
+  (`reference_window.dart` com a **janela rolante**, para onde o `threeMonthsBefore` da
+  Tela 3 se mudou; `price_increase.dart` com `priceIncreaseThreshold`, `PriceBaseline`,
+  `PriceIncrease`, `evaluatePriceIncrease`, `PriceBaselines` e `buildPriceBaselines` —
+  a regra inteira da H15, **em inteiros e sem uma divisão em ponto flutuante**;
+  `PriceQuote`; e `price_comparison.dart` com `ComparisonScope`, `ComparisonLine`,
+  `buildComparison`, `distinctOptionsOf`, `categoryNamesOf` e `buildComparisonGroups`),
+  o `ReportRepository.fetchPriceQuotes` (**sem migration nova** — decisão D-q), o
+  `PriceComparisonViewModel`, o `PriceIncreaseWarning` da Tela 3, o `ReportSummaryTab`
+  extraído de `reports_screen.dart` e a **Tela 5 com a `TabBar`**, cuja segunda aba é o
+  `PriceComparisonTab`.
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para
@@ -918,20 +946,77 @@ respondida (passo 25 do plano).
 
 **A próxima entrega:** os passos que dependem de você — publicar, medir a digitação no
 iPhone 12 (precisa de A1, A2 e A3) e aplicar as oito migrations no `dev` (precisa de
-A1) —, e depois o **alerta de alta de preço** (H15) e a **aba de comparação de preço**
-(H16), que entra na Tela 5 ao lado do Resumo — e é só quando ela existir que a `TabBar`
-nasce.
+A1) —, e depois a **sugestão do que costuma acabar** (H17) e o **falta comprar no mês**
+(H18), as duas últimas telas. As duas leem a **janela fechada**, que ainda não existe: ela
+nasce em `domain/models/reference_window.dart`, ao lado da rolante que a Entrega 7 pôs
+lá, para que as duas nunca sejam escritas em telas diferentes.
 
-**Dois critérios de aceite da H7 ficaram deliberadamente de fora**, e estão registrados
-para não sumirem: abrir a Tela 3 **a partir de um item da lista**, com a embalagem
-preferida já escolhida (falta só a navegação da Tela 1 para a Tela 3, com o item como
-`extra`), e o alerta de alta de preço `⚠`, que é a **H15**.
+**Um critério de aceite da H7 ficou deliberadamente de fora**, e está registrado para não
+sumir: abrir a Tela 3 **a partir de um item da lista**, com a embalagem preferida já
+escolhida (falta só a navegação da Tela 1 para a Tela 3, com o item como `extra`). O
+outro — o alerta de alta de preço `⚠` — **foi entregue na Entrega 7**.
 
 **Uma decisão tomada ao escrever a Tela 4, e registrada aqui porque muda texto de
 usuário:** `Packaging.label` **não escreve o "1 ×" da embalagem de peça única** —
 "350 ml", não "1 × 350 ml" —, porque é esse o nome da prateleira que se procura no
 lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais ele volta:
 "12 × 350 ml".
+
+---
+
+## O que a Entrega 7 mudou fora das telas dela
+
+**`threeMonthsBefore` deixou de morar num ViewModel.** Ela é `rollingWindowStart`, em
+`domain/models/reference_window.dart`, e o motivo é o import cruzado: a H16 mora em
+`ui/report/` e chamá-la de lá seria importar `ui/purchase/` por causa de uma regra de
+negócio (**D-r**). O arquivo já nasce com o dartdoc das **duas** janelas escrito, e é ali
+que a fechada da H17 vai nascer — o único jeito de as duas nunca serem escritas em telas
+diferentes. O grupo de teste dela mudou de arquivo junto, para
+`test/domain/reference_window_test.dart`.
+
+**`PurchaseHistoryEntry` ganhou o `productTypeId`, e ele NÃO vem do catálogo.** Vem do
+embed `product!inner ( product_registration!inner ( product_type_id ) )` de
+`fetchRecentItems`, **sem filtro de `active`** — porque `fetchProductOptions` filtra
+`active = true`, e uma folha desativada no meio da janela tiraria as compras dela da média
+do tipo. `requisitos §16` promete o contrário: desativar não reescreve o passado. A
+entidade também passou a `implements PurchaseBaselineLine`, que é a interface do domínio
+por onde `buildPriceBaselines` a lê sem o domínio importar `data/`.
+
+**`ProductGroup.type` virou `ProductGroup.header`, e `ProductField` ganhou dois
+parâmetros** (`groupBy` e `fieldKey`). O mesmo seletor agrupa por **tipo** na Tela 3
+(decisão C1, mais comprado primeiro) e por **categoria** na aba de comparação
+(alfabético) — são perguntas diferentes, e dois widgets divergiriam na primeira mudança
+(**D-u**). O `fieldKey` existe porque as duas abas coexistem na árvore do `TabBarView`:
+sem ele, `find.byKey('field-product')` acha dois.
+
+**O corpo de `reports_screen.dart` inteiro mudou de casa.** Ele é `ReportSummaryTab`
+agora, e levou junto a `PeriodBar`, os cinco estados e **a linha do teto da H13** — o
+`ref.watch` condicional do `spendingCapViewModelProvider` e o `capLine:` que ele
+alimenta. É o lugar certo dos dois de qualquer jeito: o teto só existe em período de mês
+inteiro, e o período é conceito da aba Resumo, não da tela. O que sobrou em
+`reports_screen.dart` é a casca — `TabController` no `State` (**não**
+`DefaultTabController`: o `↻` do `AppBar` precisa saber qual aba está na frente, e o
+`Default` só entrega o controlador a um descendente), `TabBar`, `TabBarView` e a
+`MainBottomBar`.
+
+**O campo Valor da Tela 3 passou a repintar.** Ele fazia `onChanged: (_) => _valueTouched
+= true;` **sem `setState`**, de propósito, porque nada na tela dependia do que estava
+escrito ali. Agora depende: o ⚠ da H15 sai do valor digitado, e sem repintar ele só
+apareceria no próximo toque de outro campo.
+
+**O `ReportRepositoryLocal` ganhou um segundo seed**, de cotações, sobre as **mesmas
+folhas de `CatalogRepositoryLocal` e os mesmos mercados de `StoreRepositoryLocal`** — dois
+fakes contando histórias diferentes fariam a Tela 3 e a Tela 5 discordarem em debug por um
+motivo que é só do fake. A Mercearia do Zé entra **desativada**, que é como ela está no
+fake dos mercados: `Store.fromJson` faz `json['active'] as bool? ?? true`, então o `select`
+da H16 pede `id, name, active` — sem essa coluna a mesma loja voltaria com um `==`
+diferente do banco e do fake, e nenhum teste acusaria, porque a tela só escreve o nome.
+
+**O `_seedHistory` de `PurchaseRepositoryLocal` não mudou de valores**, só ganhou o
+`productTypeId`. As duas compras de `prod-4` (R$ 62,00 e R$ 59,90 por 4200 ml) dão uma
+média de **R$ 14,51/L**, então digitar `1` fardo por `R$ 70,00` na Tela 3 responde
+*"Subiu 15% sobre a média"* em debug. Mexer nos valores para forçar o "18%" do wireframe
+quebraria o pré-preenchimento de R$ 62,00 que dois arquivos de teste fixam.
 
 ---
 

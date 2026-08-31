@@ -1,6 +1,6 @@
 # Pendências — o que depende de você
 
-**Data:** 27/08/2026 · **revisado em 30/08/2026**, ao fim da Entrega 4 (H9 e H10)
+**Data:** 27/08/2026 · **revisado em 30/08/2026**, ao fim da Entrega 7 (H15 e H16)
 **Fonte:** `tecnico §13`, `handoff §13` e `handoff §14`
 **Este arquivo não é fonte da verdade** — é o inventário do que está aberto e **só você
 pode fechar**. Tudo o que é código está no plano, não aqui.
@@ -24,6 +24,14 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 respostas, e a **B6** nasceu e foi respondida ao escrever a H7 (abaixo). **O que trava o
 próximo passo agora é só o bloco A:** sem os projetos Supabase (A1) nada do que está
 versionado chega a um banco, e sem o Cloudflare (A3) nada chega ao iPhone.
+
+**A Entrega 7 (30/08/2026) também não abriu pendência nenhuma**, e vale registrar por quê:
+o `R7` ("nenhum limiar e nenhuma regra no SQL") foi honrado **sem migration nova**. O dado
+da comparação entre mercados sai de um `select` do PostgREST, e a redução — qual é a compra
+mais recente de cada mercado — é Dart, no domínio (decisão **D-q**). O precedente é o
+`fetchRecentItems` da Tela 3, que escolhe a compra mais recente de cada folha pelo mesmo
+motivo. Continuam **oito** migrations esperando o A1, e a H16 é exercitável hoje contra o
+`shopping_list_dev` local.
 
 **A Entrega 4 (30/08/2026) não abriu pendência nenhuma**, e fechou uma coisa que estava
 implícita: a frase que barrava a criação por já existir um cadastro **desativado** mandava
