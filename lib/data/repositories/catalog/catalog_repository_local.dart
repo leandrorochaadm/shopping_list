@@ -30,6 +30,10 @@ class CatalogRepositoryLocal implements CatalogRepository {
     Category(id: 'cat-1', name: 'Bebidas'),
     Category(id: 'cat-2', name: 'Carnes'),
     Category(id: 'cat-3', name: 'Limpeza'),
+    // Born with H17: the coffee of the written story of `requisitos §8` needs
+    // a category, and putting it under an existing one would make screens 2
+    // and 6 group it where the client never reads it.
+    Category(id: 'cat-4', name: 'Mercearia'),
   ];
 
   final List<ProductType> _types = [
@@ -58,6 +62,15 @@ class CatalogRepositoryLocal implements CatalogRepository {
       id: 'type-4',
       name: 'Sabão em pó',
       categoryId: 'cat-3',
+      baseUnit: BaseUnit.kilogram,
+    ),
+    // The coffee of `requisitos §8`: bought before the closed window and once
+    // inside it, so it divides by three and screen 2 suggests 0,7 kg. Without
+    // it the suggestion fake would name a type screen 3 does not offer.
+    ProductType(
+      id: 'type-5',
+      name: 'Café',
+      categoryId: 'cat-4',
       baseUnit: BaseUnit.kilogram,
     ),
   ];

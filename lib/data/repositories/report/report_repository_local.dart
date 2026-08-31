@@ -67,6 +67,13 @@ final class ReportLine {
 /// The two are independent: the summary aggregates, the comparison does not,
 /// and neither is computed from the other.
 ///
+/// **Since H17 the first seed is shared with `ConsumptionRepositoryLocal`**
+/// (decision E-l): that fake holds the SAME purchases, month by month, with no
+/// price. Screens 5 and 6 answer different questions about the same history,
+/// and two seeds telling different stories would make them disagree about the
+/// same month in debug for a reason that is only the fake's. **The sync is
+/// manual and no test defends it** — whoever adds a line here adds it there.
+///
 /// Not `final`: the ViewModel tests extend it with a spy that fails the next
 /// call, which is how both error paths get exercised without mocktail.
 class ReportRepositoryLocal implements ReportRepository {
@@ -88,6 +95,55 @@ class ReportRepositoryLocal implements ReportRepository {
   final List<PriceQuote> _quotes;
 
   static List<ReportLine> _seed() => [
+    // ── March, May, June and the second line of July are H17's (decision
+    //    E-l): `ConsumptionRepositoryLocal` holds the SAME purchases with no
+    //    price, so screen 5 and screen 6 never disagree about the same month
+    //    in debug. **Change one seed and you have to change the other** —
+    //    there is no test defending it, and the failure is silent.
+    //
+    //    March is deliberately OUTSIDE both windows of a 15/08/2026 clock: it
+    //    is what makes the coffee divide by three with a single purchase
+    //    inside the closed window.
+    _line(DateTime(2026, 3, 10), _coffee, quantity: 1000, cents: 3200),
+    _line(
+      DateTime(2026, 5, 5),
+      _softDrink,
+      brandId: 'brand-1',
+      brandName: 'Coca-Cola',
+      quantity: 4200,
+      cents: 6100,
+    ),
+    _line(DateTime(2026, 5, 12), _beef, quantity: 12000, cents: 38400),
+    _line(
+      DateTime(2026, 6, 5),
+      _softDrink,
+      brandId: 'brand-1',
+      brandName: 'Coca-Cola',
+      quantity: 4200,
+      cents: 6150,
+    ),
+    // The FIRST purchase of the washing powder: it is what makes its divisor
+    // two instead of three.
+    _line(
+      DateTime(2026, 6, 5),
+      _powder,
+      brandId: 'brand-2',
+      brandName: 'Omo',
+      quantity: 8000,
+      cents: 16000,
+    ),
+    _line(DateTime(2026, 6, 10), _beef, quantity: 10000, cents: 32000),
+    // The only coffee inside the closed window — 2 kg over three months, which
+    // is the 0,7 kg of `wireframes §Tela 2`.
+    _line(DateTime(2026, 6, 20), _coffee, quantity: 2000, cents: 6600),
+    _line(
+      DateTime(2026, 7, 10),
+      _powder,
+      brandId: 'brand-2',
+      brandName: 'Omo',
+      quantity: 8000,
+      cents: 16000,
+    ),
     // ── Requirement 4, first example: 5 kg at R$ 30 and 1 kg at R$ 42 make
     //    6 kg at R$ 32,00/kg — and NOT the R$ 36 an average of averages gives.
     _line(DateTime(2026, 8, 10), _beef, quantity: 5000, cents: 15000),
@@ -161,6 +217,16 @@ class ReportRepositoryLocal implements ReportRepository {
     'Limpeza',
     BaseUnit.kilogram,
   );
+  // Born with H17, in `CatalogRepositoryLocal` too: it is the type of the
+  // written story of `requisitos §8` — bought before the window and once
+  // inside it, so it divides by three and is suggested at 0,7 kg.
+  static const _coffee = _Type(
+    'type-5',
+    'Café',
+    'cat-4',
+    'Mercearia',
+    BaseUnit.kilogram,
+  );
 
   static ReportLine _line(
     DateTime day,
@@ -207,7 +273,14 @@ class ReportRepositoryLocal implements ReportRepository {
     _quote(_crate, _streetMarket, DateTime(2026, 8, 12), 4200, 5670),
     _quote(_crate, _grocery, DateTime(2026, 8, 18), 4200, 6200),
     _quote(_can, _carrefour, DateTime(2026, 8, 20), 350, 525),
-    _quote(_beefLeaf, _streetMarket, DateTime(2026, 8, 10), 1500, 4500, meat: true),
+    _quote(
+      _beefLeaf,
+      _streetMarket,
+      DateTime(2026, 8, 10),
+      1500,
+      4500,
+      meat: true,
+    ),
     _quote(_beefLeaf, _carrefour, DateTime(2026, 8, 5), 2000, 6800, meat: true),
   ];
 

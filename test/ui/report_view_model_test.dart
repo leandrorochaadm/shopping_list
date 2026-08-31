@@ -75,7 +75,8 @@ void main() {
     });
 
     test('a failing load occupies the screen', () async {
-      final repository = _SpyRepository()..failNextCall = ApiException(500, 'boom');
+      final repository = _SpyRepository()
+        ..failNextCall = ApiException(500, 'boom');
       final container = containerWith(repository);
 
       await expectLater(
@@ -100,26 +101,30 @@ void main() {
       expect(repository.calls, 2);
     });
 
-    test('a failing refresh keeps the report and returns the sentence', () async {
-      final repository = _SpyRepository();
-      final container = containerWith(repository);
-      final loaded = await container.read(reportViewModelProvider.future);
+    test(
+      'a failing refresh keeps the report and returns the sentence',
+      () async {
+        final repository = _SpyRepository();
+        final container = containerWith(repository);
+        final loaded = await container.read(reportViewModelProvider.future);
 
-      repository.failNextCall = NetworkException('offline');
-      final message = await container
-          .read(reportViewModelProvider.notifier)
-          .refresh();
+        repository.failNextCall = NetworkException('offline');
+        final message = await container
+            .read(reportViewModelProvider.notifier)
+            .refresh();
 
-      expect(message, 'Sem conexão. Verifique a internet e tente de novo.');
-      // The report stays on the screen: only the SnackBar says something went
-      // wrong.
-      expect(container.read(reportViewModelProvider).value, loaded);
-      expect(container.read(reportViewModelProvider).hasError, isFalse);
-    });
+        expect(message, 'Sem conexão. Verifique a internet e tente de novo.');
+        // The report stays on the screen: only the SnackBar says something went
+        // wrong.
+        expect(container.read(reportViewModelProvider).value, loaded);
+        expect(container.read(reportViewModelProvider).hasError, isFalse);
+      },
+    );
 
     test('a failure with NO previous report becomes AsyncError', () async {
       // Leaving it in AsyncLoading is a spinner that never resolves.
-      final repository = _SpyRepository()..failNextCall = ApiException(500, 'boom');
+      final repository = _SpyRepository()
+        ..failNextCall = ApiException(500, 'boom');
       final container = containerWith(repository);
 
       await expectLater(
@@ -146,7 +151,10 @@ void main() {
       await container.read(reportViewModelProvider.future);
       final notifier = container.read(reportViewModelProvider.notifier);
 
-      final results = await Future.wait([notifier.refresh(), notifier.refresh()]);
+      final results = await Future.wait([
+        notifier.refresh(),
+        notifier.refresh(),
+      ]);
 
       expect(repository.calls, 2);
       // The second one did nothing, and says so with a null — not a third
@@ -179,18 +187,21 @@ void main() {
   });
 
   group('the period drives the load', () {
-    test('shifting a month asks the repository again, for that month', () async {
-      final repository = _SpyRepository();
-      final container = containerWith(repository);
-      await container.read(reportViewModelProvider.future);
+    test(
+      'shifting a month asks the repository again, for that month',
+      () async {
+        final repository = _SpyRepository();
+        final container = containerWith(repository);
+        await container.read(reportViewModelProvider.future);
 
-      container.read(reportPeriodProvider.notifier).shiftMonth(-1);
-      await container.read(reportViewModelProvider.future);
+        container.read(reportPeriodProvider.notifier).shiftMonth(-1);
+        await container.read(reportViewModelProvider.future);
 
-      expect(repository.asked, hasLength(2));
-      expect(repository.asked.last.from, DateTime(2026, 7, 1));
-      expect(repository.asked.last.to, DateTime(2026, 7, 31));
-    });
+        expect(repository.asked, hasLength(2));
+        expect(repository.asked.last.from, DateTime(2026, 7, 1));
+        expect(repository.asked.last.to, DateTime(2026, 7, 31));
+      },
+    );
 
     test('the month before holds what August does not', () async {
       final container = containerWith(_SpyRepository());
@@ -199,8 +210,10 @@ void main() {
       container.read(reportPeriodProvider.notifier).shiftMonth(-1);
       final july = await container.read(reportViewModelProvider.future);
 
-      // The July seed: one crate of soft drink and 2 kg of beef.
-      expect(july.total, const Money(11990));
+      // The July seed: one crate of soft drink, 2 kg of beef and — since H17,
+      // when the two fakes started telling the same story (decision E-l) —
+      // 8 kg of washing powder for R$ 160,00.
+      expect(july.total, const Money(27990));
     });
 
     test('a period with no purchase is empty, and not an error', () async {
@@ -238,7 +251,9 @@ void main() {
       final before = container.read(reportPeriodProvider);
 
       expect(
-        container.read(reportPeriodProvider.notifier).setTo(DateTime(2026, 7, 1)),
+        container
+            .read(reportPeriodProvider.notifier)
+            .setTo(DateTime(2026, 7, 1)),
         'A data inicial não pode ser depois da final.',
       );
       expect(container.read(reportPeriodProvider), before);

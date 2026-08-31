@@ -165,12 +165,13 @@ void main() {
     final c = container();
     final state = await c.read(catalogMaintenanceViewModelProvider.future);
 
-    expect(state.categories, hasLength(3));
-    // Four since H11: the report's fixture needed "Sabão em pó" and "Tixan"
-    // in the shared catalog, so it could tell the written story of
-    // requirement 4. What this case protects is that the load brings the SIX
-    // catalogs at once, not how many rows each of them holds.
-    expect(state.types, hasLength(4));
+    expect(state.categories, hasLength(4));
+    // Five since H17: H11 added "Sabão em pó" and "Tixan" so the report could
+    // tell the written story of requirement 4, and H17 added "Café" under
+    // "Mercearia" so the suggestion could tell the one of requirement 8. What
+    // this case protects is that the load brings the SIX catalogs at once, not
+    // how many rows each of them holds.
+    expect(state.types, hasLength(5));
     expect(state.brands, hasLength(4));
     expect(state.registrations, hasLength(2));
     expect(state.products, hasLength(5));
@@ -193,7 +194,7 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(await notifierOf(c).refresh(), isNull);
-    expect(valueOf(c).categories, hasLength(3));
+    expect(valueOf(c).categories, hasLength(4));
   });
 
   test('a failing refresh keeps the lists and returns the sentence', () async {
@@ -206,7 +207,7 @@ void main() {
     expect(message, isNotNull);
     expect(message, isNot(contains('NetworkException')));
     // The lists stay on screen: the failure was of an action, not of the load.
-    expect(valueOf(c).categories, hasLength(3));
+    expect(valueOf(c).categories, hasLength(4));
   });
 
   // ── Renaming, the four named catalogs ──────────────────────────────────

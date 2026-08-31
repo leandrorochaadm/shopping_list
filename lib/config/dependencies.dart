@@ -6,6 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/repositories/catalog/catalog_repository.dart';
 import '../data/repositories/catalog/catalog_repository_local.dart';
 import '../data/repositories/catalog/catalog_repository_remote.dart';
+import '../data/repositories/consumption/consumption_repository.dart';
+import '../data/repositories/consumption/consumption_repository_local.dart';
+import '../data/repositories/consumption/consumption_repository_remote.dart';
 import '../data/repositories/device_user/device_user_repository.dart';
 import '../data/repositories/device_user/device_user_repository_hive.dart';
 import '../data/repositories/device_user/device_user_repository_local.dart';
@@ -85,6 +88,12 @@ final List<Override> overridesLocal = [
     (ref) => PurchaseRepositoryLocal(sameDayBuyer: 'esposa'),
   ),
   reportRepositoryProvider.overrideWith((ref) => ReportRepositoryLocal()),
+  // The twin of the line above, and it is not a coincidence: the two fakes
+  // hold the SAME purchases (decision E-l), so screens 5 and 6 never disagree
+  // about the same month in debug.
+  consumptionRepositoryProvider.overrideWith(
+    (ref) => ConsumptionRepositoryLocal(),
+  ),
   spendingCapRepositoryProvider.overrideWith(
     (ref) => SpendingCapRepositoryLocal(),
   ),
@@ -119,6 +128,9 @@ final List<Override> overridesRemote = [
   ),
   reportRepositoryProvider.overrideWith(
     (ref) => ReportRepositoryRemote(ref.watch(supabaseClientProvider)),
+  ),
+  consumptionRepositoryProvider.overrideWith(
+    (ref) => ConsumptionRepositoryRemote(ref.watch(supabaseClientProvider)),
   ),
   spendingCapRepositoryProvider.overrideWith(
     (ref) => SpendingCapRepositoryRemote(ref.watch(supabaseClientProvider)),
