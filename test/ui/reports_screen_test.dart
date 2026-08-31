@@ -15,6 +15,10 @@ import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/report/view_model/report_period_notifier.dart';
+import 'package:shopping_list/domain/models/price_quote.dart';
+import 'package:shopping_list/ui/report/widgets/period_bar.dart';
+import 'package:shopping_list/ui/report/widgets/price_comparison_tab.dart';
+import 'package:shopping_list/ui/report/widgets/report_summary_tab.dart';
 import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 
 import '../helpers/catalog.dart';
@@ -36,6 +40,12 @@ class _SpyRepository extends ReportRepositoryLocal {
   Object? failNextCall;
   int calls = 0;
 
+  /// The switch of the NEW tab, kept apart from `failNextCall`: a case that
+  /// brings the comparison down must not bring the summary down with it, or
+  /// it stops proving that the two tabs load on their own.
+  Object? failNextQuoteCall;
+  int quoteCalls = 0;
+
   @override
   Future<PeriodReport> fetchPeriodReport(ReportPeriod period) async {
     calls++;
@@ -44,6 +54,15 @@ class _SpyRepository extends ReportRepositoryLocal {
     if (failure != null) throw failure;
     if (fixed != null) return fixed!;
     return super.fetchPeriodReport(period);
+  }
+
+  @override
+  Future<IList<PriceQuote>> fetchPriceQuotes(DateTime since) async {
+    quoteCalls++;
+    final failure = failNextQuoteCall;
+    failNextQuoteCall = null;
+    if (failure != null) throw failure;
+    return super.fetchPriceQuotes(since);
   }
 }
 
@@ -282,8 +301,85 @@ void main() {
       expect(find.byType(ReportsScreen), findsOneWidget);
       expect(find.text('Lista'), findsOneWidget);
       expect(find.text('Falta'), findsOneWidget);
-      // Twice: the app bar title AND the bar's own label.
+      // Twice: the app bar title AND the bar's own label. The TabBar does NOT
+      // add a third — its tabs are 'Resumo' and 'Comparação de preço'.
       expect(find.text('Relatórios'), findsNWidgets(2));
+    });
+
+    testWidgets('opens on the Resumo tab, with the comparison beside it', (
+      tester,
+    ) async {
+      await pumpReports(tester);
+
+      expect(
+        find.descendant(of: find.byType(TabBar), matching: find.text('Resumo')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(TabBar),
+          matching: find.text('Comparação de preço'),
+        ),
+        findsOneWidget,
+      );
+      // The summary is what is on screen, not an empty tab waiting.
+      expect(find.byType(ReportSummaryTab), findsOneWidget);
+    });
+
+    testWidgets('the period bar belongs to Resumo, not to the screen', (
+      tester,
+    ) async {
+      // The comparison window is rolling and nobody chooses it — showing the
+      // two date fields above it would promise a control that does nothing.
+      await pumpReports(tester);
+      expect(find.byType(PeriodBar), findsOneWidget);
+
+      await tester.tap(find.text('Comparação de preço'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PeriodBar), findsNothing);
+      expect(find.byType(PriceComparisonTab), findsOneWidget);
+    });
+
+    testWidgets('the reload button reloads the tab in front', (tester) async {
+      final repository = _SpyRepository(fixed: referenceReport);
+      await pumpReports(tester, repository: repository);
+      expect(repository.calls, 1);
+
+      await tester.tap(find.text('Comparação de preço'));
+      await tester.pumpAndSettle();
+      expect(repository.quoteCalls, 1);
+
+      await tester.tap(find.byTooltip('Recarregar'));
+      await tester.pumpAndSettle();
+
+      // The period report was NOT asked again: the tab in front is the other
+      // one.
+      expect(repository.calls, 1);
+      expect(repository.quoteCalls, 2);
+    });
+
+    testWidgets('a failing reload of the comparison keeps the summary', (
+      tester,
+    ) async {
+      final repository = _SpyRepository(fixed: referenceReport);
+      await pumpReports(tester, repository: repository);
+
+      await tester.tap(find.text('Comparação de preço'));
+      await tester.pumpAndSettle();
+      repository.failNextQuoteCall = ApiException(500, 'boom');
+      await tester.tap(find.byTooltip('Recarregar'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('O servidor está indisponível. Tente de novo em instantes.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Resumo'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Carnes'), findsOneWidget);
     });
 
     testWidgets('has no Back button — it IS one of the three destinations', (
