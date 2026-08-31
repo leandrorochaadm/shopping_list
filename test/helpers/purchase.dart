@@ -1,3 +1,4 @@
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
@@ -191,3 +192,55 @@ List<Override> purchaseOverrides({
   spendingCapOverride(repository: caps),
   storeOverride(),
 ];
+
+/// A price reference written the short way — the pair (paid, quantity) plus
+/// the day, which is what the panel of H19 and the pre-filled value of screen
+/// 3 both read.
+PriceReference reference({
+  required int cents,
+  required int quantityInBaseUnit,
+  DateTime? on,
+}) => PriceReference(
+  paid: Money(cents),
+  quantityInBaseUnit: quantityInBaseUnit,
+  purchasedOn: on ?? DateTime(2026, 8, 18),
+);
+
+/// The four packagings of the soft drink type — the very ones
+/// `CatalogRepositoryLocal` has, under the same ids — with each one's price
+/// reference given by name.
+///
+/// It exists so the domain test of H19 and the panel's widget test do not
+/// write the same fixture twice. The count and the last day are DERIVED from
+/// the reference, exactly as `rankOptions` derives them: a leaf bought inside
+/// the rolling window has a reference and a count, one never bought has
+/// neither — and that is what `costCandidatesOf` cuts by.
+IList<ProductOption> optionsOfSoftDrinkType({
+  PriceReference? can,
+  PriceReference? tiny,
+  PriceReference? bottle,
+  PriceReference? crate,
+}) => [
+  _softDrinkLeaf('prod-1', 1, 350, MeasureUnit.milliliter, can),
+  _softDrinkLeaf('prod-2', 1, 269, MeasureUnit.milliliter, tiny),
+  _softDrinkLeaf('prod-3', 1, 2000, MeasureUnit.liter, bottle),
+  _softDrinkLeaf('prod-4', 12, 350, MeasureUnit.milliliter, crate),
+].lock;
+
+ProductOption _softDrinkLeaf(
+  String id,
+  int pieceCount,
+  int pieceSize,
+  MeasureUnit unit,
+  PriceReference? priceReference,
+) => optionByPiece(
+  id: id,
+  brand: cokeBrand,
+  description: 'original',
+  pieceCount: pieceCount,
+  pieceSize: pieceSize,
+  unit: unit,
+  purchaseCount: priceReference == null ? 0 : 1,
+  lastPurchasedOn: priceReference?.purchasedOn,
+  priceReference: priceReference,
+);
