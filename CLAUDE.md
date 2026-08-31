@@ -873,7 +873,7 @@ os **catorze de `period_report_cases.sql`** e os **dezenove de
 `spending_cap_cases.sql`** foram exercitados um a um — estes últimos também **pela chave
 anon**, contra o PostgREST local, que é o único jeito de um `grant` perdido no `drop` e a
 conversão de `uuid[]` aparecerem.
-**As nove migrations foram aplicadas em `prod` em 31/08/2026** (`supabase db push --linked`, projeto `shopping_list` · `sxwyundsrbvbmmacgngs`, sa-east-1, PG 17.6.1). **O seed NÃO foi aplicado lá, e não deve ser** — ele é de desenvolvimento. **Não existe projeto `dev`**: a org está no teto de dois projetos ativos do plano Free, e a decisão de 31/08 foi aplicar direto no `prod` enquanto ele não tem histórico real — divergência consciente da decisão 9, a reabrir assim que o `dev` nascer. Os seis arquivos de `supabase/checks/` **ainda não rodaram contra o `prod`**: faltam a senha do banco e a chave anon.
+**As nove migrations foram aplicadas em `prod` em 31/08/2026** (`supabase db push --linked`, projeto `shopping_list` · `sxwyundsrbvbmmacgngs`, sa-east-1, PG 17.6.1). **O seed NÃO foi aplicado lá, e não deve ser** — ele é de desenvolvimento. **Não existe projeto `dev`**: a org está no teto de dois projetos ativos do plano Free, e a decisão de 31/08 foi aplicar direto no `prod` enquanto ele não tem histórico real — divergência consciente da decisão 9, a reabrir assim que o `dev` nascer. **Os seis arquivos de `supabase/checks/` rodaram contra o `prod` em 31/08/2026** (`bash tool/checks.sh`, pelo pooler de sessão) e **todos os casos passaram** — os cinco transacionais terminaram em `rollback`, então o `prod` não guardou linha nenhuma deles. Uma ressalva sobre o que isso prova: o `checks.sh` entra por `psql` como `postgres`, que **passa por cima dos `grant`** — ele confere o corpo das funções, nunca o alcance da role `anon`. Essa é a conferência com a chave anon, feita à mão no mesmo dia, e é ela que continua sendo a única que pega um `grant execute` perdido num `drop`.
 
 **O seed ganhou na Entrega 4 o que a H9 e a H10 mostram** e as quatro linhas de lista
 originais não cobriam: um item **fechado por compra** com o rastro correspondente (para
@@ -903,6 +903,44 @@ tabela, e isso o ambiente local já exercita. Quando o `dev` hospedado existir e
 já dá essa paridade — daí o stack local vira conveniência para não sujar o `dev`, não
 obrigação. **Editar schema pelo dashboard do Supabase, em qualquer ambiente, está fora:**
 o que se clica lá não vira arquivo, e o `supabase/migrations/` passa a mentir.
+
+**O MCP do Supabase é a mesma armadilha com outra interface, e por isso a base é o CLI
+mais o `curl`** (decisão de 31/08/2026). O `.mcp.json` do repositório declara o servidor
+`mcp.supabase.com` apontando para o `project_ref` do `prod`, mas nada do que se aplicou ou
+verificou no hospedado passou por ele. A regra é esta:
+
+| | CLI + `curl` | MCP |
+|---|---|---|
+| O que aplica | `db push` aplica **os arquivos** de `supabase/migrations/` | `apply_migration` recebe SQL do prompt — o arquivo local não nasce dele |
+| Reprodutível no CI | é o que o `deploy.yml` roda | não roda em Action nenhuma |
+| Por onde entra | `curl` com a **anon key** passa pelos mesmos `grant` e RLS que o app | credencial de plataforma, que **pula** os grants da role `anon` |
+| Rastro | comando e saída no terminal, repetíveis à mão | chamada opaca, uma por vez, consumindo contexto |
+
+A terceira linha é a que decide, e o `drop`+`create` da Entrega 6 é o exemplo: um `grant
+execute` perdido ali só aparece para quem bate na porta da role `anon` — pelo MCP a
+chamada entra por cima e responde 200 com o grant faltando. Foi assim que as **onze
+funções** foram conferidas em 31/08, uma a uma, com a chave anon (as cinco de escrita
+chamadas com FK inexistente, que falham e sofrem rollback dentro da própria requisição do
+PostgREST, sem gravar linha nenhuma).
+
+**Onde o MCP ganha, e vale ligá-lo em somente-leitura:** `execute_sql` roda SQL **sem a
+senha do banco**, `get_logs` e `get_advisors` trazem os avisos de segurança e performance
+que nem o CLI nem o `curl` mostram, e `search_docs` evita chute de API. Nada disso
+escreve — e escrita por MCP em `prod` continua fora, pelo mesmo motivo do dashboard.
+
+**Uma armadilha do `.env` encontrada em 31/08:** `tool/checks.sh` e
+`tool/local_dev/run.sh` leem o arquivo com `source`, que é **shell**, não um parser de
+`.env`. Uma senha terminada em `;` chega ao `psql` sem o último caractere — o `;` separa
+comandos — e o erro que volta é `password authentication failed`, que manda procurar no
+lugar errado. **Aspas SIMPLES**, nunca duplas: dentro de aspas duplas o shell continua
+expandindo `$` e crase, então elas resolveriam só o `;`. O jeito de ver o corte é comparar
+`${#VAR}` depois do `source` com o comprimento da linha crua lida por outra ferramenta.
+
+**Isso não era a causa do bloqueio daquele dia, e o registro erraria se sugerisse que
+era:** com os 9 caracteres chegando inteiros, o pooler seguiu respondendo `password
+authentication failed` nas duas portas. A senha guardada não era a do projeto, e o que
+destrava é o *Reset database password* do painel. O truncamento era um segundo defeito,
+que teria mordido depois.
 
 **O app em desenvolvimento fala com o Postgres local, e o que torna isso possível é
 `tool/local_dev/`** (montado em 28/08/2026). O app é Flutter Web: não abre socket de

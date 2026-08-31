@@ -46,3 +46,11 @@ app.*.map.json
 
 # Scratch: implementation plans and diagrams, not part of the deliverable
 /temp/
+
+# Credentials: the hosted project's URL and anon key, plus the database
+# password used to run supabase/checks/ by hand. Never committed -- they enter
+# the build by --dart-define and the CI by GitHub secrets. The example file IS
+# committed, and is the only place the variable names are written down.
+/.env
+/.env.*
+!/.env.example
