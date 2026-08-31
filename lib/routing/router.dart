@@ -4,7 +4,8 @@ import 'package:go_router/go_router.dart';
 import '../data/repositories/device_user/device_user_repository.dart';
 import '../ui/catalog/widgets/catalog_maintenance_screen.dart';
 import '../ui/catalog/widgets/new_product_screen.dart';
-import '../ui/core/widgets/under_construction_screen.dart';
+import '../ui/consumption/widgets/remaining_screen.dart';
+import '../ui/consumption/widgets/suggestions_screen.dart';
 import '../ui/device_user/widgets/welcome_screen.dart';
 import '../ui/purchase/widgets/edit_purchase_screen.dart';
 import '../ui/purchase/widgets/new_purchase_screen.dart';
@@ -17,9 +18,11 @@ import 'routes.dart';
 
 /// The eleven routes of `tecnico §3.4`, registered from day one.
 ///
-/// Screens not written yet point at [UnderConstructionScreen]: each story
-/// swaps one entry for the real screen, so no story ever has to invent a route
-/// and no link lands on a route that does not exist.
+/// **Since H17/H18 all eleven have a screen.** Until then the ones not written
+/// yet pointed at an `UnderConstructionScreen`, so no story ever had to invent
+/// a route and no link landed on a route that did not exist. That screen and
+/// the `pendingDestinations` map beside it were deleted along with the last
+/// two entries of this file.
 ///
 /// **No route is protected** — there is no session to protect. The single
 /// `redirect` this app has is not about identity either: while the device
@@ -43,9 +46,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // with the route.
       if (state.matchedLocation == Routes.typingSpike) return null;
 
-      return ref.read(storedDeviceUserProvider) == null
-          ? Routes.welcome
-          : null;
+      return ref.read(storedDeviceUserProvider) == null ? Routes.welcome : null;
     },
     routes: [
       GoRoute(
@@ -61,10 +62,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.suggestions,
         name: RouteNames.suggestions,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Sugestão de itens',
-          story: 'H17',
-        ),
+        // Screen 1 opens it with `push`, never `go`: the routes are flat, and
+        // the wireframe sends this one BACK to the list — with `go` there
+        // would be no stack to pop.
+        builder: (context, state) => const SuggestionsScreen(),
       ),
       // Declared BEFORE the ':id' route below, because go_router matches in
       // order. Today the two cannot collide — '/purchases/new' has two
@@ -111,10 +112,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.remainingThisMonth,
         name: RouteNames.remainingThisMonth,
-        builder: (context, state) => const UnderConstructionScreen(
-          title: 'Falta comprar este mês',
-          story: 'H18',
-        ),
+        // The third permanent destination of the bottom bar, and the bar
+        // reaches it with `go`: switching between the three is not going back,
+        // so it carries no Back button.
+        builder: (context, state) => const RemainingScreen(),
       ),
       GoRoute(
         path: Routes.catalog,

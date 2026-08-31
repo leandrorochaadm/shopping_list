@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shopping_list/routing/routes.dart';
-import 'package:shopping_list/ui/core/widgets/pending_destinations.dart';
 import 'package:shopping_list/ui/core/widgets/main_menu.dart';
 
 /// A file of its own for the `≡`, because what changed in it is a rule of its
@@ -90,29 +89,63 @@ void main() {
     expect(find.text('Histórico de compras'), findsNothing);
   });
 
-  test('the three screens of this delivery left the pending map', () {
-    for (final route in [
-      Routes.purchaseHistory,
-      Routes.editPurchase,
-      Routes.catalog,
-      // Screen 3 was delivered in H7 and the map had been forgotten.
-      Routes.newPurchase,
-    ]) {
-      expect(isPending(route), isFalse, reason: route);
+  testWidgets('every door navigates — there is no map of pendencies left', (
+    tester,
+  ) async {
+    // The three tests this replaces asked `isPending` about one route at a
+    // time. The map they read was deleted with its last entry in H18, and what
+    // takes their place is the property that outlived it: each of the three
+    // doors reaches a screen.
+    final reached = <String>[];
+    Scaffold destination(String name) => Scaffold(body: Text(name));
+
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: Routes.shoppingList,
+          builder: (context, state) => Scaffold(
+            body: Builder(
+              builder: (context) => ElevatedButton(
+                onPressed: () => MainMenu.show(context),
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: Routes.purchaseHistory,
+          builder: (context, state) => destination('o histórico'),
+        ),
+        GoRoute(
+          path: Routes.catalog,
+          builder: (context, state) => destination('a manutenção'),
+        ),
+        GoRoute(
+          path: Routes.settings,
+          builder: (context, state) => destination('as configurações'),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    for (final door in const {
+      'Histórico de compras': 'o histórico',
+      'Manutenção do cadastro': 'a manutenção',
+      'Configurações': 'as configurações',
+    }.entries) {
+      router.go(Routes.shoppingList);
+      await tester.pumpWidget(MaterialApp.router(routerConfig: router));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('abrir'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(door.key));
+      await tester.pumpAndSettle();
+
+      expect(find.text(door.value), findsOneWidget, reason: door.key);
+      reached.add(door.key);
     }
-  });
 
-  test('the report screen left the pending map', () {
-    // A case of its own, and NOT one more line in the test above: that one
-    // names the four screens of delivery 4, and pushing the report into it
-    // would make its name lie about what it protects.
-    expect(isPending(Routes.reports), isFalse);
-  });
-
-  test('what is still pending stays pending, with its sentence', () {
-    expect(pendingDestinations, {
-      Routes.suggestions: 'A sugestão de itens chega na H17.',
-      Routes.remainingThisMonth: '"Falta comprar este mês" chega na H18.',
-    });
+    expect(reached, hasLength(3));
   });
 }

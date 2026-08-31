@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/core/widgets/main_bottom_bar.dart';
-import 'package:shopping_list/ui/core/widgets/pending_destinations.dart';
 
 void main() {
   Future<void> pumpBar(WidgetTester tester) => tester.pumpWidget(
@@ -14,9 +13,10 @@ void main() {
     ),
   );
 
-  /// A router of two routes, because a tap on a DELIVERED destination calls
-  /// `context.go` — and without a GoRouter in the tree that throws. The bar
-  /// alone can only be asked about the destinations that do not navigate.
+  /// A router of three routes, because a tap on any destination now calls
+  /// `context.go` — and without a GoRouter in the tree that throws. Until H18
+  /// the bar alone could be asked about the destinations that did not
+  /// navigate; there are none left.
   Future<GoRouter> pumpRoutedBar(WidgetTester tester) async {
     final router = GoRouter(
       routes: [
@@ -25,6 +25,15 @@ void main() {
           builder: (context, state) => const Scaffold(
             body: Text('a lista'),
             bottomNavigationBar: MainBottomBar(current: Routes.shoppingList),
+          ),
+        ),
+        GoRoute(
+          path: Routes.remainingThisMonth,
+          builder: (context, state) => const Scaffold(
+            body: Text('o que falta'),
+            bottomNavigationBar: MainBottomBar(
+              current: Routes.remainingThisMonth,
+            ),
           ),
         ),
         GoRoute(
@@ -51,30 +60,19 @@ void main() {
     expect(find.text('Relatórios'), findsOneWidget);
   });
 
-  // One test per destination: two SnackBars in a row QUEUE, and the second
-  // would only appear four seconds after the first — long past pumpAndSettle.
-  testWidgets('says which story brings "Falta"', (tester) async {
-    // Never a tap that does nothing and does not say why.
-    await pumpBar(tester);
+  testWidgets('"Falta" navigates to screen 6', (tester) async {
+    // It used to answer '"Falta comprar este mês" chega na H18.'; H18 is this
+    // delivery, and there is no story left to announce.
+    await pumpRoutedBar(tester);
 
     await tester.tap(find.text('Falta'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('"Falta comprar este mês" chega na H18.'),
-      findsOneWidget,
-    );
+    expect(find.text('o que falta'), findsOneWidget);
   });
 
-  testWidgets('"Relatórios" stopped being pending and now navigates', (
-    tester,
-  ) async {
-    // It used to answer 'Os relatórios chegam na H11.'; H11 is this delivery.
-    // The tap needs a GoRouter in the tree — a delivered destination calls
-    // `context.go`, and the helper above has no router.
+  testWidgets('"Relatórios" navigates to screen 5', (tester) async {
     await pumpRoutedBar(tester);
-
-    expect(isPending(Routes.reports), isFalse);
 
     await tester.tap(find.text('Relatórios'));
     await tester.pumpAndSettle();
@@ -82,29 +80,35 @@ void main() {
     expect(find.text('o relatório'), findsOneWidget);
   });
 
-  testWidgets('a delivered destination is not greyed out, and reads its name', (
+  testWidgets('no destination is greyed out, and each reads its own name', (
     tester,
   ) async {
-    // The other half of the same rule, and it needs no router: the icon is not
-    // in `disabledColor` any more, and the tooltip went back to being the
-    // label instead of the pendency's sentence.
+    // The map of pendencies is gone: every icon is drawn in the default colour
+    // and every tooltip is the label, which is what a screen reader announces
+    // without having to tap.
     await pumpBar(tester);
 
     final context = tester.element(find.byType(MainBottomBar));
-    final icon = tester.widget<Icon>(find.byIcon(Icons.bar_chart));
+    final disabled = Theme.of(context).disabledColor;
 
-    expect(icon.color, isNot(Theme.of(context).disabledColor));
-    expect(find.byTooltip('Relatórios'), findsOneWidget);
-    // And the one still pending keeps its sentence.
-    expect(
-      find.byTooltip('"Falta comprar este mês" chega na H18.'),
-      findsOneWidget,
-    );
+    for (final icon in const [
+      Icons.checklist,
+      Icons.event_note,
+      Icons.bar_chart,
+    ]) {
+      expect(tester.widget<Icon>(find.byIcon(icon)).color, isNot(disabled));
+    }
+
+    for (final label in const ['Lista', 'Falta', 'Relatórios']) {
+      expect(find.byTooltip(label), findsOneWidget, reason: label);
+    }
   });
 
   testWidgets('the destination already on screen does nothing loud', (
     tester,
   ) async {
+    // No SnackBar, and no navigation to the screen already on display: a
+    // control that goes where you already are does nothing.
     await pumpBar(tester);
 
     await tester.tap(find.text('Lista'));

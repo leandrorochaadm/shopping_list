@@ -3,7 +3,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../routing/routes.dart';
 import 'menu_entry.dart';
-import 'pending_destinations.dart';
 
 /// The three permanent destinations of the wireframe's bottom bar.
 ///
@@ -16,7 +15,11 @@ class MainBottomBar extends StatelessWidget {
   final String current;
 
   static const _destinations = <MenuEntry>[
-    MenuEntry(route: Routes.shoppingList, icon: Icons.checklist, label: 'Lista'),
+    MenuEntry(
+      route: Routes.shoppingList,
+      icon: Icons.checklist,
+      label: 'Lista',
+    ),
     MenuEntry(
       route: Routes.remainingThisMonth,
       icon: Icons.event_note,
@@ -31,39 +34,25 @@ class MainBottomBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final disabled = Theme.of(context).disabledColor;
     final index = _destinations.indexWhere((d) => d.route == current);
 
     return NavigationBar(
       selectedIndex: index < 0 ? 0 : index,
       onDestinationSelected: (selected) {
         final route = _destinations[selected].route;
-        final pending = pendingDestinations[route];
-        if (pending != null) {
-          // Never a tap that does nothing and does not say why.
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(pending)));
-          return;
-        }
+        // Since H18 all three destinations have a screen, so there is no arm
+        // left that greys one out and explains which story brings it — the map
+        // that held those sentences was deleted with its last entry.
         if (route != current) context.go(route);
       },
       destinations: [
         for (final destination in _destinations)
           NavigationDestination(
-            // Greyed out, but NOT `enabled: false`: a disabled destination
-            // swallows the tap, and a tap that does nothing and does not say
-            // why is exactly what the `handoff` forbids. The grey says "not
-            // yet"; the SnackBar above says which story brings it.
-            icon: Icon(
-              destination.icon,
-              color: isPending(destination.route) ? disabled : null,
-            ),
+            icon: Icon(destination.icon),
             label: destination.label,
             // Also the semantic label, so a screen reader does not have to
             // discover it by tapping.
-            tooltip:
-                pendingDestinations[destination.route] ?? destination.label,
+            tooltip: destination.label,
           ),
       ],
     );

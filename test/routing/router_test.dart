@@ -5,12 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
-import 'package:shopping_list/ui/core/widgets/under_construction_screen.dart';
+import 'package:shopping_list/ui/consumption/widgets/remaining_screen.dart';
+import 'package:shopping_list/ui/consumption/widgets/suggestions_screen.dart';
 import 'package:shopping_list/ui/device_user/widgets/welcome_screen.dart';
 import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 import 'package:shopping_list/ui/settings/widgets/settings_screen.dart';
 
 import '../helpers/catalog.dart';
+import '../helpers/consumption.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
 import '../helpers/purchase.dart';
@@ -21,19 +23,15 @@ void main() {
   // Screen 3 draws a date, and `main()` does not run in a test.
   setUpAll(initializePtBr);
 
-  /// The paths still showing the placeholder, and the title each one carries.
-  /// A typo in a path, a route dropped from the router or a name that stops
-  /// matching fails here — instead of at the moment someone taps the link on
-  /// the phone.
-  const placeholderTitleByPath = <String, String>{
-    Routes.suggestions: 'Sugestão de itens',
-    Routes.remainingThisMonth: 'Falta comprar este mês',
-  };
-
-  /// The paths whose real screen already exists. Every story moves one line
-  /// from the map above to this one — two more times — and the SUM of the
-  /// two has to stay eleven. Loosening that count is how `tecnico §3.4` would
-  /// quietly stop being true.
+  /// Every path and the title its screen carries. A typo in a path, a route
+  /// dropped from the router or a name that stops matching fails here —
+  /// instead of at the moment someone taps the link on the phone.
+  ///
+  /// **Since H18 there is one map and not two.** Until then a second one held
+  /// the paths still showing the placeholder, and every story moved a line
+  /// across; the last two moved here with this delivery, and the sum that had
+  /// to stay eleven is now this map's own length. Loosening that count is how
+  /// `tecnico §3.4` would quietly stop being true.
   const realTitleByPath = <String, String>{
     Routes.shoppingList: 'Lista de compras',
     Routes.welcome: 'Quem está usando?',
@@ -46,6 +44,8 @@ void main() {
     '/purchases/purchase-1/edit': 'Corrigir compra',
     Routes.catalog: 'Manutenção do cadastro',
     Routes.reports: 'Relatórios',
+    Routes.suggestions: 'Sugestão de itens',
+    Routes.remainingThisMonth: 'Falta comprar este mês',
   };
 
   Future<GoRouter> pumpRouter(
@@ -66,7 +66,7 @@ void main() {
 
   testWidgets('every route of the app resolves to a screen', (tester) async {
     expect(
-      placeholderTitleByPath.length + realTitleByPath.length,
+      realTitleByPath.length,
       11,
       reason: 'tecnico 3.4 froze eleven screens',
     );
@@ -79,6 +79,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
 
@@ -87,32 +88,13 @@ void main() {
     // title AND the bar's label — and a plain `find.text` would report two.
     // Loosening it to `findsWidgets` would stop catching a wrong title, which
     // is the whole point of these two maps.
-    Finder titleOf(String title) => find.descendant(
-      of: find.byType(AppBar),
-      matching: find.text(title),
-    );
-
-    for (final entry in placeholderTitleByPath.entries) {
-      router.go(entry.key);
-      await tester.pumpAndSettle();
-
-      expect(
-        find.byType(UnderConstructionScreen),
-        findsOneWidget,
-        reason: entry.key,
-      );
-      expect(titleOf(entry.value), findsOneWidget, reason: entry.key);
-    }
+    Finder titleOf(String title) =>
+        find.descendant(of: find.byType(AppBar), matching: find.text(title));
 
     for (final entry in realTitleByPath.entries) {
       router.go(entry.key);
       await tester.pumpAndSettle();
 
-      expect(
-        find.byType(UnderConstructionScreen),
-        findsNothing,
-        reason: entry.key,
-      );
       expect(titleOf(entry.value), findsOneWidget, reason: entry.key);
     }
   });
@@ -131,6 +113,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
 
@@ -150,6 +133,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
     await tester.pumpAndSettle();
@@ -202,6 +186,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
 
@@ -244,6 +229,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
 
@@ -270,6 +256,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
 
@@ -290,6 +277,79 @@ void main() {
     expect(find.byTooltip('Menu'), findsOneWidget);
   });
 
+  testWidgets('gives "falta comprar" no exit either — the third destination', (
+    tester,
+  ) async {
+    // The third and last screen with the bottom bar, and the same exception
+    // for the same reason: "alternar entre eles não é voltar". Screen 1 and
+    // screen 5 already have a case each; this closes the set.
+    final router = await pumpRouter(
+      tester,
+      overrides: [
+        deviceUserOverride(),
+        catalogOverride(),
+        shoppingListOverride(),
+        ...purchaseOverrides(),
+        reportOverride(),
+        consumptionOverride(),
+      ],
+    );
+
+    // Pushed, which is the case that WOULD grow one.
+    router.push(Routes.remainingThisMonth);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RemainingScreen), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byTooltip('Ir para a lista'), findsNothing);
+    expect(find.byTooltip('Menu'), findsOneWidget);
+
+    // And opened directly, with an empty stack: still the `≡` and the bar.
+    router.go(Routes.remainingThisMonth);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byTooltip('Menu'), findsOneWidget);
+  });
+
+  testWidgets('gives the suggestion a Back button — it IS pushed', (
+    tester,
+  ) async {
+    // The opposite of the three above, and the reason screen 1 opens it with
+    // `push`: the wireframe sends screen 2 back to the list, both from this
+    // button and from `[ Adicionar selecionados ]`.
+    final router = await pumpRouter(
+      tester,
+      overrides: [
+        deviceUserOverride(),
+        catalogOverride(),
+        shoppingListOverride(),
+        ...purchaseOverrides(),
+        reportOverride(),
+        consumptionOverride(),
+      ],
+    );
+
+    router.push(Routes.suggestions);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SuggestionsScreen), findsOneWidget);
+    expect(find.byType(BackButton), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Lista de compras'), findsOneWidget);
+
+    // Opened by a pasted link, with an empty stack: the exit is the house.
+    router.go(Routes.suggestions);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(BackButton), findsNothing);
+    await tester.tap(find.byTooltip('Ir para a lista'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lista de compras'), findsOneWidget);
+  });
+
   testWidgets('sends an unmarked phone to the welcome screen, from anywhere', (
     tester,
   ) async {
@@ -304,6 +364,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
     await tester.pumpAndSettle();
@@ -327,6 +388,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
     await tester.pumpAndSettle();
@@ -353,6 +415,7 @@ void main() {
         shoppingListOverride(),
         ...purchaseOverrides(),
         reportOverride(),
+        consumptionOverride(),
       ],
     );
 

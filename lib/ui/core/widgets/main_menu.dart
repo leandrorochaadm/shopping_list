@@ -4,11 +4,11 @@ import 'package:go_router/go_router.dart';
 import '../../../routing/routes.dart';
 import 'main_bottom_bar.dart';
 import 'menu_entry.dart';
-import 'pending_destinations.dart';
 
-/// The `≡` — and, as the `handoff` puts it, "a única porta das quatro telas
-/// não desenhadas". Without it being born here they would have no door at all,
-/// and the only way in would be typing the route.
+/// The `≡` — and, as the `handoff` put it, "a única porta das quatro telas não
+/// desenhadas". Without it being born on screen 1 they would have had no door
+/// at all, and the only way in would have been typing the route. Since H18 all
+/// four exist, so every entry here simply navigates.
 ///
 /// It lives in `ui/core/` and not in `ui/shopping_list/`, for the same reason
 /// [MainBottomBar] does: the wireframe draws this same `≡` in the header of
@@ -39,40 +39,23 @@ abstract final class MainMenu {
     ),
   ];
 
-  static Future<void> show(BuildContext context) =>
-      showModalBottomSheet<void>(
-        context: context,
-        builder: (sheetContext) => SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (final entry in _entries)
-                ListTile(
-                  leading: Icon(
-                    entry.icon,
-                    color: isPending(entry.route)
-                        ? Theme.of(sheetContext).disabledColor
-                        : null,
-                  ),
-                  title: Text(entry.label),
-                  subtitle: pendingDestinations[entry.route] == null
-                      ? null
-                      // Explained right there, rather than only after a tap.
-                      : Text(pendingDestinations[entry.route]!),
-                  onTap: () {
-                    final pending = pendingDestinations[entry.route];
-                    Navigator.of(sheetContext).pop();
-                    if (pending != null) {
-                      ScaffoldMessenger.of(
-                        context,
-                      ).showSnackBar(SnackBar(content: Text(pending)));
-                      return;
-                    }
-                    context.go(entry.route);
-                  },
-                ),
-            ],
-          ),
-        ),
-      );
+  static Future<void> show(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    builder: (sheetContext) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final entry in _entries)
+            ListTile(
+              leading: Icon(entry.icon),
+              title: Text(entry.label),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(entry.route);
+              },
+            ),
+        ],
+      ),
+    ),
+  );
 }

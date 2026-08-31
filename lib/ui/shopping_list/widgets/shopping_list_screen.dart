@@ -11,7 +11,6 @@ import '../../core/app_failure.dart';
 import '../../core/widgets/main_bottom_bar.dart';
 import '../../core/widgets/main_menu.dart';
 import '../../core/widgets/message_view.dart';
-import '../../core/widgets/pending_destinations.dart';
 import '../../device_user/widgets/who_is_using_dialog.dart';
 import '../view_model/pending_changes_notifier.dart';
 import '../view_model/shopping_list_view_model.dart';
@@ -178,9 +177,10 @@ class _Body extends ConsumerWidget {
                   child: const Text('Adicionar item'),
                 ),
                 const SizedBox(height: 8),
-                _PendingButton(
-                  route: Routes.suggestions,
-                  label: 'Sugerir itens',
+                OutlinedButton(
+                  key: const ValueKey('suggest-items-empty'),
+                  onPressed: () => context.push(Routes.suggestions),
+                  child: const Text('Sugerir itens'),
                 ),
               ],
             ),
@@ -220,13 +220,18 @@ class _Body extends ConsumerWidget {
                 label: const Text('Adicionar item'),
               ),
               const SizedBox(height: 8),
-              _PendingButton(route: Routes.suggestions, label: 'Sugerir itens'),
+              OutlinedButton(
+                key: const ValueKey('suggest-items'),
+                // `push`, never `go`: the routes are flat, and screen 2 has to
+                // come BACK here — both from its Back button and from
+                // `[ Adicionar selecionados ]`.
+                onPressed: () => context.push(Routes.suggestions),
+                child: const Text('Sugerir itens'),
+              ),
               const SizedBox(height: 8),
-              // A button of its own, and no longer a `_PendingButton`: the
-              // screen exists since H7, and `_PendingButton` reads the map
-              // with a `!` — leaving it here while `newPurchase` left the map
-              // would throw while building the footer of the app's first
-              // screen, on every phone.
+              // `go` and not `push`, unlike the button above: registering a
+              // purchase ENDS on the list — screen 3 goes back there by
+              // itself once it saves — so there is no stack worth keeping.
               OutlinedButton(
                 key: const ValueKey('new-purchase'),
                 onPressed: () => context.go(Routes.newPurchase),
@@ -239,24 +244,4 @@ class _Body extends ConsumerWidget {
       ],
     );
   }
-}
-
-/// A destination that does not exist yet: greyed out, and it SAYS which story
-/// brings it. Never a tap that does nothing and does not explain why.
-class _PendingButton extends StatelessWidget {
-  const _PendingButton({required this.route, required this.label});
-
-  final String route;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton(
-    onPressed: () => ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(pendingDestinations[route]!))),
-    style: OutlinedButton.styleFrom(
-      foregroundColor: Theme.of(context).disabledColor,
-    ),
-    child: Text(label),
-  );
 }

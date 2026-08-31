@@ -277,17 +277,40 @@ void main() {
     expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isTrue);
   });
 
-  testWidgets('a destination that does not exist still explains itself', (
+  testWidgets('[ Sugerir itens ] is a real button now, and it pushes', (
     tester,
   ) async {
+    // It used to answer 'A sugestão de itens chega na H17.' — H17 is this
+    // delivery, and `_PendingButton` died with the map it read.
+    //
+    // The navigation itself is `router_test`'s: a screen test must not have to
+    // build the next screen whole. What this one holds is that the footer has
+    // an enabled button where the greyed-out one used to be.
     await pumpScreen(tester, repository: _SpyRepository(initial: seed));
 
-    await tester.tap(find.text('Sugerir itens'));
-    await tester.pumpAndSettle();
+    final button = tester.widget<OutlinedButton>(
+      find.byKey(const ValueKey('suggest-items')),
+    );
+    expect(button.onPressed, isNotNull);
+    expect(find.text('Sugerir itens'), findsOneWidget);
+    expect(find.textContaining('chega na H'), findsNothing);
+  });
 
-    expect(find.text('A sugestão de itens chega na H17.'), findsOneWidget);
-    // It did not navigate.
-    expect(find.text('Lista de compras'), findsOneWidget);
+  testWidgets('the empty state offers the same button, also enabled', (
+    tester,
+  ) async {
+    // Two `_PendingButton`s died, not one: the empty state has its own, and
+    // leaving it behind would be a greyed-out button on the very screen
+    // someone with an empty list is looking at.
+    await pumpScreen(
+      tester,
+      repository: _SpyRepository(initial: const <ShoppingListItem>[]),
+    );
+
+    final button = tester.widget<OutlinedButton>(
+      find.byKey(const ValueKey('suggest-items-empty')),
+    );
+    expect(button.onPressed, isNotNull);
   });
 
   testWidgets('[ Lançar compra ] navigates, and the screen 1 opens at all', (
