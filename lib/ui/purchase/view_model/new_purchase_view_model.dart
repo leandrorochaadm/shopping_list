@@ -5,10 +5,12 @@ import '../../../data/repositories/purchase/purchase_repository.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../../../data/repositories/spending_cap/spending_cap_repository.dart';
 import '../../core/online_status.dart';
+import '../../../domain/models/price_increase.dart';
 import '../../../domain/models/price_reference.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_draft.dart';
+import '../../../domain/models/reference_window.dart';
 import '../../../domain/models/report_period.dart';
 import '../../../domain/models/same_day_alert.dart';
 import '../../../domain/models/spending_cap.dart';
@@ -88,7 +90,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
     // The clock enters the system HERE (rule 9). No `now()` and no
     // `current_date` in SQL (decision 7).
     final history = repository.fetchRecentItems(
-      threeMonthsBefore(DateTime.now()),
+      rollingWindowStart(DateTime.now()),
     );
 
     return rankOptions(await options, await history);
@@ -275,19 +277,11 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
   }
 }
 
-/// The window decision C1 orders the picker by. Three CALENDAR months, so
-/// "os últimos 3 meses" means what it says on a receipt — `Duration(days: 90)`
-/// would drift a day every leap year and two every February.
-///
-/// A day that does not exist in the target month normalizes forward (31 May
-/// minus three months is 3 March), which is fine: this window only orders a
-/// list, it decides nothing.
-DateTime threeMonthsBefore(DateTime now) =>
-    DateTime(now.year, now.month - 3, now.day);
-
 /// Crosses the leaves with the last three months of purchases: how many times
-/// each was bought (which ORDERS the picker) and what the last purchase of it
-/// paid (which PRE-FILLS the value). Both from one round trip (P4).
+/// each was bought (which ORDERS the picker), what the last purchase of it
+/// paid (which PRE-FILLS the value) and the average of the window it is
+/// compared against (which fires the ⚠ of H15). All three from one round trip
+/// (P4).
 ///
 /// Pure, and public so the ViewModel test can exercise it without a container.
 IList<ProductOption> rankOptions(
@@ -296,6 +290,9 @@ IList<ProductOption> rankOptions(
 ) {
   final counts = <String, int>{};
   final latest = <String, PurchaseHistoryEntry>{};
+  // The two levels of the H15 average, summed in a single pass over the same
+  // window. Which of them applies to each leaf is `forLeaf`, in the domain.
+  final baselines = buildPriceBaselines(history);
 
   for (final entry in history) {
     counts.update(entry.productId, (n) => n + 1, ifAbsent: () => 1);
@@ -323,6 +320,14 @@ IList<ProductOption> rankOptions(
                   quantityInBaseUnit: entry.quantityInBaseUnit,
                   purchasedOn: entry.purchasedOn,
                 ),
+          // Resolved HERE and handed over ready, so the screen only draws:
+          // the leaf's own average when the registration has a brand, the
+          // type's when it does not.
+          baseline: baselines.forLeaf(
+            productId: option.id,
+            productTypeId: option.type.id,
+            hasBrand: option.brand != null,
+          ),
         );
       })
       .toIList()

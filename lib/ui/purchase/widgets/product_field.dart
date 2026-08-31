@@ -25,6 +25,8 @@ class ProductField extends StatefulWidget {
     this.focusNode,
     this.enabled = true,
     this.hintText,
+    this.groupBy,
+    this.fieldKey,
     super.key,
   });
 
@@ -45,6 +47,22 @@ class ProductField extends StatefulWidget {
 
   final bool enabled;
   final String? hintText;
+
+  /// How the filtered options are grouped in the list. The default is
+  /// `groupForPicker` — by type, most bought first, which is decision C1 of
+  /// screen 3. The comparison tab of screen 5 passes `buildComparisonGroups`,
+  /// which groups by category in alphabetical order.
+  ///
+  /// One parameter and not two widgets: the field, the accent-blind search by
+  /// stretch and the dropdown are the same, and two copies would diverge on
+  /// the first change.
+  final IList<ProductGroup> Function(IList<ProductOption>)? groupBy;
+
+  /// The key of the `TextField`. The default stays `field-product`, which is
+  /// what the tests of screen 3 look for; the comparison tab passes its own,
+  /// because the two tabs coexist in the tree of the `TabBarView` and a
+  /// `find.byKey` would find two.
+  final Key? fieldKey;
 
   @override
   State<ProductField> createState() => _ProductFieldState();
@@ -88,7 +106,7 @@ class _ProductFieldState extends State<ProductField> {
     onSelected: widget.onSelected,
     fieldViewBuilder: (context, controller, node, onFieldSubmitted) =>
         TextField(
-          key: const ValueKey('field-product'),
+          key: widget.fieldKey ?? const ValueKey('field-product'),
           controller: controller,
           focusNode: node,
           enabled: widget.enabled,
@@ -99,14 +117,16 @@ class _ProductFieldState extends State<ProductField> {
           onSubmitted: (_) => onFieldSubmitted(),
         ),
     optionsViewBuilder: (context, onSelected, iterable) => _GroupedOptions(
-      groups: groupForPicker(iterable.toIList()),
+      groups: (widget.groupBy ?? groupForPicker)(iterable.toIList()),
       onSelected: onSelected,
     ),
   );
 }
 
-/// The picker is GROUPED BY TYPE, with the type he buys most opening the
-/// list — decision C1. A flat list would put a soft drink between two milks.
+/// The picker is GROUPED, with the header the caller's `groupBy` decided: the
+/// type he buys most opening the list on screen 3 (decision C1), the category
+/// in alphabetical order on the comparison tab. A flat list would put a soft
+/// drink between two milks.
 class _GroupedOptions extends StatelessWidget {
   const _GroupedOptions({required this.groups, required this.onSelected});
 
@@ -131,7 +151,7 @@ class _GroupedOptions extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Text(
-                    group.type.name,
+                    group.header,
                     style: theme.textTheme.labelMedium?.copyWith(
                       color: theme.colorScheme.primary,
                     ),

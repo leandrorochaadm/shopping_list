@@ -36,6 +36,8 @@ void main() {
     bool enabled = true,
     String? hintText,
     void Function(ProductOption)? onSelected,
+    IList<ProductGroup> Function(IList<ProductOption>)? groupBy,
+    Key? fieldKey,
   }) => tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -44,6 +46,8 @@ void main() {
           initial: initial,
           enabled: enabled,
           hintText: hintText,
+          groupBy: groupBy,
+          fieldKey: fieldKey,
           onSelected: onSelected ?? (_) {},
         ),
       ),
@@ -85,6 +89,8 @@ void main() {
   });
 
   testWidgets('an empty field shows everything, grouped', (tester) async {
+    // The header comes from `ProductGroup.header`, which is TEXT since
+    // 30/08/2026 (decision D-u) — and by default it is the name of the type.
     await pumpField(tester);
 
     await tester.tap(find.byKey(const ValueKey('field-product')));
@@ -92,6 +98,35 @@ void main() {
 
     expect(find.text('Refrigerante'), findsWidgets);
     expect(find.text('Acém moído'), findsWidgets);
+  });
+
+  testWidgets('a caller may group the list its own way', (tester) async {
+    // The comparison tab of screen 5 groups by CATEGORY; screen 3 groups by
+    // type. One field, two questions — and one parameter instead of two
+    // widgets that would diverge on the first change.
+    await pumpField(
+      tester,
+      groupBy: (filtered) =>
+          [ProductGroup(header: 'Bebidas', options: filtered)].lock,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('field-product')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bebidas'), findsOneWidget);
+    expect(find.text('Refrigerante'), findsNothing);
+    expect(find.text('Coca-Cola original 12 × 350 ml'), findsOneWidget);
+  });
+
+  testWidgets('a caller may key the field, so two of them can coexist', (
+    tester,
+  ) async {
+    // The two tabs of screen 5 live in the same tree of the `TabBarView`, and
+    // a `find.byKey('field-product')` would find two.
+    await pumpField(tester, fieldKey: const ValueKey('field-comparison'));
+
+    expect(find.byKey(const ValueKey('field-comparison')), findsOneWidget);
+    expect(find.byKey(const ValueKey('field-product')), findsNothing);
   });
 
   testWidgets('choosing one hands it back and writes it in the field', (

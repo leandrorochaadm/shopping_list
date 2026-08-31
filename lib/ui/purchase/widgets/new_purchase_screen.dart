@@ -8,6 +8,7 @@ import '../../core/online_status.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/money.dart';
+import '../../../domain/models/price_increase.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase_draft.dart';
 import '../../../domain/models/purchase_item.dart';
@@ -22,6 +23,7 @@ import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
 import '../view_model/new_purchase_view_model.dart';
 import '../view_model/purchase_draft_view_model.dart';
+import 'price_increase_warning.dart';
 import 'product_field.dart';
 import 'purchase_item_row.dart';
 
@@ -101,6 +103,31 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     } on Object {
       return null;
     }
+  }
+
+  /// **H15** — the warning of the item being typed, or null.
+  ///
+  /// It is **not computed inside `build()`**: whoever decides is
+  /// `option.priceIncreaseFor`, in the domain (rule 11). This getter only
+  /// gathers what the three fields hold today, and returns null while any of
+  /// them is missing — which is the written acceptance criterion ("não há
+  /// alerta antes de quantidade e valor").
+  PriceIncrease? get _priceIncrease {
+    final option = _option;
+    final typed = _typedQuantity;
+    if (option == null || typed == null) return null;
+
+    final Money paid;
+    try {
+      paid = Money.parse(_valueController.text);
+    } on InvalidMoney {
+      return null;
+    }
+
+    return option.priceIncreaseFor(
+      paid: paid,
+      quantityInBaseUnit: option.toBaseUnit(typed),
+    );
   }
 
   /// Each change of quantity redoes the value — until it is typed by hand.
@@ -401,8 +428,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     : 'Sugerido pela última compra',
               ),
               // The first touch by hand stops every recalculation, for good.
-              onChanged: (_) => _valueTouched = true,
+              //
+              // The `setState` is new, and it is not decoration: the ⚠ of H15
+              // comes out of the typed value, and without repainting it would
+              // only appear on the next touch of another field.
+              onChanged: (_) => setState(() => _valueTouched = true),
             ),
+            if (_priceIncrease case final increase?)
+              PriceIncreaseWarning(increase: increase),
             const SizedBox(height: 16),
             FilledButton.tonal(
               key: const ValueKey('add-item'),

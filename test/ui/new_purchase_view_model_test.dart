@@ -12,6 +12,7 @@ import 'package:shopping_list/data/repositories/spending_cap/spending_cap_reposi
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/ui/core/online_status.dart';
 import 'package:shopping_list/domain/models/money.dart';
+import 'package:shopping_list/domain/models/price_increase.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/same_day_alert.dart';
@@ -123,20 +124,6 @@ void main() {
     return value;
   }
 
-  group('threeMonthsBefore', () {
-    test('walks back three calendar months', () {
-      // Not Duration(days: 90): that drifts a day every leap year and two
-      // every February, and "os últimos 3 meses" is what a receipt says.
-      expect(threeMonthsBefore(DateTime(2026, 8, 28)), DateTime(2026, 5, 28));
-      expect(threeMonthsBefore(DateTime(2026, 2, 15)), DateTime(2025, 11, 15));
-    });
-
-    test('a day that does not exist in the target month rolls forward', () {
-      // It only orders a list; it decides nothing.
-      expect(threeMonthsBefore(DateTime(2026, 5, 31)), DateTime(2026, 3, 3));
-    });
-  });
-
   group('rankOptions', () {
     test('orders by how often each leaf was bought', () {
       final options = [
@@ -146,12 +133,14 @@ void main() {
       final history = [
         PurchaseHistoryEntry(
           productId: 'prod-4',
+          productTypeId: 'type-1',
           quantityInBaseUnit: 4200,
           paid: const Money(6200),
           purchasedOn: DateTime(2026, 8, 18),
         ),
         PurchaseHistoryEntry(
           productId: 'prod-4',
+          productTypeId: 'type-1',
           quantityInBaseUnit: 4200,
           paid: const Money(5990),
           purchasedOn: DateTime(2026, 7, 30),
@@ -171,12 +160,14 @@ void main() {
       final history = [
         PurchaseHistoryEntry(
           productId: 'prod-4',
+          productTypeId: 'type-1',
           quantityInBaseUnit: 4200,
           paid: const Money(5990),
           purchasedOn: DateTime(2026, 7, 30),
         ),
         PurchaseHistoryEntry(
           productId: 'prod-4',
+          productTypeId: 'type-1',
           quantityInBaseUnit: 4200,
           paid: const Money(6200),
           purchasedOn: DateTime(2026, 8, 18),
@@ -200,6 +191,96 @@ void main() {
 
       expect(ranked.single.priceReference, isNull);
       expect(ranked.single.purchaseCount, 0);
+    });
+
+    test('attaches the LEAF average to a leaf that HAS a brand (H15)', () {
+      // Two crates: R$ 62,00 and R$ 59,90 for 4200 ml each — one weighted
+      // average of R$ 14,51 a litre, and NOT the average of two averages.
+      final history = [
+        PurchaseHistoryEntry(
+          productId: 'prod-4',
+          productTypeId: 'type-1',
+          quantityInBaseUnit: 4200,
+          paid: const Money(6200),
+          purchasedOn: DateTime(2026, 8, 18),
+        ),
+        PurchaseHistoryEntry(
+          productId: 'prod-4',
+          productTypeId: 'type-1',
+          quantityInBaseUnit: 4200,
+          paid: const Money(5990),
+          purchasedOn: DateTime(2026, 7, 30),
+        ),
+        // Another leaf of the same type, which must NOT reach the branded
+        // one: with a brand, the comparison is against itself.
+        PurchaseHistoryEntry(
+          productId: 'prod-1',
+          productTypeId: 'type-1',
+          quantityInBaseUnit: 350,
+          paid: const Money(900),
+          purchasedOn: DateTime(2026, 8, 20),
+        ),
+      ].lock;
+
+      final ranked = rankOptions(
+        [
+          optionByPiece(id: 'prod-4', brand: cokeBrand, pieceCount: 12),
+        ].lock,
+        history,
+      );
+
+      expect(
+        ranked.single.baseline,
+        PriceBaseline(paid: const Money(12190), quantityInBaseUnit: 8400),
+      );
+    });
+
+    test('attaches the TYPE average to a leaf with no brand (H15)', () {
+      // Ground beef has nobody to compare itself with, so the comparison
+      // climbs to the type — which is where the leaf of another package of
+      // the same type joins in.
+      final history = [
+        PurchaseHistoryEntry(
+          productId: 'prod-5',
+          productTypeId: 'type-2',
+          quantityInBaseUnit: 1500,
+          paid: const Money(4500),
+          purchasedOn: DateTime(2026, 8, 10),
+        ),
+        PurchaseHistoryEntry(
+          productId: 'prod-6',
+          productTypeId: 'type-2',
+          quantityInBaseUnit: 2000,
+          paid: const Money(6800),
+          purchasedOn: DateTime(2026, 8, 5),
+        ),
+      ].lock;
+
+      final ranked = rankOptions([optionByWeight(id: 'prod-5')].lock, history);
+
+      expect(
+        ranked.single.baseline,
+        PriceBaseline(paid: const Money(11300), quantityInBaseUnit: 3500),
+      );
+    });
+
+    test('a window with no purchase of it leaves the baseline null', () {
+      // The silence of the requirement: never a comparison against a similar
+      // product.
+      final ranked = rankOptions(
+        [optionByPiece(id: 'prod-1', brand: cokeBrand)].lock,
+        [
+          PurchaseHistoryEntry(
+            productId: 'prod-4',
+            productTypeId: 'type-1',
+            quantityInBaseUnit: 4200,
+            paid: const Money(6200),
+            purchasedOn: DateTime(2026, 8, 18),
+          ),
+        ].lock,
+      );
+
+      expect(ranked.single.baseline, isNull);
     });
   });
 

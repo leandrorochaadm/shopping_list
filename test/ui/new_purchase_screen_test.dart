@@ -266,6 +266,53 @@ void main() {
     expect(value.controller!.text, '55,00');
   });
 
+  testWidgets('a price 10% over the window average warns while typing (H15)', (
+    tester,
+  ) async {
+    // The fake's two crates — R$ 62,00 and R$ 59,90 for 4200 ml each — make a
+    // weighted average of R$ 14,51 a litre. R$ 70,00 for one crate is
+    // R$ 16,67 a litre: +15%.
+    await pumpScreen(tester);
+    await fillItem(tester);
+
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '70,00');
+    await tester.pumpAndSettle();
+
+    expect(find.text('Subiu 15% sobre a média'), findsOneWidget);
+  });
+
+  testWidgets('the suggested value does not warn — no alert under 10%', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await fillItem(tester);
+
+    // R$ 62,00 is what the field pre-fills, and it is +7% over the average.
+    expect(find.textContaining('sobre a média'), findsNothing);
+
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '62,00');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('sobre a média'), findsNothing);
+  });
+
+  testWidgets('with the value emptied there is no warning at all (H15)', (
+    tester,
+  ) async {
+    // The alert only exists after quantity AND value: it is the price per
+    // base unit that is compared, and it comes out of the two.
+    await pumpScreen(tester);
+    await fillItem(tester);
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '70,00');
+    await tester.pumpAndSettle();
+    expect(find.text('Subiu 15% sobre a média'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '');
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('sobre a média'), findsNothing);
+  });
+
   testWidgets('adding a line redoes the total and clears the form', (
     tester,
   ) async {
