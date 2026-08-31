@@ -4,15 +4,55 @@ import 'money.dart';
 import 'name_normalization.dart';
 import 'period_report.dart';
 
+/// One brand inside a type, and the weight it had in that type.
+final class ReportBrandLine {
+  const ReportBrandLine({required this.brand, required this.percentageInTenths});
+
+  final BrandSpending brand;
+
+  /// The share of the TYPE's total, in tenths of a point — decision G-a: the
+  /// number written on the line right above, on the same screen; and decision
+  /// G-e: an integer, 0 to 1000.
+  ///
+  /// **The lines of a type can add up to LESS than 100%** (decision G-b), and
+  /// that silence is information: rule C2 keeps the null-brand group out of
+  /// the breakdown, while the type's total goes on counting what it spent. A
+  /// type showing 66,7% is a type where a third of the money was spent with
+  /// no brand at all.
+  final int percentageInTenths;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ReportBrandLine &&
+          other.brand == brand &&
+          other.percentageInTenths == percentageInTenths);
+
+  @override
+  int get hashCode => Object.hash(brand, percentageInTenths);
+
+  @override
+  String toString() => 'ReportBrandLine(${brand.name}, $percentageInTenths)';
+}
+
 /// One type line with its brands already resolved.
 final class ReportTypeLine {
-  const ReportTypeLine({required this.type, required this.brands});
+  const ReportTypeLine({
+    required this.type,
+    required this.percentageInTenths,
+    required this.brands,
+  });
 
   final TypeSpending type;
 
-  /// Already FILTERED by rule C2 and already ordered. Empty when the type has
-  /// no purchase carrying a brand.
-  final IList<BrandSpending> brands;
+  /// The share of the CATEGORY's total this type took, in tenths of a point —
+  /// decisions G-a and G-e.
+  final int percentageInTenths;
+
+  /// Already FILTERED by rule C2, already ordered, and each one already
+  /// carrying its share of THIS type. Empty when the type has no purchase
+  /// carrying a brand.
+  final IList<ReportBrandLine> brands;
 
   /// The screen only offers the arrow when there is something to open
   /// (decision D-a). The View asks this; it does not write
@@ -24,28 +64,31 @@ final class ReportTypeLine {
       identical(this, other) ||
       (other is ReportTypeLine &&
           other.type == type &&
+          other.percentageInTenths == percentageInTenths &&
           other.brands == brands);
 
   @override
-  int get hashCode => Object.hash(type, brands);
+  int get hashCode => Object.hash(type, percentageInTenths, brands);
 
   @override
-  String toString() => 'ReportTypeLine(${type.name}, ${brands.length} marcas)';
+  String toString() =>
+      'ReportTypeLine(${type.name}, $percentageInTenths, '
+      '${brands.length} marcas)';
 }
 
 /// One category, its weight in the period, and the types under it.
 final class ReportSection {
   const ReportSection({
     required this.category,
-    required this.percentage,
+    required this.percentageInTenths,
     required this.types,
   });
 
   final CategorySpending category;
 
-  /// The integer H12 computed, carried along so the screen does not divide
-  /// again.
-  final int percentage;
+  /// The share of the PERIOD H12 computed, in tenths of a point, carried
+  /// along so the screen does not divide again.
+  final int percentageInTenths;
 
   final IList<ReportTypeLine> types;
 
@@ -54,15 +97,16 @@ final class ReportSection {
       identical(this, other) ||
       (other is ReportSection &&
           other.category == category &&
-          other.percentage == percentage &&
+          other.percentageInTenths == percentageInTenths &&
           other.types == types);
 
   @override
-  int get hashCode => Object.hash(category, percentage, types);
+  int get hashCode => Object.hash(category, percentageInTenths, types);
 
   @override
   String toString() =>
-      'ReportSection(${category.name}, $percentage%, ${types.length} tipos)';
+      'ReportSection(${category.name}, $percentageInTenths, '
+      '${types.length} tipos)';
 }
 
 /// The comparison of all THREE levels, written once. It takes the three fields
@@ -111,6 +155,12 @@ int compareBySpending({
 /// what it spent, so the sum of the open lines may be smaller than the total
 /// right above it — that is accepted, and it is why a type with no brand at
 /// all offers no expansion: there would not be a single line to show.
+///
+/// **The percentage of each level is against the level right above it**
+/// (decision G-a): the category against the period, the type against its
+/// category, the brand against its type. All three in tenths of a point
+/// (decision G-e). The brands of a type can add up to less than 100% — see
+/// [ReportBrandLine.percentageInTenths].
 IList<ReportSection> buildReportSections(PeriodReport report) {
   final brandsByType = <String, List<BrandSpending>>{};
   for (final brand in report.brands) {
@@ -165,12 +215,30 @@ IList<ReportSection> buildReportSections(PeriodReport report) {
     for (final category in categories)
       ReportSection(
         category: category,
-        percentage: report.percentageOf(category),
+        percentageInTenths: report.percentageInTenthsOf(category),
         types: [
           for (final type in typesByCategory[category.categoryId] ?? const [])
             ReportTypeLine(
               type: type,
-              brands: (brandsByType[type.productTypeId] ?? const []).lock,
+              // G-a: against the category right above, never against the
+              // period.
+              percentageInTenths: spendingShareInTenths(
+                part: type.spent,
+                whole: category.spent,
+              ),
+              brands: [
+                for (final brand
+                    in brandsByType[type.productTypeId] ?? const [])
+                  ReportBrandLine(
+                    brand: brand,
+                    // G-a again, one level down. G-b: this can add up to less
+                    // than 100%, and that is the money spent with no brand.
+                    percentageInTenths: spendingShareInTenths(
+                      part: brand.spent,
+                      whole: type.spent,
+                    ),
+                  ),
+              ].lock,
             ),
         ].lock,
       ),

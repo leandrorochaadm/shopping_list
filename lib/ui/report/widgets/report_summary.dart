@@ -9,8 +9,8 @@ import '../../core/formatting.dart';
 /// period, the total, and the door to the breakdown.
 ///
 /// ```
-/// Carnes                     R$ 480,00   (40%)
-/// Limpeza                    R$ 360,00   (30%)
+/// Carnes                     R$ 480,00   (40,0%)
+/// Limpeza                    R$ 360,00   (30,0%)
 /// ─────────────────────────────────────────────
 /// Total do período           R$ 1.200,00
 ///           [ Ver por tipo de produto ]
@@ -51,7 +51,7 @@ class ReportSummary extends StatelessWidget {
           // The percentage the domain computed, never divided again here.
           trailing: Text(
             '${formatMoney(section.category.spent)}   '
-            '(${section.percentage}%)',
+            '(${formatPercent(section.percentageInTenths)})',
           ),
         ),
       const Divider(),

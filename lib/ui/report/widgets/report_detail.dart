@@ -10,10 +10,10 @@ import '../../core/formatting.dart';
 ///
 /// ```
 /// Carnes                                  R$ 480,00
-///   Acém moído        6 kg   R$ 32,00/kg  R$ 192,00
-///   Sabão em pó     6,8 kg   R$ 20,00/kg  R$ 136,00   ▾
-///     Omo           4,3 kg                 R$ 86,00
-///     Tixan         2,5 kg                 R$ 50,00
+///   Acém moído        6 kg   R$ 32,00/kg  R$ 192,00   (40,0%)
+///   Sabão em pó     6,8 kg   R$ 20,00/kg  R$ 136,00   (28,3%)   ▾
+///     Omo           4,3 kg                 R$ 86,00   (63,2%)
+///     Tixan         2,5 kg                 R$ 50,00   (36,8%)
 /// ```
 ///
 /// **The description of a registration never appears here** — `wireframes
@@ -77,7 +77,8 @@ class _TypeLine extends StatelessWidget {
     final trailing = Text(
       '${type.baseUnit.formatQuantity(type.quantityInBaseUnit)}   '
       '${formatMoney(Money(type.costPerBaseUnit))}/${type.baseUnit.label}   '
-      '${formatMoney(type.spent)}',
+      '${formatMoney(type.spent)}   '
+      '(${formatPercent(line.percentageInTenths)})',
     );
 
     if (!line.hasBrandBreakdown) {
@@ -97,14 +98,17 @@ class _TypeLine extends StatelessWidget {
       title: title,
       subtitle: trailing,
       children: [
-        for (final brand in line.brands)
+        for (final brandLine in line.brands)
           ListTile(
-            key: ValueKey('brand-${type.productTypeId}-${brand.brandId}'),
+            key: ValueKey(
+              'brand-${type.productTypeId}-${brandLine.brand.brandId}',
+            ),
             contentPadding: const EdgeInsets.only(left: 56, right: 16),
-            title: Text(brand.name!),
+            title: Text(brandLine.brand.name!),
             trailing: Text(
-              '${type.baseUnit.formatQuantity(brand.quantityInBaseUnit)}   '
-              '${formatMoney(brand.spent)}',
+              '${type.baseUnit.formatQuantity(brandLine.brand.quantityInBaseUnit)}   '
+              '${formatMoney(brandLine.brand.spent)}   '
+              '(${formatPercent(brandLine.percentageInTenths)})',
             ),
           ),
       ],

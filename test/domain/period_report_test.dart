@@ -151,7 +151,83 @@ void main() {
     });
   });
 
-  group('percentageOf — H12', () {
+  group('spendingShareInTenths — the arithmetic the three levels share', () {
+    test('the whole part comes back in tenths', () {
+      // R$ 48,00 out of R$ 120,00 is 40,0%.
+      expect(
+        spendingShareInTenths(part: const Money(4800), whole: const Money(12000)),
+        400,
+      );
+    });
+
+    test('the rounding is half-up', () {
+      // 6,25% — up, to 6,3%. The integer case (12,5%) no longer serves: in
+      // tenths it is exact.
+      expect(
+        spendingShareInTenths(part: const Money(1), whole: const Money(16)),
+        63,
+      );
+    });
+
+    test('below the half it rounds down', () {
+      // 3,33...% — down, to 3,3%.
+      expect(
+        spendingShareInTenths(part: const Money(1), whole: const Money(30)),
+        33,
+      );
+    });
+
+    test('a whole of zero answers zero instead of dividing by zero', () {
+      expect(spendingShareInTenths(part: Money.zero, whole: Money.zero), 0);
+    });
+
+    test('a part of zero answers zero', () {
+      expect(
+        spendingShareInTenths(part: Money.zero, whole: const Money(12000)),
+        0,
+      );
+    });
+
+    test('a part equal to the whole answers 1000', () {
+      expect(
+        spendingShareInTenths(
+          part: const Money(12000),
+          whole: const Money(12000),
+        ),
+        1000,
+      );
+    });
+
+    test('percentageInTenthsOf is this same function, over the total', () {
+      // The case that keeps the delegation from changing H12's behaviour
+      // without anyone noticing.
+      final meat = const CategorySpending(
+        categoryId: 'cat-2',
+        name: 'Carnes',
+        spent: Money(48000),
+      );
+      final drinks = const CategorySpending(
+        categoryId: 'cat-1',
+        name: 'Bebidas',
+        spent: Money(72000),
+      );
+      final report = PeriodReport(
+        categories: [meat, drinks].lock,
+        types: const IList.empty(),
+        brands: const IList.empty(),
+      );
+
+      for (final category in [meat, drinks]) {
+        expect(
+          report.percentageInTenthsOf(category),
+          spendingShareInTenths(part: category.spent, whole: report.total),
+          reason: category.name,
+        );
+      }
+    });
+  });
+
+  group('percentageInTenthsOf — H12, with the decimal place of G-d', () {
     final meat = const CategorySpending(
       categoryId: 'cat-2',
       name: 'Carnes',
@@ -169,38 +245,38 @@ void main() {
       brands: const IList.empty(),
     );
 
-    test('R\$ 480 of R\$ 1.200 is 40%', () {
+    test('R\$ 480 of R\$ 1.200 is 40,0%', () {
       final report = reportOf([meat, drinks]);
 
-      expect(report.percentageOf(meat), 40);
-      expect(report.percentageOf(drinks), 60);
+      expect(report.percentageInTenthsOf(meat), 400);
+      expect(report.percentageInTenthsOf(drinks), 600);
     });
 
     test('the percentage is over the total of the PERIOD, not of the month', () {
       // The same category, in a period that also holds something else, gets a
       // different percentage — which is the whole point of H12.
-      expect(reportOf([meat]).percentageOf(meat), 100);
-      expect(reportOf([meat, drinks]).percentageOf(meat), 40);
+      expect(reportOf([meat]).percentageInTenthsOf(meat), 1000);
+      expect(reportOf([meat, drinks]).percentageInTenthsOf(meat), 400);
     });
 
     test('the rounding is half-up', () {
       final odd = const CategorySpending(
         categoryId: 'cat-2',
         name: 'Carnes',
-        spent: Money(48600),
+        spent: Money(48060),
       );
       final rest = const CategorySpending(
         categoryId: 'cat-1',
         name: 'Bebidas',
-        spent: Money(71400),
+        spent: Money(71940),
       );
 
-      // 40,5% — up.
-      expect(reportOf([odd, rest]).percentageOf(odd), 41);
+      // 40,05% — up, to 40,1%.
+      expect(reportOf([odd, rest]).percentageInTenthsOf(odd), 401);
     });
 
     test('an empty report answers zero instead of dividing by zero', () {
-      expect(PeriodReport.empty.percentageOf(meat), 0);
+      expect(PeriodReport.empty.percentageInTenthsOf(meat), 0);
     });
 
     test('a report of free purchases answers zero, and reaches the screen', () {
@@ -212,13 +288,14 @@ void main() {
       final report = reportOf([free]);
 
       expect(report.isEmpty, isFalse);
-      expect(report.percentageOf(free), 0);
+      expect(report.percentageInTenthsOf(free), 0);
     });
 
     test('three equal thirds do not add up to 100, and that is accepted', () {
-      // Half-up on each line can give 99 or 101. The screen shows `(NN%)` per
-      // line and the total in money — never the sum of the percentages —, and
-      // forcing the close would make one line lie so another could balance.
+      // Half-up on each line can give 99,9% or 100,1%. The screen shows
+      // `(NN,N%)` per line and the total in money — never the sum of the
+      // percentages —, and forcing the close would make one line lie so
+      // another could balance.
       final a = const CategorySpending(
         categoryId: 'a',
         name: 'A',
@@ -236,9 +313,12 @@ void main() {
       );
       final report = reportOf([a, b, c]);
 
+      // 33,3% each, and 99,9% together.
       expect(
-        report.percentageOf(a) + report.percentageOf(b) + report.percentageOf(c),
-        99,
+        report.percentageInTenthsOf(a) +
+            report.percentageInTenthsOf(b) +
+            report.percentageInTenthsOf(c),
+        999,
       );
     });
   });

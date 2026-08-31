@@ -41,6 +41,20 @@ String formatMoneyPlain(Money value) {
   return '$sign${cents ~/ 100},${_fractionOf(cents)}';
 }
 
+/// '58,5%' — a share written the way it is read in pt-BR, out of the INTEGER
+/// tenths `spendingShareInTenths` answers (decision G-e).
+///
+/// Digit by digit, never through `tenths / 10`: this file is the boundary
+/// where rounding is permitted, not where a float gets to decide the last
+/// decimal place. The rounding already happened, in the domain.
+///
+/// **There is no sign branch on purpose:** a share of spending is never
+/// negative — `total_paid >= 0` in the schema — and a branch nobody reaches
+/// is an uncovered line against the 90% floor. A value above 1000 IS
+/// reachable and needs nothing: three lines of 33,4% add up to 100,2%, and
+/// each of them is written on its own.
+String formatPercent(int tenths) => '${tenths ~/ 10},${tenths % 10}%';
+
 /// '18/08/2026'.
 ///
 /// `main()` does not run in a test, so any widget test that reaches this

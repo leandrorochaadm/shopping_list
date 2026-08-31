@@ -8,6 +8,7 @@ import 'package:shopping_list/data/repositories/report/report_repository_local.d
 import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
 import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/period_report.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/report_period.dart';
@@ -124,9 +125,9 @@ void main() {
       await pumpReports(tester);
 
       expect(find.text('Carnes'), findsOneWidget);
-      expect(find.text(r'R$ 192,00   (59%)'), findsOneWidget);
+      expect(find.text(r'R$ 192,00   (58,5%)'), findsOneWidget);
       expect(find.text('Limpeza'), findsOneWidget);
-      expect(find.text(r'R$ 136,00   (41%)'), findsOneWidget);
+      expect(find.text(r'R$ 136,00   (41,5%)'), findsOneWidget);
       expect(find.text('Total do período'), findsOneWidget);
       expect(find.text(r'R$ 328,00'), findsOneWidget);
     });
@@ -193,9 +194,15 @@ void main() {
 
       // The written acceptance criterion of requirement 4, both examples.
       expect(find.text('Acém moído'), findsOneWidget);
-      expect(find.text(r'6 kg   R$ 32,00/kg   R$ 192,00'), findsOneWidget);
+      expect(
+        find.text(r'6 kg   R$ 32,00/kg   R$ 192,00   (100,0%)'),
+        findsOneWidget,
+      );
       expect(find.text('Sabão em pó'), findsOneWidget);
-      expect(find.text(r'6,8 kg   R$ 20,00/kg   R$ 136,00'), findsOneWidget);
+      expect(
+        find.text(r'6,8 kg   R$ 20,00/kg   R$ 136,00   (100,0%)'),
+        findsOneWidget,
+      );
       // And the way back.
       expect(find.byKey(const ValueKey('show-summary')), findsOneWidget);
     });
@@ -225,9 +232,9 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Omo'), findsOneWidget);
-      expect(find.text(r'4,3 kg   R$ 86,00'), findsOneWidget);
+      expect(find.text(r'4,3 kg   R$ 86,00   (63,2%)'), findsOneWidget);
       expect(find.text('Tixan'), findsOneWidget);
-      expect(find.text(r'2,5 kg   R$ 50,00'), findsOneWidget);
+      expect(find.text(r'2,5 kg   R$ 50,00   (36,8%)'), findsOneWidget);
     });
 
     testWidgets('D-a — a type with no brand has no arrow to open', (
@@ -246,6 +253,85 @@ void main() {
           matching: find.text('Acém moído'),
         ),
         findsNothing,
+      );
+    });
+
+    testWidgets('G-a — the type line carries the share of its CATEGORY', (
+      tester,
+    ) async {
+      // Carnes is 58,5% of the period and the ground beef under it shows
+      // 100,0%: the number on the line is the one of the level right above.
+      await pumpReports(tester);
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+
+      // `type-2` has no brand breakdown, so its key is a ValueKey on a
+      // ListTile — the one with brands is a PageStorageKey on an
+      // ExpansionTile, which find.byKey(ValueKey(...)) would not reach.
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('type-type-2')),
+          matching: find.text(r'6 kg   R$ 32,00/kg   R$ 192,00   (100,0%)'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text(r'R$ 192,00   (58,5%)'), findsNothing);
+    });
+
+    testWidgets('G-b — the shown brands may add up to less than 100%', (
+      tester,
+    ) async {
+      // R$ 100,00 of Sadia inside R$ 300,00 of chicken: the rest was bought
+      // with no brand, C2 keeps it out of the breakdown, and the line reads
+      // 33,3% instead of a made-up 100%.
+      final report = PeriodReport(
+        categories: [
+          const CategorySpending(
+            categoryId: 'cat-2',
+            name: 'Carnes',
+            spent: Money(30000),
+          ),
+        ].lock,
+        types: [
+          TypeSpending(
+            productTypeId: 'type-5',
+            categoryId: 'cat-2',
+            name: 'Frango',
+            baseUnit: BaseUnit.kilogram,
+            quantityInBaseUnit: 9000,
+            spent: const Money(30000),
+          ),
+        ].lock,
+        brands: [
+          const BrandSpending(
+            productTypeId: 'type-5',
+            brandId: 'brand-5',
+            name: 'Sadia',
+            quantityInBaseUnit: 3000,
+            spent: Money(10000),
+          ),
+          const BrandSpending(
+            productTypeId: 'type-5',
+            brandId: null,
+            name: null,
+            quantityInBaseUnit: 6000,
+            spent: Money(20000),
+          ),
+        ].lock,
+      );
+      await pumpReports(tester, repository: _SpyRepository(fixed: report));
+
+      await tester.tap(find.byKey(const ValueKey('show-detail')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Frango'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sadia'), findsOneWidget);
+      expect(find.text(r'3 kg   R$ 100,00   (33,3%)'), findsOneWidget);
+      // The type itself lost nothing: only the shown brands add up to less.
+      expect(
+        find.text(r'9 kg   R$ 33,33/kg   R$ 300,00   (100,0%)'),
+        findsOneWidget,
       );
     });
 

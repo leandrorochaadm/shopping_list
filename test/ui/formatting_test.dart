@@ -61,6 +61,30 @@ void main() {
     });
   });
 
+  group('formatPercent', () {
+    test('writes the tenth with the comma of pt-BR', () {
+      expect(formatPercent(585), '58,5%');
+    });
+
+    test('the whole share writes the zero of the decimal place', () {
+      // What a category with a single type shows.
+      expect(formatPercent(1000), '100,0%');
+    });
+
+    test('zero is written whole', () {
+      expect(formatPercent(0), '0,0%');
+    });
+
+    test('half a tenth keeps the units digit', () {
+      expect(formatPercent(5), '0,5%');
+    });
+
+    test('above 100% is representable, and reaches the screen', () {
+      // The rounding drift of three lines adding up past the whole.
+      expect(formatPercent(1001), '100,1%');
+    });
+  });
+
   group('the month labels of screen 5', () {
     test('formatMonthName capitalizes what DateFormat lowers', () {
       // A button reading `‹ julho` is the kind of thing only seen on the

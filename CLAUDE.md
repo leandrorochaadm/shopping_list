@@ -135,6 +135,8 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | gasto por tipo | `TypeSpending` | o nível que soma: quantidade na unidade base, preço médio e total |
 | gasto por marca | `BrandSpending` | dentro do tipo. `brandId`/`name` **nulos** são o grupo sem marca, que o C2 descarta |
 | seção do relatório | `ReportSection` / `ReportTypeLine` | a árvore que a Tela 5 desenha, montada por `buildReportSections` |
+| linha de marca do relatório | `ReportBrandLine` | marca + a fatia que ela levou **do tipo**. A soma das linhas pode dar menos de 100%, e isso é o C2 |
+| fatia de um nível no nível acima | `spendingShareInTenths` / `percentageInTenths` | inteiro em **décimos de ponto percentual**, 0 a 1000. **Nunca `double`**, e o `1000` só existe dentro da função |
 | teto de gasto | `SpendingCap` | valor + mês em que passou a valer. Uma linha por **alteração**, nunca por mês |
 | os dois cortes | `CapThreshold.approaching` / `.exceeded` | 80% e 100%. **O único lugar onde os dois números existem** |
 | aviso de teto já dado | `CapAlerts` | as duas marcas de um mês. `false` é "não está cruzado", que é o que o **rearme** escreve |
@@ -562,6 +564,11 @@ vigor no código** — não reabrir sem o usuário pedir.
 | A folha em lançamento fora do recorte (**F-j**) | — não estava escrito | **ela SEMPRE aparece em `shown`**, e por isso `costCandidatesOf` recebe `launching` | sem isso o painel abre **sem caixa marcada nenhuma** justamente no caso motivador do requisito 17 — "vale a pena levar o tamanho grande que eu nunca levei" — e no caso da F-i |
 | A linha do painel (**F-k**) | `wireframes §#3a` desenha uma tabela de cinco colunas | **duas alturas**: o nome sozinho em cima, caixa + preço + custo + `−%` embaixo | as colunas fixas mais o alvo de toque somam ~220 pt; num iPhone 12 (390 pt) o nome longo quebra em três linhas e desalinha a coluna que o olho percorre. Em duas alturas o alinhamento é **melhor**, não pior |
 | O `if case` do `_selected` (**F-l**) | o plano escrevia `if (widget.launching.id case final id?) id` | **o null-aware element `{?widget.launching.id}`** | o `use_null_aware_elements` do `flutter_lints` do projeto acusa a forma do plano, e o checklist exige `flutter analyze` limpo. É a primeira ocorrência da sintaxe em `lib/`, e é o lint do projeto que a pede |
+| O `%` do tipo e o da marca (**G-a**) | — não estava escrito | o do **tipo** é sobre o total da **categoria**, e o da **marca** sobre o total do **tipo** — nunca sobre o total do período | é o número escrito na linha imediatamente acima, na mesma tela. Dividir pelo período responderia "que fatia do mês foi Coca-Cola", que é uma pergunta que a tela não faz e que ninguém consegue conferir de cabeça |
+| A soma dos `%` das marcas (**G-b**) | — não estava escrito | **pode dar menos de 100%**, e isso é aceito | a regra **C2** descarta o grupo de marca nula do detalhamento, mas o total do tipo continua contando o que ele gastou. Um "soma 66,7%" diz que um terço da compra daquele tipo não tinha marca registrada — e essa é justamente a informação que dividir pela soma das marcas mostradas apagaria. **Escolhido pelo usuário em 31/08/2026** |
+| Onde a fórmula do percentual mora (**G-c**) | a conta estava dentro de `PeriodReport.percentageOf` | uma função pura só, `spendingShareInTenths`, e a da H12 **delega a ela** | três cópias do arredondamento meio-para-cima são três lugares para divergirem no meio décimo |
+| A casa decimal do percentual (**G-d**) | `requisitos §7` e `wireframes §Tela 5` escrevem "40%" | **uma casa decimal, nos TRÊS níveis** — `(45,1%)`, não `(45%)` | **escolhido pelo usuário em 31/08/2026**, sabendo que alcança a H12. Duas réguas na mesma tela — a categoria inteira e o tipo com decimal, uma linha abaixo da outra — seria pior do que a divergência. A divergência é de exibição, o número é o mesmo com mais precisão, e voltar atrás é trocar o `1000` por `100` num lugar só |
+| Como o décimo é representado (**G-e**) | — não estava escrito | um **`int` em décimos de ponto percentual** (0..1000), nunca um `double`, e o nome do campo diz a unidade: `percentageInTenths` | é a decisão 24 / `R15` outra vez, e é a casa da regra 6: `spendingShareInTenths` é o único lugar do projeto onde o `1000` existe. O nome longo é o estilo da casa — `quantityInBaseUnit`, `costPerBaseUnit` |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 
@@ -663,13 +670,23 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 31/08/2026**, ao fim da Entrega 9
-(`temp/plan/plano-h19-calculadora-de-custo-2026-08-31.md`, os 15 passos — H19).
-`flutter analyze` limpo, **1348 testes verdes**, cobertura de linha **92,8%** — acima do
-piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve, e **os dois
-arquivos novos desta entrega estão em 100%**. **As dezenove histórias estão fechadas, e
-com elas os 18 requisitos Essenciais.** As onze telas já existiam desde a Entrega 8 — a
-H19 não cria tela nenhuma: o `#3a` é um painel. Antes dela veio a Entrega 8
+**Atualizado em 31/08/2026**, ao fim da Entrega 10
+(`temp/plan/plano-percentuais-tipo-e-marca-2026-08-31.md`, os 14 passos).
+`flutter analyze` limpo, **1387 testes verdes**, cobertura de linha **94,1%** — acima do
+piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve, e **os cinco
+arquivos tocados por esta entrega estão em 100%**. **As dezenove histórias estão
+fechadas, e com elas os 18 requisitos Essenciais** — a Entrega 10 é **acréscimo fora
+delas**, pedido pelo usuário em 31/08/2026: nenhuma H e nenhum requisito pedem o
+percentual de **tipo dentro da categoria** e de **marca dentro do tipo**, e a casa
+decimal que veio junto (decisão **G-d**) alcança de volta a H12. Sem migration, sem
+repository, sem provider e sem rota — a fatia é uma divisão em Dart sobre as três
+agregações que a `report_period` já devolve.
+
+Antes dela veio a Entrega 9
+(`plano-h19-calculadora-de-custo-2026-08-31.md`, os 15 passos — H19), que fechou a
+última história. As onze telas já existiam desde a Entrega 8 — nem a H19 nem a Entrega
+10 criam tela: o `#3a` é um painel, e os percentuais são texto nas duas visões da Tela
+5. Antes veio a Entrega 8
 (`plano-h17-h18-planejar-2026-08-30.md`, os 32 passos), onde morreram
 `pending_destinations.dart` e `under_construction_screen.dart`; a Entrega 7
 (`plano-h15-h16-estou-pagando-caro-2026-08-30.md`, os 27 passos), a Entrega 6 (`plano-h13-h14-teto-e-item-repetido-2026-08-30.md`, os 30 passos), a
@@ -708,7 +725,7 @@ Ele devolve hoje uma linha só, e ela é falso positivo: `Radio<int>(value: ...)
 foi paga.** Era de dois arquivos da Entrega 2 sem teste de widget nenhum —
 `ui/shopping_list/widgets/item_dialog.dart` (0 de 140 linhas) e `add_item_panel.dart`
 (1 de 130) —, e os dois ganharam o seu na linha 1 daquela entrega, **antes** de qualquer
-código dela. Hoje o projeto está em **91,6%**, e **todo arquivo de `ui/report/` está em
+código dela. Hoje o projeto está em **94,1%**, e **todo arquivo de `ui/report/` está em
 100%**. A margem continua estreita: uma tela nova sem teste volta a derrubá-la.
 
 **Existe:** o esqueleto — `pubspec` (com o Flutter 3.44.0 pinado), `config/`, `routing/`
@@ -754,7 +771,7 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   telas atrás do `≡`**: o histórico paginado, a correção e a manutenção do cadastro.
 - **H11/H12 — para onde foi o dinheiro (Entrega 5):** o domínio novo (`ReportPeriod` com
   `monthOf`/`shiftedByMonths`/`canShiftForward`/`latestSelectableDay`, `PeriodReport` com
-  as três agregações e o `percentageOf` da H12, e `buildReportSections` com a ordenação
+  as três agregações e o `percentageInTenthsOf` da H12, e `buildReportSections` com a ordenação
   de três níveis e a regra C2), o `report_repository` (abstract + `_local` + `_remote`), a
   função `report_period(p_from, p_to)`, dois notifiers (`ReportPeriodNotifier` —
   **onde o relógio entra no sistema** — e `ReportViewModel`) e a **Tela 5, aba Resumo**,
@@ -792,6 +809,14 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   o `MonthlyAverageViewModel` — **um só para as duas telas** —, o `add(quantity:)` e o
   `addMany` do `ShoppingListViewModel`, os **dois modos** do `ItemDialog`
   (`.editing`/`.creating`), a **Tela 2** e a **Tela 6**.
+- **Entrega 10 — os percentuais de tipo e de marca (fora das 19 histórias):**
+  `spendingShareInTenths` em `period_report.dart` — a aritmética meio-para-cima **em
+  inteiros**, o único lugar do projeto onde o `1000` da G-d existe, e para onde a conta
+  da H12 se mudou (`percentageOf` virou `percentageInTenthsOf` e **delega**) —, o
+  `ReportBrandLine` e o `percentageInTenths` de `ReportTypeLine` e `ReportSection` em
+  `report_section.dart`, e o `formatPercent` de `ui/core/formatting.dart`, que é o
+  **único** lugar que escreve a vírgula do percentual. As duas visões da Tela 5 passaram
+  a desenhar os três números; nada em `data/` foi tocado.
 - **H19 — a calculadora de custo proporcional (Entrega 9):** o domínio novo
   (`proportional_cost.dart` com `costTieThreshold`, `contentPricedOf`, `openingPriceOf`,
   `CostCandidates`/`costCandidatesOf`, `CostLine`, `CostRanking`, `rankCosts` e

@@ -20,8 +20,8 @@ Override reportOverride({ReportRepository? repository}) =>
 /// test and the widget test count the same numbers instead of two fixtures
 /// that drift apart.
 ///
-///   * Carnes  R$ 192,00 (58%) — Acém moído, 6 kg at R$ 32,00/kg, no brand
-///   * Limpeza R$ 136,00 (42%) — Sabão em pó, 6,8 kg at R$ 20,00/kg,
+///   * Carnes  R$ 192,00 (58,5%) — Acém moído, 6 kg at R$ 32,00/kg, no brand
+///   * Limpeza R$ 136,00 (41,5%) — Sabão em pó, 6,8 kg at R$ 20,00/kg,
 ///     splitting into Omo (4,3 kg, R$ 86,00) and Tixan (2,5 kg, R$ 50,00)
 ///
 /// Total do período: R$ 328,00.

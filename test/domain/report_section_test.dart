@@ -128,7 +128,7 @@ void main() {
       );
 
       expect(
-        sections.single.types.single.brands.map((b) => b.name).toList(),
+        sections.single.types.single.brands.map((b) => b.brand.name).toList(),
         ['Omo', 'Tixan'],
       );
     });
@@ -149,12 +149,12 @@ void main() {
 
       final line = sections.single.types.single;
       expect(line.brands, hasLength(1));
-      expect(line.brands.single.name, 'Omo');
+      expect(line.brands.single.brand.name, 'Omo');
       // The type's total still counts what the unbranded purchase spent: the
       // open lines may add up to LESS than the line above them, and that is
       // accepted.
       expect(line.type.spent, const Money(13600));
-      expect(line.brands.single.spent, const Money(8600));
+      expect(line.brands.single.brand.spent, const Money(8600));
     });
 
     test('D-a — a type with only unbranded purchases offers no expansion', () {
@@ -187,7 +187,7 @@ void main() {
       final line = sections.single.types.single;
       expect(line.hasBrandBreakdown, isTrue);
       expect(line.brands, hasLength(1));
-      expect(line.brands.single.name, 'Sadia');
+      expect(line.brands.single.brand.name, 'Sadia');
     });
 
     test('a type with no brand row at all offers no expansion either', () {
@@ -214,13 +214,13 @@ void main() {
 
       for (final section in sections) {
         expect(
-          section.percentage,
-          report.percentageOf(section.category),
+          section.percentageInTenths,
+          report.percentageInTenthsOf(section.category),
           reason: section.category.name,
         );
       }
-      expect(sections.first.percentage, 60);
-      expect(sections.last.percentage, 40);
+      expect(sections.first.percentageInTenths, 600);
+      expect(sections.last.percentageInTenths, 400);
     });
 
     test('a category with no type comes back with an empty list, not absent', () {
@@ -251,35 +251,189 @@ void main() {
     });
   });
 
-  test('the two toStrings name the row, for a failed expect()', () {
+  group('the percentage of each level, against the one above', () {
+    test('the type divides by its CATEGORY, not by the period', () {
+      // The second category is what makes the two divisors differ — and the
+      // types are 80/20 on purpose, so the smaller one does not land on the
+      // same number as the section.
+      final sections = buildReportSections(
+        reportOf(
+          categories: [
+            category('cat-1', 'Bebidas', 10000),
+            category('cat-2', 'Carnes', 30000),
+          ],
+          types: [
+            type('type-1', 'cat-1', 'Refrigerante', 8000),
+            type('type-3', 'cat-1', 'Suco', 2000),
+          ],
+        ),
+      );
+
+      final drinks = sections.firstWhere(
+        (s) => s.category.categoryId == 'cat-1',
+      );
+      // G-a: 25,0% of the period, and the types below it read 80% and 20% of
+      // the category — not 20% and 5% of the period.
+      expect(drinks.percentageInTenths, 250);
+      expect(
+        drinks.types.map((t) => t.percentageInTenths).toList(),
+        [800, 200],
+      );
+    });
+
+    test('the brand divides by its TYPE', () {
+      final sections = buildReportSections(
+        reportOf(
+          categories: [category('cat-1', 'Bebidas', 10000)],
+          types: [type('type-1', 'cat-1', 'Refrigerante', 10000)],
+          brands: [
+            brand('type-1', 'brand-1', 'Coca-Cola', 8000),
+            brand('type-1', 'brand-9', 'Pepsi', 2000),
+          ],
+        ),
+      );
+
+      expect(
+        sections.single.types.single.brands
+            .map((b) => b.percentageInTenths)
+            .toList(),
+        [800, 200],
+      );
+    });
+
+    test('G-b — the brands add up to less than 100% when C2 dropped a group', () {
+      // R$ 100,00 with a brand out of R$ 150,00 spent: the third with no
+      // brand is not a line, and the shown one is 66,7% — never 100%.
+      final sections = buildReportSections(
+        reportOf(
+          categories: [category('cat-2', 'Carnes', 15000)],
+          types: [type('type-5', 'cat-2', 'Frango', 15000)],
+          brands: [
+            brand('type-5', 'brand-5', 'Sadia', 10000),
+            brand('type-5', null, null, 5000),
+          ],
+        ),
+      );
+
+      final line = sections.single.types.single;
+      expect(line.brands, hasLength(1));
+      expect(line.brands.single.percentageInTenths, 667);
+      // And the type did not lose anything: it is still the whole category.
+      expect(line.percentageInTenths, 1000);
+    });
+
+    test('a category that spent nothing does not divide by zero', () {
+      final sections = buildReportSections(
+        reportOf(
+          categories: [category('cat-1', 'Bebidas', 0)],
+          types: [type('type-1', 'cat-1', 'Refrigerante', 0)],
+        ),
+      );
+
+      expect(sections.single.types.single.percentageInTenths, 0);
+    });
+
+    test('a type that spent nothing does not divide by zero', () {
+      final sections = buildReportSections(
+        reportOf(
+          categories: [category('cat-1', 'Bebidas', 0)],
+          types: [type('type-1', 'cat-1', 'Refrigerante', 0)],
+          brands: [brand('type-1', 'brand-1', 'Coca-Cola', 0)],
+        ),
+      );
+
+      expect(sections.single.types.single.brands.single.percentageInTenths, 0);
+    });
+
+    test('the half tenth rounds up all the way to the line', () {
+      // R$ 48,06 of R$ 120,00 is 40,05% — up, to 40,1%. Without this case
+      // nothing says the line calls spendingShareInTenths and not a `~/`
+      // written by hand.
+      final sections = buildReportSections(
+        reportOf(
+          categories: [category('cat-1', 'Bebidas', 12000)],
+          types: [type('type-1', 'cat-1', 'Refrigerante', 4806)],
+        ),
+      );
+
+      expect(sections.single.types.single.percentageInTenths, 401);
+    });
+  });
+
+  test('the three toStrings name the row, for a failed expect()', () {
+    expect(
+      ReportBrandLine(
+        brand: brand('type-4', 'brand-2', 'Omo', 8600, quantity: 4300),
+        percentageInTenths: 632,
+      ).toString(),
+      'ReportBrandLine(Omo, 632)',
+    );
     expect(
       ReportTypeLine(
         type: type('type-4', 'cat-3', 'Sabão em pó', 13600, quantity: 6800),
+        percentageInTenths: 791,
         brands: [
-          brand('type-4', 'brand-2', 'Omo', 8600, quantity: 4300),
+          ReportBrandLine(
+            brand: brand('type-4', 'brand-2', 'Omo', 8600, quantity: 4300),
+            percentageInTenths: 632,
+          ),
         ].lock,
       ).toString(),
-      'ReportTypeLine(Sabão em pó, 1 marcas)',
+      'ReportTypeLine(Sabão em pó, 791, 1 marcas)',
     );
     expect(
       ReportSection(
         category: category('cat-2', 'Carnes', 48000),
-        percentage: 40,
+        percentageInTenths: 400,
         types: const IList<ReportTypeLine>.empty(),
       ).toString(),
-      'ReportSection(Carnes, 40%, 0 tipos)',
+      'ReportSection(Carnes, 400, 0 tipos)',
     );
   });
 
   group('equality', () {
-    test('ReportTypeLine covers both fields', () {
+    test('ReportBrandLine covers both fields', () {
+      final line = ReportBrandLine(
+        brand: brand('type-1', 'brand-1', 'Coca-Cola', 6200),
+        percentageInTenths: 1000,
+      );
+      final same = ReportBrandLine(
+        brand: brand('type-1', 'brand-1', 'Coca-Cola', 6200),
+        percentageInTenths: 1000,
+      );
+
+      expect(line, same);
+      expect(line.hashCode, same.hashCode);
+
+      expect(
+        line ==
+            ReportBrandLine(
+              brand: brand('type-1', 'brand-9', 'Pepsi', 6200),
+              percentageInTenths: 1000,
+            ),
+        isFalse,
+      );
+      expect(
+        line ==
+            ReportBrandLine(brand: line.brand, percentageInTenths: 999),
+        isFalse,
+      );
+    });
+
+    test('ReportTypeLine covers all three fields', () {
+      ReportBrandLine coke() => ReportBrandLine(
+        brand: brand('type-1', 'brand-1', 'Coca-Cola', 6200),
+        percentageInTenths: 1000,
+      );
       final line = ReportTypeLine(
         type: type('type-1', 'cat-1', 'Refrigerante', 6200),
-        brands: [brand('type-1', 'brand-1', 'Coca-Cola', 6200)].lock,
+        percentageInTenths: 1000,
+        brands: [coke()].lock,
       );
       final same = ReportTypeLine(
         type: type('type-1', 'cat-1', 'Refrigerante', 6200),
-        brands: [brand('type-1', 'brand-1', 'Coca-Cola', 6200)].lock,
+        percentageInTenths: 1000,
+        brands: [coke()].lock,
       );
 
       expect(line, same);
@@ -289,6 +443,7 @@ void main() {
         line ==
             ReportTypeLine(
               type: type('type-9', 'cat-1', 'Refrigerante', 6200),
+              percentageInTenths: line.percentageInTenths,
               brands: line.brands,
             ),
         isFalse,
@@ -297,7 +452,17 @@ void main() {
         line ==
             ReportTypeLine(
               type: line.type,
-              brands: const IList<BrandSpending>.empty(),
+              percentageInTenths: 999,
+              brands: line.brands,
+            ),
+        isFalse,
+      );
+      expect(
+        line ==
+            ReportTypeLine(
+              type: line.type,
+              percentageInTenths: line.percentageInTenths,
+              brands: const IList<ReportBrandLine>.empty(),
             ),
         isFalse,
       );
@@ -306,12 +471,12 @@ void main() {
     test('ReportSection covers all three fields', () {
       final section = ReportSection(
         category: category('cat-1', 'Bebidas', 6200),
-        percentage: 40,
+        percentageInTenths: 400,
         types: const IList<ReportTypeLine>.empty(),
       );
       final same = ReportSection(
         category: category('cat-1', 'Bebidas', 6200),
-        percentage: 40,
+        percentageInTenths: 400,
         types: const IList<ReportTypeLine>.empty(),
       );
 
@@ -322,7 +487,7 @@ void main() {
         section ==
             ReportSection(
               category: category('cat-2', 'Bebidas', 6200),
-              percentage: 40,
+              percentageInTenths: 400,
               types: const IList<ReportTypeLine>.empty(),
             ),
         isFalse,
@@ -331,7 +496,7 @@ void main() {
         section ==
             ReportSection(
               category: section.category,
-              percentage: 41,
+              percentageInTenths: 401,
               types: const IList<ReportTypeLine>.empty(),
             ),
         isFalse,
@@ -340,11 +505,12 @@ void main() {
         section ==
             ReportSection(
               category: section.category,
-              percentage: 40,
+              percentageInTenths: 400,
               types: [
                 ReportTypeLine(
                   type: type('type-1', 'cat-1', 'Refrigerante', 6200),
-                  brands: const IList<BrandSpending>.empty(),
+                  percentageInTenths: 1000,
+                  brands: const IList<ReportBrandLine>.empty(),
                 ),
               ].lock,
             ),

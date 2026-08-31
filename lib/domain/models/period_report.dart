@@ -204,6 +204,30 @@ final class BrandSpending {
       '${spent.cents})';
 }
 
+/// The weight of one part in a whole, in TENTHS of a percentage point: 585 is
+/// 58,5%.
+///
+/// It is the arithmetic H12 wrote for the category, pulled out so the three
+/// levels of screen 5 divide the SAME way (decision G-c), and widened by one
+/// decimal place (decision G-d). Rounded half-up and never going through a
+/// `double` — the tenth is an integer, and only `formatPercent` writes the
+/// comma (decision G-e).
+///
+/// **The `1000` is the only one in the project**, and it is the whole of
+/// decision G-d: going back to the integer percentage of `requisitos §7` is
+/// changing it to `100` here and nowhere else (rule 6).
+///
+/// **A whole of zero answers 0 instead of dividing by zero, and that case
+/// REACHES the screen** — the schema accepts `total_paid >= 0`, so a period
+/// where everything was free has lines and a zero total.
+int spendingShareInTenths({required Money part, required Money whole}) {
+  final all = whole.cents;
+  if (all == 0) return 0;
+  // Half-up without a single division in floating point:
+  // floor(v + 0.5) == (2·numerator + denominator) ~/ (2·denominator).
+  return (part.cents * 1000 * 2 + all) ~/ (all * 2);
+}
+
 /// The three aggregations of the SAME interval, as the `report_period`
 /// function returns them.
 ///
@@ -252,19 +276,18 @@ final class PeriodReport {
   /// **H12** — the weight of a category in the total of the PERIOD, not of
   /// the month.
   ///
-  /// An integer, rounded half-up, never going through a `double`: 40%, as
-  /// requirement 7 writes it.
+  /// An integer in TENTHS of a percentage point, rounded half-up, never going
+  /// through a `double`: 40,0% as requirement 7 writes it, with the decimal
+  /// place decision G-d added. The arithmetic is
+  /// [spendingShareInTenths], shared with the two levels below (decision G-c).
   ///
   /// **A total of zero answers 0 instead of dividing by zero, and that case
   /// REACHES the screen** — it is not only the guard of the empty report. The
   /// schema accepts `total_paid >= 0`, so a period where everything was free
   /// has categories and a zero total: `isEmpty` is false, the screen draws the
-  /// lines, "Total do período R$ 0,00" and `(0%)` on each of them.
-  int percentageOf(CategorySpending category) {
-    final all = total.cents;
-    if (all == 0) return 0;
-    return (category.spent.cents * 100 * 2 + all) ~/ (all * 2);
-  }
+  /// lines, "Total do período R$ 0,00" and `(0,0%)` on each of them.
+  int percentageInTenthsOf(CategorySpending category) =>
+      spendingShareInTenths(part: category.spent, whole: total);
 
   static List<Map<String, dynamic>> _rowsOf(Object? value) =>
       ((value as List?) ?? const []).cast<Map<String, dynamic>>();
