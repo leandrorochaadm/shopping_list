@@ -2,7 +2,9 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import 'base_unit.dart';
 import 'brand.dart';
+import 'money.dart';
 import 'name_normalization.dart';
+import 'price_increase.dart';
 import 'price_reference.dart';
 import 'product.dart';
 import 'product_registration.dart';
@@ -26,6 +28,7 @@ final class ProductOption {
     this.purchaseCount = 0,
     this.lastPurchasedOn,
     this.priceReference,
+    this.baseline,
   });
 
   /// Reads the PostgREST embed: the leaf comes with its registration nested,
@@ -54,8 +57,9 @@ final class ProductOption {
   /// in airplane mode, never loaded.
   ///
   /// The history is deliberately left out: [purchaseCount],
-  /// [lastPurchasedOn] and [priceReference] are what the last three months
-  /// say, not what this option IS, and they are recomputed on every load.
+  /// [lastPurchasedOn], [priceReference] and [baseline] are what the last
+  /// three months say, not what this option IS, and they are recomputed on
+  /// every load.
   Map<String, dynamic> toJson() => {
     ...product.toJson(),
     'product_registration': {
@@ -86,6 +90,15 @@ final class ProductOption {
   /// What the last purchase of this leaf paid. Null is the wireframe's "sem
   /// base de comparação" — a product never bought pre-fills nothing.
   final PriceReference? priceReference;
+
+  /// **H15** — the average of the rolling window this typed price is compared
+  /// against, ALREADY resolved: the leaf's when the registration has a brand,
+  /// the type's when it does not. Whoever resolves it is
+  /// `PriceBaselines.forLeaf`, inside `rankOptions`, and never the screen.
+  ///
+  /// Null is the silence of the requirement: a product with no purchase at
+  /// all in the window has no base, and the system stays quiet.
+  final PriceBaseline? baseline;
 
   String? get id => product.id;
 
@@ -123,6 +136,20 @@ final class ProductOption {
     return normalizeName('${type.name} $label').contains(needle);
   }
 
+  /// **H15** — did this price go up? The View ASKS (rule 11); it does not
+  /// compare cents inside `build()`.
+  ///
+  /// [quantityInBaseUnit] is what [toBaseUnit] already converted — the screen
+  /// never hands the raw typed number over.
+  PriceIncrease? priceIncreaseFor({
+    required Money paid,
+    required int quantityInBaseUnit,
+  }) => evaluatePriceIncrease(
+    baseline: baseline,
+    paid: paid,
+    quantityInBaseUnit: quantityInBaseUnit,
+  );
+
   /// Turns what was typed into the type's base unit, in its SMALLEST unit —
   /// and this is the only place that conversion exists.
   ///
@@ -159,6 +186,7 @@ final class ProductOption {
     required int purchaseCount,
     DateTime? lastPurchasedOn,
     PriceReference? priceReference,
+    PriceBaseline? baseline,
   }) => ProductOption(
     product: product,
     registration: registration,
@@ -167,6 +195,7 @@ final class ProductOption {
     purchaseCount: purchaseCount,
     lastPurchasedOn: lastPurchasedOn,
     priceReference: priceReference,
+    baseline: baseline,
   );
 
   @override
@@ -179,7 +208,8 @@ final class ProductOption {
           other.brand == brand &&
           other.purchaseCount == purchaseCount &&
           other.lastPurchasedOn == lastPurchasedOn &&
-          other.priceReference == priceReference);
+          other.priceReference == priceReference &&
+          other.baseline == baseline);
 
   @override
   int get hashCode => Object.hash(
@@ -190,6 +220,7 @@ final class ProductOption {
     purchaseCount,
     lastPurchasedOn,
     priceReference,
+    baseline,
   );
 
   @override
@@ -220,22 +251,27 @@ int compareForPicker(ProductOption a, ProductOption b) {
   return (a.id ?? '').compareTo(b.id ?? '');
 }
 
-/// One type and its options, in the order the picker draws them.
+/// One header and its options, in the order the picker draws them.
 final class ProductGroup {
-  const ProductGroup({required this.type, required this.options});
+  const ProductGroup({required this.header, required this.options});
 
-  final ProductType type;
+  /// pt-BR: the group header inside the picker. On screen 3 it is the name of
+  /// the TYPE (decision C1); on the comparison tab of screen 5 it is the name
+  /// of the CATEGORY. The widget is the same one, which is why it takes text
+  /// and not an entity (decision D-u).
+  final String header;
+
   final IList<ProductOption> options;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is ProductGroup &&
-          other.type == type &&
+          other.header == header &&
           other.options == options;
 
   @override
-  int get hashCode => Object.hash(type, options);
+  int get hashCode => Object.hash(header, options);
 }
 
 /// The picker is GROUPED BY TYPE, so a flat sort is not enough: ordering by
@@ -270,6 +306,6 @@ IList<ProductGroup> groupForPicker(IList<ProductOption> options) {
 
   return [
     for (final key in keys)
-      ProductGroup(type: types[key]!, options: byType[key]!.toIList()),
+      ProductGroup(header: types[key]!.name, options: byType[key]!.toIList()),
   ].toIList();
 }

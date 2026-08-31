@@ -4,6 +4,7 @@ import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
+import 'package:shopping_list/domain/models/price_increase.dart';
 import 'package:shopping_list/domain/models/price_reference.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
@@ -250,8 +251,10 @@ void main() {
       final groups = groupForPicker(options);
 
       expect(groups.length, 2);
-      expect(groups.first.type, beef, reason: 'bought 7 times');
-      expect(groups.last.type, softDrink);
+      // The header is TEXT since 30/08/2026 (decision D-u): the same picker
+      // groups by type on screen 3 and by category on screen 5.
+      expect(groups.first.header, beef.name, reason: 'bought 7 times');
+      expect(groups.last.header, softDrink.name);
       // Inside the group, the most bought first — and NOT interleaved with
       // the beef, which a flat sort would have done.
       expect(
@@ -271,18 +274,81 @@ void main() {
       quantityInBaseUnit: 12000,
       purchasedOn: DateTime(2026, 8, 18),
     );
+    final average = PriceBaseline(
+      paid: const Money(12190),
+      quantityInBaseUnit: 8400,
+    );
     final ranked = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
       purchaseCount: 4,
       lastPurchasedOn: DateTime(2026, 8, 18),
       priceReference: reference,
+      baseline: average,
     );
 
     expect(ranked.purchaseCount, 4);
     expect(ranked.priceReference, reference);
+    expect(ranked.baseline, average);
     expect(ranked.label, 'Coca-Cola 12 × 350 ml');
     expect(ranked.baseUnit, BaseUnit.liter);
     expect(ranked.id, 'p1');
     expect(ranked.isSoldByWeight, isFalse);
+  });
+
+  group('priceIncreaseFor (H15)', () {
+    // 12 × 350 ml, so a crate is 4200 ml; the window paid R$ 121,90 for two
+    // of them — R$ 14,51 a litre.
+    ProductOption withAverage() =>
+        byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
+          purchaseCount: 2,
+          baseline: PriceBaseline(
+            paid: const Money(12190),
+            quantityInBaseUnit: 8400,
+          ),
+        );
+
+    test('the View ASKS the leaf, and the leaf answers the percentage', () {
+      final increase = withAverage().priceIncreaseFor(
+        paid: const Money(7000),
+        quantityInBaseUnit: 4200,
+      );
+
+      expect(increase!.message, 'Subiu 15% sobre a média');
+    });
+
+    test('the suggested value of the same window does not alert', () {
+      expect(
+        withAverage().priceIncreaseFor(
+          paid: const Money(6200),
+          quantityInBaseUnit: 4200,
+        ),
+        isNull,
+      );
+    });
+
+    test('a leaf with no baseline stays quiet', () {
+      expect(
+        byPiece(id: 'p1').priceIncreaseFor(
+          paid: const Money(7000),
+          quantityInBaseUnit: 4200,
+        ),
+        isNull,
+      );
+    });
+  });
+
+  test('toJson leaves the baseline out, like the rest of the history', () {
+    // The draft in Hive must not grow: the baseline is what the last three
+    // months say, not what this option IS.
+    final option = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
+      purchaseCount: 3,
+      baseline: PriceBaseline(
+        paid: const Money(6200),
+        quantityInBaseUnit: 4200,
+      ),
+    );
+
+    expect(option.toJson().containsKey('baseline'), isFalse);
+    expect(ProductOption.fromJson(option.toJson()).baseline, isNull);
   });
 
   test('reads the PostgREST embed, brand included and brand absent', () {
@@ -339,21 +405,39 @@ void main() {
     expect(option, isNot(byPiece(id: 'p2', brand: coke)));
     expect(option, isNot(byPiece(id: 'p1')));
     expect(option, isNot(option.withHistory(purchaseCount: 1)));
+    expect(
+      option,
+      isNot(
+        option.withHistory(
+          purchaseCount: 0,
+          baseline: PriceBaseline(
+            paid: const Money(1000),
+            quantityInBaseUnit: 1000,
+          ),
+        ),
+      ),
+    );
     expect(option.toString(), contains('Coca-Cola'));
   });
 
   group('ProductGroup', () {
-    ProductGroup group({ProductType? type, String optionId = 'p1'}) =>
+    ProductGroup group({String? header, String optionId = 'p1'}) =>
         ProductGroup(
-          type: type ?? softDrink,
+          header: header ?? softDrink.name,
           options: [byPiece(id: optionId)].lock,
         );
 
     test('equality covers every field, so the picker does not rebuild', () {
       expect(group(), group());
       expect(group().hashCode, group().hashCode);
-      expect(group(), isNot(group(type: beef)));
+      expect(group(), isNot(group(header: beef.name)));
       expect(group(), isNot(group(optionId: 'p2')));
+    });
+
+    test('the header is TEXT, so the same group serves both pickers', () {
+      // Screen 3 puts the name of the TYPE in it; the comparison tab of
+      // screen 5 puts the name of the CATEGORY (decision D-u).
+      expect(group(header: 'Bebidas').header, 'Bebidas');
     });
   });
 }
