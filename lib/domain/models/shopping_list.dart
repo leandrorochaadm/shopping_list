@@ -76,3 +76,24 @@ int _compare(String name, String otherName, String tie, String otherTie) {
   final byName = normalizeName(name).compareTo(normalizeName(otherName));
   return byName != 0 ? byName : tie.compareTo(otherTie);
 }
+
+/// The OPEN item of [typeId] the screens point at — screen 6 opens the dialog
+/// on it instead of creating a second line for the same type.
+///
+/// **The oldest one when there is more than one** (decision E-i): the `#1a`
+/// panel blocks the duplicate, but the other phone and the history can produce
+/// it, and without a tiebreak which item the dialog opens would change on
+/// every fetch. `enteredOn` first, the id second — two items can enter on the
+/// same day.
+ShoppingListItem? findOpenItemOfType(
+  IList<ShoppingListItem> items,
+  String typeId,
+) {
+  final candidates =
+      items.where((item) => item.isOpen && item.type.id == typeId).toList()
+        ..sort((a, b) {
+          final byDay = a.enteredOn.compareTo(b.enteredOn);
+          return byDay != 0 ? byDay : (a.id ?? '').compareTo(b.id ?? '');
+        });
+  return candidates.firstOrNull;
+}

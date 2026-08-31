@@ -268,7 +268,9 @@ void main() {
       expect(
         item,
         isNot(
-          item.copyWith(category: Category(id: 'cat-2', name: 'Limpeza')),
+          item.copyWith(
+            category: Category(id: 'cat-2', name: 'Limpeza'),
+          ),
         ),
       );
       expect(item, isNot(_item(brand: _brand)));
@@ -571,10 +573,7 @@ void main() {
     });
 
     test('a deactivated packaging falls the same way', () {
-      final item = _item(
-        brand: _brand,
-        product: _packagedLeaf().deactivated(),
-      );
+      final item = _item(brand: _brand, product: _packagedLeaf().deactivated());
 
       expect(item.effectivePreferredProduct, isNull);
       expect(item.effectiveLabel, 'Leite Italac');
@@ -597,5 +596,74 @@ void main() {
       expect(_item().effectivePreferredProduct, isNull);
     });
   });
-}
 
+  group('listStatusLabel — the sub-line of screen 6', () {
+    test('asked for and untouched: "pedindo"', () {
+      expect(_item(quantity: 6000).listStatusLabel, 'na lista: pedindo 6 L');
+    });
+
+    test('asked for and partially bought: "restam X de Y"', () {
+      // The first number carries no unit because the second one does — the
+      // same shape `wireframes §Tela 1` uses for the balance.
+      expect(
+        _item(quantity: 6000, writtenOffQuantity: 4000).listStatusLabel,
+        'na lista: restam 2 de 6 L',
+      );
+    });
+
+    test('with no quantity it says so, and says nothing about a balance', () {
+      // An item with no quantity leaves the list on the FIRST purchase of the
+      // type, so there is no balance to write.
+      expect(_item(quantity: null).listStatusLabel, 'na lista, sem quantidade');
+    });
+
+    test('"não encontrei" is APPENDED to each of the three (E-h)', () {
+      // No line of the wireframe has both at once, so combining contradicts
+      // none of them — and dropping the "não encontrei" of an item that also
+      // has a quantity would lose the message the other person left.
+      expect(
+        _item(quantity: 6000, notFound: true).listStatusLabel,
+        'na lista: pedindo 6 L, "não encontrei"',
+      );
+      expect(
+        _item(quantity: null, notFound: true).listStatusLabel,
+        'na lista, sem quantidade, "não encontrei"',
+      );
+      expect(
+        _item(
+          quantity: 6000,
+          writtenOffQuantity: 4000,
+          notFound: true,
+        ).listStatusLabel,
+        'na lista: restam 2 de 6 L, "não encontrei"',
+      );
+    });
+
+    test(
+      'a write-off bigger than what was asked reads zero, never negative',
+      () {
+        expect(
+          _item(quantity: 6000, writtenOffQuantity: 9000).listStatusLabel,
+          'na lista: restam 0 de 6 L',
+        );
+      },
+    );
+
+    test('the unit is the type\'s base, whatever the preferred packaging', () {
+      expect(
+        _item(
+          type: _type(name: 'Acém moído', baseUnit: BaseUnit.kilogram),
+          quantity: 2000,
+        ).listStatusLabel,
+        'na lista: pedindo 2 kg',
+      );
+      expect(
+        _item(
+          type: _type(name: 'Papel higiênico', baseUnit: BaseUnit.unit),
+          quantity: 12,
+        ).listStatusLabel,
+        'na lista: pedindo 12 un',
+      );
+    });
+  });
+}

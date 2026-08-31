@@ -104,8 +104,7 @@ final class ShoppingListItem {
   static DateTime? _dayOrNull(Object? value) =>
       value == null ? null : decodeCalendarDay(value as String);
 
-  static int _countWriteOffs(Object? embed) =>
-      embed is List ? embed.length : 0;
+  static int _countWriteOffs(Object? embed) => embed is List ? embed.length : 0;
 
   static int _sumWriteOffs(Object? embed) {
     if (embed is! List) return 0;
@@ -182,7 +181,9 @@ final class ShoppingListItem {
     'not_found': notFound,
     // Both are columns; `writtenOffQuantity` is not — it is the sum of
     // another table, and writing it back would invent a column.
-    'fulfilled_on': fulfilledOn == null ? null : encodeCalendarDay(fulfilledOn!),
+    'fulfilled_on': fulfilledOn == null
+        ? null
+        : encodeCalendarDay(fulfilledOn!),
     'removed_on': removedOn == null ? null : encodeCalendarDay(removedOn!),
   };
 
@@ -288,6 +289,37 @@ final class ShoppingListItem {
   /// '6 kg', '2,5 L', '3 un' — or null when there is no quantity.
   String? get quantityLabel =>
       quantity == null ? null : type.baseUnit.formatQuantity(quantity!);
+
+  /// What screen 6 writes UNDER the line: what the list is asking for, and how.
+  ///
+  /// It is pt-BR in the domain for the same reason `CapThreshold.message` and
+  /// `SameDayAlert.messageFor` are: the four cases ARE the rule, and a
+  /// compound `if` over three fields of this entity inside a `build()` is the
+  /// architecture bug rule 11 names.
+  ///
+  /// The four shapes of `wireframes §Tela 6`, plus the combination (E-h):
+  ///
+  ///   * 'na lista: restam 2 de 6 kg' — asked for, partially bought
+  ///   * 'na lista: pedindo 6 L'      — asked for, untouched
+  ///   * 'na lista, sem quantidade'   — leaves on the first purchase of the
+  ///     type
+  ///   * '…, "não encontrei"'         — appended to whichever of the three
+  ///
+  /// The suffix is APPENDED and does not replace: no line of the wireframe has
+  /// both at once, so combining contradicts none of them — and losing the
+  /// "não encontrei" of an item that also has a quantity would lose the
+  /// message the other person left in the aisle.
+  String get listStatusLabel {
+    final asked = quantity;
+    final base = asked == null
+        ? 'na lista, sem quantidade'
+        : writtenOffQuantity > 0
+        ? 'na lista: restam '
+              '${type.baseUnit.typedMeasure.format(remainingQuantity!)} de '
+              '${type.baseUnit.formatQuantity(asked)}'
+        : 'na lista: pedindo ${type.baseUnit.formatQuantity(asked)}';
+    return notFound ? '$base, "não encontrei"' : base;
+  }
 
   /// What the line writes: 'Leite Italac 1 L', 'Sabão em pó'. Brand and
   /// packaging come in only when they exist, in this order.
