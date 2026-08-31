@@ -7,6 +7,7 @@ import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repo
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/category.dart';
+import 'package:shopping_list/domain/models/monthly_average.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/ui/shopping_list/view_model/shopping_list_view_model.dart';
@@ -38,10 +39,15 @@ class _SpyRepository extends ShoppingListRepositoryLocal {
     return super.fetchAll();
   }
 
+  /// Fails on a CHOSEN call rather than on the next one — `addMany` writes in
+  /// a loop, and `failNextCall` cannot say "the second of three".
+  void Function()? onAdd;
+
   @override
   Future<ShoppingListItem> add(ShoppingListItem item) async {
     addCalls++;
     lastAdded = item;
+    onAdd?.call();
     final failure = _take();
     if (failure != null) throw failure;
     return super.add(item);
@@ -85,6 +91,22 @@ ShoppingListItem _item({
   quantity: quantity,
   enteredOn: DateTime(2026, 8, 28),
   picked: picked,
+);
+
+MonthlyAverage _line({
+  required String typeId,
+  required String name,
+  int average = 700,
+}) => MonthlyAverage(
+  type: ProductType(
+    id: typeId,
+    name: name,
+    categoryId: 'cat-1',
+    baseUnit: BaseUnit.kilogram,
+  ),
+  category: _drinks,
+  average: average,
+  consumedInMonth: 0,
 );
 
 void main() {
@@ -143,20 +165,23 @@ void main() {
     expect(repository.lastAdded!.id!.length, 36);
   });
 
-  test('the checkbox flips the right line and leaves the others alone', () async {
-    final repository = _SpyRepository(initial: seed);
-    final container = containerWith(repository);
-    await container.read(shoppingListViewModelProvider.future);
+  test(
+    'the checkbox flips the right line and leaves the others alone',
+    () async {
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
 
-    final error = await container
-        .read(shoppingListViewModelProvider.notifier)
-        .togglePicked(seed.first);
+      final error = await container
+          .read(shoppingListViewModelProvider.notifier)
+          .togglePicked(seed.first);
 
-    expect(error, isNull);
-    final items = container.read(shoppingListViewModelProvider).value!;
-    expect(items.firstWhere((i) => i.id == 'item-1').picked, isTrue);
-    expect(items.firstWhere((i) => i.id == 'item-2').picked, isFalse);
-  });
+      expect(error, isNull);
+      final items = container.read(shoppingListViewModelProvider).value!;
+      expect(items.firstWhere((i) => i.id == 'item-1').picked, isTrue);
+      expect(items.firstWhere((i) => i.id == 'item-2').picked, isFalse);
+    },
+  );
 
   test('the checkbox never passes through "não encontrei"', () async {
     final marked = _item().markedNotFound();
@@ -185,10 +210,7 @@ void main() {
 
     expect(error, isNull);
     expect(repository.updateCalls, 1);
-    expect(
-      container.read(shoppingListViewModelProvider).value!.first,
-      edited,
-    );
+    expect(container.read(shoppingListViewModelProvider).value!.first, edited);
   });
 
   test('removes the line by hand', () async {
@@ -208,41 +230,53 @@ void main() {
     );
   });
 
-  test('a failed action keeps the list on screen and answers a sentence', () async {
-    final repository = _SpyRepository(initial: seed);
-    final container = containerWith(repository);
-    await container.read(shoppingListViewModelProvider.future);
+  test(
+    'a failed action keeps the list on screen and answers a sentence',
+    () async {
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
 
-    repository.failNextCall = NetworkException('offline');
+      repository.failNextCall = NetworkException('offline');
 
-    expect(
-      await container
-          .read(shoppingListViewModelProvider.notifier)
-          .togglePicked(seed.first),
-      'Sem conexão. Verifique a internet e tente de novo.',
-    );
-    expect(container.read(shoppingListViewModelProvider).value, seed.toIList());
-    expect(container.read(shoppingListViewModelProvider).hasError, isFalse);
-  });
+      expect(
+        await container
+            .read(shoppingListViewModelProvider.notifier)
+            .togglePicked(seed.first),
+        'Sem conexão. Verifique a internet e tente de novo.',
+      );
+      expect(
+        container.read(shoppingListViewModelProvider).value,
+        seed.toIList(),
+      );
+      expect(container.read(shoppingListViewModelProvider).hasError, isFalse);
+    },
+  );
 
-  test('shows the failure on screen when there is nothing to fall back on', () async {
-    final repository = _SpyRepository(initial: seed)
-      ..failNextCall = NetworkException('offline');
-    final container = containerWith(repository);
+  test(
+    'shows the failure on screen when there is nothing to fall back on',
+    () async {
+      final repository = _SpyRepository(initial: seed)
+        ..failNextCall = NetworkException('offline');
+      final container = containerWith(repository);
 
-    await expectLater(
-      container.read(shoppingListViewModelProvider.future),
-      throwsA(isA<NetworkException>()),
-    );
-    expect(container.read(shoppingListViewModelProvider).hasError, isTrue);
+      await expectLater(
+        container.read(shoppingListViewModelProvider.future),
+        throwsA(isA<NetworkException>()),
+      );
+      expect(container.read(shoppingListViewModelProvider).hasError, isTrue);
 
-    // And the retry that works puts the list back.
-    expect(
-      await container.read(shoppingListViewModelProvider.notifier).refresh(),
-      isNull,
-    );
-    expect(container.read(shoppingListViewModelProvider).value, seed.toIList());
-  });
+      // And the retry that works puts the list back.
+      expect(
+        await container.read(shoppingListViewModelProvider.notifier).refresh(),
+        isNull,
+      );
+      expect(
+        container.read(shoppingListViewModelProvider).value,
+        seed.toIList(),
+      );
+    },
+  );
 
   test('keeps the previous list when a refresh fails', () async {
     final repository = _SpyRepository(initial: seed);
@@ -328,5 +362,158 @@ void main() {
         );
       });
     }
+  });
+
+  group('add with a quantity, and addMany — the doors of H17 and H18', () {
+    test('add stores the quantity screen 6 handed over', () async {
+      // The `#1a` panel still passes nothing and the item is still born with
+      // no quantity; screen 6 passes it because it opened the dialog FROM a
+      // number.
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+
+      final error = await container
+          .read(shoppingListViewModelProvider.notifier)
+          .add(_milk, _drinks, quantity: 2000, today: DateTime(2026, 8, 28));
+
+      expect(error, isNull);
+      expect(repository.lastAdded!.quantity, 2000);
+    });
+
+    test('add with no quantity keeps being the `#1a` path', () async {
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+
+      await container
+          .read(shoppingListViewModelProvider.notifier)
+          .add(_milk, _drinks, today: DateTime(2026, 8, 28));
+
+      expect(repository.lastAdded!.quantity, isNull);
+    });
+
+    test(
+      'addMany writes one item per chosen line, with the suggestion in it',
+      () async {
+        final repository = _SpyRepository(initial: seed);
+        final container = containerWith(repository);
+        await container.read(shoppingListViewModelProvider.future);
+
+        final error = await container
+            .read(shoppingListViewModelProvider.notifier)
+            .addMany(
+              [
+                _line(typeId: 'type-5', name: 'Café', average: 700),
+                _line(typeId: 'type-4', name: 'Sabão em pó', average: 8000),
+                _line(typeId: 'type-2', name: 'Acém moído', average: 6000),
+              ].lock,
+              today: DateTime(2026, 8, 28),
+            );
+
+        expect(error, isNull);
+        expect(repository.addCalls, 3);
+        expect(
+          container.read(shoppingListViewModelProvider).value,
+          hasLength(5),
+        );
+        // The last one written carries its own average, not a shared one.
+        expect(repository.lastAdded!.quantity, 6000);
+        expect(repository.lastAdded!.enteredOn, DateTime(2026, 8, 28));
+      },
+    );
+
+    test('a line with NO average goes in with no quantity (E-j)', () async {
+      // `ShoppingListItem` refuses a quantity of zero, and an item with no
+      // quantity is the right answer: it leaves the list on the first purchase
+      // of the type, exactly what the `#1a` panel creates.
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+
+      final error = await container
+          .read(shoppingListViewModelProvider.notifier)
+          .addMany(
+            [_line(typeId: 'type-7', name: 'Esquecido', average: 0)].lock,
+            today: DateTime(2026, 8, 28),
+          );
+
+      expect(error, isNull);
+      expect(repository.lastAdded!.quantity, isNull);
+    });
+
+    test(
+      'failing on the second KEEPS the first and returns the sentence',
+      () async {
+        // The behaviour is deliberate: what went in went in. The screen needs no
+        // counter — the lines that made it come back from the list locked.
+        final repository = _SpyRepository(initial: seed);
+        final container = containerWith(repository);
+        await container.read(shoppingListViewModelProvider.future);
+
+        var written = 0;
+        repository.onAdd = () {
+          written++;
+          if (written == 2) throw ApiException(500, 'boom');
+        };
+
+        final error = await container
+            .read(shoppingListViewModelProvider.notifier)
+            .addMany(
+              [
+                _line(typeId: 'type-5', name: 'Café'),
+                _line(typeId: 'type-4', name: 'Sabão em pó'),
+                _line(typeId: 'type-2', name: 'Acém moído'),
+              ].lock,
+              today: DateTime(2026, 8, 28),
+            );
+
+        expect(error, isNotNull);
+        // The raw exception NEVER reaches the user.
+        expect(error, isNot(contains('boom')));
+        // Two of the three lines were attempted, and the first one stayed.
+        expect(
+          container.read(shoppingListViewModelProvider).value,
+          hasLength(3),
+        );
+      },
+    );
+
+    test('addMany guards against the double tap', () async {
+      // Without the guard the second tap writes every item again. The case has
+      // to FAIL if the `if (_running) return null;` is removed.
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+
+      final notifier = container.read(shoppingListViewModelProvider.notifier);
+      final chosen = [
+        _line(typeId: 'type-5', name: 'Café'),
+        _line(typeId: 'type-4', name: 'Sabão em pó'),
+      ].lock;
+
+      final results = await Future.wait([
+        notifier.addMany(chosen, today: DateTime(2026, 8, 28)),
+        notifier.addMany(chosen, today: DateTime(2026, 8, 28)),
+      ]);
+
+      expect(repository.addCalls, 2, reason: 'ONE addMany of two lines');
+      // The second one did nothing, and says so with a null — not a third
+      // outcome.
+      expect(results, [null, null]);
+    });
+
+    test('an empty selection writes nothing and succeeds', () async {
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+
+      final error = await container
+          .read(shoppingListViewModelProvider.notifier)
+          .addMany(const IList<MonthlyAverage>.empty());
+
+      expect(error, isNull);
+      expect(repository.addCalls, 0);
+    });
   });
 }

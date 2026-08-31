@@ -31,7 +31,17 @@ class _SpyList extends ShoppingListRepositoryLocal {
   Object? failNextWrite;
 
   final List<ShoppingListItem> written = [];
+  final List<ShoppingListItem> added = [];
   final List<ShoppingListItem> removed = [];
+
+  @override
+  Future<ShoppingListItem> add(ShoppingListItem item) async {
+    final failure = failNextWrite;
+    failNextWrite = null;
+    if (failure != null) throw failure;
+    added.add(item);
+    return super.add(item);
+  }
 
   @override
   Future<ShoppingListItem> update(ShoppingListItem item) async {
@@ -114,6 +124,45 @@ void main() {
             body: Builder(
               builder: (context) => TextButton(
                 onPressed: () => ItemDialog.show(context, line),
+                child: const Text('abrir'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+    return repository;
+  }
+
+  /// Screen 6's door, which decides between the two modes on [existing].
+  Future<_SpyList> pumpForType(
+    WidgetTester tester, {
+    ShoppingListItem? existing,
+    int? missing,
+    _SpyList? list,
+  }) async {
+    final repository = list ?? _SpyList(initial: [?existing]);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          shoppingListOverride(repository: repository),
+          catalogOverride(),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => ItemDialog.showForType(
+                  context,
+                  type: _softDrink,
+                  category: _drinks,
+                  missing: missing,
+                  existing: existing,
+                ),
                 child: const Text('abrir'),
               ),
             ),
@@ -211,10 +260,7 @@ void main() {
   ) async {
     final repository = await pumpDialog(tester);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('field-quantity')),
-      'abc',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-quantity')), 'abc');
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
@@ -328,5 +374,169 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.written.single.quantity, 4000);
+  });
+
+  group('the two doors of screen 6 (H18)', () {
+    testWidgets('the creating mode shows neither "Não encontrei" nor '
+        '"Remover da lista"', (tester) async {
+      // The written criterion: "marcar como não encontrado o que ninguém pediu
+      // não quer dizer nada" — and there is no line to remove either.
+      await pumpForType(tester, missing: 2000);
+
+      expect(find.byKey(const ValueKey('field-not-found')), findsNothing);
+      expect(find.text('Não encontrei'), findsNothing);
+      expect(find.text('Remover da lista'), findsNothing);
+      // The rest of the dialog is the SAME one — that is what the wireframe
+      // demands.
+      expect(find.text('Refrigerante'), findsOneWidget);
+      expect(find.byKey(const ValueKey('field-quantity')), findsOneWidget);
+      expect(find.byKey(const ValueKey('field-brand')), findsOneWidget);
+      expect(find.byKey(const ValueKey('field-packaging')), findsOneWidget);
+    });
+
+    testWidgets('the editing mode still shows both', (tester) async {
+      await pumpForType(tester, existing: _item(quantity: 6000), missing: 2000);
+
+      expect(find.byKey(const ValueKey('field-not-found')), findsOneWidget);
+      expect(find.text('Remover da lista'), findsOneWidget);
+    });
+
+    testWidgets('the creating mode ADDS a new line with what was typed', (
+      tester,
+    ) async {
+      final repository = await pumpForType(tester, missing: 2000);
+
+      // It opened with the missing amount already in — 2000 ml is "2" litres.
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('field-quantity')),
+      );
+      expect(field.controller!.text, '2');
+
+      await tester.enterText(find.byKey(const ValueKey('field-quantity')), '3');
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      expect(repository.added, hasLength(1));
+      expect(repository.added.single.quantity, 3000);
+      expect(repository.added.single.type, _softDrink);
+      expect(repository.added.single.category, _drinks);
+      // It ADDED; it did not update anything.
+      expect(repository.written, isEmpty);
+      expect(find.byType(ItemDialog), findsNothing);
+    });
+
+    testWidgets('the creating mode with an empty field adds no quantity', (
+      tester,
+    ) async {
+      // The bottom band of screen 6 opens with `missing: null`, and an item
+      // with no quantity leaves the list on the first purchase of the type.
+      final repository = await pumpForType(tester);
+
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('field-quantity')),
+      );
+      expect(field.controller!.text, '');
+
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      expect(repository.added.single.quantity, isNull);
+    });
+
+    testWidgets('the prefill WINS over the stored quantity', (tester) async {
+      // The dialog is being opened FROM the missing amount, so that is what
+      // the field shows — the leite of the wireframe asks 6 L on the list and
+      // screen 6 says 8 L are missing.
+      await pumpForType(tester, existing: _item(quantity: 6000), missing: 8000);
+
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('field-quantity')),
+      );
+      expect(field.controller!.text, '8');
+    });
+
+    testWidgets('with no prefill the stored quantity stays', (tester) async {
+      await pumpForType(tester, existing: _item(quantity: 6000));
+
+      final field = tester.widget<TextField>(
+        find.byKey(const ValueKey('field-quantity')),
+      );
+      expect(field.controller!.text, '6');
+    });
+
+    testWidgets('the item on the list with NO quantity is warned that the '
+        'rule changes', (tester) async {
+      // Decision of 26/08/2026: confirming makes the line stop leaving on the
+      // first purchase of the type and start being written off by amount. The
+      // screen does not change the rule in silence.
+      await pumpForType(tester, existing: _item(quantity: null), missing: 2000);
+
+      expect(
+        find.text(
+          'este item está na lista sem quantidade — confirmar passa a '
+          'pedir 2 L',
+        ),
+        findsOneWidget,
+      );
+      // And the usual sentence gives way to it — stacking both would be noise.
+      expect(find.text('Vazio: sai na primeira compra do tipo.'), findsNothing);
+    });
+
+    testWidgets('the warning needs BOTH halves to appear', (tester) async {
+      // With a quantity already on the line there is no rule to change.
+      await pumpForType(tester, existing: _item(quantity: 6000), missing: 2000);
+      expect(find.textContaining('confirmar passa a pedir'), findsNothing);
+      expect(
+        find.text('Vazio: sai na primeira compra do tipo.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('and it does not appear in the creating mode either', (
+      tester,
+    ) async {
+      // There is no item on the list, so there is no rule of any line to
+      // change.
+      await pumpForType(tester, missing: 2000);
+      expect(find.textContaining('confirmar passa a pedir'), findsNothing);
+    });
+
+    testWidgets('a brand chosen in the creating mode is DISCARDED (E-k)', (
+      tester,
+    ) async {
+      // A field that accepts and does not store, and it is written down rather
+      // than hidden: hiding the dropdowns would diverge from "o mesmo diálogo
+      // de item da Tela 1". This case fixes today's behaviour so that the day
+      // it changes, it changes on purpose — the way back is two optional named
+      // parameters on `add`.
+      final repository = await pumpForType(tester, missing: 2000);
+
+      await tester.tap(find.byKey(const ValueKey('field-brand')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Coca-Cola').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      expect(repository.added.single.preferredBrand, isNull);
+      expect(repository.added.single.preferredProduct, isNull);
+    });
+
+    testWidgets('a failing add keeps the dialog open and says why', (
+      tester,
+    ) async {
+      final repository = _SpyList(initial: const [])
+        ..failNextWrite = ApiException(500, 'boom');
+      await pumpForType(tester, missing: 2000, list: repository);
+
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ItemDialog), findsOneWidget);
+      expect(find.byType(SnackBar), findsOneWidget);
+      // The raw exception NEVER reaches the screen.
+      expect(find.textContaining('boom'), findsNothing);
+    });
   });
 }

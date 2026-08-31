@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/category.dart';
+import '../../../domain/models/monthly_average.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../../domain/models/uuid.dart';
@@ -64,8 +65,13 @@ final class ShoppingListViewModel
   ///
   /// [today] exists for the test: the screen passes nothing and the clock
   /// enters the system HERE (decision 13 and rule 9). Never in a widget, never
-  /// in an entity. The item is born with **no quantity and no preferences**:
-  /// whoever wants to ask for "6 litros" opens the dialog afterwards.
+  /// in an entity.
+  ///
+  /// [quantity] is new in H17, and it is what the `#1a` panel does NOT pass:
+  /// there the item is born with **no quantity and no preferences**, and
+  /// whoever wants to ask for "6 litros" opens the dialog afterwards. Screen 6
+  /// passes it, because it opened the dialog FROM a number. Preferences have
+  /// no parameter yet — see [addMany] and decision E-k.
   ///
   /// The key is born here through `newUuidV4()`, not in the database: it is
   /// what lets the repository discard the echo of its own INSERT, and what
@@ -73,6 +79,7 @@ final class ShoppingListViewModel
   Future<String?> add(
     ProductType type,
     Category category, {
+    int? quantity,
     DateTime? today,
   }) async {
     if (_running) return null;
@@ -82,12 +89,11 @@ final class ShoppingListViewModel
         id: newUuidV4(),
         type: type,
         category: category,
+        quantity: quantity,
         enteredOn: dayOf(today ?? DateTime.now()),
       );
 
-      final created = await ref
-          .read(shoppingListRepositoryProvider)
-          .add(item);
+      final created = await ref.read(shoppingListRepositoryProvider).add(item);
       if (!ref.mounted) return null;
 
       // The state does NOT become AsyncLoading in an action: the list stays on
@@ -97,6 +103,57 @@ final class ShoppingListViewModel
       return null;
     } on Object catch (e, st) {
       return translateError(e, st, 'adicionar o item');
+    } finally {
+      _running = false;
+    }
+  }
+
+  /// `[ Adicionar selecionados ]` of screen 2 — several items, ONE guard.
+  ///
+  /// It exists because [add] cannot be called in a loop: the reentrancy guard
+  /// of rule 14 would swallow every call after the first and return `null`,
+  /// which reads as success. **The guard belongs to the ACTION**, and adding
+  /// five items is one action.
+  ///
+  /// It takes [MonthlyAverage] and not a list of items because the item is
+  /// born with a `uuid` and with today's day, and neither can be created by a
+  /// widget (rules 9 and 2). The screen hands over what it chose; whoever
+  /// builds the entity is here — the same shape [add] already has.
+  ///
+  /// **On a partial failure it stops and returns the sentence**, keeping what
+  /// already went in — and the screen needs no counter for that: the lines
+  /// that made it come back from the list as "(já está na lista)" and lock
+  /// themselves on the next frame.
+  Future<String?> addMany(
+    IList<MonthlyAverage> chosen, {
+    DateTime? today,
+  }) async {
+    if (_running) return null;
+    _running = true;
+    try {
+      final day = dayOf(today ?? DateTime.now());
+      for (final line in chosen) {
+        final created = await ref
+            .read(shoppingListRepositoryProvider)
+            .add(
+              ShoppingListItem(
+                id: newUuidV4(),
+                type: line.type,
+                category: line.category,
+                // Null when the average is zero (E-j): the entity refuses a
+                // quantity of zero, and no quantity is the right answer there
+                // — the item leaves the list on the first purchase of the
+                // type, which is what the `#1a` panel already creates.
+                quantity: line.suggestedQuantity,
+                enteredOn: day,
+              ),
+            );
+        if (!ref.mounted) return null;
+        state = AsyncData([...?state.value, created].toIList());
+      }
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'adicionar os itens');
     } finally {
       _running = false;
     }
@@ -126,8 +183,9 @@ final class ShoppingListViewModel
       if (!ref.mounted) return null;
 
       state = AsyncData(
-        (state.value ?? const IList<ShoppingListItem>.empty())
-            .removeWhere((entry) => entry.id == item.id),
+        (state.value ?? const IList<ShoppingListItem>.empty()).removeWhere(
+          (entry) => entry.id == item.id,
+        ),
       );
       return null;
     } on Object catch (e, st) {
