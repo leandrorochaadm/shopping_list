@@ -873,7 +873,7 @@ os **catorze de `period_report_cases.sql`** e os **dezenove de
 `spending_cap_cases.sql`** foram exercitados um a um — estes últimos também **pela chave
 anon**, contra o PostgREST local, que é o único jeito de um `grant` perdido no `drop` e a
 conversão de `uuid[]` aparecerem.
-**Nada foi aplicado em `dev` nem em `prod`** — os projetos não existem (pendência A1).
+**As nove migrations foram aplicadas em `prod` em 31/08/2026** (`supabase db push --linked`, projeto `shopping_list` · `sxwyundsrbvbmmacgngs`, sa-east-1, PG 17.6.1). **O seed NÃO foi aplicado lá, e não deve ser** — ele é de desenvolvimento. **Não existe projeto `dev`**: a org está no teto de dois projetos ativos do plano Free, e a decisão de 31/08 foi aplicar direto no `prod` enquanto ele não tem histórico real — divergência consciente da decisão 9, a reabrir assim que o `dev` nascer. Os seis arquivos de `supabase/checks/` **ainda não rodaram contra o `prod`**: faltam a senha do banco e a chave anon.
 
 **O seed ganhou na Entrega 4 o que a H9 e a H10 mostram** e as quatro linhas de lista
 originais não cobriam: um item **fechado por compra** com o rastro correspondente (para
@@ -1001,7 +1001,7 @@ recria as três de escrita** com o `p_cap_alerts` novo; e a
 `20260830140000_type_consumption.sql` cria a `type_consumption(date, date, date, date)`,
 que responde as **duas janelas mais a data da primeira compra** de cada tipo num `jsonb`
 só. Todas foram **aplicadas e conferidas** no `shopping_list_dev` local, com os cinco
-arquivos de `supabase/checks/`; o que falta é `dev` e `prod`, que dependem do A1.
+arquivos de `supabase/checks/`; **`prod` recebeu as nove em 31/08/2026** e o `dev` continua sem existir.
 
 **O `drop`+`create` da Entrega 6 é a coisa mais perigosa que já entrou numa migration
 deste projeto, e vale saber por quê.** Parâmetro novo em Postgres é **assinatura nova**:

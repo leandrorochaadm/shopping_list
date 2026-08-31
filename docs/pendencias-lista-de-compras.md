@@ -67,9 +67,13 @@ numa migration.
 `flutter run` fora dos fakes.
 
 **Resposta:**
-- `dev` — URL: ` ` · chave anônima: ` `
-- `prod` — URL: ` ` · chave anônima: ` `
-- O `project_ref` do `.mcp.json` é o: ( ) dev ( ) prod
+- `dev` — **não existe** (31/08/2026): a org `Leandro` está no teto de dois projetos ativos do
+  plano Free (`shopping_list` e `lions_club_points`). Criar exige pausar um deles ou plano pago.
+- `prod` — `sxwyundsrbvbmmacgngs` · `https://sxwyundsrbvbmmacgngs.supabase.co` · chave anônima: ` `
+  **As nove migrations foram aplicadas nele em 31/08/2026**; o seed **não**, e não deve ser.
+  Decisão do dia: enquanto o `prod` não tiver histórico real, ele é o único ambiente — divergência
+  consciente da decisão 9, a reabrir quando o `dev` nascer.
+- O `project_ref` do `.mcp.json` (`sxwyundsrbvbmmacgngs`) é o: ( ) dev **(x) prod** — respondido em 31/08/2026
 
 > As chaves **nunca** são commitadas: entram por `--dart-define` no build e como
 > *secret* no GitHub Actions.
