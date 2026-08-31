@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../domain/models/list_write_off.dart';
 import '../../../domain/models/money.dart';
+import '../../../domain/models/price_increase.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_item.dart';
@@ -44,23 +45,44 @@ final class PurchaseSubmission {
   int get hashCode => Object.hash(purchase, writeOffs, capAlerts);
 }
 
-/// One line of a past purchase, reduced to the four numbers screen 3 needs:
-/// which leaf, how much of it, what it cost, and when.
+/// One line of a past purchase, reduced to the five numbers screen 3 needs:
+/// which leaf, of which TYPE, how much of it, what it cost, and when.
 ///
-/// Both the ordering of the picker (how many times each leaf was bought) and
-/// the pre-filled value (what the last purchase paid) are computed from this,
-/// in Dart — one round trip instead of one per product chosen (P4).
-final class PurchaseHistoryEntry {
+/// Three things are computed from this, in Dart, out of one round trip (P4):
+/// the ordering of the picker (how many times each leaf was bought), the
+/// pre-filled value (what the last purchase paid) and the average of the
+/// rolling window the price-increase alert compares against (H15).
+///
+/// It `implements PurchaseBaselineLine` and nothing more — it already had the
+/// four fields the domain asks for. The interface exists so
+/// `buildPriceBaselines` can be pure without the domain importing `data/`
+/// (rule 1).
+final class PurchaseHistoryEntry implements PurchaseBaselineLine {
   const PurchaseHistoryEntry({
     required this.productId,
+    required this.productTypeId,
     required this.quantityInBaseUnit,
     required this.paid,
     required this.purchasedOn,
   });
 
+  @override
   final String productId;
+
+  /// The type of the leaf, and it comes from the QUERY rather than from the
+  /// catalog: `fetchProductOptions` filters `active = true`, and a leaf
+  /// deactivated in the middle of the window would take its purchases out of
+  /// the type's average. Deactivating takes a product off the shelf; it does
+  /// not rewrite the past (requirement 16).
+  @override
+  final String productTypeId;
+
+  @override
   final int quantityInBaseUnit;
+
+  @override
   final Money paid;
+
   final DateTime purchasedOn;
 
   @override
@@ -68,13 +90,19 @@ final class PurchaseHistoryEntry {
       identical(this, other) ||
       other is PurchaseHistoryEntry &&
           other.productId == productId &&
+          other.productTypeId == productTypeId &&
           other.quantityInBaseUnit == quantityInBaseUnit &&
           other.paid == paid &&
           other.purchasedOn == purchasedOn;
 
   @override
-  int get hashCode =>
-      Object.hash(productId, quantityInBaseUnit, paid, purchasedOn);
+  int get hashCode => Object.hash(
+    productId,
+    productTypeId,
+    quantityInBaseUnit,
+    paid,
+    purchasedOn,
+  );
 }
 
 /// A page of the history, and what the screen needs in order to know whether

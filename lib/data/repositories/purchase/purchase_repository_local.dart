@@ -106,21 +106,29 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   static List<PurchaseHistoryEntry> _seedHistory() => [
     // A crate: 12 × 350 ml for R$ 62,00 — the case where a rounded price per
     // litre would answer R$ 62,04 for the very same purchase.
+    //
+    // The VALUES are not touched by H15: the two of them make an average of
+    // R$ 14,51 a litre, so typing R$ 70,00 for one crate on screen 3 answers
+    // "Subiu 15% sobre a média" in debug. Moving them to force the "18%" of
+    // the wireframe would break the R$ 62,00 pre-fill two test files fix.
     PurchaseHistoryEntry(
       productId: 'prod-4',
+      productTypeId: 'type-1',
       quantityInBaseUnit: 4200,
       paid: const Money(6200),
       purchasedOn: DateTime(2026, 8, 18),
     ),
     PurchaseHistoryEntry(
       productId: 'prod-4',
+      productTypeId: 'type-1',
       quantityInBaseUnit: 4200,
       paid: const Money(5990),
       purchasedOn: DateTime(2026, 7, 30),
     ),
-    // Weighed: 1,5 kg of beef.
+    // Weighed: 1,5 kg of beef — no brand, so its average is the TYPE's.
     PurchaseHistoryEntry(
       productId: 'prod-5',
+      productTypeId: 'type-2',
       quantityInBaseUnit: 1500,
       paid: const Money(4500),
       purchasedOn: DateTime(2026, 8, 10),
@@ -305,6 +313,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
       _history.add(
         PurchaseHistoryEntry(
           productId: item.productId,
+          productTypeId: item.productTypeId,
           quantityInBaseUnit: item.quantityInBaseUnit,
           paid: item.paid,
           purchasedOn: submission.purchase.date,

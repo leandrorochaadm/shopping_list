@@ -62,14 +62,25 @@ final class PurchaseRepositoryRemote implements PurchaseRepository {
           .from('purchase_item')
           .select(
             'product_id, quantity_in_base_unit, total_paid, '
-            'purchase!inner ( purchase_date )',
+            'purchase!inner ( purchase_date ), '
+            // The type of each line, with NO filter on `active`: a leaf
+            // deactivated in the middle of the window KEEPS counting towards
+            // the type's average — deactivating takes it off the shelf, it
+            // does not rewrite the history (requirement 16). Crossing with
+            // the catalog would not do: `fetchProductOptions` filters
+            // `active = true`.
+            'product!inner ( product_registration!inner ( product_type_id ) )',
           )
           .gte('purchase.purchase_date', encodeCalendarDay(since));
 
       return rows.map((row) {
         final purchase = row['purchase'] as Map<String, dynamic>;
+        final registration =
+            (row['product'] as Map<String, dynamic>)['product_registration']
+                as Map<String, dynamic>;
         return PurchaseHistoryEntry(
           productId: row['product_id'] as String,
+          productTypeId: registration['product_type_id'] as String,
           quantityInBaseUnit: (row['quantity_in_base_unit'] as num).toInt(),
           paid: Money.fromJson(row['total_paid']),
           purchasedOn: decodeCalendarDay(purchase['purchase_date'] as String),

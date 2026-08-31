@@ -509,6 +509,11 @@ void main() {
       // The filter is on `purchase.purchase_date`, which is what `!inner`
       // makes possible — and there is no `order` in the query, because
       // ordering an embedded table in PostgREST orders the children.
+      //
+      // The type comes embedded two levels down, and NOT from the catalog:
+      // `fetchProductOptions` filters `active = true`, and a leaf deactivated
+      // in the middle of the window would take its purchases out of the
+      // type's average (H15, requirement 16).
       when(() => client.from('purchase_item')).thenAnswer(
         (_) => _FakeTable([
           {
@@ -516,6 +521,9 @@ void main() {
             'quantity_in_base_unit': 4200,
             'total_paid': 6200,
             'purchase': {'purchase_date': '2026-08-18'},
+            'product': {
+              'product_registration': {'product_type_id': 'type-1'},
+            },
           },
         ]),
       );
@@ -524,6 +532,7 @@ void main() {
 
       expect(history, hasLength(1));
       expect(history.single.productId, 'prod-4');
+      expect(history.single.productTypeId, 'type-1');
       expect(history.single.quantityInBaseUnit, 4200);
       expect(history.single.paid, const Money(6200));
       expect(history.single.purchasedOn, DateTime(2026, 8, 18));

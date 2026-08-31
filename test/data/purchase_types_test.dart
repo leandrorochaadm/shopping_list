@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
 import 'package:shopping_list/domain/models/money.dart';
+import 'package:shopping_list/domain/models/price_increase.dart';
 import 'package:shopping_list/domain/models/purchase.dart';
 
 import '../helpers/purchase.dart';
@@ -44,11 +45,13 @@ void main() {
   group('PurchaseHistoryEntry', () {
     PurchaseHistoryEntry entry({
       String product = 'prod-4',
+      String type = 'type-1',
       int quantity = 4200,
       int cents = 6200,
       DateTime? on,
     }) => PurchaseHistoryEntry(
       productId: product,
+      productTypeId: type,
       quantityInBaseUnit: quantity,
       paid: Money(cents),
       purchasedOn: on ?? DateTime(2026, 8, 18),
@@ -61,6 +64,18 @@ void main() {
       expect(entry(), isNot(entry(quantity: 4201)));
       expect(entry(), isNot(entry(cents: 6201)));
       expect(entry(), isNot(entry(on: DateTime(2026, 8, 19))));
+    });
+
+    test('an entry of another TYPE is not the same entry', () {
+      // Without this case, forgetting `productTypeId` in the `==` would pass
+      // in silence — and it is the `==` that makes Riverpod filter updates.
+      expect(entry(), isNot(entry(type: 'type-2')));
+    });
+
+    test('it is the line `buildPriceBaselines` reads (H15)', () {
+      // The interface is what keeps the domain from importing `data/`: the
+      // entity implements it and gains nothing else.
+      expect(entry(), isA<PurchaseBaselineLine>());
     });
   });
 }

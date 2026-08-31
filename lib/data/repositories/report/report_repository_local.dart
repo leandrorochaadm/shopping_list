@@ -1,9 +1,18 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import '../../../domain/models/base_unit.dart';
+import '../../../domain/models/brand.dart';
 import '../../../domain/models/money.dart';
+import '../../../domain/models/packaging.dart';
 import '../../../domain/models/period_report.dart';
+import '../../../domain/models/price_quote.dart';
+import '../../../domain/models/price_reference.dart';
+import '../../../domain/models/product.dart';
+import '../../../domain/models/product_option.dart';
+import '../../../domain/models/product_registration.dart';
+import '../../../domain/models/product_type.dart';
 import '../../../domain/models/report_period.dart';
+import '../../../domain/models/store.dart';
 import 'report_repository.dart';
 
 /// One purchase line, flattened the way the `report_period` query flattens it:
@@ -54,13 +63,19 @@ final class ReportLine {
 /// make screen 3 and screen 5 disagree in debug for a reason that is only the
 /// fake's.
 ///
+/// **Since H16 it holds a SECOND seed**, of price quotes — see [_seedQuotes].
+/// The two are independent: the summary aggregates, the comparison does not,
+/// and neither is computed from the other.
+///
 /// Not `final`: the ViewModel tests extend it with a spy that fails the next
 /// call, which is how both error paths get exercised without mocktail.
 class ReportRepositoryLocal implements ReportRepository {
   ReportRepositoryLocal({
     Iterable<ReportLine>? lines,
+    Iterable<PriceQuote>? quotes,
     this.latency = const Duration(milliseconds: 400),
-  }) : _lines = [...lines ?? _seed()];
+  }) : _lines = [...lines ?? _seed()],
+       _quotes = [...quotes ?? _seedQuotes()];
 
   /// Roughly what the real thing costs, so the loading state is exercised
   /// while developing instead of being discovered on the phone. Tests pass
@@ -68,6 +83,9 @@ class ReportRepositoryLocal implements ReportRepository {
   final Duration latency;
 
   final List<ReportLine> _lines;
+
+  /// The second seed, of H16 — see [_seedQuotes].
+  final List<PriceQuote> _quotes;
 
   static List<ReportLine> _seed() => [
     // ── Requirement 4, first example: 5 kg at R$ 30 and 1 kg at R$ 42 make
@@ -163,6 +181,141 @@ class ReportRepositoryLocal implements ReportRepository {
     quantityInBaseUnit: quantity,
     paid: Money(cents),
   );
+
+  /// The story of H16, over the SAME leaves of `CatalogRepositoryLocal` and
+  /// the SAME stores of `StoreRepositoryLocal` — two fakes telling different
+  /// stories would make screen 3 and screen 5 disagree in debug for a reason
+  /// that is only the fake's.
+  ///
+  /// What it shows is exactly what the two `*` of the wireframe explain:
+  ///
+  ///   * **"Este produto" on the crate** repeats the wireframe's table: the
+  ///     Carrefour leads at R$ 11,43/L, and that price is from 03/07 while
+  ///     the two dearer ones are from August. The date is the caveat, and the
+  ///     cheapest is the oldest.
+  ///   * **"Tipo inteiro"** turns the Carrefour inside out: the most recent
+  ///     Refrigerante there is the single CAN of 20/08 at R$ 15,00/L, so it
+  ///     goes from first to last. That is the view that answers "does the
+  ///     crate pay off?", and it answers yes, and where.
+  ///   * the **beef** exercises the leaf with no brand and the `/kg` on the
+  ///     same screen.
+  ///   * the **Mercearia do Zé is deactivated** in `StoreRepositoryLocal` and
+  ///     shows up all the same: buying there is a fact of the past, and
+  ///     deactivating does not rewrite the past (requirement 16).
+  static List<PriceQuote> _seedQuotes() => [
+    _quote(_crate, _carrefour, DateTime(2026, 7, 3), 4200, 4800),
+    _quote(_crate, _streetMarket, DateTime(2026, 8, 12), 4200, 5670),
+    _quote(_crate, _grocery, DateTime(2026, 8, 18), 4200, 6200),
+    _quote(_can, _carrefour, DateTime(2026, 8, 20), 350, 525),
+    _quote(_beefLeaf, _streetMarket, DateTime(2026, 8, 10), 1500, 4500, meat: true),
+    _quote(_beefLeaf, _carrefour, DateTime(2026, 8, 5), 2000, 6800, meat: true),
+  ];
+
+  static PriceQuote _quote(
+    ProductOption option,
+    Store store,
+    DateTime day,
+    int quantity,
+    int cents, {
+    bool meat = false,
+  }) => PriceQuote(
+    option: option,
+    categoryId: meat ? 'cat-2' : 'cat-1',
+    categoryName: meat ? 'Carnes' : 'Bebidas',
+    store: store,
+    price: PriceReference(
+      paid: Money(cents),
+      quantityInBaseUnit: quantity,
+      purchasedOn: day,
+    ),
+  );
+
+  static final _carrefour = Store(id: 'store-1', name: 'Carrefour');
+  static final _streetMarket = Store(id: 'store-2', name: 'Feira do Bairro');
+  // Deactivated in `StoreRepositoryLocal`, and it has to arrive deactivated
+  // here too: the `==` of PriceQuote depends on it.
+  static final _grocery = Store(
+    id: 'store-3',
+    name: 'Mercearia do Zé',
+    active: false,
+  );
+
+  static final _drinksType = ProductType(
+    id: 'type-1',
+    name: 'Refrigerante',
+    categoryId: 'cat-1',
+    baseUnit: BaseUnit.liter,
+  );
+  static final _beefType = ProductType(
+    id: 'type-2',
+    name: 'Acém moído',
+    categoryId: 'cat-2',
+    baseUnit: BaseUnit.kilogram,
+  );
+  static final _cokeBrand = Brand(id: 'brand-1', name: 'Coca-Cola');
+
+  /// The three leaves, with the SAME ids `CatalogRepositoryLocal` gives them.
+  /// The history comes empty on purpose: here the option is identity and
+  /// label, not ranking.
+  static final _crate = ProductOption(
+    product: Product(
+      id: 'prod-4',
+      productRegistrationId: 'reg-1',
+      packaging: Packaging(
+        pieceCount: 12,
+        pieceSize: 350,
+        pieceSizeUnit: MeasureUnit.milliliter,
+      ),
+    ),
+    registration: ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      sellingMode: SellingMode.byPiece,
+    ),
+    type: _drinksType,
+    brand: _cokeBrand,
+  );
+  static final _can = ProductOption(
+    product: Product(
+      id: 'prod-1',
+      productRegistrationId: 'reg-1',
+      packaging: Packaging(
+        pieceCount: 1,
+        pieceSize: 350,
+        pieceSizeUnit: MeasureUnit.milliliter,
+      ),
+    ),
+    registration: ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      sellingMode: SellingMode.byPiece,
+    ),
+    type: _drinksType,
+    brand: _cokeBrand,
+  );
+  static final _beefLeaf = ProductOption(
+    product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
+    registration: ProductRegistration(
+      id: 'reg-2',
+      productTypeId: 'type-2',
+      sellingMode: SellingMode.byWeight,
+    ),
+    type: _beefType,
+  );
+
+  @override
+  Future<IList<PriceQuote>> fetchPriceQuotes(DateTime since) async {
+    await Future<void>.delayed(latency);
+
+    // The window filters, and NOTHING else: no ordering and no reduction, the
+    // same as the `select` of the real thing. Whoever chooses the most recent
+    // purchase of each store is `buildComparison`, in the domain.
+    return _quotes
+        .where((quote) => !quote.purchasedOn.isBefore(since))
+        .toIList();
+  }
 
   @override
   Future<PeriodReport> fetchPeriodReport(ReportPeriod period) async {

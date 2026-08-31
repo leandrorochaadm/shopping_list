@@ -9,6 +9,7 @@ import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
+import 'package:shopping_list/domain/models/price_increase.dart';
 import 'package:shopping_list/domain/models/price_reference.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
@@ -71,6 +72,7 @@ ProductOption optionByPiece({
   int purchaseCount = 0,
   DateTime? lastPurchasedOn,
   PriceReference? priceReference,
+  PriceBaseline? baseline,
 }) {
   final resolved = type ?? softDrinkType;
   return ProductOption(
@@ -95,6 +97,7 @@ ProductOption optionByPiece({
     purchaseCount: purchaseCount,
     lastPurchasedOn: lastPurchasedOn,
     priceReference: priceReference,
+    baseline: baseline,
   );
 }
 
@@ -106,6 +109,7 @@ ProductOption optionByWeight({
   int purchaseCount = 0,
   DateTime? lastPurchasedOn,
   PriceReference? priceReference,
+  PriceBaseline? baseline,
 }) {
   final resolved = type ?? beefType;
   return ProductOption(
@@ -121,6 +125,7 @@ ProductOption optionByWeight({
     purchaseCount: purchaseCount,
     lastPurchasedOn: lastPurchasedOn,
     priceReference: priceReference,
+    baseline: baseline,
   );
 }
 
