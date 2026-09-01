@@ -14,6 +14,7 @@ import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/selling_choice.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
 import 'package:shopping_list/routing/router.dart';
@@ -77,6 +78,20 @@ void main() {
 
   FilledButton saveButton(WidgetTester tester) =>
       tester.widget<FilledButton>(find.byKey(const ValueKey('save')));
+
+  /// The `Vendido` field as the screen actually built it: which word is taken
+  /// and which ones can be taken at all. Read from the segments, because a
+  /// disabled segment still DRAWS — asserting on the text alone would pass
+  /// with every word clickable.
+  SegmentedButton<SellingChoice> sellingField(WidgetTester tester) =>
+      tester.widget<SegmentedButton<SellingChoice>>(
+        find.byType(SegmentedButton<SellingChoice>),
+      );
+
+  Map<SellingChoice, bool> enabledChoices(WidgetTester tester) => {
+    for (final segment in sellingField(tester).segments)
+      segment.value: segment.enabled,
+  };
 
   /// The one field inside the open dialog — `find.byType(TextField)` alone
   /// also matches the description field of the screen behind it.
@@ -197,12 +212,125 @@ void main() {
 
     await choose(tester, const ValueKey('field-category'), 'Carnes');
     await choose(tester, const ValueKey('field-type'), 'Acém moído');
-    await tapOn(tester, find.text('A peso'));
+    await tapOn(tester, find.text('Peso'));
 
     expect(find.text('Embalagens deste produto'), findsNothing);
     expect(find.text('Adicionar embalagem'), findsNothing);
     // Quantity is what the PURCHASE asks for, not the registration.
     expect(find.text('Salvar produto'), findsOneWidget);
+  });
+
+  testWidgets('names the loose product after the grandeza of the type', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+
+    // Bulk olive oil is measured in litres: calling it "a peso" is the very
+    // mistake this field exists to fix.
+    expect(enabledChoices(tester), {
+      SellingChoice.weight: false,
+      SellingChoice.unit: true,
+      SellingChoice.volume: true,
+    });
+  });
+
+  testWidgets('sells by volume the same way it sells by weight', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+    await tapOn(tester, find.text('Volume'));
+
+    // `Volume` IS `by_weight`: same loose product, other grandeza.
+    expect(find.text('Embalagens deste produto'), findsNothing);
+    expect(find.text('Adicionar embalagem'), findsNothing);
+    expect(find.text('Salvar produto'), findsOneWidget);
+  });
+
+  testWidgets('leaves only Unidade under a type counted by unit', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await choose(tester, const ValueKey('field-category'), 'Limpeza');
+    await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
+
+    // Decision H-b: there is no bulk in a type counted by unit, so the avulso
+    // is a packaging of `1 un` like any other.
+    expect(enabledChoices(tester), {
+      SellingChoice.weight: false,
+      SellingChoice.unit: true,
+      SellingChoice.volume: false,
+    });
+    expect(find.text('Embalagens deste produto'), findsOneWidget);
+  });
+
+  testWidgets('keeps the loose product loose when the grandeza changes', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    // No category chosen on purpose: the type field then lists every type,
+    // which is what puts a kilogram and a litre one behind the same dropdown.
+    await choose(tester, const ValueKey('field-type'), 'Acém moído');
+    await tapOn(tester, find.text('Peso'));
+    expect(sellingField(tester).selected, {SellingChoice.weight});
+
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+
+    // The saved mode did not move — only the word that names it.
+    expect(sellingField(tester).selected, {SellingChoice.volume});
+    expect(find.text('Embalagens deste produto'), findsNothing);
+  });
+
+  testWidgets('falls back to Unidade when the new type has no bulk', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+
+    await choose(tester, const ValueKey('field-category'), 'Limpeza');
+    await choose(tester, const ValueKey('field-type'), 'Sabão em pó');
+    await tapOn(tester, find.text('Peso'));
+    expect(find.text('Embalagens deste produto'), findsNothing);
+
+    await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
+
+    // A `Peso` left behind by the old type would name a product measured in
+    // units — the field normalizes instead.
+    expect(sellingField(tester).selected, {SellingChoice.unit});
+    expect(find.text('Embalagens deste produto'), findsOneWidget);
+  });
+
+  testWidgets('fits the three words on an iPhone 12', (tester) async {
+    await pumpScreen(tester);
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+
+    // AFTER pumpScreen, which forces a tall viewport of its own.
+    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.devicePixelRatio = 3;
+    await tester.pumpAndSettle();
+
+    // Drained on purpose, and it is NOT this field: the Marca dropdown
+    // overflows by 219 px at this width, by exactly the same amount before
+    // this change — it sizes itself to its widest menu item. Left as it was
+    // found; the assertion below is about the `Vendido` field alone.
+    tester.takeException();
+
+    // The assertion is GEOMETRIC on purpose: `SegmentedButton` constrains its
+    // children instead of overflowing, so `takeException()` is null at any
+    // width and would prove nothing. At 390 pt the widest label renders at
+    // 54,7 pt; at 320 pt it collapses to 31,3 pt and this fails.
+    final label = find.descendant(
+      of: find.byType(SegmentedButton<SellingChoice>),
+      matching: find.text('Unidade'),
+    );
+    expect(tester.getSize(label).width, greaterThanOrEqualTo(54));
   });
 
   testWidgets('warns and blocks when the identity is already taken', (

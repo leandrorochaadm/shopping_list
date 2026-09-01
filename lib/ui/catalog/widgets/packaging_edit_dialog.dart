@@ -105,7 +105,9 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
               ],
-              decoration: const InputDecoration(labelText: 'Cada peça'),
+              decoration: InputDecoration(
+                labelText: 'Quantidade em ${_unit.label}',
+              ),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<MeasureUnit>(

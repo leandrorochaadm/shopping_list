@@ -10,6 +10,7 @@ import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/selling_choice.dart';
 import '../../../routing/routes.dart';
 import '../../core/widgets/message_view.dart';
 import '../view_model/catalog_view_model.dart';
@@ -250,6 +251,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     setState(() {
       _typeId = id;
       _conflict = null;
+      // The grandeza comes from the type, so a type change can leave the
+      // saved mode with no word to go by: `Peso` under a type of litres.
+      _sellingMode = SellingChoice.of(_sellingMode, _baseUnit).mode;
       // The measure of every line belongs to the type's family, so a type
       // change invalidates the units already chosen.
       final unit = _impliedUnit;
@@ -257,6 +261,13 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     });
     _loadDescriptions();
     _checkIdentity();
+  }
+
+  /// The grandeza on screen right now, or null while no type is chosen. It
+  /// reads `_typeId`, so it must be called AFTER the field is written.
+  BaseUnit? get _baseUnit {
+    final options = ref.read(catalogViewModelProvider).value;
+    return options == null ? null : _typeOf(options)?.baseUnit;
   }
 
   /// The unit when the type leaves no choice — a type counted by unit has a
@@ -519,6 +530,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             // The type list is filtered by category, so the chosen type may
             // no longer be in it.
             _typeId = null;
+            // And with no type there is no grandeza: the loose choice has no
+            // word left, so the mode falls back to `Unidade`.
+            _sellingMode = SellingChoice.of(_sellingMode, null).mode;
             _conflict = null;
           }),
           onCreate: () async {
@@ -556,9 +570,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         ),
         const SizedBox(height: 16),
         _SellingModeField(
-          value: _sellingMode,
+          baseUnit: type?.baseUnit,
+          value: SellingChoice.of(_sellingMode, type?.baseUnit),
           enabled: !_locked && !_saving,
-          onChanged: (mode) => setState(() => _sellingMode = mode),
+          onChanged: (choice) => setState(() => _sellingMode = choice.mode),
         ),
         const SizedBox(height: 16),
         _BrandField(
@@ -884,14 +899,19 @@ class _BrandField extends StatelessWidget {
 
 class _SellingModeField extends StatelessWidget {
   const _SellingModeField({
+    required this.baseUnit,
     required this.value,
     required this.enabled,
     required this.onChanged,
   });
 
-  final SellingMode value;
+  /// Null while no type is chosen: the grandeza belongs to the type, so until
+  /// there is one only `Unidade` can be taken.
+  final BaseUnit? baseUnit;
+
+  final SellingChoice value;
   final bool enabled;
-  final ValueChanged<SellingMode> onChanged;
+  final ValueChanged<SellingChoice> onChanged;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -899,10 +919,18 @@ class _SellingModeField extends StatelessWidget {
       const Text('Vendido:'),
       const SizedBox(width: 8),
       Expanded(
-        child: SegmentedButton<SellingMode>(
-          segments: const [
-            ButtonSegment(value: SellingMode.byWeight, label: Text('A peso')),
-            ButtonSegment(value: SellingMode.byPiece, label: Text('Por peça')),
+        child: SegmentedButton<SellingChoice>(
+          // No check icon: three labels plus the icon do not fit the 390 pt
+          // of an iPhone 12, and the filled segment already says which one is
+          // taken.
+          showSelectedIcon: false,
+          segments: [
+            for (final choice in SellingChoice.values)
+              ButtonSegment(
+                value: choice,
+                label: Text(choice.label),
+                enabled: choice.isAvailableFor(baseUnit),
+              ),
           ],
           selected: {value},
           onSelectionChanged: enabled

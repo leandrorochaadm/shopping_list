@@ -118,6 +118,18 @@ void main() {
     expect(find.text('12 × 350 ml'), findsOneWidget);
   });
 
+  testWidgets('the loose leaf is named after the grandeza of its type', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Embalagens');
+
+    // A leaf with no packaging has no label to show, so the row says how the
+    // product is sold — and "a peso" would not name bulk olive oil, which is
+    // measured in litres. The word comes from the base unit of the type.
+    expect(find.text('Vendido por peso'), findsOneWidget);
+  });
+
   testWidgets('the search is normalized: "acem" finds "Acém"', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Tipos de produto');

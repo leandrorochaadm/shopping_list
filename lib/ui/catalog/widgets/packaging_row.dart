@@ -73,7 +73,7 @@ final class PackagingDraft {
   );
 }
 
-/// `peças × medida da peça`, with what it will be CALLED next to it.
+/// `peças × cada unidade`, with what it will be CALLED next to it.
 ///
 /// The measure dropdown offers only the family of the chosen type — `g / kg`
 /// for weight, `ml / L` for volume. Never all four at once: typing "350 ml"
@@ -143,7 +143,11 @@ class PackagingRow extends StatelessWidget {
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
-                decoration: const InputDecoration(labelText: 'Cada peça'),
+                decoration: InputDecoration(
+                  labelText:
+                      'Quantidade em '
+                      '${(draft.unit ?? measures.firstOrNull)?.label ?? ''}',
+                ),
                 onChanged: (value) =>
                     onChanged(draft.copyWith(pieceSize: value)),
               ),

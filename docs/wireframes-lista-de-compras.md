@@ -966,13 +966,13 @@ continua aparecendo atrás dela.
 │  Tipo: ▼ refrigerante   [+Novo]↻  *  │
 │  Unidade: litro (vem do tipo)     *  │
 │                                      │
-│  Vendido: ( ) A peso  (•) Por peça * │
+│  Vendido: (Peso)(•Unidade)(Volume)*  │
 │                                      │
 │  Marca: ▼ Coca-Cola   [+Novo]↻    *  │
 │  Descrição: original              *  │
 │  ────────────────────────────        │
 │  Embalagens deste produto         *  │
-│  Peças   Cada peça      Fica como *  │
+│  Peças   Cada unidade   Fica como *  │
 │   1 × [ 350 ]▼ml   350ml   (•) [x]↻  │
 │   1 × [ 269 ]▼ml   269ml   ( ) [x]↻  │
 │   1 × [   2 ]▼L    2L      ( ) [x]↻  │
@@ -1052,7 +1052,15 @@ continua aparecendo atrás dela.
   segundo "Coca-Cola 350ml" partiria o histórico de preço em dois, como
   "Carrefur" partiria o do mercado, e nenhum rename depois junta o que nasceu
   separado.
-- `*` **"Vendido a peso" faz a lista de embalagens sumir da tela** — não fica
+- `*` **O campo tem TRÊS palavras — `Peso`, `Unidade`, `Volume` — e só a
+  grandeza do tipo fica clicável ao lado de `Unidade`** (decisão de
+  01/09/2026, divergência **H-a**). `Peso` e `Volume` são a mesma marcação de
+  produto solto, e quem os separa é a unidade base do tipo: num tipo medido em
+  quilo o clicável é `Peso`, num tipo medido em litro é `Volume`, e num tipo
+  contado por unidade sobra só `Unidade`. A palavra antiga, "A peso", não
+  nomeava o azeite a granel, que é medido em **litro**. No banco continuam
+  existindo **dois** modos, não três.
+- `*` **`Peso` ou `Volume` faz a lista de embalagens sumir da tela** — não fica
   linha nenhuma, e o botão volta a ser `[ Salvar produto ]`. Quem informa a
   quantidade é o lançamento, não o cadastro. É o caso do acém moído e da
   mussarela do balcão. **A marcação vale em qualquer unidade base** (decisão de
@@ -1115,7 +1123,7 @@ continua aparecendo atrás dela.
 │  Tipo: ▼ refrigerante   [+Novo]↻     │
 │  Unidade: litro (vem do tipo)        │
 │                                      │
-│  Vendido: ( ) A peso  (•) Por peça   │
+│  Vendido: (Peso)(•Unidade)(Volume)   │
 │                                      │
 │  Marca: ▼ Coca-Cola   [+Novo]↻       │
 │  Descrição: original                 │
@@ -1125,7 +1133,7 @@ continua aparecendo atrás dela.
 │  [ Abrir e acrescentar embalagem ]→4 │
 │  ────────────────────────────        │
 │  Embalagens deste produto         *  │
-│  Peças   Cada peça      Fica como    │
+│  Peças   Cada unidade   Fica como    │
 │   1 × [ 600 ]▼ml   600ml   (•) [x]↻  │
 │  [   + Adicionar embalagem   ][–]    │
 │                                      │

@@ -8,6 +8,7 @@ import '../../../domain/models/name_normalization.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/selling_choice.dart';
 import '../../../routing/routes.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -235,7 +236,7 @@ class _CatalogMaintenanceScreenState
         for (final leaf in loaded.products)
           _CatalogRow(
             id: leaf.id!,
-            title: leaf.packaging?.label ?? 'Vendido a peso',
+            title: leaf.packaging?.label ?? _looseTitle(loaded, leaf),
             subtitle: _leafSubtitle(loaded, leaf),
             // A leaf whose REGISTRATION is off reads as off even with
             // `active: true` — `handoff §H10` is explicit that deactivating
@@ -326,6 +327,13 @@ class _CatalogMaintenanceScreenState
         ? leaf.active
         : leaf.isEffectivelyActiveIn(registration);
   }
+
+  /// The title of a leaf with no packaging: it is the loose product, and the
+  /// word for it comes from the grandeza of its type — the SAME fallback
+  /// `ProductOption.label` uses, which is why it lives in the enum.
+  static String _looseTitle(CatalogMaintenanceState loaded, Product leaf) =>
+      'Vendido por '
+      '${SellingChoice.looseNameOf(_baseUnitOfLeaf(loaded, leaf)).toLowerCase()}';
 
   static BaseUnit _baseUnitOfLeaf(
     CatalogMaintenanceState loaded,

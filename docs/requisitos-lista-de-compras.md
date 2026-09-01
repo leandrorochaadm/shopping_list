@@ -292,15 +292,21 @@ lançadas — isso é da natureza delas, não do sistema.
      lançamento. É onde a escolha da prateleira vira registro.
    - O **mercado é escolhido de uma lista** dos que já estão cadastrados; se for
      um lugar novo, ele cadastra na hora, ali mesmo, sem sair do lançamento.
-   - Produto marcado como vendido a peso não tem peças: ele digita direto a
-     quantidade do cupom (1,250 kg). **O rótulo do campo vem da unidade base do
-     tipo** (decisão de 26/08/2026): "Peso (kg)" no acém moído, "Volume (L)" no
-     azeite a granel, "Quantidade (un)" no que é vendido solto e contado. Sem
-     isso, "a peso" só serviria em tipo medido em quilo, e o produto vendido
-     solto num tipo medido em litro ficaria sem caminho: não tem embalagem para
-     cadastrar e não cabe num tipo de outra grandeza. É a mesma régua do título
-     da calculadora, que já diz "custo por kg", "por litro" ou "por unidade"
-     conforme o tipo.
+   - Produto marcado como vendido solto — *Peso* ou *Volume* — não tem peças:
+     ele digita direto a quantidade do cupom (1,250 kg). **O rótulo do campo
+     vem da unidade base do tipo** (decisão de 26/08/2026): "Peso (kg)" no acém
+     moído, "Volume (L)" no azeite a granel. Sem isso, "a peso" só serviria em
+     tipo medido em quilo, e o produto vendido solto num tipo medido em litro
+     ficaria sem caminho: não tem embalagem para cadastrar e não cabe num tipo
+     de outra grandeza. É a mesma régua do título da calculadora, que já diz
+     "custo por kg", "por litro" ou "por unidade" conforme o tipo.
+   - **REVOGADO EM 01/09/2026 (divergência H-b):** esta passagem dizia também
+     *"Quantidade (un)" no que é vendido solto e contado*. **O cadastro deixou
+     de oferecer esse caso**: num tipo contado por unidade, o campo Vendido
+     mostra só *Unidade*, e o avulso passa a ser uma embalagem de `1 un`. Os
+     números são os mesmos — 12 × conteúdo 1 dá 12 —, o que muda é o caminho:
+     ganha-se um passo de cadastro e perde-se o `(un)` do rótulo, que a linha
+     da embalagem logo acima já diz. É o preço de a grandeza nomear o botão.
    - O preço vem preenchido a partir do **preço por unidade base** (o quilo, o
      litro) da última compra daquele produto, e o sistema recalcula o total
      conforme a quantidade — assim a sugestão continua valendo mesmo quando ele
@@ -1130,9 +1136,12 @@ Os dois usam a **mesma lista** e podem estar no mercado em momentos diferentes.
   ("Frios" → "mussarela" → "Tirolez"). Nos dois casos, no lançamento o cupom já
   traz o peso ("1,250 kg") e ele digita esse peso direto, sem quantidade de
   peças.
-- **No produto vendido a peso, o rótulo do campo do lançamento vem da unidade
-  base do tipo** (decisão de 26/08/2026): "Peso (kg)", "Volume (L)" ou
-  "Quantidade (un)". A marcação "a peso" diz que não há embalagem a contar —
+- **No produto vendido solto, o rótulo do campo do lançamento vem da unidade
+  base do tipo** (decisão de 26/08/2026): "Peso (kg)" ou "Volume (L)". Havia um
+  terceiro, "Quantidade (un)", para o solto contado — **revogado em 01/09/2026
+  pela divergência H-b**, que tirou esse caso do cadastro: num tipo contado por
+  unidade o campo Vendido oferece só *Unidade*, e o avulso vira uma embalagem
+  de `1 un`. A marcação de solto diz que não há embalagem a contar —
   quem informa a quantidade é o cupom —, e não que a grandeza seja
   necessariamente o quilo. Preso ao quilo, o azeite a granel ficaria sem
   caminho: sem embalagem para cadastrar e sem tipo de outra grandeza onde caber,
@@ -1531,6 +1540,10 @@ com a decisão de cada uma.
       campo do lançamento passa a vir da **unidade base do tipo** — "Peso (kg)",
       "Volume (L)", "Quantidade (un)". Preso ao quilo, o azeite a granel ficaria
       sem caminho nenhum.
+      **O "Quantidade (un)" desta linha foi revogado em 01/09/2026** (H-a/H-b):
+      o campo Vendido passou a três palavras — `Peso`, `Unidade`, `Volume` — e
+      num tipo contado por unidade só `Unidade` fica clicável. O resto da
+      decisão continua valendo, e é dela que as três palavras saem.
 - [x] **Tipo e categoria podiam nascer em duplicidade.** Eram os últimos
       cadastros sem trava, e o tipo é o nível que soma. A comparação passa a
       ignorar **maiúsculas, espaço sobrando e acento**, e o desativado aparece na
@@ -1703,13 +1716,17 @@ lançamento e não custa digitação nenhuma nos 2 minutos.
 - **Mercado**: qualquer lugar onde a compra foi feita — supermercado, feira,
   açougue, hortifrúti; é o que permite comparar preços de um lugar com outro.
   Fica cadastrado e é escolhido de uma lista no lançamento, nunca digitado solto.
-- **Vendido a peso / vendido por peça**: como o produto é comprado, marcado no
-  cadastro. *A peso* é o que não vem em embalagem fechada e sai no cupom já na
-  unidade base — o quilo do acém, do tomate e do pão, o litro do azeite a
-  granel; *por peça* é o que tem embalagem fechada (Omo 500g, lata 350 ml). É
-  essa marcação que decide se o lançamento pede a quantidade do cupom ou a
-  quantidade de embalagens; **qual grandeza ele digita vem da unidade base do
-  tipo**, e é ela que dá o rótulo do campo.
+- **Vendido por peso / por volume / por unidade**: como o produto é comprado,
+  marcado no cadastro. *Peso* e *Volume* são o mesmo produto solto — o que não
+  vem em embalagem fechada e sai no cupom já na unidade base —, e o que os
+  separa é a unidade base do tipo: o quilo do acém, do tomate e do pão é
+  *Peso*; o litro do azeite a granel é *Volume*. *Unidade* é o que tem
+  embalagem fechada (Omo 500g, lata 350 ml). É essa marcação que decide se o
+  lançamento pede a quantidade do cupom ou a quantidade de embalagens; **qual
+  grandeza ele digita vem da unidade base do tipo**, e é ela que dá o rótulo do
+  campo. **O campo tinha duas palavras — "A peso" e "Por peça" — até
+  01/09/2026**, e "a peso" não nomeava o azeite a granel, que é medido em
+  litro; no cadastro guardado continuam existindo **dois** modos, não três.
 - **Não encontrei**: marcação do item que estava na lista mas não tinha no
   mercado; ele continua na lista para a próxima ida. **Marcada e desmarcada no
   diálogo do item**, e não na caixa da linha (decisão de 26/08/2026), e cai

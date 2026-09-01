@@ -641,7 +641,7 @@ void main() {
         'acém',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Acém moído (a peso)').last);
+      await tester.tap(find.text('Acém moído (peso)').last);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('compare-cost')), findsNothing);

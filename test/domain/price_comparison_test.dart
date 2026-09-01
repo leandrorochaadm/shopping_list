@@ -424,7 +424,7 @@ void main() {
         groups.first.options.map((option) => option.label).toList(),
         ['Coca-Cola 12 × 350 ml', 'Coca-Cola 350 ml'],
       );
-      expect(groups.last.options.single.label, 'Acém moído (a peso)');
+      expect(groups.last.options.single.label, 'Acém moído (peso)');
     });
 
     test('an empty selection groups into nothing', () {

@@ -561,7 +561,7 @@ void main() {
               packagings: [bottle('350', MeasureUnit.milliliter)].lock,
             )
             .then(_saveMessage),
-        'Produto vendido a peso não tem embalagem.',
+        'Produto vendido solto não tem embalagem.',
       );
       expect(repository.saveCalls, 0);
     });

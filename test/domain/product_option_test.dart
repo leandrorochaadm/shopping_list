@@ -99,7 +99,7 @@ void main() {
     test('falls back to the type name when nothing else is left', () {
       // The weight-sold product with no brand and no description — there the
       // type name IS the name of the thing on the shelf.
-      expect(groundBeef.label, 'Acém moído (a peso)');
+      expect(groundBeef.label, 'Acém moído (peso)');
     });
   });
 

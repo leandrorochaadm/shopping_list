@@ -190,11 +190,14 @@ final class MissingPackaging implements Exception {
   String toString() => 'MissingPackaging: $message';
 }
 
-/// Sold by weight and a packaging came along anyway.
+/// Sold loose and a packaging came along anyway.
+///
+/// The sentence says "solto" and not "a peso" because the same mode covers
+/// both grandezas: bulk olive oil is `by_weight` and is measured in litres.
 final class UnexpectedPackaging implements Exception {
   const UnexpectedPackaging();
 
-  String get message => 'Produto vendido a peso não tem embalagem.';
+  String get message => 'Produto vendido solto não tem embalagem.';
 
   @override
   String toString() => 'UnexpectedPackaging: $message';

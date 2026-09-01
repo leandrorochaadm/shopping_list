@@ -521,7 +521,7 @@ void main() {
       expect(options.first.toBaseUnit(1), 4200);
       // "Sem marca" is a real answer (decision B2), and it has to survive.
       expect(options.last.brand, isNull);
-      expect(options.last.label, 'Acém moído (a peso)');
+      expect(options.last.label, 'Acém moído (peso)');
     });
 
     test('the deactivated leaf is left out — the filter is in SQL', () async {

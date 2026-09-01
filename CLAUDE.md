@@ -98,6 +98,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | conteúdo total | `totalContent` | na unidade base. **Calculado, nunca digitado** |
 | unidade base | `BaseUnit` | enum: `kilogram`, `liter`, `unit` |
 | vendido a peso / por peça | `SellingMode.byWeight` / `.byPiece` | decide o que o lançamento pergunta |
+| as três palavras do campo **Vendido** | `SellingChoice` | `Peso`, `Unidade` e `Volume`. `Peso` e `Volume` são o **mesmo** `by_weight`, e quem os separa é a unidade base do tipo. O único lugar onde o par (`SellingMode`, `BaseUnit`) vira UMA escolha |
 | custo proporcional / preço por unidade base | `costPerBaseUnit` | preço ÷ conteúdo total |
 | melhor custo | `bestCost` | o menor `costPerBaseUnit`, não o menor preço |
 | mercado | `Store` | supermercado, feira, açougue, hortifrúti |
@@ -362,6 +363,13 @@ entidade: artigo e plural não saem de substituição mecânica. "Nenhuma reserv
 "Nenhum reserva"; "Animais", não "Animals". O identificador do widget que mostra o texto
 continua em inglês (`MessageView`, `emptyLabel`).
 
+**Mandatório:** todo texto de tela é **português do Brasil**, em **linguagem simples e
+direta**, escrita para o **usuário leigo** — o casal que usa o app, não um desenvolvedor.
+Nada de termo técnico (`token`, `cache`, `payload`, `sincronizar`, `endpoint`), nada de
+inglês solto, nada de frase longa ou construção rebuscada. Título, botão, estado vazio e
+mensagem de erro traduzida seguem esta regra sem exceção — inclusive as que hoje já
+existem: revisar ao tocar na tela.
+
 ## Ao criar uma feature nova
 
 0. traduzir o vocabulário de negócio para inglês (`Agendamento` → `Appointment`)
@@ -569,6 +577,8 @@ vigor no código** — não reabrir sem o usuário pedir.
 | Onde a fórmula do percentual mora (**G-c**) | a conta estava dentro de `PeriodReport.percentageOf` | uma função pura só, `spendingShareInTenths`, e a da H12 **delega a ela** | três cópias do arredondamento meio-para-cima são três lugares para divergirem no meio décimo |
 | A casa decimal do percentual (**G-d**) | `requisitos §7` e `wireframes §Tela 5` escrevem "40%" | **uma casa decimal, nos TRÊS níveis** — `(45,1%)`, não `(45%)` | **escolhido pelo usuário em 31/08/2026**, sabendo que alcança a H12. Duas réguas na mesma tela — a categoria inteira e o tipo com decimal, uma linha abaixo da outra — seria pior do que a divergência. A divergência é de exibição, o número é o mesmo com mais precisão, e voltar atrás é trocar o `1000` por `100` num lugar só |
 | Como o décimo é representado (**G-e**) | — não estava escrito | um **`int` em décimos de ponto percentual** (0..1000), nunca um `double`, e o nome do campo diz a unidade: `percentageInTenths` | é a decisão 24 / `R15` outra vez, e é a casa da regra 6: `spendingShareInTenths` é o único lugar do projeto onde o `1000` existe. O nome longo é o estilo da casa — `quantityInBaseUnit`, `costPerBaseUnit` |
+| Os nomes do campo Vendido (**H-a**) | `wireframes §Tela 4`: `( ) A peso  (•) Por peça`, e o glossário de `requisitos` chama o par de *"vendido a peso / vendido por peça"* | **três palavras — `Peso`, `Unidade`, `Volume` — com só a grandeza do tipo clicável ao lado de `Unidade`** | "A peso" não nomeia o azeite a granel, que é medido em **litro** — e o princípio **já estava aceito nos requisitos desde 26/08/2026**: `§295-300` e `§1133-1142` mandam o rótulo do campo do lançamento vir da unidade base do tipo, e `ProductOption.quantityLabel` já escreve `Peso (kg)` / `Volume (L)` na Tela 3. O campo **Vendido** era o último lugar da Tela 4 que ainda não obedecia. O banco continua com **dois** modos: `Peso` e `Volume` são o mesmo `by_weight`, e `grep -n "SellingChoice" lib/data/` não devolve nada. **Escolhido pelo usuário em 01/09/2026** |
+| O solto num tipo contado por unidade (**H-b**) | **estava escrito, e com data.** `requisitos §295-300`: *"o rótulo do campo vem da unidade base do tipo (decisão de 26/08/2026) … **'Quantidade (un)' no que é vendido solto e contado**"*, repetido em `§1133-1142`. E o código implementa: o ramo `BaseUnit.unit` de `ProductOption.quantityLabel` só é alcançável nesse estado, e tem teste próprio — o `looseRolls` de `product_option_test.dart` | **deixa de existir PELA TELA 4**: num tipo de unidade base `unit` só `Unidade` é clicável, e o avulso vira uma embalagem de `1 un`. O domínio continua aceitando o estado; o que some é a porta que o cria | é o preço de a grandeza nomear o botão, e **o usuário decidiu em 01/09/2026 mantê-lo, sabendo que revoga a decisão de 26/08** — `un` e "quantidade" são a mesma medida, então o solto contado não perde grandeza nenhuma, só ganha um passo de cadastro (12 × conteúdo 1 dá 12, igual). Nenhum cadastro **gravado** cai no caso: o fake e o `seed.sql` só têm `by_weight` em tipos de quilo. Se um dia existir, `SellingChoice.of` o mostra como `Unidade` sem tocar no gravado, e `looseNameOf` o chama de "unidade", **nunca de "peso"** — as duas passagens dos `requisitos` foram marcadas como revogadas no mesmo dia |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 

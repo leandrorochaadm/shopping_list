@@ -9,6 +9,7 @@ import 'price_reference.dart';
 import 'product.dart';
 import 'product_registration.dart';
 import 'product_type.dart';
+import 'selling_choice.dart';
 
 /// One line of the Produto picker on screen 3 — and an ENTITY, not a DTO: it
 /// carries the rules of decision C1 (how the search matches, how the list is
@@ -106,7 +107,12 @@ final class ProductOption {
 
   bool get isSoldByWeight => registration.isSoldByWeight;
 
-  /// 'Coca-Cola 12 × 350 ml', 'Coca-Cola zero 2 L', 'Acém moído (a peso)'.
+  /// 'Coca-Cola 12 × 350 ml', 'Coca-Cola zero 2 L', 'Acém moído (peso)'.
+  ///
+  /// The loose product is named after the grandeza of its TYPE — '(peso)' in
+  /// the kilogram, '(volume)' in the litre — because "a peso" does not name
+  /// bulk olive oil, which is measured in litres. `looseNameOf` is the single
+  /// place that word lives.
   ///
   /// Brand, description and packaging, in that order, skipping whatever does
   /// not exist. The TYPE is not in it because the picker is grouped by type
@@ -120,7 +126,9 @@ final class ProductOption {
       if (product.packaging != null) product.packaging!.label,
     ];
     if (parts.isEmpty) parts.add(type.name);
-    if (isSoldByWeight) parts.add('(a peso)');
+    if (isSoldByWeight) {
+      parts.add('(${SellingChoice.looseNameOf(baseUnit).toLowerCase()})');
+    }
     return parts.join(' ');
   }
 

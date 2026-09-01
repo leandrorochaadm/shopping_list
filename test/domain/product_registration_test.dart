@@ -127,10 +127,10 @@ void main() {
       );
       expect(
         const UnexpectedPackaging().message,
-        'Produto vendido a peso não tem embalagem.',
+        'Produto vendido solto não tem embalagem.',
       );
       expect(const MissingPackaging().toString(), contains('embalagem'));
-      expect(const UnexpectedPackaging().toString(), contains('a peso'));
+      expect(const UnexpectedPackaging().toString(), contains('solto'));
     });
 
     test('survives the round trip through JSON, both modes', () {
