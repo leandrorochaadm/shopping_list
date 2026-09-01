@@ -20,10 +20,14 @@ estiver marcado `[x]` já foi verificado como feito no repositório.
 | D — Status dos documentos | 3 | nada; são higiene de documento |
 | E — Riscos aceitos | 2 | nada; são confirmação por escrito |
 
+**A A3 foi fechada em 31/08/2026** — o app está publicado e o CI publica sozinho a cada
+push. O que resta do bloco A é a **A1** (o projeto `dev`, que a org no teto do plano Free
+impede) e a **A2** (a medição S1 no iPhone 12), agora desbloqueada.
+
 **O bloco B está fechado desde 28/08/2026** — a migration base já foi escrita com as cinco
 respostas, e a **B6** nasceu e foi respondida ao escrever a H7 (abaixo). **O que trava o
-próximo passo agora é só o bloco A:** sem os projetos Supabase (A1) nada do que está
-versionado chega a um banco, e sem o Cloudflare (A3) nada chega ao iPhone.
+próximo passo agora é só o bloco A:** sem o projeto `dev` (A1) todo build fala com o
+`prod`, e a S1 (A2) só você mede.
 
 **A Entrega 7 (30/08/2026) também não abriu pendência nenhuma**, e vale registrar por quê:
 o `R7` ("nenhum limiar e nenhuma regra no SQL") foi honrado **sem migration nova**. O dado
@@ -109,7 +113,7 @@ assim que este item estiver respondido.
 
 ---
 
-### A3 — Cloudflare Pages e o subdomínio `(tecnico §13, pendência 3)`
+### A3 — `[x]` Cloudflare Pages e o subdomínio `(tecnico §13, pendência 3)` — FEITO
 
 **O que fazer:** criar o projeto no Cloudflare Pages, definir o **subdomínio** e gerar um
 **API token** com permissão de publicar.
@@ -148,11 +152,12 @@ para o `prod`**.
 - Variável de repositório:
   `[x] CLOUDFLARE_PROJECT_NAME` = `shopping-list`
 - Secrets criados no GitHub (`gh secret set`, não pelo painel):
-  `[ ] CLOUDFLARE_API_TOKEN` — **o único que falta**, e o único que não sai da CLI: o
-  `wrangler login` grava um token OAuth de usuário, que expira e não serve ao CI. Criar
-  um API token pela API exige uma credencial com `User API Tokens · Edit` ou a Global API
-  Key, e as duas nascem no painel. Permissão necessária: `Account · Cloudflare Pages ·
-  Edit`, nesta conta só.
+  `[x] CLOUDFLARE_API_TOKEN` — o único que **não sai da CLI**: o `wrangler login` grava um
+  token OAuth de usuário, que expira e não serve ao CI, e criar um API token pela API
+  exigiria uma credencial com `User API Tokens · Edit` ou a Global API Key — as duas
+  nascem no painel. Permissão: `Account · Cloudflare Pages · Edit`, nesta conta só.
+  **Ele nunca ficou em disco:** foi lido uma vez do `.env`, gravado como secret e as três
+  linhas saíram do arquivo no mesmo comando.
   `[x] CLOUDFLARE_ACCOUNT_ID`
   `[x] SUPABASE_URL_DEV` `[x] SUPABASE_ANON_KEY_DEV`
   `[x] SUPABASE_URL_PROD` `[x] SUPABASE_ANON_KEY_PROD`
@@ -164,6 +169,20 @@ para o `prod`**.
 > `main.dart.js` que o Pages serve** — quem tem a URL tem o banco. Ela é a barreira
 > inteira. **Se este repositório algum dia deixar de ser privado, o subdomínio e a
 > `SUPABASE_URL` saem antes**, e o `.env.example` cai na mesma regra.
+
+**O primeiro deploy saiu em 31/08/2026, pela Action** (run `33461111386`, 7m47s):
+`analyze` limpo, testes verdes, **cobertura 94,1%** contra o piso de 90%, `build web` com
+os dois `--dart-define` do `prod` e 40 arquivos publicados. **`https://shopping-list-ci3.pages.dev`
+responde 200** com o `<title>` e o `manifest.json` em pt-BR, e a URL do projeto Supabase
+está dentro do `main.dart.js` servido — ou seja, o app no ar é o real, não a
+`MisconfiguredApp`. **Com isso a A2 (a medição S1 no iPhone 12) deixa de estar
+bloqueada.**
+
+**Um bug do workflow foi encontrado ao fechar esta pendência, e ele valia duas execuções
+verdes que não provavam nada:** o `if:` dos dois últimos steps lia `env.CLOUDFLARE_API_TOKEN`,
+e **o `env:` de um step não é visível ao `if:` daquele mesmo step**. O publish nunca teria
+rodado. Hoje quem decide é o `pick the environment`, que lê o próprio env e devolve
+`publish=yes|no` como output.
 
 **A decisão do dia, e ela reabre quando o `dev` nascer:** os quatro secrets do Supabase
 carregam **o mesmo par**, o do `prod`. Não há projeto `dev` (A1), então a regra escrita no

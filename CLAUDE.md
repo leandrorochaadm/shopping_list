@@ -1033,12 +1033,24 @@ caminho se resolve. Ou seja, o "no pior caso imprime uma linha no console" daque
 comentário é mais otimista do que o observado. Se um dia a
 `MisconfiguredApp.storageUnavailable()` aparecer sem explicação, **comece por aqui**.
 
-**Não existe ainda:** o deploy publicado, o schema aplicado em `dev` e a S1 medida — não
-falta mais tela nenhuma. O que trava cada um está em `docs/pendencias-lista-de-compras.md`: **o
-bloco B está fechado** (as cinco decisões de 28/08 mais a **B6**, que nasceu na H7), a
-**C1** e a **D3** foram respondidas na H7, a **C2** na H11, a **C4 (L4)** na H13 —
-**America/Porto_Velho (UTC−4)**, que fica registrada e não vira código —, e o que resta é
-o **bloco A**: contas do Supabase (A1), a medição no iPhone (A2) e o Cloudflare (A3).
+**O app está publicado desde 31/08/2026, em `https://shopping-list-ci3.pages.dev`** — o
+projeto Cloudflare Pages `shopping-list`, criado por
+`npx wrangler@3 pages project create`, com o `-ci3` **acrescentado pelo Cloudflare** porque
+`shopping-list` já existia globalmente. São três caracteres no lugar do "subdomínio não
+adivinhável" do `tecnico §9`, aceitos pelo usuário no dia. **Quem tem essa URL tem o banco**
+— sem login, RLS permissiva e a chave anônima dentro do `main.dart.js` que o Pages serve —,
+então ela é a barreira inteira do sistema, e é por isso que o repositório é privado. A
+publicação é do CI: a **A3 está fechada**, os seis secrets e a variável
+`CLOUDFLARE_PROJECT_NAME` estão gravados, e **todo push publica**.
+
+**Não existe ainda:** o schema aplicado em `dev` e a S1 medida — não falta mais tela
+nenhuma, e o deploy deixou de faltar. O que trava cada um está em
+`docs/pendencias-lista-de-compras.md`: **o bloco B está fechado** (as cinco decisões de
+28/08 mais a **B6**, que nasceu na H7), a **C1** e a **D3** foram respondidas na H7, a
+**C2** na H11, a **C4 (L4)** na H13 — **America/Porto_Velho (UTC−4)**, que fica registrada
+e não vira código —, a **A3** foi fechada em 31/08, e o que resta do **bloco A** são as
+contas do Supabase (A1) e a medição no iPhone (A2) — esta **agora desbloqueada**, porque
+era o HTTPS que ela esperava.
 
 **Nove migrations esperam um banco hospedado.** As cinco últimas são as das Entregas 3,
 4, 5, 6 e 8: a `20260828130000_purchase_write.sql` acrescenta `fulfilled_on` e `removed_on` a
