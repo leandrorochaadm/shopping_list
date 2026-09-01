@@ -3,16 +3,25 @@
 # Cloudflare's own builder has no Flutter, so the build happens here and only
 # the result is uploaded.
 #
-# TWO ENVIRONMENTS, and the rule that matters: **a preview NEVER points at
-# `prod`**. `main` builds against the production project; every other branch
-# builds a preview against `dev`. The preview URL is guessable —
-# `<hash>.<project>.pages.dev` — and an undisclosed URL is the only barrier
-# this system has (decision 6), so what sits behind a guessable one has to be
-# the disposable database.
+# TWO ENVIRONMENTS, and the rule this file was written around: **a preview
+# NEVER points at `prod`**. `main` builds against the production project;
+# every other branch builds a preview against `dev`. The preview URL is
+# guessable — `<hash>.<project>.pages.dev` — and an undisclosed URL is the only
+# barrier this system has (decision 6), so what sits behind a guessable one has
+# to be the disposable database.
 #
-# Until A3 is answered (docs/pendencias-lista-de-compras.md) the secrets do not
-# exist yet. The publish step is SKIPPED when the token is empty rather than
-# failing: analyse, test and build still run and still guard every push.
+# THAT RULE IS SUSPENDED TODAY, and on purpose (31/08/2026). There is no `dev`
+# project: the Supabase org is at the Free plan's ceiling of two active
+# projects, so `SUPABASE_URL_DEV` and `SUPABASE_ANON_KEY_DEV` hold the SAME
+# values as the `prod` pair. Every preview therefore writes to `prod` — which
+# is acceptable only while `prod` has no real history, and is the same
+# conscious divergence from decision 9 that put the nine migrations there.
+# NOTHING IN THIS FILE CHANGES when `dev` is born: the two secrets stop
+# repeating the production pair, and the rule above is back in force.
+#
+# The publish step is SKIPPED when the token is empty rather than failing:
+# analyse, test and build still run and still guard every push, which is what
+# kept this workflow useful while A3 was open.
 name: deploy
 
 on:
@@ -67,13 +76,30 @@ jobs:
           awk -v total="$total" -v floor="$MIN_COVERAGE" 'BEGIN { exit !(total + 0 >= floor + 0) }' \
             || { echo "::error::coverage ${total}% is below the ${MIN_COVERAGE}% floor"; exit 1; }
 
-      # `main` talks to prod; everything else talks to dev. Empty secrets
+      # `main` talks to prod; everything else talks to dev — which today is
+      # the same project, see the note at the top of this file. Empty secrets
       # produce a build that shows MisconfiguredApp instead of a white screen —
       # which is the honest outcome, and is why that screen exists.
       - name: pick the environment
         id: environment
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
         run: |
           set -euo pipefail
+          # WHETHER TO PUBLISH IS DECIDED HERE, and travels as an output, for a
+          # reason that cost this workflow two green runs that proved nothing:
+          # a step's own `env:` is NOT visible to that step's `if:`. The
+          # condition is evaluated before the step is set up, so `env.TOKEN`
+          # reads empty there no matter what the secret holds — the publish
+          # step would never run, and the "nothing was published" step would
+          # always run. A script CAN read its own env, so the question is
+          # answered where the answer exists.
+          if [ -n "${CLOUDFLARE_API_TOKEN}" ] && [ -n "${CLOUDFLARE_PROJECT_NAME}" ]; then
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+          fi
           if [ "${{ github.ref }}" = "refs/heads/main" ]; then
             echo "url=${{ secrets.SUPABASE_URL_PROD }}" >> "$GITHUB_OUTPUT"
             echo "key=${{ secrets.SUPABASE_ANON_KEY_PROD }}" >> "$GITHUB_OUTPUT"
@@ -93,8 +119,8 @@ jobs:
             --dart-define=SUPABASE_ANON_KEY='${{ steps.environment.outputs.key }}'
 
       - name: publish to Cloudflare Pages
-        # Skipped, not failed, while A3 has not been answered.
-        if: env.CLOUDFLARE_API_TOKEN != '' && env.CLOUDFLARE_PROJECT_NAME != ''
+        # Skipped, not failed, when the credentials are absent.
+        if: steps.environment.outputs.publish == 'yes'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -109,12 +135,9 @@ jobs:
             --commit-dirty=true
 
       - name: say why nothing was published
-        if: env.CLOUDFLARE_API_TOKEN == '' || env.CLOUDFLARE_PROJECT_NAME == ''
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
+        if: steps.environment.outputs.publish == 'no'
         run: |
-          echo "::notice::Build ok, nothing published: A3 (Cloudflare Pages) is still open."
+          echo "::notice::Build ok, nothing published: the Cloudflare credentials are missing."
           echo "Needed: secrets CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID,"
           echo "SUPABASE_URL_DEV, SUPABASE_ANON_KEY_DEV, SUPABASE_URL_PROD,"
           echo "SUPABASE_ANON_KEY_PROD; and the repository variable"
