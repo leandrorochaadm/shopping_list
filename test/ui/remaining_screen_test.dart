@@ -439,4 +439,20 @@ void main() {
     expect(find.byIcon(Icons.menu), findsOneWidget);
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
   });
+
+  testWidgets('the ≡ opens the four doors here too', (tester) async {
+    // The third screen that mounts this menu, and the one where the new door
+    // pays the most: this is where you find out what is missing, which is
+    // when you want to register the purchase (decision I-a). No collision
+    // here — screen 6 does not write "Lançar compra" anywhere of its own.
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lançar compra'), findsOneWidget);
+    expect(find.text('Histórico de compras'), findsOneWidget);
+    expect(find.text('Manutenção do cadastro'), findsOneWidget);
+    expect(find.text('Configurações'), findsOneWidget);
+  });
 }

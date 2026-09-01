@@ -489,7 +489,7 @@ void main() {
       expect(find.byTooltip('Recarregar'), findsOneWidget);
     });
 
-    testWidgets('the `≡` opens the same three doors screen 1 opens', (
+    testWidgets('the `≡` opens the same four doors screen 1 opens', (
       tester,
     ) async {
       await pumpReports(tester);
@@ -497,6 +497,9 @@ void main() {
       await tester.tap(find.byTooltip('Menu'));
       await tester.pumpAndSettle();
 
+      // The door that made this menu worth opening from screen 5: registering
+      // a purchase no longer forces a stop at the list (decision I-a).
+      expect(find.text('Lançar compra'), findsOneWidget);
       expect(find.text('Histórico de compras'), findsOneWidget);
       expect(find.text('Manutenção do cadastro'), findsOneWidget);
       expect(find.text('Configurações'), findsOneWidget);

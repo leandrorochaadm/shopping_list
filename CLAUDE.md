@@ -579,6 +579,9 @@ vigor no código** — não reabrir sem o usuário pedir.
 | Como o décimo é representado (**G-e**) | — não estava escrito | um **`int` em décimos de ponto percentual** (0..1000), nunca um `double`, e o nome do campo diz a unidade: `percentageInTenths` | é a decisão 24 / `R15` outra vez, e é a casa da regra 6: `spendingShareInTenths` é o único lugar do projeto onde o `1000` existe. O nome longo é o estilo da casa — `quantityInBaseUnit`, `costPerBaseUnit` |
 | Os nomes do campo Vendido (**H-a**) | `wireframes §Tela 4`: `( ) A peso  (•) Por peça`, e o glossário de `requisitos` chama o par de *"vendido a peso / vendido por peça"* | **três palavras — `Peso`, `Unidade`, `Volume` — com só a grandeza do tipo clicável ao lado de `Unidade`** | "A peso" não nomeia o azeite a granel, que é medido em **litro** — e o princípio **já estava aceito nos requisitos desde 26/08/2026**: `§295-300` e `§1133-1142` mandam o rótulo do campo do lançamento vir da unidade base do tipo, e `ProductOption.quantityLabel` já escreve `Peso (kg)` / `Volume (L)` na Tela 3. O campo **Vendido** era o último lugar da Tela 4 que ainda não obedecia. O banco continua com **dois** modos: `Peso` e `Volume` são o mesmo `by_weight`, e `grep -n "SellingChoice" lib/data/` não devolve nada. **Escolhido pelo usuário em 01/09/2026** |
 | O solto num tipo contado por unidade (**H-b**) | **estava escrito, e com data.** `requisitos §295-300`: *"o rótulo do campo vem da unidade base do tipo (decisão de 26/08/2026) … **'Quantidade (un)' no que é vendido solto e contado**"*, repetido em `§1133-1142`. E o código implementa: o ramo `BaseUnit.unit` de `ProductOption.quantityLabel` só é alcançável nesse estado, e tem teste próprio — o `looseRolls` de `product_option_test.dart` | **deixa de existir PELA TELA 4**: num tipo de unidade base `unit` só `Unidade` é clicável, e o avulso vira uma embalagem de `1 un`. O domínio continua aceitando o estado; o que some é a porta que o cria | é o preço de a grandeza nomear o botão, e **o usuário decidiu em 01/09/2026 mantê-lo, sabendo que revoga a decisão de 26/08** — `un` e "quantidade" são a mesma medida, então o solto contado não perde grandeza nenhuma, só ganha um passo de cadastro (12 × conteúdo 1 dá 12, igual). Nenhum cadastro **gravado** cai no caso: o fake e o `seed.sql` só têm `by_weight` em tipos de quilo. Se um dia existir, `SellingChoice.of` o mostra como `Unidade` sem tocar no gravado, e `looseNameOf` o chama de "unidade", **nunca de "peso"** — as duas passagens dos `requisitos` foram marcadas como revogadas no mesmo dia |
+| O que mora atrás do `≡` (**I-a**) | `wireframes §478`: *"O menu `≡` guarda histórico de compras, correção de compra lançada, manutenção do cadastro e configurações"* | **"Lançar compra" entra como quarta porta**, e é a primeira da lista | o `≡` é justamente onde moram as telas fora do rascunho, e a barra de baixo está **congelada em três destinos** (`wireframes §327` e `§471`). A alternativa — um quarto destino na barra — tiraria a Tela 3 do trio permanente e ela passaria a ter barra **e** `< Voltar`, que o `wireframes §330` proíbe |
+| A porta duplicada na Tela 1 (**I-b**) | — não estava escrito | a Tela 1 passa a ter **as duas**: o botão `[ Lançar compra ]` do rodapé e a entrada no `≡` | esconder a entrada na Tela 1 exigiria dar ao `MainMenu` um parâmetro `current`, como o `MainBottomBar` tem — mais código para apagar uma linha que não atrapalha. O botão do rodapé continua sendo o caminho curto que o `wireframes §414` desenha |
+| Para onde a Tela 3 volta (**I-c**) | — não estava escrito | **continua indo para a Tela 1** ao salvar, mesmo tendo sido aberta a partir da Tela 5 ou da Tela 6 | é o comportamento que `new_purchase_screen.dart:345` já tem, e o `wireframes §322` desenha o lançamento terminando na lista. Fazer a volta depender da porta de entrada exigiria carregar a origem por `extra` e um `switch` no `_save` — e "lançar compra ENDS on the list" é o que o comentário do botão da Tela 1 já afirma desde a Entrega 3 |
 
 **O `Result` do guia oficial, traduzido para este projeto:**
 
@@ -680,9 +683,30 @@ Não são da arquitetura, são do negócio — e cada uma já derrubou uma vers�
   separado, e o deploy só passa a valer na abertura seguinte do app.
 
 ## Estado atual do projeto
-**Atualizado em 31/08/2026**, ao fim da Entrega 10
+**Atualizado em 01/09/2026**, ao fim da Entrega 11
+(`temp/plan/plano-porta-lancar-compra-no-menu-2026-09-01.md`, os 6 passos) — **acréscimo
+fora das 19 histórias**, pedido pelo usuário em 01/09/2026: *"quero lançar uma compra, sem
+precisar ter o produto na lista de compras"*. **Lançar compra nunca exigiu o produto na
+lista** — `fetchProductOptions` traz o catálogo inteiro e `planWriteOffs` só dá baixa no
+que por acaso estiver lá. O que faltava era a **porta**: `/purchases/new` só era alcançável
+pelo botão do rodapé da Tela 1, então lançar obrigava a passar pela tela da lista. A única
+mudança de produção é a **quarta entrada de `MainMenu._entries`**, na primeira posição, que
+chega de uma vez às três telas que montam o `≡` — Telas 1, 5 e 6. A **barra de baixo
+continua com três destinos** (decisão **I-a**) e continuam **onze** telas: nenhuma rota
+nasceu. Sem migration, sem repository, sem provider, sem rota e sem domínio. Os testes
+crescem **dois** casos: a **ordem** das quatro portas em `main_menu_test.dart`, que é a
+decisão I-a virando teste, e o `≡` da Tela 6 em `remaining_screen_test.dart`, que nunca
+tinha prova de fora. A armadilha desta entrega mora na Tela 1, que com o menu aberto
+escreve "Lançar compra" **duas** vezes — o `OutlinedButton` do rodapé e o `ListTile` do
+menu —, e a desambiguação é `find.widgetWithText(ListTile, …)`, nunca um `findsWidgets`
+que o rodapé sozinho satisfaria. E o conjunto de verificação **não** é
+`grep -rl 'MainMenu' test/`, que devolve um arquivo só: os dois testes que a entrega
+quebra abrem o menu por `find.byTooltip('Menu')`. O padrão que fecha o conjunto é
+`grep -rlE "MainMenu|byTooltip\('Menu'\)" test/`, e ele devolve quatro.
+
+Antes dela veio a Entrega 10
 (`temp/plan/plano-percentuais-tipo-e-marca-2026-08-31.md`, os 14 passos).
-`flutter analyze` limpo, **1387 testes verdes**, cobertura de linha **94,1%** — acima do
+Ao fim dela, `flutter analyze` limpo, **1387 testes verdes**, cobertura de linha **94,1%** — acima do
 piso de 90% do `deploy.yml`, com a maior margem que o projeto já teve, e **os cinco
 arquivos tocados por esta entrega estão em 100%**. **As dezenove histórias estão
 fechadas, e com elas os 18 requisitos Essenciais** — a Entrega 10 é **acréscimo fora

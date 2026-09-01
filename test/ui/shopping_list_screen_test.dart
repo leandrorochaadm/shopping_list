@@ -333,7 +333,7 @@ void main() {
     expect(find.byKey(const ValueKey('field-product')), findsOneWidget);
   });
 
-  testWidgets('the ≡ opens the three doors, none of them explained', (
+  testWidgets('the ≡ opens the four doors, none of them explained', (
     tester,
   ) async {
     await pumpScreen(tester, repository: _SpyRepository(initial: seed));
@@ -341,6 +341,19 @@ void main() {
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
 
+    // `widgetWithText(ListTile, …)` and not a plain `find.text`: with the
+    // sheet open over screen 1, "Lançar compra" is written TWICE — the
+    // footer's OutlinedButton and this menu's ListTile (decision I-b). A
+    // `findsWidgets` here would be satisfied by the footer alone and would
+    // stop proving the door exists.
+    expect(find.widgetWithText(ListTile, 'Lançar compra'), findsOneWidget);
+    // And the footer button did NOT leave: screen 1 keeps BOTH doors, which
+    // is decision I-b. Without this line, deleting the footer button one day
+    // would leave this test green.
+    expect(
+      find.widgetWithText(OutlinedButton, 'Lançar compra'),
+      findsOneWidget,
+    );
     expect(find.text('Histórico de compras'), findsOneWidget);
     expect(find.text('Manutenção do cadastro'), findsOneWidget);
     expect(find.text('Configurações'), findsOneWidget);

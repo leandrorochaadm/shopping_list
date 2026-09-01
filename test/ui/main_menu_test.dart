@@ -27,16 +27,40 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('lists three doors, and none of them is disabled', (
+  testWidgets('lists four doors, and none of them is disabled', (
     tester,
   ) async {
     await openMenu(tester);
 
+    // The fourth door, and the first of the list: registering a purchase
+    // stopped requiring a stop at screen 1 (decision I-a).
+    expect(find.text('Lançar compra'), findsOneWidget);
     expect(find.text('Histórico de compras'), findsOneWidget);
     expect(find.text('Manutenção do cadastro'), findsOneWidget);
     expect(find.text('Configurações'), findsOneWidget);
     // No subtitle at all: a subtitle here IS the "chega na H…" explanation.
     expect(find.textContaining('chega na H'), findsNothing);
+  });
+
+  testWidgets('"Lançar compra" is the first door', (tester) async {
+    // It is the most frequent action of the three screens that mount this
+    // menu, and the order is decision I-a — not an accident of the list.
+    await openMenu(tester);
+
+    // The title of every door is a plain `Text`; the day one stops being
+    // one, this cast is the warning — and the message it throws will be
+    // about the cast, not about the order.
+    final labels = tester
+        .widgetList<ListTile>(find.byType(ListTile))
+        .map((tile) => (tile.title! as Text).data)
+        .toList();
+
+    expect(labels, [
+      'Lançar compra',
+      'Histórico de compras',
+      'Manutenção do cadastro',
+      'Configurações',
+    ]);
   });
 
   testWidgets('"corrigir compra" left the menu, and did not become enabled', (
@@ -113,6 +137,10 @@ void main() {
           ),
         ),
         GoRoute(
+          path: Routes.newPurchase,
+          builder: (context, state) => destination('o lançamento'),
+        ),
+        GoRoute(
           path: Routes.purchaseHistory,
           builder: (context, state) => destination('o histórico'),
         ),
@@ -129,6 +157,7 @@ void main() {
     addTearDown(router.dispose);
 
     for (final door in const {
+      'Lançar compra': 'o lançamento',
       'Histórico de compras': 'o histórico',
       'Manutenção do cadastro': 'a manutenção',
       'Configurações': 'as configurações',
@@ -146,6 +175,6 @@ void main() {
       reached.add(door.key);
     }
 
-    expect(reached, hasLength(3));
+    expect(reached, hasLength(4));
   });
 }
