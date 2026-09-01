@@ -127,18 +127,49 @@ existirem**, e a Action diz na saída exatamente o que falta. `main` publica con
 `prod`; qualquer outra branch publica preview contra o `dev`, e **preview nunca aponta
 para o `prod`**.
 
-> ⚠️ **Abra uma branch antes do primeiro push.** O repositório está em `main`, e é dali
-> que a Action publica contra produção. A S1 é medição — ela não deve sair contra a base
-> sem backup do `R13`.
+> ⚠️ **O aviso original desta pendência dizia "abra uma branch antes do primeiro push",
+> para a medição não sair contra a base sem backup do `R13`. Ele perdeu o efeito em
+> 31/08/2026**, e é honesto dizer por quê: com `SUPABASE_*_DEV` apontando para o `prod`
+> (decisão do dia, abaixo), **branch nenhuma protege coisa alguma** — todo build, de
+> qualquer branch, escreve no mesmo banco. O que protege hoje é o `prod` estar vazio.
 
-**Resposta:**
-- Subdomínio: ` `
-- Variável de repositório (`Settings → Secrets and variables → Actions → Variables`):
-  `[ ] CLOUDFLARE_PROJECT_NAME`
-- Secrets criados no GitHub (`Settings → Secrets → Actions`):
-  `[ ] CLOUDFLARE_API_TOKEN` `[ ] CLOUDFLARE_ACCOUNT_ID`
-  `[ ] SUPABASE_URL_DEV` `[ ] SUPABASE_ANON_KEY_DEV`
-  `[ ] SUPABASE_URL_PROD` `[ ] SUPABASE_ANON_KEY_PROD`
+**Resposta — 31/08/2026:**
+
+- **Conta Cloudflare:** `tektonsoftwares@gmail.com` ·
+  Account ID `3f59416017b79e668bd0b5e67a0c639b`
+- **Projeto Pages:** `shopping-list`, criado por
+  `npx wrangler@3 pages project create shopping-list --production-branch main`
+- **Subdomínio:** `https://shopping-list-ci3.pages.dev`
+  **O `-ci3` foi acrescentado pelo Cloudflare**, não escolhido: `shopping-list` já existia
+  globalmente. É a única imprevisibilidade que sobrou do "não adivinhável" do
+  `tecnico §9` — três caracteres. **Divergência aceita pelo usuário no dia**; a volta é
+  criar outro projeto com um nome sorteado e trocar a variável do repositório, que é
+  barato enquanto não houver ninguém com a URL na tela de início.
+- Variável de repositório:
+  `[x] CLOUDFLARE_PROJECT_NAME` = `shopping-list`
+- Secrets criados no GitHub (`gh secret set`, não pelo painel):
+  `[ ] CLOUDFLARE_API_TOKEN` — **o único que falta**, e o único que não sai da CLI: o
+  `wrangler login` grava um token OAuth de usuário, que expira e não serve ao CI. Criar
+  um API token pela API exige uma credencial com `User API Tokens · Edit` ou a Global API
+  Key, e as duas nascem no painel. Permissão necessária: `Account · Cloudflare Pages ·
+  Edit`, nesta conta só.
+  `[x] CLOUDFLARE_ACCOUNT_ID`
+  `[x] SUPABASE_URL_DEV` `[x] SUPABASE_ANON_KEY_DEV`
+  `[x] SUPABASE_URL_PROD` `[x] SUPABASE_ANON_KEY_PROD`
+
+> 🔒 **Por que estes dados podem estar escritos aqui, e o que muda se isso deixar de
+> valer:** o repositório é **privado**. O Account ID não é credencial (identifica a conta
+> e não abre nada sem token) e o e-mail já está no `git log`. **O subdomínio é outra
+> coisa:** pela decisão 6 — sem login, RLS permissiva e a chave anônima **embutida no
+> `main.dart.js` que o Pages serve** — quem tem a URL tem o banco. Ela é a barreira
+> inteira. **Se este repositório algum dia deixar de ser privado, o subdomínio e a
+> `SUPABASE_URL` saem antes**, e o `.env.example` cai na mesma regra.
+
+**A decisão do dia, e ela reabre quando o `dev` nascer:** os quatro secrets do Supabase
+carregam **o mesmo par**, o do `prod`. Não há projeto `dev` (A1), então a regra escrita no
+`deploy.yml` — *a preview NEVER points at prod* — está **suspensa**, com a nota dentro do
+próprio arquivo. Nada no workflow muda quando o `dev` existir: os dois secrets `_DEV`
+deixam de repetir a produção, e a regra volta sozinha.
 
 ---
 

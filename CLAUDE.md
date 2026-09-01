@@ -851,13 +851,27 @@ vindas do `ColorScheme` (`test/web_assets_test.dart` falha se elas divergirem do
 novo —, e as metas `apple-mobile-web-app-capable` e `robots: noindex` mais o
 `web/robots.txt`, porque a URL não divulgada é a única barreira do sistema.
 
-O `.github/workflows/deploy.yml` existe e **nunca rodou**: analisa, testa com cobertura
-(**piso de 90%**, verificado em script), constrói com os dois `--dart-define` e publica
-no Cloudflare Pages — e a publicação é **pulada, não falhada**, enquanto os secrets de A3
-não existirem. A regra escrita nele: **`main` aponta para o `prod`, qualquer outra branch
-publica um preview contra o `dev`**. Não há remote nem branch neste repositório ainda, e
-**abrir uma branch antes do primeiro push é obrigatório** — senão a primeira publicação
-sai de `main` contra a base sem backup do `R13`.
+O `.github/workflows/deploy.yml` **já rodou, e passou** — duas vezes em 31/08/2026, nos
+dois últimos pushes de `main`: analisa, testa com cobertura (**piso de 90%**, verificado
+em script), constrói com os dois `--dart-define` e publica no Cloudflare Pages, e a
+publicação é **pulada, não falhada**, quando as credenciais faltam. O remote existe
+(`origin`, `leandrorochaadm/shopping_list`, privado) e `main` é a branch padrão.
+
+**Aquelas duas execuções verdes não provam que a publicação funciona, e o motivo é um bug
+que só se corrigiu em 31/08:** o `if:` dos dois últimos steps lia `env.CLOUDFLARE_API_TOKEN`,
+mas **o `env:` de um step não é visível ao `if:` daquele mesmo step** — a condição é
+avaliada antes de o step ser montado. O `if` do publish dava falso para sempre e o do
+"nada foi publicado" dava verdadeiro para sempre, o que com o A3 aberto é indistinguível
+do comportamento correto. Hoje quem decide é o step `pick the environment`, que **lê o
+próprio env** e devolve `publish=yes|no` como output; os dois steps finais leem esse
+output. **A lição vale para todo `if:` de step que dependa de secret.**
+
+A regra escrita no arquivo: **`main` aponta para o `prod`, qualquer outra branch publica
+um preview contra o `dev`** — e ela está **suspensa desde 31/08/2026**, com a nota dentro
+do próprio workflow: não existe `dev` (A1), então os quatro secrets do Supabase carregam
+o **mesmo par**, o do `prod`. Enquanto isso valer, **branch nenhuma protege o banco** —
+todo build escreve no `prod`, e o que protege é ele estar vazio. Nada no workflow muda
+quando o `dev` nascer: os dois secrets `_DEV` deixam de repetir a produção.
 
 O `supabase/` existe com o `config.toml`, **nove migrations** (a função `normalize_name`
 `IMMUTABLE`; as 12 tabelas com a função transacional de cadastro; a RLS permissiva com os
