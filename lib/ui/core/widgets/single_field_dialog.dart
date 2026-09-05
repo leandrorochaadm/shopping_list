@@ -137,45 +137,47 @@ class _SingleFieldDialogState extends State<SingleFieldDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: Text(widget.title),
-    content: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        TextField(
-          controller: _controller,
-          autofocus: true,
-          enabled: !_saving,
-          textCapitalization: TextCapitalization.sentences,
-          textInputAction: TextInputAction.done,
-          onSubmitted: _saving ? null : (_) => _submit(),
-          onChanged: (_) {
-            if (_reactivable != null) setState(() => _reactivable = null);
-          },
-          decoration: InputDecoration(
-            labelText: widget.fieldLabel,
-            errorText: _error,
-            // The message can be two lines long, and the default clips it.
-            errorMaxLines: 3,
-          ),
-        ),
-        if (_reactivable != null && widget.onReactivate != null)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              key: const ValueKey('reactivate'),
-              onPressed: _saving ? null : _reactivate,
-              child: Text(widget.reactivateLabel),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            enabled: !_saving,
+            textCapitalization: TextCapitalization.sentences,
+            textInputAction: TextInputAction.done,
+            onSubmitted: _saving ? null : (_) => _submit(),
+            onChanged: (_) {
+              if (_reactivable != null) setState(() => _reactivable = null);
+            },
+            decoration: InputDecoration(
+              labelText: widget.fieldLabel,
+              errorText: _error,
+              // The message can be two lines long, and the default clips it.
+              errorMaxLines: 3,
             ),
           ),
-        if (widget.footnote != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(
-              widget.footnote!,
-              style: Theme.of(context).textTheme.bodySmall,
+          if (_reactivable != null && widget.onReactivate != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const ValueKey('reactivate'),
+                onPressed: _saving ? null : _reactivate,
+                child: Text(widget.reactivateLabel),
+              ),
             ),
-          ),
-      ],
+          if (widget.footnote != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                widget.footnote!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+        ],
+      ),
     ),
     actions: [
       ...widget.leadingActions,

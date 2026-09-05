@@ -657,16 +657,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             'Embalagens deste produto',
             style: Theme.of(context).textTheme.titleMedium,
           ),
-          if (_existing.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            for (final product in _existing)
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.check),
-                title: Text(product.packaging?.label ?? ''),
-                subtitle: const Text('já cadastrada'),
-              ),
-          ],
           if (type == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
@@ -725,6 +715,19 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                       _selectedDraftId ??= draft.id;
                     }),
             ),
+          ],
+          // What is already registered comes AFTER the lines being typed: the
+          // line one types must not slide down as the product piles up
+          // packagings. Only the maintenance path ever fills this list.
+          if (_existing.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final product in _existing)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.check),
+                title: Text(product.packaging?.label ?? ''),
+                subtitle: const Text('já cadastrada'),
+              ),
           ],
         ],
         const SizedBox(height: 24),

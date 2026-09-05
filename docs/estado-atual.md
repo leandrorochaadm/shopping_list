@@ -2,7 +2,32 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
-**Atualizado em 01/09/2026**, ao fim da Entrega 11
+**Atualizado em 04/09/2026**, ao fim da Entrega 12
+(`temp/plan/plano-campos-no-topo-iphone-2026-09-04.md`) — **acréscimo fora das 19
+histórias**, pedido pelo usuário em 04/09/2026: o alvo é um PWA instalado num **iPhone
+12, 390 × 844 pontos**, e com o teclado aberto sobram cerca de 500. A regra nova de
+`.claude/rules/ui-conventions.md` — **todo campo digitável fica no topo**, antes de
+lista, resumo, total ou botão — foi aplicada onde três telas não a cumpriam. **A Tela 3
+foi a maior:** "Itens desta compra" saiu de entre o Mercado e o Produto e desceu para
+depois do `[ + Adicionar à compra ]`; era ela que empurrava Produto, Quantidade e Valor
+para baixo a cada item lançado. **Na Tela 4**, as embalagens **já cadastradas** desceram
+para depois das linhas editáveis e do `[ + Adicionar embalagem ]` — estado que só o
+caminho da manutenção (`registrationId`) enxerga. **O `SingleFieldDialog` ganhou
+`SingleChildScrollView`**, e com ele os três diálogos de um campo só (categoria, marca,
+mercado): era o único dos sete diálogos do app sem rolagem. **Sem migration, sem
+repository, sem provider, sem rota e sem domínio** — é reordenação de widget, documento e
+teste. O wireframe subiu para a **versão 2.1**, com a subseção "O tamanho da tela" nas
+Convenções de notação, o quadro da Tela 3 redesenhado e as **duas exceções** declaradas:
+o campo dentro de linha repetível e a frase que explica o campo vazio.
+
+**Duas coisas do plano NÃO foram feitas, e por decisão:** a seção do teto de gasto ficou
+como estava — a frase acima do campo é a **explicação do campo vazio**, e abaixo dele
+seria legenda órfã (exceção registrada na regra) —, e o `Scrollable.ensureVisible` do
+painel `#3a` não entrou porque o achado que o motivava **não se reproduz**: o painel já
+se levanta pelo `viewInsets`, e nenhuma linha dele cai sob o teclado. O que entrou no
+lugar foi o **teste** que prova isso, e que falha se aquele `padding` for removido.
+
+Antes dela veio a Entrega 11
 (`temp/plan/plano-porta-lancar-compra-no-menu-2026-09-01.md`, os 6 passos) — **acréscimo
 fora das 19 histórias**, pedido pelo usuário em 01/09/2026: *"quero lançar uma compra, sem
 precisar ter o produto na lista de compras"*. **Lançar compra nunca exigiu o produto na

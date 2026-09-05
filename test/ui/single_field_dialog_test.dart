@@ -4,6 +4,8 @@ import 'package:shopping_list/domain/models/catalog_entry.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/ui/core/widgets/single_field_dialog.dart';
 
+import '../helpers/viewport.dart';
+
 /// The shared one-field dialog, tested on its own for the first time — until
 /// this delivery it was exercised sideways, by the three dialogs of H2.
 ///
@@ -240,5 +242,33 @@ void main() {
 
       expect(find.text('Reativar e acrescentar embalagem'), findsOneWidget);
     });
+  });
+
+  testWidgets('the worst case fits with the keyboard up on an iPhone 12', (
+    tester,
+  ) async {
+    // Everything at once: the footnote, the [ Reativar ] line and a refusal
+    // three lines long, which is the ceiling of `errorMaxLines`. With only
+    // the field, the dialog would fit with or without the scroll and the
+    // test would prove nothing.
+    useIPhone12WithKeyboard(tester);
+
+    await pumpDialog(
+      tester,
+      onSubmit: (_) async =>
+          'Já existe a categoria "Produtos de limpeza pesada da cozinha", '
+          'criada em 18/08/2026, e ela está desativada no momento. '
+          'Reative aquela em vez de criar uma segunda com o mesmo nome.',
+      findReactivable: (_) => Category(id: 'c1', name: 'Limpeza', active: false),
+      onReactivate: (_) async => null,
+      footnote: 'O nome não diferencia maiúsculas, espaço sobrando nem acento: '
+          '"Limpeza" e "limpeza " são a mesma categoria.',
+    );
+
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('reactivate')), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

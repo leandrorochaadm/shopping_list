@@ -410,25 +410,6 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     .setStore(created!.id!);
               },
             ),
-            if (draft.items.isNotEmpty) ...[
-              const Divider(height: 32),
-              Text(
-                'Itens desta compra',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              for (final item in draft.items)
-                PurchaseItemRow(
-                  item: item,
-                  editing: item.id == _editingItemId,
-                  onEdit: () => _edit(item),
-                  onRemove: () async {
-                    if (item.id == _editingItemId) _clearForm();
-                    await ref
-                        .read(purchaseDraftViewModelProvider.notifier)
-                        .removeItem(item.id);
-                  },
-                ),
-            ],
             const Divider(height: 32),
             _ProductField(
               state: options,
@@ -517,6 +498,29 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     : 'Salvar alteração',
               ),
             ),
+            // From here down it is READING, and reading is what the keyboard
+            // is allowed to push: the list grows with every item launched, and
+            // above the fields it pushed Produto, Quantidade and Valor under
+            // the keyboard on a twenty-item purchase.
+            if (draft.items.isNotEmpty) ...[
+              const Divider(height: 32),
+              Text(
+                'Itens desta compra',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              for (final item in draft.items)
+                PurchaseItemRow(
+                  item: item,
+                  editing: item.id == _editingItemId,
+                  onEdit: () => _edit(item),
+                  onRemove: () async {
+                    if (item.id == _editingItemId) _clearForm();
+                    await ref
+                        .read(purchaseDraftViewModelProvider.notifier)
+                        .removeItem(item.id);
+                  },
+                ),
+            ],
             const Divider(height: 32),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

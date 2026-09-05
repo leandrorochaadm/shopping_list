@@ -17,12 +17,14 @@ import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/selling_choice.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
+import 'package:shopping_list/ui/catalog/widgets/packaging_row.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/shopping_list.dart';
+import '../helpers/viewport.dart';
 
 void main() {
   /// Mounted through the real router: screen 4 asks `context.canPop()` to
@@ -312,8 +314,7 @@ void main() {
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
 
     // AFTER pumpScreen, which forces a tall viewport of its own.
-    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
-    tester.view.devicePixelRatio = 3;
+    useIPhone12(tester);
     await tester.pumpAndSettle();
 
     // Drained on purpose, and it is NOT this field: the Marca dropdown
@@ -731,6 +732,25 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('já cadastrada'), findsNWidgets(4));
+  });
+
+  testWidgets('the packaging lines being typed come before the ones already '
+      'registered', (tester) async {
+    // The maintenance path: four packagings already registered, which used to
+    // sit ON TOP of the line being typed and pushed it down by four rows.
+    await pumpScreen(
+      tester,
+      request: const NewProductRequest(registrationId: 'reg-1'),
+    );
+
+    expect(find.text('já cadastrada'), findsNWidgets(4));
+    // Geometric on purpose: nothing here is renamed, only reordered, and
+    // order is the only thing an assertion can see.
+    expect(
+      tester.getTopLeft(find.byType(PackagingRow).first).dy,
+      lessThan(tester.getTopLeft(find.text('já cadastrada').first).dy),
+      reason: 'what is already registered is above what is being typed',
+    );
   });
 
   testWidgets('a registration that is not there says so, and opens blank', (

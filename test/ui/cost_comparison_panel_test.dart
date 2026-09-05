@@ -7,6 +7,7 @@ import 'package:shopping_list/domain/models/proportional_cost.dart';
 import 'package:shopping_list/ui/purchase/widgets/cost_comparison_panel.dart';
 
 import '../helpers/purchase.dart';
+import '../helpers/viewport.dart';
 
 /// The panel is a plain `StatefulWidget`: these tests pump it inside a
 /// `MaterialApp` with **no container and no router**, the way
@@ -65,13 +66,20 @@ void main() {
     IList<ProductOption>? options,
     String launchingId = 'prod-4',
     Size viewport = const Size(1200, 2400),
+    bool keyboard = false,
   }) async {
     // A tall viewport by default: the sheet is a list plus a fixed footer,
     // and the default 800×600 leaves the button outside the render tree. The
-    // test of the three bands passes an iPhone's size instead, which is the
-    // only one that needs the list to actually scroll.
+    // tests that need the list to actually scroll pass `iPhone12Size`, which
+    // is the only device this app targets.
     tester.view.physicalSize = viewport;
     tester.view.devicePixelRatio = 1;
+    // The ratio is 1 here, so points and physical pixels are the same number.
+    if (keyboard) {
+      tester.view.viewInsets = const FakeViewPadding(
+        bottom: iPhone12KeyboardInset,
+      );
+    }
     addTearDown(tester.view.reset);
 
     final all = options ?? seeded();
@@ -385,7 +393,7 @@ void main() {
       options: sevenLeaves(),
       launchingId: 'prod-1',
       // An iPhone 12 in portrait, which is the only device this app targets.
-      viewport: const Size(390, 844),
+      viewport: iPhone12Size,
     );
 
     final headline = tester.getRect(
@@ -426,6 +434,39 @@ void main() {
     expect(
       find.text('refrigerante · ${costHeaderFor(BaseUnit.liter)}'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('with the keyboard up no line falls under it', (tester) async {
+    // The field of a repeatable row has no "top" to be moved to, and this is
+    // what answers for it: the panel lifts itself by `viewInsets`, so the
+    // band that scrolls ends where the keyboard begins. Remove that padding
+    // and the lines below run under the keyboard.
+    await openPanel(
+      tester,
+      options: sevenLeaves(),
+      launchingId: 'prod-1',
+      viewport: iPhone12Size,
+      keyboard: true,
+    );
+
+    final built = [
+      for (var i = 1; i <= 7; i++) find.byKey(ValueKey('cost-price-prod-$i')),
+    ].where((finder) => finder.evaluate().isNotEmpty).toList();
+    // Without this the loop below would be empty and would prove nothing.
+    expect(built, isNotEmpty);
+
+    for (final finder in built) {
+      expect(
+        tester.getRect(finder).bottom,
+        lessThanOrEqualTo(iPhone12KeyboardFold),
+        reason: 'a price field is under the keyboard',
+      );
+    }
+    // And the footer, which is the answer, is above it too.
+    expect(
+      tester.getRect(find.byKey(const ValueKey('cost-use'))).bottom,
+      lessThanOrEqualTo(iPhone12KeyboardFold),
     );
   });
 }

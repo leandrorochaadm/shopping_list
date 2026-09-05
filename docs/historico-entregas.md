@@ -4,6 +4,49 @@ Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra.
 
 ---
 
+## O que a Entrega 12 mudou fora das telas dela
+
+**Treze arquivos de teste de widget rodavam numa viewport de 2400 a 4000 pontos de
+altura** — três a cinco vezes o aparelho real —, e **nenhum deles definia `viewInsets`**.
+Os dois widgets que se levantam acima do teclado (`cost_comparison_panel.dart:148` e
+`add_item_panel.dart:142`) nunca tinham sido exercitados **com** teclado: com o valor em
+zero, o `padding` que os salva no iPhone é `EdgeInsets.zero` no teste, e apagá-lo não
+quebrava nada. Nenhum problema de tela pequena podia aparecer ali, e por isso a ordem
+errada da Tela 3 sobreviveu a onze entregas com a suíte verde.
+
+**A régua virou um arquivo:** `test/helpers/viewport.dart`, com `iPhone12Size`,
+`iPhone12PixelRatio`, `iPhone12KeyboardInset`, `iPhone12KeyboardFold`, `useIPhone12` e
+`useIPhone12WithKeyboard`. Antes, cada teste escrevia o próprio `physicalSize` à mão, em
+sete valores diferentes, e um deles já era o iPhone 12 escrito por extenso
+(`new_product_screen_test.dart:315`). **A armadilha do helper**: `viewInsets` é medido em
+**pixels físicos**, como `physicalSize` — com `devicePixelRatio: 3`, escrever
+`bottom: 336` dá um teclado de 112 pontos, e o campo "cabe" num teste que mente.
+`tester.view.reset()` devolve os dois, então o `addTearDown` é um só.
+
+**Três asserções que o plano pedia não puderam ser escritas como pedidas, e a razão vale
+para a próxima:** com a viewport de 844 pontos, o que está **abaixo da dobra não é
+construído**, então `find` não acha e `findsNWidgets` falha onde a intenção era medir
+posição. Na Tela 3, provar que os quatro itens existem passou a ser feito sobre o próprio
+`PurchaseDraft`, antes do `pump`; na Tela 4, a asserção deixou de ser "acima do teclado"
+— com Categoria, Tipo, Unidade, Vendido, Marca e Descrição na frente, a primeira linha de
+embalagem **não cabe** acima da dobra, e o que a segura é a rolagem que o Flutter faz
+sozinho ao campo ganhar foco — e virou a **ordem**: a linha que se digita vem antes da
+que já está gravada.
+
+**O achado do painel `#3a` não se reproduziu.** O plano supunha que a linha focada podia
+ficar sob o teclado; o painel já se levanta pelo `viewInsets`, e com sete opções e o
+teclado aberto **nenhuma** linha construída cai sob a dobra. O `Scrollable.ensureVisible`
+teria sido código morto. Ficou o teste — `with the keyboard up no line falls under it` —,
+que falha se aquele `padding` for trocado por `EdgeInsets.zero`.
+
+**Um bug de largura apareceu de graça e ficou como pendência:** a `Row` do "Total da
+compra" (`new_purchase_screen.dart:525`) **estoura 30 px a 390 pontos** quando o total
+tem quatro dígitos. É o segundo do tipo — o dropdown `Marca` da Tela 4 estoura 219 px na
+mesma largura, e o teste dele drena a exceção desde a H10. Os dois são bug de **largura**,
+não de teclado, e nenhum dos dois foi corrigido aqui.
+
+---
+
 ## O que a Entrega 8 mudou fora das telas dela
 
 **`pending_destinations.dart` e `under_construction_screen.dart` foram apagados.** O

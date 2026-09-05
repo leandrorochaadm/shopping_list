@@ -28,6 +28,7 @@ import '../helpers/locale.dart';
 import '../helpers/purchase.dart';
 import '../helpers/shopping_list.dart';
 import '../helpers/spending_cap.dart';
+import '../helpers/viewport.dart';
 
 class _SpyPurchases extends PurchaseRepositoryLocal {
   _SpyPurchases({super.sameDayBuyer}) : super(latency: Duration.zero);
@@ -727,6 +728,41 @@ void main() {
       );
     });
   });
+
+  testWidgets(
+    'keeps the typing fields above the keyboard on an iPhone 12',
+    (tester) async {
+      // Four items already launched: it is the growth of this list that used
+      // to push Produto, Quantidade and Valor down.
+      var draft = PurchaseDraft(
+        purchaseId: 'a1',
+        date: DateTime(2026, 8, 18),
+        registeredBy: 'Leandro',
+        storeId: 'store-1',
+      );
+      for (var i = 1; i <= 4; i++) {
+        draft = draft.withItem(
+          purchaseItem(id: 'i$i', option: crate, cents: 6200),
+        );
+      }
+
+      expect(draft.items, hasLength(4));
+
+      await pumpScreen(tester, draft: draft);
+      // AFTER the pump helper, which forces a tall viewport of its own.
+      useIPhone12WithKeyboard(tester);
+      await tester.pumpAndSettle();
+
+      // Quantidade is the deepest field of the normal path, and it opens
+      // above the keyboard fold. Valor, right below it, is reached by the
+      // scroll Flutter itself does when a field takes focus.
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('field-quantity'))).dy,
+        lessThan(iPhone12KeyboardFold),
+        reason: 'field-quantity is under the keyboard',
+      );
+    },
+  );
 }
 
 /// A catalog with nothing in it — the first opening of the app.

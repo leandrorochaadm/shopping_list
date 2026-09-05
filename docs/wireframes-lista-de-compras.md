@@ -1,6 +1,26 @@
 # Wireframes (rascunho) — Lista de compras de supermercado
 
-Versão: 2.0 | Data: 26/08/2026
+Versão: 2.1 | Data: 04/09/2026
+
+**O que mudou na 2.1** (sobre a 2.0) — o arquivo passou a declarar **o tamanho
+da tela em que ele é lido**, e uma das ordens desenhadas contrariava isso:
+
+- **As Convenções de notação ganharam a subseção "O tamanho da tela"**: o alvo é
+  o PWA instalado num iPhone 12, 390 × 844 pontos, e com o teclado aberto sobram
+  cerca de 500. Daí a regra — **todo campo digitável é desenhado acima de
+  qualquer lista, resumo, total ou botão**, em tela e em diálogo —, mais as duas
+  exceções: o campo dentro de linha repetível e a frase que explica o campo
+  vazio.
+- **A Tela 3 mudou de ordem:** "Itens desta compra" desceu para **depois** do
+  `[ + Adicionar à compra ]↻`. Estava entre o Mercado e o Produto, e cada item
+  lançado empurrava Produto, Quantidade e Valor — os três campos do caminho
+  normal — para debaixo do teclado. Nota nova explicando o porquê.
+- **A Tela 4 ganhou a nota do estado da manutenção:** as embalagens **já
+  cadastradas** aparecem abaixo das linhas editáveis e do
+  `[ + Adicionar embalagem ]↻`, nunca acima. O quadro não muda — esse estado
+  nunca foi desenhado, porque a tela do quadro parte de um cadastro em branco.
+- **O checklist ganhou o item** que confere a regra nas seis telas e nos dois
+  painéis.
 
 **O que mudou na 2.0** (sobre o rascunho 1.9) — os **16 achados da revisão em
 três passadas**, feita depois de os dois documentos se declararem fechados
@@ -288,6 +308,28 @@ documentos:
 | `══` | Alça do painel ancorado embaixo | topo do painel |
 | `░░░` | Tela de trás, esmaecida atrás do painel | fundo cinza |
 | `↕` | Anotação: essa faixa rola | área com scroll |
+
+### O tamanho da tela
+
+O alvo é **um PWA instalado na tela de início de um iPhone 12: 390 × 844
+pontos**. Não é monitor, não é tablet e não é aba de navegador. Todo quadro
+deste arquivo é desenhado para essa medida.
+
+Com o teclado aberto sobram cerca de **500 pontos** — o teclado do iPhone leva
+perto de 340. Por isso, **todo campo digitável é desenhado
+acima de qualquer lista, resumo, total ou botão**, em tela e em diálogo: o que
+se digita vem primeiro, o que se lê vem depois e pode descer. Campo no meio da
+tela vai parar debaixo do teclado no aparelho, e espaçamento não resolve isso —
+o problema é que o espaço deixou de existir, e quem resolve é a **ordem** dos
+elementos.
+
+São duas as exceções. A primeira é o campo que mora **dentro de uma linha
+repetível** (as embalagens da Tela 4, as linhas do `#3a`): não existe "topo"
+para ele, e o que se exige em troca é que a faixa que rola **termine onde o
+teclado começa** — é o que o `#3a` já faz. A segunda é a **frase que explica o
+campo vazio**, que fica acima dele: explicação abaixo do campo que ela explica
+é legenda órfã, e ela só vale onde o campo não chega perto da dobra do
+teclado.
 
 **Regras:**
 - Larguras fixas em 40 colunas — proporção de tela de celular.
@@ -693,15 +735,15 @@ continua aparecendo atrás dela.
 │  Data: ▤ 18/08/2026               *  │
 │  Mercado: ▼ Selecione   [+Novo]↻ *   │
 │  ────────────────────────────        │
-│  Itens desta compra                  │
-│  • Leite Italac 1L  12 R$62 [ed]↻    │
-│  • Omo 500g          1 R$10,00 [ed]↻ │
-│  ────────────────────────────        │
 │  Produto: ▼ Coca 12x350ml [+Novo]→4  │
 │  [ Comparar custo ]→3a            *  │
 │  Quantidade: 1   Valor: R$ 56,70  *  │
 │  ⚠ Subiu 18% sobre a média        *  │
 │  [    + Adicionar à compra    ]↻     │
+│  ────────────────────────────        │
+│  Itens desta compra               *  │
+│  • Leite Italac 1L  12 R$62 [ed]↻    │
+│  • Omo 500g          1 R$10,00 [ed]↻ │
 │  ────────────────────────────        │
 │  Total da compra:        R$ 72,00    │
 │                                      │
@@ -742,7 +784,15 @@ continua aparecendo atrás dela.
   em 4,2 litros. O que muda é o histórico de preço, que é separado por produto —
   e é por isso que a comparação entre fardo e lata avulsa mora na visão "Tipo
   inteiro" da Tela 5, nunca no alerta de alta.
-- `*` **A ordem de preenchimento é produto → quantidade → valor.** Escolhido o
+- `*` **"Itens desta compra" fica ABAIXO do bloco que se digita**, e não entre
+  o Mercado e o Produto como até a 2.0. A lista cresce a cada item lançado, e o
+  que cresce empurrava Produto, Quantidade e Valor — os três campos do caminho
+  normal, os mesmos da nota seguinte — para debaixo do teclado: numa compra de
+  vinte itens o campo Produto nascia fora da tela. Daqui para baixo tudo é
+  leitura — a lista já lançada, o total, o botão de salvar — e leitura pode
+  descer. É a regra do tamanho da tela, nas Convenções de notação.
+- `*` **A ordem de preenchimento é produto → quantidade → valor**, e os três
+  campos ficam logo abaixo do Mercado, no topo da tela. Escolhido o
   o produto, o app guarda o **preço da unidade base** da última compra dele em
   qualquer mercado e, a cada mudança na quantidade, recalcula o valor total
   sozinho: **quantidade convertida para a unidade base × preço da unidade
@@ -1089,6 +1139,13 @@ continua aparecendo atrás dela.
 - `*` Ao salvar, volta para a Tela 3 **com a embalagem marcada já selecionada**
   no campo "Produto". As primeiras semanas de uso são feitas quase só de produto
   novo — um passo a mais aqui pesa muito nos 2 minutos.
+- `*` **Abrindo esta tela para acrescentar embalagem a um produto que já
+  existe** — o caminho da manutenção do cadastro, que o quadro acima não desenha
+  porque ele parte de um cadastro em branco —, aparece também a lista do que
+  **já está cadastrado**, cada linha com o nome da embalagem e "já cadastrada".
+  Essa lista fica **abaixo** das linhas editáveis e do `[ + Adicionar
+  embalagem ]↻`, nunca acima: o que se digita não pode descer conforme o produto
+  acumula embalagens. É a regra do tamanho da tela, nas Convenções de notação.
 
 **Estados:**
 - **Carregando:** Categoria, Tipo e Marca mostram "Carregando..." até as listas
@@ -1453,6 +1510,10 @@ continua aparecendo atrás dela.
       justamente as três que mais esperam dados de fora do celular
 - [x] O `#3a` cabe em tela de celular pequena sem esconder a resposta: cabeçalho
       e rodapé fixos, só a lista rola, e a lista abre curta
+- [x] Todo campo digitável é desenhado acima de lista, resumo, total e botão,
+      nas seis telas e nos dois painéis — **390 × 844 é a régua**, com as duas
+      exceções declaradas nas convenções: o campo dentro de linha repetível e a
+      frase que explica o campo vazio
 - [x] Estado de sistema vazio descrito onde ele existe (Telas 1, 3 e 4); as
       Telas 2, 5 e 6 tratam o caso como "sem dado no período"
 - [x] Regras marcadas com `*` explicadas
