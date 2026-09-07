@@ -4,6 +4,42 @@ Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra.
 
 ---
 
+## O que a Entrega 13 mudou fora das telas dela
+
+**A assinatura de `rankCosts` ganhou um parâmetro OBRIGATÓRIO**, `contents`, e isso é
+deliberado: um `contents` opcional deixaria uma chamada futura esquecer de decidir, e o
+esquecimento apareceria como um custo plausível e errado — não como um erro de
+compilação. As duas únicas chamadas do projeto são o painel e o helper `rank` dos testes
+de domínio, e o helper ganhou o mapa **com o vazio como padrão**, de modo que os ~30 casos
+que já existiam continuam valendo palavra por palavra. **Que a ausência da chave não muda
+nada** é justamente o que o caso antigo `weighed against packaged: the typed price is
+already the kilo` prova.
+
+**`null` no mapa é resposta, e a ausência da chave é outra coisa** — o mesmo padrão do
+`RestoredListItem`. É o `containsKey` **junto** com o `== null` que separa "o campo foi
+apagado" de "esta linha nem tem campo"; sem ele, **toda** linha com embalagem cairia no
+ramo de espera e o painel inteiro deixaria de calcular. Vale como precedente para o
+próximo mapa de valor anulável que atravessar uma fronteira aqui.
+
+**A pergunta "esta linha tem campo?" tem um dono só**: `acceptsTypedContentOf`, no
+domínio. O getter `CostLine.acceptsTypedContent` delega a ele, e o mapa
+`_contentControllers` do painel é construído por ele — três leitores, **um** critério. O
+getter é getter, e não campo, de propósito: um campo a mais seria um campo a mais para
+esquecer no `==` (regra 8), e ele é derivado de `option`, que o `==` já compara.
+
+**A quinta coluna da linha do painel existe em todas elas, vazia onde não há campo**
+(decisão F-n). Não é espaço desperdiçado: é a mesma razão de a linha ter duas alturas
+(F-k) — a comparação é feita com o olho descendo a coluna do custo, e uma coluna que muda
+de lugar entre uma linha a peso e uma de embalagem não pode ser descida.
+
+**A fixture do frango nasceu porque a do refrigerante não servia:**
+`optionsOfSoftDrinkType` tem embalagem em **todas** as folhas, e nenhuma delas ganharia o
+campo novo. `optionsOfChickenType` traz as três formas que o painel precisa distinguir —
+a folha a peso e duas embalagens — sobre o `beefType`, que já era um tipo em quilo. Nenhum
+`ProductType` novo entrou nos helpers.
+
+---
+
 ## O que a Entrega 12 mudou fora das telas dela
 
 **Treze arquivos de teste de widget rodavam numa viewport de 2400 a 4000 pontos de

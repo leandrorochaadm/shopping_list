@@ -20,6 +20,19 @@ import 'product_option.dart';
 /// derive from it or from the computed percentage.
 const int costTieThreshold = 1;
 
+/// Does this leaf accept the content being **typed** in the panel?
+///
+/// Only the one with no registered packaging — the chicken on the tray, the
+/// cheese at the counter. Where there is a packaging the content is the
+/// registered one and there is nothing to ask: typing another value there
+/// would be saying the registration is wrong, and the place to fix a
+/// registration is screen 4.
+///
+/// **It is the only place that answers this.** The View asks (rule 11); it
+/// does not look at `packaging == null` inside a `build()`.
+bool acceptsTypedContentOf(ProductOption option) =>
+    option.isSoldByWeight || option.product.packaging == null;
+
 /// How much content **one** typed price buys, in the smallest unit of the
 /// base.
 ///
@@ -32,9 +45,19 @@ const int costTieThreshold = 1;
 /// A leaf with no packaging sold by piece is not representable in the schema
 /// (decision B1); the fallback only exists so the arithmetic does not lie if
 /// one day it is.
-int contentPricedOf(ProductOption option) {
+///
+/// [typedContent] is what was typed in the panel, already converted to the
+/// smallest unit of the base — 800 for "0,8" on a type in kilos. It only
+/// counts where [acceptsTypedContentOf] is true, and its absence keeps the
+/// "1 kg" the weighed line always had: the typed price ALREADY is the kilo's
+/// while nobody says otherwise.
+int contentPricedOf(ProductOption option, {int? typedContent}) {
   final packaging = option.product.packaging;
   if (option.isSoldByWeight || packaging == null) {
+    // The guard costs one line and is the only division by zero that would
+    // take the whole panel down: `parseAmount` never returns zero, and a line
+    // with no valid content does not even reach here (see `rankCosts`).
+    if (typedContent != null && typedContent > 0) return typedContent;
     return option.baseUnit.smallestUnits;
   }
   return packaging.totalContent;
@@ -146,8 +169,8 @@ CostCandidates costCandidatesOf({
   // **`all.contains` and not only the null check:** without that half, a leaf
   // with no id — or of another type — would land in `shown` without having
   // passed the filter above, and the panel would die on
-  // `_controllers[line.option.id]!`, which would have created no controller
-  // for it.
+  // `_priceControllers[line.option.id]!`, which would have created no
+  // controller for it.
   final shown =
       launching == null ||
           recent.contains(launching) ||
@@ -205,6 +228,14 @@ final class CostLine {
   /// The `★`. Never on more than one line, and on none when there was a
   /// technical tie or when two lines with a price are missing.
   final bool isBest;
+
+  /// Does this line have a quantity field? It is the question `_CostRow`
+  /// asks (rule 11) instead of looking at the packaging inside a `build()`.
+  ///
+  /// A getter, not a field: it derives from [option], which `==` already
+  /// compares — and one more field here would be one more field to forget in
+  /// the `==` (rule 8).
+  bool get acceptsTypedContent => acceptsTypedContentOf(option);
 
   @override
   bool operator ==(Object other) =>
@@ -290,6 +321,21 @@ final class CostRanking {
 CostRanking rankCosts({
   required IList<ProductOption> options,
   required IMap<String, Money> prices,
+
+  /// The content typed on each line, in the smallest unit of the base.
+  ///
+  /// **Null is an answer, absence is another thing** — the same pattern as
+  /// `RestoredListItem`:
+  ///
+  /// - key missing: nobody typed anything; it is worth one base unit, as it
+  ///   always was;
+  /// - key with a value: that is the line's divisor;
+  /// - key with `null`: the field was cleared or has rubbish in it, and the
+  ///   line WAITS — with no cost and no `−%`, just like a ticked line with
+  ///   no price.
+  ///
+  /// A line with a registered packaging ignores this whole map.
+  required IMap<String, int?> contents,
   required ISet<String> selected,
   required BaseUnit baseUnit,
 }) {
@@ -304,17 +350,29 @@ CostRanking rankCosts({
     final id = option.id;
     final price = id == null ? null : prices[id];
     final isSelected = id != null && selected.contains(id);
+    // **`containsKey` TOGETHER with the `== null`** is what tells "the field
+    // was cleared" from "this line has no field at all" — without it every
+    // packaged line would fall into the waiting branch.
+    final hasTypedContent = id != null && contents.containsKey(id);
+    final typedContent = hasTypedContent ? contents[id] : null;
 
     if (!isSelected) {
       aside.add(option);
     } else if (price == null || price.cents <= 0) {
+      waiting.add(option);
+    } else if (acceptsTypedContentOf(option) &&
+        hasTypedContent &&
+        typedContent == null) {
+      // Ticked, with a price, and the quantity field empty or invalid: it
+      // waits. Falling back to one kilo here would show a plausible and wrong
+      // cost, which is the worst outcome a calculator has.
       waiting.add(option);
     } else {
       competing.add(
         _Contender(
           option: option,
           cents: price.cents,
-          content: contentPricedOf(option),
+          content: contentPricedOf(option, typedContent: typedContent),
         ),
       );
     }

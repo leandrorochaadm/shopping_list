@@ -49,6 +49,7 @@ final paperType = ProductType(
   categoryId: 'cat-3',
   baseUnit: BaseUnit.unit,
 );
+
 /// The second example of requirement 4: the type that adds up two brands.
 final powderType = ProductType(
   id: 'type-4',
@@ -225,6 +226,44 @@ IList<ProductOption> optionsOfSoftDrinkType({
   _softDrinkLeaf('prod-2', 1, 269, MeasureUnit.milliliter, tiny),
   _softDrinkLeaf('prod-3', 1, 2000, MeasureUnit.liter, bottle),
   _softDrinkLeaf('prod-4', 12, 350, MeasureUnit.milliliter, crate),
+].lock;
+
+/// A type in kilos with the three shapes the panel has to tell apart: the
+/// leaf sold by weight (which GETS a quantity field) and two packagings
+/// (which do not). It is the chicken fixture: the tray at the counter, the
+/// 1 kg pack and the 2 kg pack.
+IList<ProductOption> optionsOfChickenType({
+  PriceReference? tray,
+  PriceReference? small,
+  PriceReference? big,
+}) => [
+  optionByWeight(
+    id: 'chick-1',
+    type: beefType,
+    purchaseCount: tray == null ? 0 : 1,
+    lastPurchasedOn: tray?.purchasedOn,
+    priceReference: tray,
+  ),
+  optionByPiece(
+    id: 'chick-2',
+    type: beefType,
+    description: 'congelado',
+    pieceSize: 1000,
+    unit: MeasureUnit.kilogram,
+    purchaseCount: small == null ? 0 : 1,
+    lastPurchasedOn: small?.purchasedOn,
+    priceReference: small,
+  ),
+  optionByPiece(
+    id: 'chick-3',
+    type: beefType,
+    description: 'congelado',
+    pieceSize: 2000,
+    unit: MeasureUnit.kilogram,
+    purchaseCount: big == null ? 0 : 1,
+    lastPurchasedOn: big?.purchasedOn,
+    priceReference: big,
+  ),
 ].lock;
 
 ProductOption _softDrinkLeaf(

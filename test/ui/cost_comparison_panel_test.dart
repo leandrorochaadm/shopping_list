@@ -37,6 +37,14 @@ void main() {
     crate: reference(cents: 4200, quantityInBaseUnit: 4200),
   );
 
+  /// The chicken: the tray sold by weight — the only line with a quantity
+  /// field — against the 1 kg and the 2 kg packs.
+  IList<ProductOption> chicken() => optionsOfChickenType(
+    tray: reference(cents: 1200, quantityInBaseUnit: 1000),
+    small: reference(cents: 1450, quantityInBaseUnit: 1000),
+    big: reference(cents: 2600, quantityInBaseUnit: 2000),
+  );
+
   /// Seven leaves of the same type, all bought inside the window — the
   /// "sete opções e a lista rolando" of the written criterion. The sizes grow
   /// so no two labels are the same.
@@ -114,6 +122,11 @@ void main() {
 
   String priceIn(WidgetTester tester, String id) => tester
       .widget<TextField>(find.byKey(ValueKey('cost-price-$id')))
+      .controller!
+      .text;
+
+  String contentIn(WidgetTester tester, String id) => tester
+      .widget<TextField>(find.byKey(ValueKey('cost-content-$id')))
       .controller!
       .text;
 
@@ -434,6 +447,150 @@ void main() {
     expect(
       find.text('refrigerante · ${costHeaderFor(BaseUnit.liter)}'),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('the weighed leaf opens with the quantity at one base unit', (
+    tester,
+  ) async {
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+
+    expect(contentIn(tester, 'chick-1'), '1');
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const ValueKey('cost-content-chick-1')))
+          .decoration!
+          .suffixText,
+      'kg',
+    );
+  });
+
+  testWidgets('the packaged leaf has no quantity field', (tester) async {
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+
+    expect(find.byKey(const ValueKey('cost-content-chick-2')), findsNothing);
+    expect(find.byKey(const ValueKey('cost-content-chick-3')), findsNothing);
+  });
+
+  testWidgets('F-n: the cost column sits in the same place on every line', (
+    tester,
+  ) async {
+    // The reserved column, and the whole reason it exists: the comparison is
+    // made with the eye going down the cost column, and a weighed line beside
+    // a packaged one cannot move it. Deleting the empty `SizedBox` of the
+    // packaged line is what this fails on.
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+    await tester.tap(find.byKey(const ValueKey('cost-check-chick-2')));
+    await tester.pumpAndSettle();
+
+    double costLeftOf(String id) => tester
+        .getRect(
+          find.descendant(
+            of: find.byKey(ValueKey('cost-row-$id')),
+            matching: find.textContaining('/kg'),
+          ),
+        )
+        .left;
+
+    expect(costLeftOf('chick-1'), costLeftOf('chick-2'));
+  });
+
+  testWidgets('typing the quantity redoes the cost and the star', (
+    tester,
+  ) async {
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+    await tester.tap(find.byKey(const ValueKey('cost-check-chick-2')));
+    await tester.pumpAndSettle();
+
+    // R$ 12,00 the kilo against R$ 14,50: the tray wins while the quantity
+    // says one kilo.
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('cost-row-chick-1')),
+        matching: find.byIcon(Icons.star),
+      ),
+      findsOneWidget,
+    );
+
+    // The tray is 800 g: R\$ 15,00 the kilo, and it loses.
+    await tester.enterText(
+      find.byKey(const ValueKey('cost-content-chick-1')),
+      '0,8',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('15,00/kg'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('cost-row-chick-2')),
+        matching: find.byIcon(Icons.star),
+      ),
+      findsOneWidget,
+    );
+    expect(headlineIn(tester), 'congelado 1 kg — 3% mais barato o kg');
+  });
+
+  testWidgets('clearing the quantity takes the line out of the computation', (
+    tester,
+  ) async {
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+    await tester.tap(find.byKey(const ValueKey('cost-check-chick-2')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('cost-content-chick-1')),
+      '',
+    );
+    await tester.pumpAndSettle();
+
+    expect(headlineIn(tester), 'Preencha o preço de duas opções.');
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('cost-use')))
+          .onPressed,
+      isNull,
+    );
+    // And it does NOT fall back to one kilo behind his back.
+    expect(find.text('12,00/kg'), findsNothing);
+  });
+
+  testWidgets('the typed price survives touching the quantity', (tester) async {
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+
+    await tester.enterText(
+      find.byKey(const ValueKey('cost-price-chick-1')),
+      '9,00',
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('cost-content-chick-1')),
+      '0,6',
+    );
+    await tester.pumpAndSettle();
+
+    // The `setState` does not recreate a controller.
+    expect(priceIn(tester, 'chick-1'), '9,00');
+    expect(contentIn(tester, 'chick-1'), '0,6');
+  });
+
+  testWidgets('with the keyboard up the quantity field is above the fold', (
+    tester,
+  ) async {
+    await openPanel(
+      tester,
+      options: chicken(),
+      launchingId: 'chick-1',
+      viewport: iPhone12Size,
+      keyboard: true,
+    );
+
+    expect(
+      tester.getRect(find.byKey(const ValueKey('cost-content-chick-1'))).bottom,
+      lessThanOrEqualTo(iPhone12KeyboardFold),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('cost-use'))).bottom,
+      lessThanOrEqualTo(iPhone12KeyboardFold),
     );
   });
 

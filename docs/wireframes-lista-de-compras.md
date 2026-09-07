@@ -918,9 +918,13 @@ continua aparecendo atrás dela.
   por litro", "custo por unidade" —, porque é a unidade base do tipo que manda,
   não o tamanho de nenhuma das embalagens. A coluna `/kg` troca de rótulo junto:
   `/L` no leite, `/un` no ovo.
-- **As colunas são fixas e alinhadas**: produto, preço digitado, custo por
-  unidade base e diferença. É o alinhamento que deixa a comparação ser feita com
-  o olho, descendo a coluna, sem ler linha por linha.
+- **As colunas são fixas e alinhadas**: produto, preço digitado, quantidade,
+  custo por unidade base e diferença. É o alinhamento que deixa a comparação ser
+  feita com o olho, descendo a coluna, sem ler linha por linha. **A coluna da
+  quantidade existe em todas as linhas** — com campo na linha vendida a peso,
+  vazia e do mesmo tamanho nas outras (decisão **F-n**): sem essa reserva, o
+  custo mudaria de lugar de uma linha para a outra e a coluna deixaria de poder
+  ser descida com o olho.
 - `*` **Não existe botão "Comparar".** O custo por unidade base de cada linha
   **marcada** aparece **enquanto ele digita**, à direita do preço, e o `★` pula
   sozinho para a linha mais barata a cada mudança. Sem segunda etapa, sem tela de resultado,
@@ -961,6 +965,65 @@ continua aparecendo atrás dela.
   **já é o da unidade base do tipo** — o quilo da mussarela do balcão, o litro do
   azeite a granel —, porque não há conteúdo a dividir. É assim que a mussarela do
   balcão é confrontada com a fatiada em pacote.
+- `*` **Essa linha, e só ela, tem um campo de quantidade ao lado do preço**
+  (decisão **F-m**), que abre em `1 kg` / `1 L` / `1 un`. Ele existe para o caso
+  que sem ele não tem resposta: a bandeja de frango de 800 g e a de 1 kg são a
+  **mesma folha** vendida a peso — uma linha só —, e sem dizer quanto a bandeja
+  tem não há como confrontar as duas. Enquanto o campo diz `1`, o painel faz
+  exatamente a conta que sempre fez.
+- `*` **Apagar o campo tira a linha da conta**: ela fica esperando, igual à
+  linha marcada sem preço, e **nunca volta a valer 1 kg por baixo do pano**. Um
+  custo plausível e errado é o pior desfecho de uma calculadora.
+- `*` **O preço e a quantidade são um par.** A linha a peso abre com o preço da
+  **unidade base** da última compra — o preço do quilo, não o da bandeja —,
+  então quem digita `0,8` na quantidade tem de corrigir o preço junto. O campo é
+  um convite a corrigir os dois, não uma pergunta a responder antes de usar.
+- `*` **A linha com embalagem cadastrada não tem campo nenhum**: o conteúdo é o
+  do cadastro, e digitar outro ali seria dizer que o cadastro está errado — o
+  lugar de consertar cadastro é a Tela 4.
+
+O frango, que é o caso que pede o campo:
+
+```
+┌──────────────────────────────────────┐
+│  ══   Comparar custo        [ X ]→3  │
+│  frango · custo por kg            *  │
+│  ────────────────────────────        │
+│   produto      preço    qtd   /kg dif│
+│  {x} Frango (a peso)                 │
+│      R$ 12,00 [0,8 kg] 15,00  −3%   *│
+│  {x} Frango congelado 1 kg           │
+│      R$ 14,50 (      ) ★14,50       *│
+├──────────────────────────────────────┤
+│  ★ Frango congelado 1 kg — 3% mais   │
+│    barato o kg                       │
+│  [ Usar Frango congelado 1 kg ]→3    │
+└──────────────────────────────────────┘
+```
+- `*` **Essa linha, e só ela, tem um campo de quantidade ao lado do preço**
+  (decisão **F-m**). Ele **abre em `1 kg` / `1 L` / `1 un`**, que é o que a linha
+  a peso sempre valeu, e serve para confrontar bandejas de tamanhos diferentes:
+  a de frango de 800 g contra o pacote congelado de 1 kg é a **mesma folha**
+  vendida a peso, e sem o campo as duas não teriam como ser comparadas.
+  **Apagar o campo tira a linha da conta** — ela fica esperando, como a linha
+  marcada sem preço, e nunca volta a valer 1 kg por baixo dos panos.
+  A coluna existe em **todas** as linhas: nas que têm embalagem ela fica
+  **vazia**, e é isso que mantém o custo e o `−%` no mesmo lugar (decisão
+  **F-n**) — o quadro do sabão em pó acima é justamente esse caso, com a coluna
+  em branco nas três linhas.
+
+  ┌──────────────────────────────────────┐
+  │  ══   Comparar custo        [ X ]→3  │
+  │  frango · custo por kg               │
+  │  ────────────────────────────        │
+  │   produto     preço    qtd   /kg dif │
+  │  {x} bandeja  R$12,00 [0,8]kg 15,00  │
+  │  {x} cong.1kg R$14,50   ( )  ★14,50  │
+  ├──────────────────────────────────────┤
+  │  ★ cong.1kg — 3% mais barato o kg    │
+  │  [      Usar cong.1kg      ]→3       │
+  └──────────────────────────────────────┘
+
 - `*` **O rodapé diz quanto o melhor custo sai mais barato** que a pior linha em
   comparação: `(preço da linha − melhor preço) ÷ preço da linha`, os dois na
   unidade base, arredondado para o inteiro. **O mesmo `−%` fica ao lado de cada
@@ -982,7 +1045,9 @@ continua aparecendo atrás dela.
   pendente — a baixa continua sendo pelo tipo do produto.
 - **Nada digitado aqui vira registro.** Preço corrigido na calculadora não entra
   no histórico, não muda preço médio, não dispara alerta de alta e não sobrevive
-  ao fechamento. Quem grava preço é o lançamento.
+  ao fechamento. **Vale igual para a quantidade**: ela não volta pré-preenchida
+  para o campo Quantidade da Tela 3, e `[ Usar… ]` devolve só o produto
+  escolhido. Quem grava preço é o lançamento.
 
 **Estados:**
 - **Carregando:** a faixa do meio mostra "Buscando os preços que vocês

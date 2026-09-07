@@ -97,6 +97,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | resposta da calculadora | `CostRanking` | as linhas ordenadas, o `★`, para onde o `[ Usar… ]` aponta e a frase do rodapé |
 | empate técnico | `costTieThreshold` | 1%. `const` no domínio, e **o único lugar onde o número existe** |
 | conteúdo que um preço compra | `contentPricedOf` | o `totalContent` da embalagem, ou a unidade base no vendido a peso |
+| conteúdo digitado na comparação | `typedContent` | o conteúdo que o `#3a` deixa digitar **só na folha sem embalagem** (`acceptsTypedContentOf`). No mapa que chega a `rankCosts`, `null` é "campo apagado" e a **ausência** da chave é outra coisa: ninguém digitou |
 | preço de abertura da linha | `openingPriceOf` | o pago por **uma** embalagem na última compra. `null` é a embalagem nunca comprada na janela |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois

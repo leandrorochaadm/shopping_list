@@ -47,11 +47,13 @@ CostRanking rank(
   Map<String, int> cents, {
   Set<String>? selected,
   BaseUnit baseUnit = BaseUnit.liter,
+  Map<String, int?> contents = const {},
 }) => rankCosts(
   options: options,
   prices: {
     for (final entry in cents.entries) entry.key: Money(entry.value),
   }.lock,
+  contents: contents.lock,
   selected: (selected ?? cents.keys.toSet()).lock,
   baseUnit: baseUnit,
 );
@@ -77,6 +79,60 @@ void main() {
 
     test('sold by piece with no packaging falls back to the base unit', () {
       expect(contentPricedOf(unpackaged), 1000);
+    });
+
+    test('the weighed leaf uses the typed content', () {
+      expect(
+        contentPricedOf(optionByWeight(id: 'tray'), typedContent: 800),
+        800,
+      );
+    });
+
+    test('the packaged leaf ignores the typed content', () {
+      final pack = optionByPiece(id: 'prod-1', pieceSize: 350);
+      expect(contentPricedOf(pack, typedContent: 800), 350);
+    });
+
+    test('with no typed content the weighed leaf is still one base unit', () {
+      expect(contentPricedOf(optionByWeight(id: 'tray')), 1000);
+    });
+
+    test('a typed content of zero or less divides nothing', () {
+      expect(
+        contentPricedOf(optionByWeight(id: 'tray'), typedContent: 0),
+        1000,
+      );
+      expect(
+        contentPricedOf(optionByWeight(id: 'tray'), typedContent: -5),
+        1000,
+      );
+    });
+  });
+
+  group('acceptsTypedContentOf', () {
+    test('the weighed leaf accepts it', () {
+      expect(acceptsTypedContentOf(optionByWeight(id: 'tray')), isTrue);
+    });
+
+    test('the packaged leaf does not', () {
+      expect(acceptsTypedContentOf(optionByPiece(id: 'prod-1')), isFalse);
+    });
+
+    test('the line answers the same thing — it is what the View asks', () {
+      expect(
+        CostLine(
+          option: optionByWeight(id: 'tray'),
+          selected: true,
+        ).acceptsTypedContent,
+        isTrue,
+      );
+      expect(
+        CostLine(
+          option: optionByPiece(id: 'prod-1'),
+          selected: true,
+        ).acceptsTypedContent,
+        isFalse,
+      );
     });
   });
 
@@ -553,6 +609,84 @@ void main() {
         (line) => line.option.id == 'prod-1',
       );
       expect(zero.costPerBaseUnit, isNull);
+    });
+
+    test('the 800 g tray typed in loses to the 1 kg pack', () {
+      // The case that asks for the field: the two trays are the SAME leaf
+      // sold by weight, and without the typed content the panel would take
+      // R$ 12,00 for the kilo.
+      final tray = optionByWeight(id: 'tray', type: beefType);
+      final packed = optionByPiece(
+        id: 'packed',
+        type: beefType,
+        description: 'congelado',
+        pieceSize: 1000,
+        unit: MeasureUnit.gram,
+      );
+
+      final ranking = rank(
+        [tray, packed].lock,
+        {'tray': 1200, 'packed': 1450},
+        baseUnit: BaseUnit.kilogram,
+        contents: {'tray': 800},
+      );
+
+      expect(ranking.lines[0].option.id, 'packed');
+      expect(ranking.lines[0].costPerBaseUnit, 1450);
+      expect(ranking.lines[1].costPerBaseUnit, 1500);
+      expect(ranking.lines[1].savingPercent, 3);
+      expect(ranking.best, packed);
+    });
+
+    test('a cleared quantity field leaves the line waiting', () {
+      final tray = optionByWeight(id: 'tray', type: beefType);
+      final packed = optionByPiece(
+        id: 'packed',
+        type: beefType,
+        pieceSize: 1000,
+        unit: MeasureUnit.gram,
+      );
+
+      final ranking = rank(
+        [tray, packed].lock,
+        {'tray': 1200, 'packed': 1450},
+        baseUnit: BaseUnit.kilogram,
+        contents: {'tray': null},
+      );
+
+      // It does NOT fall back to one kilo: a plausible and wrong cost is the
+      // worst outcome a calculator has.
+      final waiting = ranking.lines.firstWhere(
+        (line) => line.option.id == 'tray',
+      );
+      expect(waiting.costPerBaseUnit, isNull);
+      expect(waiting.savingPercent, isNull);
+      expect(ranking.best, isNull);
+      expect(ranking.usable, isNull);
+      expect(ranking.headline, 'Preencha o preço de duas opções.');
+    });
+
+    test('the packaged line waits for no content at all', () {
+      final tray = optionByWeight(id: 'tray', type: beefType);
+      final packed = optionByPiece(
+        id: 'packed',
+        type: beefType,
+        pieceSize: 1000,
+        unit: MeasureUnit.gram,
+      );
+
+      final ranking = rank(
+        [tray, packed].lock,
+        {'tray': 1200, 'packed': 1450},
+        baseUnit: BaseUnit.kilogram,
+        contents: {'packed': null},
+      );
+
+      // The map does not rule the packaged line: it goes on competing.
+      expect(ranking.lines[0].option.id, 'tray');
+      expect(ranking.lines[0].costPerBaseUnit, 1200);
+      expect(ranking.lines[1].costPerBaseUnit, 1450);
+      expect(ranking.best, tray);
     });
   });
 

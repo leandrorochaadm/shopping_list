@@ -2,7 +2,25 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
-**Atualizado em 04/09/2026**, ao fim da Entrega 12
+**Atualizado em 07/09/2026**, ao fim da Entrega 13
+(`temp/plan/plano-conteudo-digitado-comparar-custo-2026-09-07.md`) — **acréscimo fora das
+19 histórias**, pedido pelo usuário em 07/09/2026: o painel `#3a` dividia o preço digitado
+por um conteúdo que **só vinha do cadastro**, e por isso a bandeja de frango de 800 g não
+tinha como ser confrontada com a de 1 kg — as duas são a **mesma folha** vendida a peso.
+A linha **sem embalagem cadastrada**, e só ela, ganhou um **campo de quantidade** ao lado
+do preço, que abre em `1 kg` / `1 L` / `1 un` e recalcula custo, `★`, `−%` e rodapé
+**enquanto se digita**. **Apagar o campo deixa a linha esperando** — nunca volta a valer
+1 kg em silêncio, que seria um custo plausível e errado. No domínio nasceu
+`acceptsTypedContentOf` (**o único lugar** que responde quem tem campo),
+`contentPricedOf` ganhou `typedContent:`, `CostLine` ganhou o getter
+`acceptsTypedContent` (getter, não campo: o `==` não muda) e `rankCosts` passou a receber
+`contents: IMap<String, int?>`, onde **`null` é resposta e a ausência da chave é outra
+coisa**. No painel, `_controllers` virou `_priceControllers` e ganhou o irmão
+`_contentControllers`, criado só para quem o domínio deixa digitar. **Sem migration, sem
+repository, sem provider e sem rota**, e **nada digitado sai do painel**: `[ Usar… ]`
+continua devolvendo só a folha. Decisões **F-m** e **F-n** registradas.
+
+Antes dela veio a Entrega 12
 (`temp/plan/plano-campos-no-topo-iphone-2026-09-04.md`) — **acréscimo fora das 19
 histórias**, pedido pelo usuário em 04/09/2026: o alvo é um PWA instalado num **iPhone
 12, 390 × 844 pontos**, e com o teclado aberto sobram cerca de 500. A regra nova de
@@ -203,7 +221,10 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   `[ Comparar custo ]`. **Sem migration, sem repository, sem provider e sem rota**
   (decisões F-a e F-f): o painel abre sobre o `priceReference` que `rankOptions` já
   anexou a cada folha, e nada digitado nele vira registro — o que
-  `PurchaseDraftRepositoryLocal.writes` prova em teste.
+  `PurchaseDraftRepositoryLocal.writes` prova em teste. **A Entrega 13 acrescentou a esse
+  domínio o `acceptsTypedContentOf`, o `typedContent:` de `contentPricedOf`, o getter
+  `CostLine.acceptsTypedContent` e o `contents` de `rankCosts` — o campo de quantidade da
+  linha vendida a peso (F-m/F-n).**
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para

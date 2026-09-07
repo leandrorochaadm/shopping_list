@@ -56,9 +56,15 @@ class CostComparisonPanel extends StatefulWidget {
 }
 
 class _CostComparisonPanelState extends State<CostComparisonPanel> {
-  /// One controller per leaf, and they live only as long as the panel does.
-  /// That is the shape of "nothing he types here survives the closing".
-  final _controllers = <String, TextEditingController>{};
+  /// One price controller per leaf, and they live only as long as the panel
+  /// does. That is the shape of "nothing he types here survives the closing".
+  final _priceControllers = <String, TextEditingController>{};
+
+  /// One quantity controller **only for the leaves with no packaging** — the
+  /// only ones the domain lets the content be typed for. Whoever is not here
+  /// has no field, and this is the map the line asks to know whether it draws
+  /// one.
+  final _contentControllers = <String, TextEditingController>{};
 
   /// The ticked ids. It opens with exactly one: the product being registered
   /// — which `costCandidatesOf` guaranteed is in `shown` (F-j).
@@ -85,15 +91,28 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       final id = option.id;
       if (id == null) continue;
       final opening = openingPriceOf(option);
-      _controllers[id] = TextEditingController(
+      _priceControllers[id] = TextEditingController(
         text: opening == null ? '' : formatMoneyPlain(opening),
       );
+      // The quantity opens at ONE base unit — which is what the weighed line
+      // has always been worth. So the panel opens exactly as it opened, and
+      // the field is an invitation to correct, not a question to answer
+      // before using it.
+      if (acceptsTypedContentOf(option)) {
+        final measure = option.baseUnit.typedMeasure;
+        _contentControllers[id] = TextEditingController(
+          text: measure.format(option.baseUnit.smallestUnits),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
-    for (final controller in _controllers.values) {
+    for (final controller in _priceControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _contentControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -102,7 +121,7 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
   /// What is typed, already filtered by what `Money.parse` accepts — a field
   /// with "1,2,3" in it is a field being typed, not an error to report.
   ///
-  /// **Only the visible lines**, and not the whole of `_controllers`:
+  /// **Only the visible lines**, and not the whole of `_priceControllers`:
   /// `initState` creates a controller for every leaf of the type, and a leaf
   /// still hidden by `[ Ver todas do tipo ]` coming in here would swap the
   /// footer's sentence on a screen where nothing has a price.
@@ -112,10 +131,35 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       final id = option.id;
       if (id == null) continue;
       try {
-        final money = Money.parse(_controllers[id]!.text);
+        final money = Money.parse(_priceControllers[id]!.text);
         if (money.cents > 0) parsed[id] = money;
       } on InvalidMoney {
         // It stays out of the computation, and the line simply shows no cost.
+      }
+    }
+    return parsed.lock;
+  }
+
+  /// What was typed as a quantity, converted to the smallest unit of the base
+  /// — plus the explicit `null` of whoever cleared the field or typed what is
+  /// not a number. The two cases are different to the domain, and that is why
+  /// the map holds a nullable value (see `rankCosts`).
+  ///
+  /// **Only the visible lines**, for the same reason as `_prices`: a leaf
+  /// still hidden by `[ Ver todas do tipo ]` cannot sway the footer's
+  /// sentence.
+  IMap<String, int?> get _contents {
+    final parsed = <String, int?>{};
+    for (final option in _lines) {
+      final id = option.id;
+      final controller = id == null ? null : _contentControllers[id];
+      if (id == null || controller == null) continue;
+      try {
+        parsed[id] = option.baseUnit.typedMeasure.parseAmount(controller.text);
+      } on InvalidAmount {
+        parsed[id] = null;
+      } on AmountTooPrecise {
+        parsed[id] = null;
       }
     }
     return parsed.lock;
@@ -138,6 +182,7 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
     final ranking = rankCosts(
       options: _lines,
       prices: _prices,
+      contents: _contents,
       selected: _selected.lock,
       baseUnit: baseUnit,
     );
@@ -178,9 +223,10 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
                     key: ValueKey('cost-row-${line.option.id}'),
                     line: line,
                     baseUnit: baseUnit,
-                    controller: _controllers[line.option.id]!,
+                    priceController: _priceControllers[line.option.id]!,
+                    contentController: _contentControllers[line.option.id],
                     onToggle: () => _toggle(line.option),
-                    onPriceChanged: () => setState(() {}),
+                    onEdited: () => setState(() {}),
                   ),
                 if (widget.candidates.hasMore && !_showingAll)
                   Align(
@@ -239,23 +285,35 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
 /// 12 × 350 ml", which wraps into three lines and pushes each item's columns
 /// to a different height. The comparison on this screen is made with the eye,
 /// going down the cost column — and a column that moves up and down cannot be
-/// gone down. In two heights the four fields below sit in the same place on
-/// every line, whatever the name.
+/// gone down. In two heights the fields below sit in the same place on every
+/// line, whatever the name.
+///
+/// The quantity column only carries a field where `line.acceptsTypedContent`
+/// is true — **and the View does not decide that**: it is
+/// `acceptsTypedContentOf`, in the domain, that builds the map of controllers.
 class _CostRow extends StatelessWidget {
   const _CostRow({
     required this.line,
     required this.baseUnit,
-    required this.controller,
+    required this.priceController,
     required this.onToggle,
-    required this.onPriceChanged,
+    required this.onEdited,
+    this.contentController,
     super.key,
   });
 
   final CostLine line;
   final BaseUnit baseUnit;
-  final TextEditingController controller;
+  final TextEditingController priceController;
+
+  /// Only the leaf with no packaging has one — and it is
+  /// `line.acceptsTypedContent`, in the domain, that says which those are.
+  /// Null here does not wipe the column out: it goes on taking the same
+  /// space, empty.
+  final TextEditingController? contentController;
+
   final VoidCallback onToggle;
-  final VoidCallback onPriceChanged;
+  final VoidCallback onEdited;
 
   @override
   Widget build(BuildContext context) {
@@ -289,7 +347,7 @@ class _CostRow extends StatelessWidget {
               ],
             ),
           ),
-          // ── Height 2: the four fields, always in the same place ─────
+          // ── Height 2: the fields, always in the same place ──────────
           Row(
             children: [
               Checkbox(
@@ -298,10 +356,10 @@ class _CostRow extends StatelessWidget {
                 onChanged: (_) => onToggle(),
               ),
               SizedBox(
-                width: 104,
+                width: 96,
                 child: TextField(
                   key: ValueKey('cost-price-${line.option.id}'),
-                  controller: controller,
+                  controller: priceController,
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
@@ -314,8 +372,33 @@ class _CostRow extends StatelessWidget {
                     isDense: true,
                     prefixText: r'R$ ',
                   ),
-                  onChanged: (_) => onPriceChanged(),
+                  onChanged: (_) => onEdited(),
                 ),
+              ),
+              // The quantity column exists on EVERY line, with a field or
+              // without one: it is what keeps the cost and the `−%` in the
+              // same place when a weighed leaf and a packaging sit side by
+              // side, which is the whole reason the line has two heights
+              // (F-k).
+              SizedBox(
+                width: 76,
+                child: contentController == null
+                    ? const SizedBox.shrink()
+                    : TextField(
+                        key: ValueKey('cost-content-${line.option.id}'),
+                        controller: contentController,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                        ],
+                        decoration: InputDecoration(
+                          isDense: true,
+                          suffixText: baseUnit.label,
+                        ),
+                        onChanged: (_) => onEdited(),
+                      ),
               ),
               Expanded(
                 child: Text(
@@ -335,7 +418,7 @@ class _CostRow extends StatelessWidget {
                 ),
               ),
               SizedBox(
-                width: 56,
+                width: 52,
                 child: Text(
                   saving == null ? '' : '−$saving%',
                   textAlign: TextAlign.right,
