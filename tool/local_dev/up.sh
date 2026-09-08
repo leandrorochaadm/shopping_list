@@ -12,7 +12,27 @@ for config in postgrest.conf Caddyfile; do
   fi
 done
 
-pg_isready -q || { echo "postgres is not running -- brew services start postgresql@17" >&2; exit 1; }
+# The same hint setup.py prints, for the same reason: naming the wrong package
+# manager sends the reader looking for a `brew` that is not on this machine.
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  start_postgres="brew services start postgresql@17"
+elif [[ -d /run/systemd/system ]]; then
+  start_postgres="sudo systemctl start postgresql"
+else
+  start_postgres="sudo service postgresql start"
+fi
+
+pg_isready -q || { echo "postgres is not running -- $start_postgres" >&2; exit 1; }
+
+# Neither binary ships with Postgres, and neither is a Flutter dependency: on a
+# fresh machine the failure is `command not found` from inside a backgrounded
+# job, which `wait` reports as an exit code with no sentence attached.
+for binary in postgrest caddy; do
+  command -v "$binary" >/dev/null || {
+    echo "$binary is not installed -- see docs/estado-atual.md, \"O banco local\"" >&2
+    exit 1
+  }
+done
 
 postgrest "$here/postgrest.conf" &
 postgrest_pid=$!
