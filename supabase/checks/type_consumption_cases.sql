@@ -28,33 +28,33 @@ insert into public.product_type (id, name, category_id, base_unit) values
   -- Bought in the window AND in the month: case 9, the crossed-sum one.
   (
     '00000000-0000-4000-8000-00000000bb11', 'Check Acém',
-    '00000000-0000-4000-8000-00000000ca11', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca11', 'gram'
   ),
   -- Bought ONLY in the month in progress: case 2.
   (
     '00000000-0000-4000-8000-00000000bb12', 'Check Iogurte',
-    '00000000-0000-4000-8000-00000000ca12', 'liter'
+    '00000000-0000-4000-8000-00000000ca12', 'milliliter'
   ),
   -- Bought only OUTSIDE both intervals: case 3.
   (
     '00000000-0000-4000-8000-00000000bb13', 'Check Esquecido',
-    '00000000-0000-4000-8000-00000000ca12', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca12', 'gram'
   ),
   -- First purchase before the window, one purchase inside it: case 4, the
   -- café of the requirement.
   (
     '00000000-0000-4000-8000-00000000bb14', 'Check Café',
-    '00000000-0000-4000-8000-00000000ca12', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca12', 'gram'
   ),
   -- Two brands under one type: case 5.
   (
     '00000000-0000-4000-8000-00000000bb15', 'Check Sabão',
-    '00000000-0000-4000-8000-00000000ca12', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca12', 'gram'
   ),
   -- Deactivated, for case 6: the flag travels and Dart is what discards.
   (
     '00000000-0000-4000-8000-00000000bb16', 'Check Desativado',
-    '00000000-0000-4000-8000-00000000ca11', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca11', 'gram'
   ),
   -- Bought exactly ON the two boundaries: case 10.
   (

@@ -327,6 +327,12 @@ a consulta sem isso.
 
 **Trava:** o seed de 4 meses (ele grava valores) e, depois dele, todo relatório.
 
+**Ampliada em 07/09/2026 (decisão congelada 26):** a menor unidade deixou de ser "a
+menor unidade **da** base" e passou a **ser** a unidade base. São quatro — grama,
+mililitro, unidade e centímetro —, uma por grandeza, e o campo digitável perdeu a vírgula
+junto com o seletor de medida. Nenhum inteiro gravado mudou. Ver `J-a` em
+`docs/decisoes-divergencias.md`.
+
 **Decisão (28/08/2026):** **(x) inteiro na menor unidade.** Dinheiro em centavos, peso em
 gramas, volume em mililitros — `bigint` no Postgres e `int` em Dart, do banco à tela. A
 vírgula nasce só na formatação. **Consequência no schema:** as colunas de conteúdo da

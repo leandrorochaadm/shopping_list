@@ -16,13 +16,13 @@ void main() {
     id: 'type-1',
     name: 'Refrigerante',
     categoryId: 'cat-1',
-    baseUnit: BaseUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   );
   final beef = ProductType(
     id: 'type-2',
     name: 'Acém moído',
     categoryId: 'cat-2',
-    baseUnit: BaseUnit.kilogram,
+    baseUnit: BaseUnit.gram,
   );
   final paper = ProductType(
     id: 'type-3',
@@ -39,7 +39,7 @@ void main() {
     String description = '',
     int pieceCount = 1,
     int pieceSize = 350,
-    MeasureUnit unit = MeasureUnit.milliliter,
+    BaseUnit unit = BaseUnit.milliliter,
     int purchaseCount = 0,
     DateTime? lastPurchasedOn,
   }) => ProductOption(
@@ -49,7 +49,7 @@ void main() {
       packaging: Packaging(
         pieceCount: pieceCount,
         pieceSize: pieceSize,
-        pieceSizeUnit: unit,
+        baseUnit: unit,
       ),
     ),
     registration: ProductRegistration(
@@ -87,7 +87,7 @@ void main() {
           brand: coke,
           description: 'zero',
           pieceSize: 2000,
-          unit: MeasureUnit.liter,
+          unit: BaseUnit.milliliter,
         ).label,
         'Coca-Cola zero 2 L',
       );
@@ -163,7 +163,7 @@ void main() {
     });
 
     test('sold by weight carries the unit of its base', () {
-      expect(groundBeef.quantityLabel, 'Peso (kg)');
+      expect(groundBeef.quantityLabel, 'Peso (g)');
 
       final bulkOil = ProductOption(
         product: const Product(id: 'p9', productRegistrationId: 'reg-9'),
@@ -174,7 +174,7 @@ void main() {
         ),
         type: softDrink,
       );
-      expect(bulkOil.quantityLabel, 'Volume (L)');
+      expect(bulkOil.quantityLabel, 'Volume (ml)');
 
       final looseRolls = ProductOption(
         product: const Product(id: 'p8', productRegistrationId: 'reg-8'),
@@ -289,7 +289,7 @@ void main() {
     expect(ranked.priceReference, reference);
     expect(ranked.baseline, average);
     expect(ranked.label, 'Coca-Cola 12 × 350 ml');
-    expect(ranked.baseUnit, BaseUnit.liter);
+    expect(ranked.baseUnit, BaseUnit.milliliter);
     expect(ranked.id, 'p1');
     expect(ranked.isSoldByWeight, isFalse);
   });
@@ -371,7 +371,7 @@ void main() {
           'id': 'type-1',
           'name': 'Refrigerante',
           'category_id': 'cat-1',
-          'base_unit': 'liter',
+          'base_unit': 'milliliter',
           'active': true,
         },
         'brand': {'id': 'brand-1', 'name': 'Coca-Cola', 'active': true},

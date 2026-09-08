@@ -66,11 +66,6 @@ final class ProductType implements CatalogEntry {
     'active': active,
   };
 
-  /// Which measures the packaging rows may offer. Asking the type instead of
-  /// rebuilding the list on screen is what stops a soft drink from being
-  /// typed in grams.
-  List<MeasureUnit> get measures => baseUnit.measures;
-
   ProductType deactivated() => copyWith(active: false);
 
   ProductType reactivated() => copyWith(active: true);

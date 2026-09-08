@@ -25,7 +25,7 @@ values (
   '00000000-0000-4000-8000-0000000000d2',
   'Undo Leite',
   '00000000-0000-4000-8000-0000000000d1',
-  'liter'
+  'milliliter'
 );
 
 insert into public.product_registration (id, product_type_id, selling_mode)
@@ -42,7 +42,7 @@ insert into public.product (
 values (
   '00000000-0000-4000-8000-0000000000d4',
   '00000000-0000-4000-8000-0000000000d3',
-  1, 1000, 'liter', 1000
+  1, 1000, 'milliliter', 1000
 );
 
 insert into public.store (id, name) values

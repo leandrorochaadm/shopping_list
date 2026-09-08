@@ -12,8 +12,8 @@ import 'catalog_entry_edit_dialog.dart';
 /// corrected.
 ///
 /// The collision guard is CONTENT, not name — `Product.hasSameContentAs`, so
-/// `1 × 0,35 L` and `1 × 350 ml` are the same shelf — and it runs in the
-/// ViewModel before any I/O.
+/// `2 × 500` and `1 × 1000` are the same shelf — and it runs in the ViewModel
+/// before any I/O.
 class PackagingEditDialog extends ConsumerStatefulWidget {
   const PackagingEditDialog({
     required this.leaf,
@@ -33,9 +33,9 @@ class PackagingEditDialog extends ConsumerStatefulWidget {
 
   final Product leaf;
 
-  /// The base unit of the type this leaf hangs from — it decides which
-  /// measures the dropdown may offer, and no others. Typing "350 ml" under a
-  /// type measured in kilos would make that type's total add volume to
+  /// The base unit of the type this leaf hangs from, and there is nothing to
+  /// choose: it is the unit the field is typed in. Typing millilitres under a
+  /// type measured in grams would make that type's total add volume to
   /// weight, which is what every report is built on.
   final BaseUnit baseUnit;
 
@@ -49,24 +49,21 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
     text: '${widget.leaf.packaging?.pieceCount ?? 1}',
   );
   late final _sizeController = TextEditingController(text: _initialSize);
-  late MeasureUnit _unit =
-      widget.leaf.packaging?.pieceSizeUnit ?? widget.baseUnit.measures.first;
 
   String? _error;
   bool _saving = false;
 
-  /// What the field opens written with: the measure in the unit it was TYPED
-  /// in, so whoever wrote "0,35 L" reads "0,35 L" back and not "350".
+  /// What the field opens written with: the whole number, in the base unit —
+  /// the domain decides the scale, and the screen never asks for the large
+  /// one.
   String get _initialSize {
     final packaging = widget.leaf.packaging;
     if (packaging == null) return '';
-    return packaging.pieceSizeUnit.format(packaging.pieceSize);
+    return widget.baseUnit.typedText(packaging.pieceSize);
   }
 
-  /// A type measured in units has no measure field: the piece IS the unit.
-  bool get _countsOnly =>
-      widget.baseUnit.measures.length == 1 &&
-      widget.baseUnit.measures.first == MeasureUnit.unit;
+  /// A type measured in units has no size field: the piece IS the unit.
+  bool get _countsOnly => widget.baseUnit == BaseUnit.unit;
 
   @override
   void dispose() {
@@ -99,31 +96,11 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
               key: const ValueKey('field-piece-size'),
               controller: _sizeController,
               enabled: !_saving,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-              ],
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: 'Quantidade em ${_unit.label}',
+                labelText: 'Quantidade em ${widget.baseUnit.label}',
               ),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<MeasureUnit>(
-              key: const ValueKey('field-piece-unit'),
-              initialValue: _unit,
-              decoration: const InputDecoration(labelText: 'Unidade'),
-              items: [
-                for (final measure in widget.baseUnit.measures)
-                  DropdownMenuItem(
-                    value: measure,
-                    child: Text(measure.label),
-                  ),
-              ],
-              onChanged: _saving
-                  ? null
-                  : (unit) => setState(() => _unit = unit ?? _unit),
             ),
           ],
           if (_error != null)
@@ -169,13 +146,11 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
 
     final Packaging packaging;
     try {
-      // The parsing is the DOMAIN's, digit by digit: nothing here re-reads a
-      // decimal, which is the one place a 350 ml bottle quietly becomes a
-      // 349 ml one.
+      // The parsing is the DOMAIN's: nothing here re-reads a number.
       packaging = Packaging.typed(
         pieceCount: _countController.text,
         pieceSize: _countsOnly ? '1' : _sizeController.text,
-        pieceSizeUnit: _countsOnly ? MeasureUnit.unit : _unit,
+        baseUnit: widget.baseUnit,
       );
     } on InvalidPieceCount catch (e) {
       setState(() => _error = e.message);
@@ -183,7 +158,7 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
     } on InvalidAmount catch (e) {
       setState(() => _error = e.message);
       return;
-    } on AmountTooPrecise catch (e) {
+    } on AmountMustBeWhole catch (e) {
       setState(() => _error = e.message);
       return;
     }

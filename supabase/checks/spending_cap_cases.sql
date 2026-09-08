@@ -24,9 +24,9 @@ insert into public.category (id, name) values
 
 insert into public.product_type (id, name, category_id, base_unit) values
   ('00000000-0000-4000-8000-0000000bb101', 'Check Leite',
-   '00000000-0000-4000-8000-0000000ca101', 'liter'),
+   '00000000-0000-4000-8000-0000000ca101', 'milliliter'),
   ('00000000-0000-4000-8000-0000000bb102', 'Check Café',
-   '00000000-0000-4000-8000-0000000ca101', 'kilogram');
+   '00000000-0000-4000-8000-0000000ca101', 'gram');
 
 insert into public.brand (id, name) values
   ('00000000-0000-4000-8000-0000000bd101', 'Check Italac'),

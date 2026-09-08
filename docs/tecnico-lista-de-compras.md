@@ -439,6 +439,7 @@ confundiram numa versão anterior deste arquivo.
 | 22 | **O rascunho mandado salvar sem sinal é reenviado sozinho** — um por aparelho, nunca uma fila —, com o app aberto ou na abertura seguinte. É o que a Tela 3 promete na tela, e a 1.3 deste documento negava (§4.4, R16) | 27/08/2026 | Leandro |
 | 23 | **"Produto" são dois níveis no schema:** o **cadastro** (tipo + marca + descrição), onde mora a trava de duplicidade, e a **folha** (cadastro + embalagem), que tem preço, histórico e é o que a compra aponta. Os dois têm `ativo` próprio; o vendido a peso não tem folha de embalagem (§3) | 27/08/2026 | Leandro |
 | 24 | **`numeric` no Postgres e decimal no Dart** para todo dinheiro e toda quantidade. Nada de `double`: conteúdo de embalagem é comparado em inteiros na menor unidade, e o arredondamento acontece só na formatação (R15) | 27/08/2026 | Leandro |
+| 26 | **A unidade base É a menor unidade, e são quatro**: grama, mililitro, unidade e centímetro. Uma medida por grandeza — não existe escolher entre "g" e "kg" na tela —, toda quantidade digitada e gravada em inteiro nela, e a unidade grande (kg, L, un, m) reservada ao preço e à leitura. Amplia a decisão 24 e a B5, que diziam "inteiro na menor unidade **da** base"; acrescenta a grandeza **Tamanho** | 07/09/2026 | Leandro |
 | 25 | **O item da lista guarda a data em que entrou nela**, e é ela que decide se um lançamento atrasado o abate. Corrigir a data de uma compra refaz essa comparação (§3, R14) | 27/08/2026 | Leandro |
 
 ---

@@ -23,7 +23,7 @@ void main() {
     packaging: Packaging(
       pieceCount: 1,
       pieceSize: pieceSize,
-      pieceSizeUnit: MeasureUnit.milliliter,
+      baseUnit: BaseUnit.milliliter,
     ),
   );
 

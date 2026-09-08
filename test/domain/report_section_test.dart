@@ -14,7 +14,7 @@ TypeSpending type(
   String name,
   int cents, {
   int quantity = 1000,
-  BaseUnit baseUnit = BaseUnit.kilogram,
+  BaseUnit baseUnit = BaseUnit.gram,
 }) => TypeSpending(
   productTypeId: id,
   categoryId: categoryId,

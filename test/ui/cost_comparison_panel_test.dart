@@ -48,8 +48,8 @@ void main() {
   /// Seven leaves of the same type, all bought inside the window — the
   /// "sete opções e a lista rolando" of the written criterion. The sizes grow
   /// so no two labels are the same.
-  IList<ProductOption> sevenLeaves() => [
-    for (var i = 1; i <= 7; i++)
+  IList<ProductOption> manyLeaves({int count = 12}) => [
+    for (var i = 1; i <= count; i++)
       optionByPiece(
         id: 'prod-$i',
         brand: cokeBrand,
@@ -392,7 +392,7 @@ void main() {
     );
   });
 
-  testWidgets('with seven options the answer never scrolls out of sight', (
+  testWidgets('with a list that scrolls the answer never leaves the screen', (
     tester,
   ) async {
     // The written criterion: "com sete opções e a lista rolando, a resposta
@@ -401,9 +401,13 @@ void main() {
     // single `ListView` would pass every other test in this file while
     // taking the verdict off the screen exactly when there is most to
     // compare.
+    //
+    // Twelve and not seven: at seven the lines fit an iPhone 12 without
+    // scrolling, and a list that does not move proves nothing about a footer
+    // that does not move with it.
     await openPanel(
       tester,
-      options: sevenLeaves(),
+      options: manyLeaves(),
       launchingId: 'prod-1',
       // An iPhone 12 in portrait, which is the only device this app targets.
       viewport: iPhone12Size,
@@ -421,7 +425,7 @@ void main() {
     expect(headline.bottom, lessThanOrEqualTo(844));
     expect(button.bottom, lessThanOrEqualTo(844));
 
-    await tester.drag(find.byType(ListView), const Offset(0, -150));
+    await tester.drag(find.byType(ListView), const Offset(0, -60));
     await tester.pumpAndSettle();
 
     // The list DID move — without this the assertion below would be true of a
@@ -445,23 +449,26 @@ void main() {
 
     expect(find.text('Comparar custo'), findsOneWidget);
     expect(
-      find.text('refrigerante · ${costHeaderFor(BaseUnit.liter)}'),
+      find.text('refrigerante · ${costHeaderFor(BaseUnit.milliliter)}'),
       findsOneWidget,
     );
   });
 
-  testWidgets('the weighed leaf opens with the quantity at one base unit', (
+  testWidgets('the weighed leaf opens with the quantity at one pricing unit', (
     tester,
   ) async {
     await openPanel(tester, options: chicken(), launchingId: 'chick-1');
 
-    expect(contentIn(tester, 'chick-1'), '1');
+    // One kilo, written in the unit the field is typed in.
+    expect(contentIn(tester, 'chick-1'), '1000');
     expect(
       tester
           .widget<TextField>(find.byKey(const ValueKey('cost-content-chick-1')))
           .decoration!
           .suffixText,
-      'kg',
+      // The field is typed in the STORED unit; the price header is what
+      // carries the kilo.
+      'g',
     );
   });
 
@@ -515,7 +522,7 @@ void main() {
     // The tray is 800 g: R\$ 15,00 the kilo, and it loses.
     await tester.enterText(
       find.byKey(const ValueKey('cost-content-chick-1')),
-      '0,8',
+      '800',
     );
     await tester.pumpAndSettle();
 
@@ -564,13 +571,13 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('cost-content-chick-1')),
-      '0,6',
+      '600',
     );
     await tester.pumpAndSettle();
 
     // The `setState` does not recreate a controller.
     expect(priceIn(tester, 'chick-1'), '9,00');
-    expect(contentIn(tester, 'chick-1'), '0,6');
+    expect(contentIn(tester, 'chick-1'), '600');
   });
 
   testWidgets('with the keyboard up the quantity field is above the fold', (
@@ -601,7 +608,7 @@ void main() {
     // and the lines below run under the keyboard.
     await openPanel(
       tester,
-      options: sevenLeaves(),
+      options: manyLeaves(count: 7),
       launchingId: 'prod-1',
       viewport: iPhone12Size,
       keyboard: true,

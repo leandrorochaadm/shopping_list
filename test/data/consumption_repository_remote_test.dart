@@ -97,7 +97,7 @@ void main() {
             'product_type_name': 'Café',
             'category_id': 'cat-4',
             'category_name': 'Mercearia',
-            'base_unit': 'kilogram',
+            'base_unit': 'gram',
             'type_active': true,
             'category_active': true,
             'consumed_in_window': 2000,
@@ -129,7 +129,7 @@ void main() {
 
       expect(rows, hasLength(1));
       expect(rows.first.type.name, 'Café');
-      expect(rows.first.type.baseUnit, BaseUnit.kilogram);
+      expect(rows.first.type.baseUnit, BaseUnit.gram);
       expect(rows.first.category.name, 'Mercearia');
       expect(rows.first.consumedInWindow, 2000);
       expect(rows.first.consumedInMonth, 0);
@@ -150,7 +150,7 @@ void main() {
           'product_type_name': 'Desativado',
           'category_id': 'cat-4',
           'category_name': 'Mercearia',
-          'base_unit': 'kilogram',
+          'base_unit': 'gram',
           'type_active': false,
           'category_active': true,
           'consumed_in_window': 3000,

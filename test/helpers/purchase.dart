@@ -35,13 +35,13 @@ final softDrinkType = ProductType(
   id: 'type-1',
   name: 'Refrigerante',
   categoryId: 'cat-1',
-  baseUnit: BaseUnit.liter,
+  baseUnit: BaseUnit.milliliter,
 );
 final beefType = ProductType(
   id: 'type-2',
   name: 'Acém moído',
   categoryId: 'cat-2',
-  baseUnit: BaseUnit.kilogram,
+  baseUnit: BaseUnit.gram,
 );
 final paperType = ProductType(
   id: 'type-3',
@@ -55,7 +55,7 @@ final powderType = ProductType(
   id: 'type-4',
   name: 'Sabão em pó',
   categoryId: 'cat-3',
-  baseUnit: BaseUnit.kilogram,
+  baseUnit: BaseUnit.gram,
 );
 
 final cokeBrand = Brand(id: 'brand-1', name: 'Coca-Cola');
@@ -70,7 +70,7 @@ ProductOption optionByPiece({
   String description = '',
   int pieceCount = 1,
   int pieceSize = 350,
-  MeasureUnit unit = MeasureUnit.milliliter,
+  BaseUnit unit = BaseUnit.milliliter,
   int purchaseCount = 0,
   DateTime? lastPurchasedOn,
   PriceReference? priceReference,
@@ -84,7 +84,7 @@ ProductOption optionByPiece({
       packaging: Packaging(
         pieceCount: pieceCount,
         pieceSize: pieceSize,
-        pieceSizeUnit: unit,
+        baseUnit: unit,
       ),
     ),
     registration: ProductRegistration(
@@ -222,10 +222,10 @@ IList<ProductOption> optionsOfSoftDrinkType({
   PriceReference? bottle,
   PriceReference? crate,
 }) => [
-  _softDrinkLeaf('prod-1', 1, 350, MeasureUnit.milliliter, can),
-  _softDrinkLeaf('prod-2', 1, 269, MeasureUnit.milliliter, tiny),
-  _softDrinkLeaf('prod-3', 1, 2000, MeasureUnit.liter, bottle),
-  _softDrinkLeaf('prod-4', 12, 350, MeasureUnit.milliliter, crate),
+  _softDrinkLeaf('prod-1', 1, 350, BaseUnit.milliliter, can),
+  _softDrinkLeaf('prod-2', 1, 269, BaseUnit.milliliter, tiny),
+  _softDrinkLeaf('prod-3', 1, 2000, BaseUnit.milliliter, bottle),
+  _softDrinkLeaf('prod-4', 12, 350, BaseUnit.milliliter, crate),
 ].lock;
 
 /// A type in kilos with the three shapes the panel has to tell apart: the
@@ -249,7 +249,7 @@ IList<ProductOption> optionsOfChickenType({
     type: beefType,
     description: 'congelado',
     pieceSize: 1000,
-    unit: MeasureUnit.kilogram,
+    unit: BaseUnit.gram,
     purchaseCount: small == null ? 0 : 1,
     lastPurchasedOn: small?.purchasedOn,
     priceReference: small,
@@ -259,7 +259,7 @@ IList<ProductOption> optionsOfChickenType({
     type: beefType,
     description: 'congelado',
     pieceSize: 2000,
-    unit: MeasureUnit.kilogram,
+    unit: BaseUnit.gram,
     purchaseCount: big == null ? 0 : 1,
     lastPurchasedOn: big?.purchasedOn,
     priceReference: big,
@@ -270,7 +270,7 @@ ProductOption _softDrinkLeaf(
   String id,
   int pieceCount,
   int pieceSize,
-  MeasureUnit unit,
+  BaseUnit unit,
   PriceReference? priceReference,
 ) => optionByPiece(
   id: id,

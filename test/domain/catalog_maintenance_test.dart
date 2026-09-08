@@ -10,7 +10,7 @@ void main() {
   ProductType type({
     required String id,
     required String name,
-    BaseUnit unit = BaseUnit.liter,
+    BaseUnit unit = BaseUnit.milliliter,
     bool active = true,
   }) => ProductType(
     id: id,
@@ -22,7 +22,7 @@ void main() {
 
   final milk = type(id: 'type-1', name: 'Leite');
   final juice = type(id: 'type-2', name: 'Suco');
-  final beef = type(id: 'type-3', name: 'Acém', unit: BaseUnit.kilogram);
+  final beef = type(id: 'type-3', name: 'Acém', unit: BaseUnit.gram);
   final oldMilk = type(id: 'type-4', name: 'Leite antigo', active: false);
 
   IList<ProductType> compatible(BaseUnit unit, {String? excluding}) =>
@@ -34,22 +34,22 @@ void main() {
 
   group('typesCompatibleWith', () {
     test('offers the types of the SAME base unit', () {
-      expect(compatible(BaseUnit.liter), [milk, juice]);
+      expect(compatible(BaseUnit.milliliter), [milk, juice]);
     });
 
     test('leaves out another base unit — the total would add volume to weight', () {
-      expect(compatible(BaseUnit.kilogram), [beef]);
-      expect(compatible(BaseUnit.kilogram), isNot(contains(milk)));
+      expect(compatible(BaseUnit.gram), [beef]);
+      expect(compatible(BaseUnit.gram), isNot(contains(milk)));
     });
 
     test('leaves out the type being moved from', () {
-      expect(compatible(BaseUnit.liter, excluding: 'type-1'), [juice]);
+      expect(compatible(BaseUnit.milliliter, excluding: 'type-1'), [juice]);
     });
 
     test('leaves out the deactivated ones', () {
       // `oldMilk` is a litre type and is still not offered: moving a product
       // under a deactivated type is writing what nobody will see.
-      expect(compatible(BaseUnit.liter), isNot(contains(oldMilk)));
+      expect(compatible(BaseUnit.milliliter), isNot(contains(oldMilk)));
     });
 
     test('answers with nothing when no type shares the unit', () {
@@ -80,14 +80,14 @@ void main() {
       const failure = IncompatibleBaseUnit(
         productLabel: 'Azeite 500 ml',
         typeName: 'Acém moído',
-        from: BaseUnit.liter,
-        to: BaseUnit.kilogram,
+        from: BaseUnit.milliliter,
+        to: BaseUnit.gram,
       );
 
       expect(
         failure.message,
-        'A medida não bate: "Azeite 500 ml" é medido em litros e '
-        '"Acém moído" em quilos. Corrija a unidade base do tipo antes de '
+        'A medida não bate: "Azeite 500 ml" é medido em mililitros e '
+        '"Acém moído" em gramas. Corrija a unidade base do tipo antes de '
         'mover.',
       );
       expect(failure.toString(), contains('IncompatibleBaseUnit'));
@@ -98,7 +98,7 @@ void main() {
         productLabel: 'Papel',
         typeName: 'Leite',
         from: BaseUnit.unit,
-        to: BaseUnit.liter,
+        to: BaseUnit.milliliter,
       );
       expect(failure.message, contains('unidades'));
     });

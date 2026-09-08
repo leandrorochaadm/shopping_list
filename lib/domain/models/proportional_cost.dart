@@ -33,21 +33,20 @@ const int costTieThreshold = 1;
 bool acceptsTypedContentOf(ProductOption option) =>
     option.isSoldByWeight || option.product.packaging == null;
 
-/// How much content **one** typed price buys, in the smallest unit of the
-/// base.
+/// How much content **one** typed price buys, in the base unit.
 ///
 /// Sold by piece it is the packaging's content: a crate of 12 × 350 ml is
 /// 4200 ml, and the line's price is the whole crate's. Sold by weight it is
-/// the base unit itself, which is what makes the typed price ALREADY be the
-/// price of the kilo or of the litre — there is no content to divide by,
-/// which is what requirement 17 says.
+/// one PRICING unit — a thousand grams, a hundred centimetres —, which is what
+/// makes the typed price ALREADY be the price of the kilo or of the litre:
+/// there is no content to divide by, which is what requirement 17 says.
 ///
 /// A leaf with no packaging sold by piece is not representable in the schema
 /// (decision B1); the fallback only exists so the arithmetic does not lie if
 /// one day it is.
 ///
-/// [typedContent] is what was typed in the panel, already converted to the
-/// smallest unit of the base — 800 for "0,8" on a type in kilos. It only
+/// [typedContent] is what was typed in the panel, in the base unit — 800 for
+/// "800" on a type in grams. It only
 /// counts where [acceptsTypedContentOf] is true, and its absence keeps the
 /// "1 kg" the weighed line always had: the typed price ALREADY is the kilo's
 /// while nobody says otherwise.
@@ -58,7 +57,7 @@ int contentPricedOf(ProductOption option, {int? typedContent}) {
     // take the whole panel down: `parseAmount` never returns zero, and a line
     // with no valid content does not even reach here (see `rankCosts`).
     if (typedContent != null && typedContent > 0) return typedContent;
-    return option.baseUnit.smallestUnits;
+    return option.baseUnit.unitsPerLargeUnit;
   }
   return packaging.totalContent;
 }
@@ -322,7 +321,7 @@ CostRanking rankCosts({
   required IList<ProductOption> options,
   required IMap<String, Money> prices,
 
-  /// The content typed on each line, in the smallest unit of the base.
+  /// The content typed on each line, in the base unit.
   ///
   /// **Null is an answer, absence is another thing** — the same pattern as
   /// `RestoredListItem`:
@@ -452,8 +451,8 @@ final class _Contender {
   /// The only rounded number of the rule, and it is for the screen only — the
   /// same half-up formula as `PriceReference.costPerBaseUnit`.
   int costPerBaseUnit(BaseUnit baseUnit) {
-    final smallest = baseUnit.smallestUnits;
-    return (cents * smallest * 2 + content) ~/ (content * 2);
+    final perLarge = baseUnit.unitsPerLargeUnit;
+    return (cents * perLarge * 2 + content) ~/ (content * 2);
   }
 }
 
@@ -520,17 +519,9 @@ String _headline({
 /// pt-BR: the title of the panel says **which unit the computation is in**,
 /// because the one that rules is the type's base unit, not the size of any
 /// of the packagings.
-String costHeaderFor(BaseUnit baseUnit) => switch (baseUnit) {
-  BaseUnit.kilogram => 'custo por kg',
-  BaseUnit.liter => 'custo por litro',
-  BaseUnit.unit => 'custo por unidade',
-};
+String costHeaderFor(BaseUnit baseUnit) => 'custo por ${baseUnit.pricingNoun}';
 
 /// pt-BR: the end of the footer's sentence. **The article changes with the
 /// unit** — "o kg", "o litro", "a unidade" — which is why it does not come
 /// out of mechanical concatenation with the column's label.
-String _perUnit(BaseUnit baseUnit) => switch (baseUnit) {
-  BaseUnit.kilogram => 'o kg',
-  BaseUnit.liter => 'o litro',
-  BaseUnit.unit => 'a unidade',
-};
+String _perUnit(BaseUnit baseUnit) => baseUnit.pricingArticle;

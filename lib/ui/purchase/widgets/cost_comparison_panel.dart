@@ -94,14 +94,13 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       _priceControllers[id] = TextEditingController(
         text: opening == null ? '' : formatMoneyPlain(opening),
       );
-      // The quantity opens at ONE base unit — which is what the weighed line
-      // has always been worth. So the panel opens exactly as it opened, and
-      // the field is an invitation to correct, not a question to answer
-      // before using it.
+      // The quantity opens at what ONE typed price buys — which the domain
+      // already answers, and is one pricing unit on the weighed line. So the
+      // panel opens exactly as it opened, and the field is an invitation to
+      // correct, not a question to answer before using it.
       if (acceptsTypedContentOf(option)) {
-        final measure = option.baseUnit.typedMeasure;
         _contentControllers[id] = TextEditingController(
-          text: measure.format(option.baseUnit.smallestUnits),
+          text: option.baseUnit.typedText(contentPricedOf(option)),
         );
       }
     }
@@ -155,10 +154,10 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       final controller = id == null ? null : _contentControllers[id];
       if (id == null || controller == null) continue;
       try {
-        parsed[id] = option.baseUnit.typedMeasure.parseAmount(controller.text);
+        parsed[id] = option.baseUnit.parseAmount(controller.text);
       } on InvalidAmount {
         parsed[id] = null;
-      } on AmountTooPrecise {
+      } on AmountMustBeWhole {
         parsed[id] = null;
       }
     }
@@ -387,11 +386,11 @@ class _CostRow extends StatelessWidget {
                     : TextField(
                         key: ValueKey('cost-content-${line.option.id}'),
                         controller: contentController,
-                        keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true,
-                        ),
+                        // Digits only: the content is typed in the small unit
+                        // of the magnitude, which is always a whole number.
+                        keyboardType: TextInputType.number,
                         inputFormatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                          FilteringTextInputFormatter.digitsOnly,
                         ],
                         decoration: InputDecoration(
                           isDense: true,
@@ -412,7 +411,8 @@ class _CostRow extends StatelessWidget {
                   // difference, EVEN with the price filled in.
                   cost == null
                       ? ''
-                      : '${formatMoneyPlain(Money(cost))}/${baseUnit.label}',
+                      : '${formatMoneyPlain(Money(cost))}'
+                            '/${baseUnit.priceLabel}',
                   textAlign: TextAlign.right,
                   style: theme.textTheme.bodyMedium,
                 ),

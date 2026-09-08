@@ -28,14 +28,15 @@ delete from public.store;
 
 -- Categories and types
 insert into public.category (id, name) values ('c7b31039-8686-593c-b78d-a6a6a5656640', 'Bebidas');
-insert into public.product_type (id, name, category_id, base_unit) values ('628708f7-dc4a-5e70-9098-187d8dcb6f67', 'Refrigerante', 'c7b31039-8686-593c-b78d-a6a6a5656640', 'liter');
-insert into public.product_type (id, name, category_id, base_unit) values ('5fb9ef9e-c202-5703-8510-7bdcf4383669', 'Leite', 'c7b31039-8686-593c-b78d-a6a6a5656640', 'liter');
+insert into public.product_type (id, name, category_id, base_unit) values ('628708f7-dc4a-5e70-9098-187d8dcb6f67', 'Refrigerante', 'c7b31039-8686-593c-b78d-a6a6a5656640', 'milliliter');
+insert into public.product_type (id, name, category_id, base_unit) values ('5fb9ef9e-c202-5703-8510-7bdcf4383669', 'Leite', 'c7b31039-8686-593c-b78d-a6a6a5656640', 'milliliter');
 insert into public.category (id, name) values ('0f6cb4e4-8901-55df-b823-d2384d222eb6', 'Carnes');
-insert into public.product_type (id, name, category_id, base_unit) values ('07a562ca-768a-591f-a251-b510546ec9fe', 'Acém', '0f6cb4e4-8901-55df-b823-d2384d222eb6', 'kilogram');
+insert into public.product_type (id, name, category_id, base_unit) values ('07a562ca-768a-591f-a251-b510546ec9fe', 'Acém', '0f6cb4e4-8901-55df-b823-d2384d222eb6', 'gram');
 insert into public.category (id, name) values ('6725c95d-dbea-5be8-ab07-2a70ab456afd', 'Limpeza');
-insert into public.product_type (id, name, category_id, base_unit) values ('c7d0add7-b080-5893-ba08-15193dd50027', 'Sabão em pó', '6725c95d-dbea-5be8-ab07-2a70ab456afd', 'kilogram');
+insert into public.product_type (id, name, category_id, base_unit) values ('c7d0add7-b080-5893-ba08-15193dd50027', 'Sabão em pó', '6725c95d-dbea-5be8-ab07-2a70ab456afd', 'gram');
+insert into public.product_type (id, name, category_id, base_unit) values ('85b8c3a2-003a-541b-83f1-8f18aafa8168', 'Papel-alumínio', '6725c95d-dbea-5be8-ab07-2a70ab456afd', 'centimeter');
 insert into public.category (id, name) values ('841aaa94-df62-51cb-8bb6-b3372bd34ebe', 'Hortifrúti');
-insert into public.product_type (id, name, category_id, base_unit) values ('81aabfaa-bece-5012-bc61-6c84ab57a5c4', 'Banana', '841aaa94-df62-51cb-8bb6-b3372bd34ebe', 'kilogram');
+insert into public.product_type (id, name, category_id, base_unit) values ('81aabfaa-bece-5012-bc61-6c84ab57a5c4', 'Banana', '841aaa94-df62-51cb-8bb6-b3372bd34ebe', 'gram');
 
 -- Brands (a product with no brand keeps brand_id null — B2)
 insert into public.brand (id, name) values ('de78b73f-0727-5183-9c6d-dc6c5a5bbc9f', 'Coca-Cola');
@@ -58,6 +59,8 @@ insert into public.product_registration (id, product_type_id, brand_id, descript
 insert into public.product (id, product_registration_id, piece_count, piece_size, piece_size_unit, total_content) values ('80558651-aaf5-587e-9f6b-e9f065a44c02', 'bcd4deb8-4ad1-5932-8f76-3e1d74fe0615', 1, 1000, 'milliliter', 1000);
 insert into public.product_registration (id, product_type_id, brand_id, description, selling_mode) values ('3ed9bbe9-ef36-505a-81c3-418122ef69f3', 'c7d0add7-b080-5893-ba08-15193dd50027', '03985986-a813-5574-8eb9-7c52fc054fe8', '', 'by_piece');
 insert into public.product (id, product_registration_id, piece_count, piece_size, piece_size_unit, total_content) values ('c3f201f9-20be-5c2f-bf36-822617c62400', '3ed9bbe9-ef36-505a-81c3-418122ef69f3', 1, 800, 'gram', 800);
+insert into public.product_registration (id, product_type_id, brand_id, description, selling_mode) values ('af92f9e1-5a0e-5b1b-a9f2-0adb20e61dc2', '85b8c3a2-003a-541b-83f1-8f18aafa8168', null, '', 'by_piece');
+insert into public.product (id, product_registration_id, piece_count, piece_size, piece_size_unit, total_content) values ('64c8c659-5f45-55b0-a36d-9a17f64501b8', 'af92f9e1-5a0e-5b1b-a9f2-0adb20e61dc2', 1, 3000, 'centimeter', 3000);
 insert into public.product_registration (id, product_type_id, brand_id, description, selling_mode) values ('85434786-29c6-5353-9760-fcb55fd26c3c', '81aabfaa-bece-5012-bc61-6c84ab57a5c4', null, 'prata', 'by_weight');
 insert into public.product (id, product_registration_id) values ('7eb2aa73-26a4-5996-aa0a-6245956c6ac4', '85434786-29c6-5353-9760-fcb55fd26c3c');
 
@@ -68,6 +71,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('49bb5138-43dc-52f3-ab19-b4c38972a272', 'f41928a6-7cfd-5e19-a4ab-a6b51559fcd8', '7bc452ba-720a-513c-ba02-2199adaba320', 1000, 1000, 3290);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('9843499c-8768-59d2-a63a-7fe6ec48ed34', 'f41928a6-7cfd-5e19-a4ab-a6b51559fcd8', '80558651-aaf5-587e-9f6b-e9f065a44c02', 1, 1000, 529);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('588d39e4-bc5b-5570-b28f-781626814695', 'f41928a6-7cfd-5e19-a4ab-a6b51559fcd8', 'c3f201f9-20be-5c2f-bf36-822617c62400', 1, 800, 1890);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('feef91be-a9ff-543e-a056-95513d01237c', 'f41928a6-7cfd-5e19-a4ab-a6b51559fcd8', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 1, 3000, 1290);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('76010432-0f12-5a3e-81b4-c77f89b1bc39', 'f41928a6-7cfd-5e19-a4ab-a6b51559fcd8', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1000, 1000, 749);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('57f3746c-d320-519b-a995-bb6be1362556', '2026-05-19', '8b85e087-52e6-5ebe-b460-b5f3c7af1254', 'Esposa');
@@ -75,6 +79,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('24290c4d-4059-5193-bd1a-42fc3fa8c5bb', '57f3746c-d320-519b-a995-bb6be1362556', '7bc452ba-720a-513c-ba02-2199adaba320', 1200, 1200, 3588);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('9e55799b-c4f0-5d90-8116-44979dd979f1', '57f3746c-d320-519b-a995-bb6be1362556', '80558651-aaf5-587e-9f6b-e9f065a44c02', 2, 2000, 1118);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('4e5c03e8-a30d-569d-a76d-54ba6f4b593b', '57f3746c-d320-519b-a995-bb6be1362556', 'c3f201f9-20be-5c2f-bf36-822617c62400', 2, 1600, 3980);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('9e07bd77-dfc0-57d4-b3a3-1e644abfb407', '57f3746c-d320-519b-a995-bb6be1362556', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 2, 6000, 2780);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('95b99e8d-c861-5e03-8bf1-fcd269997fd6', '57f3746c-d320-519b-a995-bb6be1362556', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1200, 1200, 718);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('469e43ff-855f-5016-9aaa-68c0c9195cd4', '2026-06-05', 'fd74f421-6985-5a01-a45a-5f032a3f0adc', 'Leandro');
@@ -82,6 +87,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('f94d8602-c3ff-5620-8f8a-e7a1efeedadb', '469e43ff-855f-5016-9aaa-68c0c9195cd4', '7bc452ba-720a-513c-ba02-2199adaba320', 1400, 1400, 4606);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('4675b125-4719-5df9-af04-432b83ac16c5', '469e43ff-855f-5016-9aaa-68c0c9195cd4', '80558651-aaf5-587e-9f6b-e9f065a44c02', 1, 1000, 529);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('082ba4d9-2426-57cc-b857-6f6b31307d83', '469e43ff-855f-5016-9aaa-68c0c9195cd4', 'c3f201f9-20be-5c2f-bf36-822617c62400', 1, 800, 1890);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('b426ed72-c7de-53ee-b0a3-6861d0ccf983', '469e43ff-855f-5016-9aaa-68c0c9195cd4', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 1, 3000, 1290);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('1cae6bcf-40c1-555c-913b-467a2bc226ba', '469e43ff-855f-5016-9aaa-68c0c9195cd4', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1400, 1400, 1048);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('ef538d58-5d64-5157-8d8b-300e79182e39', '2026-06-19', '8b85e087-52e6-5ebe-b460-b5f3c7af1254', 'Esposa');
@@ -89,6 +95,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('3c2f4550-ffe1-5ea5-b4c2-b0bdb5b9354c', 'ef538d58-5d64-5157-8d8b-300e79182e39', '7bc452ba-720a-513c-ba02-2199adaba320', 1000, 1000, 2990);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('7ff81d95-efe0-520c-b07c-5e02b3b9a93a', 'ef538d58-5d64-5157-8d8b-300e79182e39', '80558651-aaf5-587e-9f6b-e9f065a44c02', 2, 2000, 1118);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('f8716522-2687-5e9b-aad6-d686a0d57312', 'ef538d58-5d64-5157-8d8b-300e79182e39', 'c3f201f9-20be-5c2f-bf36-822617c62400', 2, 1600, 3980);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('8c0ad06a-8d79-5bfb-b0fd-431227bb8c35', 'ef538d58-5d64-5157-8d8b-300e79182e39', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 2, 6000, 2780);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('82f7851d-2e70-5827-9173-1fd10302795f', 'ef538d58-5d64-5157-8d8b-300e79182e39', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1000, 1000, 599);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('188e9890-e404-529b-9801-0221dcf92af1', '2026-07-05', 'fd74f421-6985-5a01-a45a-5f032a3f0adc', 'Leandro');
@@ -96,6 +103,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('9ef7ffb0-bf49-54e8-a924-52c64df7e238', '188e9890-e404-529b-9801-0221dcf92af1', '7bc452ba-720a-513c-ba02-2199adaba320', 1200, 1200, 3948);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('a60d9ee8-027c-59d6-b7fb-f95613e873ae', '188e9890-e404-529b-9801-0221dcf92af1', '80558651-aaf5-587e-9f6b-e9f065a44c02', 1, 1000, 529);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('9d76432b-2e6b-5e10-b595-279cab1ae3e4', '188e9890-e404-529b-9801-0221dcf92af1', 'c3f201f9-20be-5c2f-bf36-822617c62400', 1, 800, 1890);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('b9b7396d-4d15-553c-a603-9b4260645a47', '188e9890-e404-529b-9801-0221dcf92af1', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 1, 3000, 1290);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('c34c5442-f592-5618-8c0d-0525272047d2', '188e9890-e404-529b-9801-0221dcf92af1', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1200, 1200, 898);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('f76128b5-d608-5ac3-8098-95369a702347', '2026-07-19', '8b85e087-52e6-5ebe-b460-b5f3c7af1254', 'Esposa');
@@ -103,6 +111,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('b1eb77f6-79be-5105-a971-ca579c413c65', 'f76128b5-d608-5ac3-8098-95369a702347', '7bc452ba-720a-513c-ba02-2199adaba320', 1400, 1400, 4186);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('fa99865a-1824-59f6-9bc7-406845b3a1e5', 'f76128b5-d608-5ac3-8098-95369a702347', '80558651-aaf5-587e-9f6b-e9f065a44c02', 2, 2000, 1118);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('b5d990d3-aacd-51e5-b046-bbff35d2a09d', 'f76128b5-d608-5ac3-8098-95369a702347', 'c3f201f9-20be-5c2f-bf36-822617c62400', 2, 1600, 3980);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('14caa605-f01a-52cb-a5ab-486722e6ae37', 'f76128b5-d608-5ac3-8098-95369a702347', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 2, 6000, 2780);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('80e5c590-bded-57a4-a842-a524635619bc', 'f76128b5-d608-5ac3-8098-95369a702347', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1400, 1400, 838);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('883390c0-298c-5050-b4af-75891ddc0b5d', '2026-08-05', 'fd74f421-6985-5a01-a45a-5f032a3f0adc', 'Leandro');
@@ -110,6 +119,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('3872f704-8fa2-559d-a56e-b3030ad02d95', '883390c0-298c-5050-b4af-75891ddc0b5d', '7bc452ba-720a-513c-ba02-2199adaba320', 1000, 1000, 3290);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('e4cf1ca1-8aac-5152-98eb-8914d8c112d0', '883390c0-298c-5050-b4af-75891ddc0b5d', '80558651-aaf5-587e-9f6b-e9f065a44c02', 1, 1000, 529);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('4eb8653d-b39e-55c0-b791-5a1c5b90d8f6', '883390c0-298c-5050-b4af-75891ddc0b5d', 'c3f201f9-20be-5c2f-bf36-822617c62400', 1, 800, 1890);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('8e444612-3e83-5cb2-b910-a97688f58b52', '883390c0-298c-5050-b4af-75891ddc0b5d', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 1, 3000, 1290);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('d9b361c9-ca8e-515a-9913-6b606d7386aa', '883390c0-298c-5050-b4af-75891ddc0b5d', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1000, 1000, 749);
 
 insert into public.purchase (id, purchase_date, store_id, registered_by) values ('e4a5b064-3935-51e1-baa6-e8e25ddec6aa', '2026-08-19', '8b85e087-52e6-5ebe-b460-b5f3c7af1254', 'Esposa');
@@ -117,6 +127,7 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('f402d1e1-5cf4-5229-af00-59d2e9dfb8c2', 'e4a5b064-3935-51e1-baa6-e8e25ddec6aa', '7bc452ba-720a-513c-ba02-2199adaba320', 1200, 1200, 3588);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('f9533ac9-7833-5ea5-91ac-4359708e9647', 'e4a5b064-3935-51e1-baa6-e8e25ddec6aa', '80558651-aaf5-587e-9f6b-e9f065a44c02', 2, 2000, 1118);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('f63d9082-5a93-588b-98f4-0843483b1cb1', 'e4a5b064-3935-51e1-baa6-e8e25ddec6aa', 'c3f201f9-20be-5c2f-bf36-822617c62400', 2, 1600, 3980);
+insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('f65f0062-e68f-5a6a-bcd1-de42415b6480', 'e4a5b064-3935-51e1-baa6-e8e25ddec6aa', '64c8c659-5f45-55b0-a36d-9a17f64501b8', 2, 6000, 2780);
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('e72490a4-dd5d-55f5-b34e-e33c85bb0414', 'e4a5b064-3935-51e1-baa6-e8e25ddec6aa', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1200, 1200, 718);
 
 -- A shopping list with something already on it
@@ -135,7 +146,7 @@ insert into public.list_write_off (purchase_item_id, shopping_list_item_id, quan
 
 -- H10: one deactivated row of each of the six catalogs
 insert into public.category (id, name, active) values ('086f7639-9e9e-52e4-a624-5d676e565500', 'Padaria', false);
-insert into public.product_type (id, name, category_id, base_unit, active) values ('69c32a80-2264-53bf-99b0-541e6248b251', 'Iogurte', 'c7b31039-8686-593c-b78d-a6a6a5656640', 'liter', false);
+insert into public.product_type (id, name, category_id, base_unit, active) values ('69c32a80-2264-53bf-99b0-541e6248b251', 'Iogurte', 'c7b31039-8686-593c-b78d-a6a6a5656640', 'milliliter', false);
 insert into public.brand (id, name, active) values ('3326ed0d-6943-51f3-9b28-8f739230c71c', 'Marca Antiga', false);
 insert into public.product_registration (id, product_type_id, brand_id, description, selling_mode, active) values ('6e5b4af4-5680-580b-b96d-397a1d724b1e', '5fb9ef9e-c202-5703-8510-7bdcf4383669', null, 'desnatado', 'by_piece', false);
 insert into public.product (id, product_registration_id, piece_count, piece_size, piece_size_unit, total_content) values ('cae7b229-b91d-5533-8081-c5281b75b490', '6e5b4af4-5680-580b-b96d-397a1d724b1e', 1, 1000, 'milliliter', 1000);

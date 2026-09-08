@@ -43,7 +43,7 @@ void main() {
   final packaging = Packaging.typed(
     pieceCount: '1',
     pieceSize: '350',
-    pieceSizeUnit: MeasureUnit.milliliter,
+    baseUnit: BaseUnit.milliliter,
   );
 
   final registration = ProductRegistration(
@@ -67,7 +67,7 @@ void main() {
         ProductType(
           name: 'Refrigerante',
           categoryId: 'cat-1',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
         ),
       ),
       'createBrand': () => repository.createBrand(Brand(name: 'Omo')),
@@ -90,7 +90,7 @@ void main() {
           id: 'type-1',
           name: 'Refrigerante',
           categoryId: 'cat-1',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
         ),
       ),
       'fetchPurchaseCountsByType': () =>

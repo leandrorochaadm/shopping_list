@@ -22,7 +22,7 @@ void main() {
 
       expect(twelveLiters.estimateFor(12000), const Money(6200));
       expect(
-        twelveLiters.costPerBaseUnit(BaseUnit.liter),
+        twelveLiters.costPerBaseUnit(BaseUnit.milliliter),
         517,
         reason: 'the rounded price per litre, which is NOT what pre-fills',
       );
@@ -50,7 +50,7 @@ void main() {
       // out of the division, and nothing anywhere marks the promotion.
       final threeForTwo = reference(1000, 3 * 350);
 
-      expect(threeForTwo.costPerBaseUnit(BaseUnit.liter), 952);
+      expect(threeForTwo.costPerBaseUnit(BaseUnit.milliliter), 952);
       // The next purchase of a single one is estimated at a third.
       expect(threeForTwo.estimateFor(350), const Money(333));
     });
@@ -65,7 +65,7 @@ void main() {
   group('costPerBaseUnit', () {
     test('answers per kilo, per litre and per unit', () {
       // 2 kg for R$ 40,00 -> 2000 cents a kilo.
-      expect(reference(4000, 2000).costPerBaseUnit(BaseUnit.kilogram), 2000);
+      expect(reference(4000, 2000).costPerBaseUnit(BaseUnit.gram), 2000);
       // 12 units for R$ 24,00 -> 200 cents each, and a unit is its own
       // smallest unit.
       expect(reference(2400, 12).costPerBaseUnit(BaseUnit.unit), 200);

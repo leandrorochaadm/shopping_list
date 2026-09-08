@@ -6,7 +6,7 @@
 ///
 /// **Quantity is not here**, and that is not an oversight:
 /// `BaseUnit.formatQuantity` — '6 kg', '2,5 L', '3 un' — lives in the DOMAIN,
-/// over the same integer conversion `MeasureUnit.parseAmount` reads. A
+/// over the same integer conversion `BaseUnit.parseAmount` reads. A
 /// `formatQuantity` here would be a third implementation of it.
 ///
 /// **The `'2026-08-18'` Postgres reads is not here either** — it is

@@ -43,7 +43,7 @@ final class PriceReference {
   /// carries the total, and the unit price is a division.
   final Money paid;
 
-  /// How much content that money bought, in the smallest unit of the type's
+  /// How much content that money bought, in the base unit of the type's
   /// base — grams, millilitres, units.
   final int quantityInBaseUnit;
 
@@ -68,18 +68,22 @@ final class PriceReference {
     );
   }
 
-  /// Cents per BASE unit — per kilo, per litre, per unit — ROUNDED.
+  /// Cents per PRICING unit — per kilo, per litre, per unit, per metre —
+  /// ROUNDED.
+  ///
+  /// The factor is not the stored unit's: a price per gram would fit in two or
+  /// three cents and would tie a R$ 32,90 coffee with a R$ 34,50 one.
   ///
   /// For display and comparison only, which is why the rounding is acceptable
   /// here and not in [estimateFor]. H15 (the price-increase alert) and H19
   /// (the `#3a` cost panel) are its real callers; screen 3 does not show it.
   ///
   /// It takes the unit instead of being a getter because [quantityInBaseUnit]
-  /// is in the SMALLEST unit: without knowing that a litre is a thousand
+  /// is in the STORED unit: without knowing that a litre is a thousand
   /// millilitres, "cents per litre" cannot be computed here.
   int costPerBaseUnit(BaseUnit baseUnit) {
-    final smallest = baseUnit.smallestUnits;
-    return (paid.cents * smallest * 2 + quantityInBaseUnit) ~/
+    final perLarge = baseUnit.unitsPerLargeUnit;
+    return (paid.cents * perLarge * 2 + quantityInBaseUnit) ~/
         (quantityInBaseUnit * 2);
   }
 

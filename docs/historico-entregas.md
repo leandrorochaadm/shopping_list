@@ -4,6 +4,41 @@ Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra.
 
 ---
 
+## O que a Entrega 14 mudou fora das telas dela
+
+**`smallestUnits` virou `unitsPerLargeUnit`, e é preciso dizer o que NÃO mudou:** os cinco
+cálculos de preço do projeto — `PriceReference.costPerBaseUnit`,
+`PriceBaseline.costPerBaseUnit`, `TypeSpending.costPerBaseUnit`, `contentPricedOf` e o
+`_Contender.costPerBaseUnit` do `#3a` — passaram a ler o campo novo, que vale **exatamente
+os mesmos 1000, 1000 e 1** das três grandezas que já existiam. Nenhum número esperado dos
+testes de preço mudou, e essa era a rede: se um tivesse mudado, o passo teria sido feito
+errado. O nome antigo prometia "a escala em que se digita" e entregava "o fator do preço";
+desde que `parseAmount` deixou de escalar, ele tem **um papel só**.
+
+**O campo digitável perdeu a vírgula em cinco telas de uma vez**, e o formatador é parte
+da regra, não enfeite: sem trocar `numberWithOptions(decimal: true)` por
+`TextInputType.number` + `digitsOnly`, o teclado do iPhone continuaria oferecendo a vírgula
+para a pessoa levar um *"Use um número inteiro."* de volta. Dois testes de widget que
+verificavam a mensagem de erro passaram a verificar o **filtro** — é onde a regra agora
+mora.
+
+**O `SegmentedButton` do campo Vendido passou a montar menos segmentos.** Não estava no
+plano: a quarta palavra fez o rótulo mais largo cair para 35 pt nos 390 pt do iPhone 12, e
+o teste geométrico que a Entrega anterior deixou é que acusou. Um tipo tem **uma** palavra
+de bulk — as outras nunca foram clicáveis —, então montar só as disponíveis não esconde
+escolha nenhuma.
+
+**O teste "com sete opções a resposta não sai da tela" precisou de doze.** A coluna de
+custo encurtou (`12,00/L` no lugar de `12,00/ml`), as sete linhas passaram a caber num
+iPhone 12 sem rolar, e uma lista que não rola não prova nada sobre um rodapé que não rola
+com ela. O critério escrito continua sendo sete; o teste usa doze e diz por quê.
+
+**O `catalog_repository_local` e o `make_seed.py` ganharam a grandeza nova** — um tipo
+`Papel-alumínio` em centímetros, com folha de 3000 cm que lê "30 m" — para o demo e os
+`supabase/checks/` exercitarem `centimeter` em vez de só compilar com ele.
+
+---
+
 ## O que a Entrega 13 mudou fora das telas dela
 
 **A assinatura de `rankCosts` ganhou um parâmetro OBRIGATÓRIO**, `contents`, e isso é

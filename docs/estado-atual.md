@@ -2,7 +2,28 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
-**Atualizado em 07/09/2026**, ao fim da Entrega 13
+**Atualizado em 07/09/2026**, ao fim da Entrega 14
+(`temp/plan/plano-unidade-base-tamanho-2026-09-07.md`) — **acréscimo fora das 19
+histórias**, pedido pelo usuário em 07/09/2026: **as unidades base passaram de três para
+quatro, e cada uma virou a unidade pequena e inteira da sua grandeza** — `gram` (g),
+`milliliter` (ml), `unit` (un) e a nova `centimeter` (cm), que é o que faltava para
+cadastrar papel-alumínio, filme plástico e barbante. O enum `MeasureUnit` foi **apagado**,
+e com ele o seletor "g ou kg?" da Tela 4 e do diálogo de embalagem: a grandeza do tipo já
+responde isso. `Packaging.pieceSizeUnit` virou `Packaging.baseUnit` (a chave JSON e a
+coluna continuam `piece_size_unit`), `smallestUnits` virou `unitsPerLargeUnit` — **o mesmo
+número, e nenhum preço mudou** — e o enum ganhou `priceLabel`, `typedText`,
+`magnitudeLabel`, `formatQuantityPair` e `usesLargeUnit`, com `_formatAmount`,
+`_largeLabel` e `_largeDecimalPlaces` **privados**, para o compilador impedir uma tela de
+escolher entre 'kg' e 'g'. **Todo campo de quantidade e de conteúdo passou a `digitsOnly`**
+(os de valor pago continuam decimais), `AmountTooPrecise` virou `AmountMustBeWhole`, e a
+leitura ficou **adaptativa**: `900 g`, `1,5 kg`, `1,25 L`, `30 m`. `SellingChoice` ganhou
+`length` ("Tamanho") e o `SegmentedButton` do campo **Vendido** passou a montar **só as
+palavras da grandeza** — quatro segmentos espremem o rótulo para 35 pt nos 390 pt do
+iPhone 12. Uma migration nova (`20260907120000_base_unit_centimeter.sql`) converte os
+rótulos gravados e amplia os dois `check`; **nenhum inteiro gravado mudou**. Decisão
+congelada **26** e divergências **J-a** a **J-e** registradas.
+
+Antes dela veio a Entrega 13
 (`temp/plan/plano-conteudo-digitado-comparar-custo-2026-09-07.md`) — **acréscimo fora das
 19 histórias**, pedido pelo usuário em 07/09/2026: o painel `#3a` dividia o preço digitado
 por um conteúdo que **só vinha do cadastro**, e por isso a bandeja de frango de 800 g não
@@ -295,11 +316,53 @@ a exclusão ter o que devolver), uma **baixa parcial** (o "restam 4 litros" da t
 abre vazio. Os dois rastros apontam para `purchase_item` reais da última compra gerada,
 porque uma FK não perdoa e um rastro de outro dia devolveria a quantidade errada.
 
-**O banco local de desenvolvimento é o `postgresql@17` nativo do Homebrew, não o stack
+**O banco local de desenvolvimento é o `postgresql@17` nativo do sistema, não o stack
 Docker do Supabase** (decisão de 28/08/2026). É escolha, não limitação: o Docker Desktop
-está instalado e funciona. A máquina é um Mac Intel i3-8100B de 4 núcleos com ~20 GB de
-disco livres, o `supabase start` sobe ~10 containers dentro de uma VM, e nada do trabalho
-de schema em curso distingue Postgres em container de Postgres nativo.
+está instalado e funciona. A máquina de então era um Mac Intel i3-8100B de 4 núcleos com
+~20 GB de disco livres, o `supabase start` sobe ~10 containers dentro de uma VM, e nada
+do trabalho de schema em curso distingue Postgres em container de Postgres nativo.
+
+**A máquina de desenvolvimento passou para Debian 13 (trixie) em 07/09/2026**, e a
+decisão acima não mudou — o que mudou foi de onde os binários vêm. Os scripts de
+`tool/local_dev/` não assumem mais o Homebrew: `setup.py` e `up.sh` escolhem a frase
+("`brew services`", "`systemctl`" ou "`service`") a partir da máquina onde estão
+rodando, porque um comando que nomeia o gerenciador de pacotes errado manda o leitor
+procurar um `brew` que não existe ali.
+
+| Peça | macOS | Debian 13 |
+|---|---|---|
+| Postgres 17 | `brew install postgresql@17` | `sudo apt install postgresql-17` |
+| Subir o serviço | `brew services start postgresql@17` | `sudo systemctl start postgresql` |
+| Caddy | `brew install caddy` | `sudo apt install caddy` |
+| PostgREST | `brew install postgrest` | **não está no apt** — o binário estático `postgrest-v16.2-linux-static-x86-64.tar.xz` das releases do GitHub, descompactado em `~/.local/bin` |
+
+O PostgREST do GitHub é a **16.2**, a mesma que o Homebrew instalava — então a ressalva
+sobre versão divergente do formato de erro continua valendo igual, nem mais nem menos.
+
+E duas armadilhas que só aparecem no Debian, as duas já corrigidas nas configs geradas:
+
+- **`db-uri` precisa da senha.** O cluster do Homebrew confia em conexão TCP local; o
+  do Debian pede `scram-sha-256`, e o PostgREST morre com `fe_sendauth: no password
+  supplied` — que parece falta de configuração e é só a senha que o `bootstrap.sql` já
+  dá ao `authenticator`. O host também virou `127.0.0.1`: `localhost` resolve para `::1`
+  primeiro, que é outra linha do `pg_hba` e outra falha na mesma máquina.
+- **O Caddyfile desliga a API de administração** (`admin off`). O pacote do apt deixa um
+  `caddy` de serviço rodando, e ele segura a porta padrão 2019 — sem isso o segundo
+  `caddy` recusa a subir com `address already in use`, num erro que não tem nada a ver
+  com a porta 54321 que se estava tentando usar.
+
+E há um passo que **só o Debian pede, uma vez por máquina**: o pacote do apt inicializa
+o cluster como a role `postgres`, enquanto o Homebrew o inicializa como o próprio
+desenvolvedor. Sem uma role com o nome do usuário do sistema, todo `psql` e todo
+`createdb` do `setup.py` morre com `FATAL: role "<usuário>" does not exist`, que não
+diz qual é a correção de uma linha:
+
+```bash
+sudo -u postgres createuser --superuser "$USER"
+```
+
+O `setup.py` passou a conferir isso logo depois do `pg_isready` e a imprimir esse
+comando — pela mesma razão de já conferir se o servidor está de pé.
 
 O que isso custa: **`supabase db reset` e `supabase db diff` não rodam** — os dois exigem
 Docker. O `db reset` tem substituto, `uv run tool/local_dev/setup.py --reset` (ver
@@ -359,8 +422,8 @@ que teria mordido depois.
 `tool/local_dev/`** (montado em 28/08/2026). O app é Flutter Web: não abre socket de
 Postgres, fala PostgREST por HTTP. Então "usar o banco local" são três peças —
 o banco, o `postgrest` na frente dele e um `caddy` que reescreve o prefixo `/rest/v1`
-que o `supabase_flutter` monta para a raiz onde o PostgREST serve. Ambos nativos, do
-Homebrew, sem container.
+que o `supabase_flutter` monta para a raiz onde o PostgREST serve. Ambos nativos, sem
+container.
 
 - `uv run tool/local_dev/setup.py` cria o `shopping_list_dev`, aplica bootstrap +
   as migrations pendentes + o seed, gera a chave e escreve as configs. Ele mantém o
@@ -382,7 +445,10 @@ Homebrew, sem container.
   `setup.py` reaproveita a do `.env` enquanto ela casar com o segredo, e só emite outra
   quando o `.jwt_secret` muda. Segredo, chave e configs geradas são git-ignored, em 600.
 - Com o Postgres fora do ar o `setup.py` para na primeira linha com a frase e o comando
-  do `brew services`, em vez de um traceback de `subprocess.py`.
+  de subir o serviço **daquela máquina**, em vez de um traceback de `subprocess.py`. O
+  `up.sh` faz o mesmo, e ainda confere se `postgrest` e `caddy` existem: sem isso o
+  `command not found` acontece dentro de um job em segundo plano, e o que chega ao
+  terminal é um código de saída sem frase nenhuma.
 - `tool/local_dev/bootstrap.sql` existe porque as migrations assumem um projeto
   Supabase: o schema `extensions` (com `usage` para as roles), as roles `anon`,
   `authenticated` e `service_role`, o `authenticator` que o PostgREST usa para o
@@ -390,8 +456,8 @@ Homebrew, sem container.
   nada disso.
 
 **O que este ambiente não cobre: Realtime.** É uma app Elixir sem binário nativo, então
-a H5 continua precisando do projeto hospedado ou do Docker. E o PostgREST do Homebrew é
-o 16.2, que não é necessariamente a versão que o Supabase roda — o formato de erro pode
+a H5 continua precisando do projeto hospedado ou do Docker. E o PostgREST instalado
+localmente era o 16.2, que não é necessariamente a versão que o Supabase roda — o formato de erro pode
 divergir do que `supabase_error.dart` espera. Verificado aqui contra ele: o SQLSTATE
 `23505` chega como **HTTP 409**, e `normalize_name` passa os 11 casos de
 `supabase/checks/normalize_cases.sql` chamada com a chave anon.

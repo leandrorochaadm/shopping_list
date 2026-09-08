@@ -57,9 +57,10 @@ final class IncompatibleBaseUnit implements Exception {
   /// Spelled out, never the symbol: "kg" beside a sentence reads as an
   /// abbreviation of something else.
   static String _name(BaseUnit unit) => switch (unit) {
-    BaseUnit.kilogram => 'quilos',
-    BaseUnit.liter => 'litros',
+    BaseUnit.gram => 'gramas',
+    BaseUnit.milliliter => 'mililitros',
     BaseUnit.unit => 'unidades',
+    BaseUnit.centimeter => 'centímetros',
   };
 
   @override

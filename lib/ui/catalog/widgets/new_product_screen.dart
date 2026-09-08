@@ -254,9 +254,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       // The grandeza comes from the type, so a type change can leave the
       // saved mode with no word to go by: `Peso` under a type of litres.
       _sellingMode = SellingChoice.of(_sellingMode, _baseUnit).mode;
-      // The measure of every line belongs to the type's family, so a type
-      // change invalidates the units already chosen.
-      final unit = _impliedUnit;
+      // The magnitude of every line is the type's, so a type change carries
+      // the new one down to the lines already typed.
+      final unit = _baseUnit;
       _drafts = _drafts.map((draft) => draft.withUnit(unit)).toIList();
     });
     _loadDescriptions();
@@ -268,16 +268,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   BaseUnit? get _baseUnit {
     final options = ref.read(catalogViewModelProvider).value;
     return options == null ? null : _typeOf(options)?.baseUnit;
-  }
-
-  /// The unit when the type leaves no choice — a type counted by unit has a
-  /// single measure and no dropdown, so nothing on screen could ever set it.
-  MeasureUnit? get _impliedUnit {
-    final options = ref.read(catalogViewModelProvider).value;
-    if (options == null) return null;
-
-    final measures = _typeOf(options)?.measures;
-    return measures != null && measures.length == 1 ? measures.first : null;
   }
 
   Future<void> _loadDescriptions() async {
@@ -565,7 +555,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         Text(
           type == null
               ? 'Unidade: escolha o tipo do produto primeiro'
-              : 'Unidade: ${_baseUnitLabel(type.baseUnit)} (vem do tipo)',
+              : 'Unidade: ${type.baseUnit.magnitudeNoun} (vem do tipo)',
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
@@ -677,7 +667,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                     PackagingRow(
                       key: ValueKey(draft.id),
                       draft: draft,
-                      measures: type.measures,
+                      baseUnit: type.baseUnit,
                       duplicate: _isDuplicate(draft),
                       enabled: !_saving && _conflict == null,
                       onChanged: (updated) => setState(() {
@@ -707,9 +697,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                   : () => setState(() {
                       final draft = PackagingDraft(
                         id: _nextDraftId++,
-                        // The unit chosen on the previous line comes
-                        // suggested: it is almost always the same one.
-                        unit: _drafts.lastOrNull?.unit ?? _impliedUnit,
+                        // The magnitude is the type's; there is nothing to
+                        // choose on the line.
+                        unit: _baseUnit,
                       );
                       _drafts = _drafts.add(draft);
                       _selectedDraftId ??= draft.id;
@@ -750,11 +740,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     return count == 1 ? 'Salvar 1 produto' : 'Salvar $count produtos';
   }
 
-  static String _baseUnitLabel(BaseUnit unit) => switch (unit) {
-    BaseUnit.kilogram => 'quilo',
-    BaseUnit.liter => 'litro',
-    BaseUnit.unit => 'unidade',
-  };
 }
 
 class _CategoryField extends StatelessWidget {
@@ -923,17 +908,18 @@ class _SellingModeField extends StatelessWidget {
       const SizedBox(width: 8),
       Expanded(
         child: SegmentedButton<SellingChoice>(
-          // No check icon: three labels plus the icon do not fit the 390 pt
-          // of an iPhone 12, and the filled segment already says which one is
+          // No check icon: the labels plus the icon do not fit the 390 pt of
+          // an iPhone 12, and the filled segment already says which one is
           // taken.
           showSelectedIcon: false,
+          // Only the words this magnitude can take, never all four: a type
+          // has ONE bulk word — weight, volume or length — and `Unidade`.
+          // Four segments squeeze the widest label to 35 pt at 390 pt, which
+          // is narrower than the word it has to write.
           segments: [
             for (final choice in SellingChoice.values)
-              ButtonSegment(
-                value: choice,
-                label: Text(choice.label),
-                enabled: choice.isAvailableFor(baseUnit),
-              ),
+              if (choice.isAvailableFor(baseUnit))
+                ButtonSegment(value: choice, label: Text(choice.label)),
           ],
           selected: {value},
           onSelectionChanged: enabled

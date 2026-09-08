@@ -107,8 +107,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       // by piece it is a plain count of packages. The parsing is the domain's,
       // digit by digit, and never goes through a double.
       return option.isSoldByWeight
-          ? option.baseUnit.typedMeasure.parseAmount(_quantityController.text)
-          : MeasureUnit.unit.parseAmount(_quantityController.text);
+          ? option.baseUnit.parseAmount(_quantityController.text)
+          : BaseUnit.unit.parseAmount(_quantityController.text);
     } on Object {
       return null;
     }
@@ -181,7 +181,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     });
     _productController.text = item.label;
     _quantityController.text = item.option.isSoldByWeight
-        ? item.option.baseUnit.typedMeasure.format(item.quantityInBaseUnit)
+        ? item.option.baseUnit.typedText(item.quantityInBaseUnit)
         : '${item.quantity}';
     _valueController.text = formatMoneyPlain(item.paid);
   }
@@ -199,13 +199,13 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       // through a double: '0,35' × 100 in binary floating point is 34.999…,
       // and one truncation later a cent is gone.
       quantity = option.isSoldByWeight
-          ? option.baseUnit.typedMeasure.parseAmount(_quantityController.text)
-          : MeasureUnit.unit.parseAmount(_quantityController.text);
+          ? option.baseUnit.parseAmount(_quantityController.text)
+          : BaseUnit.unit.parseAmount(_quantityController.text);
       paid = Money.parse(_valueController.text);
     } on InvalidAmount catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
       return;
-    } on AmountTooPrecise catch (e) {
+    } on AmountMustBeWhole catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
       return;
     } on InvalidMoney catch (e) {
@@ -449,14 +449,10 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               controller: _quantityController,
               focusNode: _quantityFocus,
               enabled: _option != null && !_saving,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              // The iOS keyboard offers a comma or a dot depending on the
-              // layout, and the domain's parser reads both.
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-              ],
+              // Digits only: every amount is typed in the small unit of its
+              // magnitude, which is always a whole number.
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: _option?.quantityLabel ?? 'Quantidade',
               ),

@@ -76,7 +76,7 @@ ShoppingListItem _onTheList(String typeId, String typeName) =>
         id: typeId,
         name: typeName,
         categoryId: 'cat-1',
-        baseUnit: BaseUnit.liter,
+        baseUnit: BaseUnit.milliliter,
       ),
       category: Category(id: 'cat-1', name: 'Bebidas'),
       enteredOn: DateTime(2026, 8, 20),
@@ -205,7 +205,7 @@ void main() {
           id: 'type-9',
           name: 'Achocolatado',
           categoryId: 'cat-1',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
           active: false,
         ),
       );

@@ -13,7 +13,7 @@ void main() {
         productTypeId: 'type-2',
         categoryId: 'cat-2',
         name: 'Acém moído',
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
         quantityInBaseUnit: 6000,
         spent: const Money(19200),
       );
@@ -28,7 +28,7 @@ void main() {
         productTypeId: 'type-4',
         categoryId: 'cat-3',
         name: 'Sabão em pó',
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
         quantityInBaseUnit: 6800,
         spent: const Money(13600),
       );
@@ -84,7 +84,7 @@ void main() {
           productTypeId: 't',
           categoryId: 'c',
           name: 'x',
-          baseUnit: BaseUnit.kilogram,
+          baseUnit: BaseUnit.gram,
           quantityInBaseUnit: 0,
           spent: const Money(1000),
         ),
@@ -95,7 +95,7 @@ void main() {
           productTypeId: 't',
           categoryId: 'c',
           name: 'x',
-          baseUnit: BaseUnit.kilogram,
+          baseUnit: BaseUnit.gram,
           quantityInBaseUnit: -1,
           spent: const Money(1000),
         ),
@@ -338,7 +338,7 @@ void main() {
             'product_type_id': 'type-2',
             'product_type_name': 'Acém moído',
             'category_id': 'cat-2',
-            'base_unit': 'kilogram',
+            'base_unit': 'gram',
             'quantity_in_base_unit': 6000,
             'total_paid': 19200,
           },
@@ -356,7 +356,7 @@ void main() {
 
       expect(report.categories.single.name, 'Carnes');
       expect(report.categories.single.spent, const Money(19200));
-      expect(report.types.single.baseUnit, BaseUnit.kilogram);
+      expect(report.types.single.baseUnit, BaseUnit.gram);
       expect(report.types.single.quantityInBaseUnit, 6000);
       expect(report.brands.single.hasBrand, isFalse);
       expect(report.brands.single.name, isNull);
@@ -396,7 +396,7 @@ void main() {
         productTypeId: 'type-2',
         categoryId: 'cat-2',
         name: 'Acém moído',
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
         quantityInBaseUnit: 6000,
         spent: const Money(19200),
       ).toString(),
@@ -488,7 +488,7 @@ void main() {
         String productTypeId = 'type-1',
         String categoryId = 'cat-1',
         String name = 'Refrigerante',
-        BaseUnit baseUnit = BaseUnit.liter,
+        BaseUnit baseUnit = BaseUnit.milliliter,
         int quantityInBaseUnit = 12000,
         Money spent = const Money(6200),
       }) => TypeSpending(
@@ -506,7 +506,7 @@ void main() {
       expect(typeOf() == typeOf(productTypeId: 'type-9'), isFalse);
       expect(typeOf() == typeOf(categoryId: 'cat-9'), isFalse);
       expect(typeOf() == typeOf(name: 'Outro'), isFalse);
-      expect(typeOf() == typeOf(baseUnit: BaseUnit.kilogram), isFalse);
+      expect(typeOf() == typeOf(baseUnit: BaseUnit.gram), isFalse);
       expect(typeOf() == typeOf(quantityInBaseUnit: 1), isFalse);
       expect(typeOf() == typeOf(spent: const Money(1)), isFalse);
     });
@@ -549,7 +549,7 @@ void main() {
           productTypeId: 'type-1',
           categoryId: 'cat-1',
           name: 'Refrigerante',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
           quantityInBaseUnit: 12000,
           spent: const Money(100),
         ),

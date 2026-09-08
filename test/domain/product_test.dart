@@ -22,7 +22,7 @@ void main() {
     packaging: Packaging(
       pieceCount: 1,
       pieceSize: 350,
-      pieceSizeUnit: MeasureUnit.milliliter,
+      baseUnit: BaseUnit.milliliter,
     ),
     active: active,
   );
@@ -109,7 +109,7 @@ void main() {
             packaging: Packaging(
               pieceCount: 2,
               pieceSize: 350,
-              pieceSizeUnit: MeasureUnit.milliliter,
+              baseUnit: BaseUnit.milliliter,
             ),
           ),
         ),

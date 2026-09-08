@@ -118,7 +118,7 @@ void main() {
       expect(byName['Sabão em pó']!.remainingForMonth, 1200);
 
       // One purchase inside the window, but bought since March: divides by
-      // three all the same, and 666,66… g rounds to 0,7 kg.
+      // three all the same, and 666,66… g rounds to 700 g.
       expect(byName['Café']!.average, 700);
 
       // Bought in all three months: 12,6 L ÷ 3 = 4,2 L, exactly what August

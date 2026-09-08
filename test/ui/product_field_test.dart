@@ -200,7 +200,7 @@ void main() {
   });
 
   test('the helper leaves the base units apart, which is what groups them', () {
-    expect(crate.type.baseUnit, BaseUnit.liter);
-    expect(beef.type.baseUnit, BaseUnit.kilogram);
+    expect(crate.type.baseUnit, BaseUnit.milliliter);
+    expect(beef.type.baseUnit, BaseUnit.gram);
   });
 }

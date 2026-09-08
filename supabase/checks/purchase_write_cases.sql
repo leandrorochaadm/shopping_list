@@ -22,7 +22,7 @@ values (
   '00000000-0000-4000-8000-0000000000b8'::uuid,
   'Check Leite',
   '00000000-0000-4000-8000-0000000000c1',
-  'liter'
+  'milliliter'
 );
 
 insert into public.product_registration (id, product_type_id, selling_mode)
@@ -39,7 +39,7 @@ insert into public.product (
 values (
   '00000000-0000-4000-8000-0000000000b5',
   '00000000-0000-4000-8000-0000000000b6',
-  1, 1000, 'liter', 1000
+  1, 1000, 'milliliter', 1000
 );
 
 insert into public.store (id, name) values

@@ -9,6 +9,7 @@ void main() {
       expect(SellingChoice.weight.label, 'Peso');
       expect(SellingChoice.unit.label, 'Unidade');
       expect(SellingChoice.volume.label, 'Volume');
+      expect(SellingChoice.length.label, 'Tamanho');
     });
   });
 
@@ -18,6 +19,10 @@ void main() {
       expect(SellingChoice.volume.mode, SellingMode.byWeight);
     });
 
+    test('maps length to by_weight too — it is the loose product', () {
+      expect(SellingChoice.length.mode, SellingMode.byWeight);
+    });
+
     test('maps unit to by_piece', () {
       expect(SellingChoice.unit.mode, SellingMode.byPiece);
     });
@@ -25,11 +30,15 @@ void main() {
 
   group('SellingChoice.bulkOf', () {
     test('is weight under a type measured in kilograms', () {
-      expect(SellingChoice.bulkOf(BaseUnit.kilogram), SellingChoice.weight);
+      expect(SellingChoice.bulkOf(BaseUnit.gram), SellingChoice.weight);
     });
 
     test('is volume under a type measured in litres', () {
-      expect(SellingChoice.bulkOf(BaseUnit.liter), SellingChoice.volume);
+      expect(SellingChoice.bulkOf(BaseUnit.milliliter), SellingChoice.volume);
+    });
+
+    test('is length under a type measured in centimetres', () {
+      expect(SellingChoice.bulkOf(BaseUnit.centimeter), SellingChoice.length);
     });
 
     test('is null under a type counted by unit — there is no bulk', () {
@@ -43,15 +52,15 @@ void main() {
 
   group('SellingChoice.isAvailableFor', () {
     test('offers weight and unit under kilograms', () {
-      expect(SellingChoice.weight.isAvailableFor(BaseUnit.kilogram), isTrue);
-      expect(SellingChoice.unit.isAvailableFor(BaseUnit.kilogram), isTrue);
-      expect(SellingChoice.volume.isAvailableFor(BaseUnit.kilogram), isFalse);
+      expect(SellingChoice.weight.isAvailableFor(BaseUnit.gram), isTrue);
+      expect(SellingChoice.unit.isAvailableFor(BaseUnit.gram), isTrue);
+      expect(SellingChoice.volume.isAvailableFor(BaseUnit.gram), isFalse);
     });
 
     test('offers volume and unit under litres', () {
-      expect(SellingChoice.volume.isAvailableFor(BaseUnit.liter), isTrue);
-      expect(SellingChoice.unit.isAvailableFor(BaseUnit.liter), isTrue);
-      expect(SellingChoice.weight.isAvailableFor(BaseUnit.liter), isFalse);
+      expect(SellingChoice.volume.isAvailableFor(BaseUnit.milliliter), isTrue);
+      expect(SellingChoice.unit.isAvailableFor(BaseUnit.milliliter), isTrue);
+      expect(SellingChoice.weight.isAvailableFor(BaseUnit.milliliter), isFalse);
     });
 
     test('offers only unit under a type counted by unit', () {
@@ -69,8 +78,8 @@ void main() {
 
   group('SellingChoice.looseNameOf', () {
     test('names the loose product after the grandeza of its type', () {
-      expect(SellingChoice.looseNameOf(BaseUnit.kilogram), 'Peso');
-      expect(SellingChoice.looseNameOf(BaseUnit.liter), 'Volume');
+      expect(SellingChoice.looseNameOf(BaseUnit.gram), 'Peso');
+      expect(SellingChoice.looseNameOf(BaseUnit.milliliter), 'Volume');
     });
 
     test('falls back to Unidade, never to Peso', () {
@@ -92,11 +101,11 @@ void main() {
 
     test('names the saved by_weight after the grandeza of the type', () {
       expect(
-        SellingChoice.of(SellingMode.byWeight, BaseUnit.kilogram),
+        SellingChoice.of(SellingMode.byWeight, BaseUnit.gram),
         SellingChoice.weight,
       );
       expect(
-        SellingChoice.of(SellingMode.byWeight, BaseUnit.liter),
+        SellingChoice.of(SellingMode.byWeight, BaseUnit.milliliter),
         SellingChoice.volume,
       );
     });

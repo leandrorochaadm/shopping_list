@@ -77,7 +77,7 @@ final _milk = ProductType(
   id: 'type-9',
   name: 'Leite',
   categoryId: 'cat-1',
-  baseUnit: BaseUnit.liter,
+  baseUnit: BaseUnit.milliliter,
 );
 
 ShoppingListItem _item({
@@ -102,7 +102,7 @@ MonthlyAverage _line({
     id: typeId,
     name: name,
     categoryId: 'cat-1',
-    baseUnit: BaseUnit.kilogram,
+    baseUnit: BaseUnit.gram,
   ),
   category: _drinks,
   average: average,

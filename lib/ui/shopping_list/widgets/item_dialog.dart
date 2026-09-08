@@ -1,5 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/catalog/catalog_repository.dart';
@@ -113,11 +114,11 @@ class ItemDialog extends ConsumerStatefulWidget {
 
 class _ItemDialogState extends ConsumerState<ItemDialog> {
   late final TextEditingController _quantity = TextEditingController(
-    // Filled with what is already stored, written the way it is read: 6000 in
-    // litres comes back as "6", not as "6000". Screen 6's prefill wins over
+    // Filled with what is already stored, in the unit the field is typed in:
+    // the whole number, never the large unit. Screen 6's prefill wins over
     // it — the dialog was opened from that number.
     text: switch (widget.prefilledQuantity ?? widget.item?.quantity) {
-      final int amount => widget.type.baseUnit.typedMeasure.format(amount),
+      final int amount => widget.type.baseUnit.typedText(amount),
       null => '',
     },
   );
@@ -192,17 +193,16 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
       .toIList();
 
   Future<void> _save() async {
-    final measure = widget.type.baseUnit.typedMeasure;
     final typed = _quantity.text.trim();
 
     int? quantity;
     if (typed.isNotEmpty) {
       try {
-        quantity = measure.parseAmount(typed);
+        quantity = widget.type.baseUnit.parseAmount(typed);
       } on InvalidAmount catch (e) {
         setState(() => _quantityError = e.message);
         return;
-      } on AmountTooPrecise catch (e) {
+      } on AmountMustBeWhole catch (e) {
         // Under the field, never a SnackBar: it is an answer about what was
         // just typed, and it belongs next to what was typed.
         setState(() => _quantityError = e.message);
@@ -326,15 +326,16 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
               key: const ValueKey('field-quantity'),
               controller: _quantity,
               enabled: !_saving,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              // Digits only: the quantity is typed in the small unit of the
+              // type's magnitude, which is always a whole number.
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 labelText: 'Quantidade',
                 // The BASE unit of the type, never the packaging: what sums is
-                // the type, and "6" here is six litres even with a 350 ml
+                // the type, and "6000" here is six litres even with a 350 ml
                 // packaging preferred.
-                suffixText: _measureLabel(widget.type.baseUnit),
+                suffixText: widget.type.baseUnit.label,
                 errorText: _quantityError,
                 errorMaxLines: 3,
                 helperText: _quantityHelper,
@@ -431,9 +432,4 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
 
   /// Spelled out next to the field: "kg" reads as an abbreviation of something
   /// else when it stands alone beside a number.
-  static String _measureLabel(BaseUnit unit) => switch (unit) {
-    BaseUnit.kilogram => 'quilos',
-    BaseUnit.liter => 'litros',
-    BaseUnit.unit => 'unidades',
-  };
 }

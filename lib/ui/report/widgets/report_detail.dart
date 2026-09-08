@@ -76,7 +76,7 @@ class _TypeLine extends StatelessWidget {
     final title = Text(type.name);
     final trailing = Text(
       '${type.baseUnit.formatQuantity(type.quantityInBaseUnit)}   '
-      '${formatMoney(Money(type.costPerBaseUnit))}/${type.baseUnit.label}   '
+      '${formatMoney(Money(type.costPerBaseUnit))}/${type.baseUnit.priceLabel}   '
       '${formatMoney(type.spent)}   '
       '(${formatPercent(line.percentageInTenths)})',
     );

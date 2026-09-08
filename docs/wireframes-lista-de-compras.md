@@ -214,10 +214,11 @@ documentos:
   selecionado**, e o campo de quantidade virou um só — "Quantidade" —, sem
   rótulo variável: quem diz o que está sendo contado é o nome da embalagem
   ("12x350ml"). Produto vendido a peso continua trocando para "Peso (kg)".
-- **A medida da peça passou a ser digitada com a unidade ao lado** — `▼ g / kg`
-  nos tipos medidos em quilo, `▼ ml / L` nos medidos em litro. As quatro nunca
-  aparecem juntas: as opções vêm da unidade base do tipo, e a tela mostra sempre
-  o que foi digitado ("350 ml"), com a conversão acontecendo por baixo.
+- **A medida da peça é digitada em número inteiro, na unidade do tipo** — `g`,
+  `ml`, `un` ou `cm` escrito ao lado do campo. Desde 07/09/2026 **não há mais
+  seletor de medida** (divergência J-a): a grandeza do tipo já respondeu "g ou
+  kg?", e a tela lê de volta na unidade grande quando o número a alcança
+  ("1000" digitado aparece como "1 L").
 - Onde se lia "mesmo peso" na comparação de preço, passou a ler **"mesma
   embalagem"**; a visão "Tipo inteiro" ganhou o papel de comparar fardo contra
   lata avulsa.
@@ -671,7 +672,7 @@ continua aparecendo atrás dela.
 │  ────────────────────────────        │
 │  Mercearia                           │
 │  { } Arroz — 5 kg                    │
-│  { } Café — 0,7 kg                *  │
+│  { } Café — 700 g                 *  │
 │                                      │
 │  [   Adicionar selecionados   ]→1    │
 └──────────────────────────────────────┘
@@ -700,7 +701,7 @@ continua aparecendo atrás dela.
   dividido pelos **meses fechados de história que aquele produto tem ali
   dentro**, no máximo 3 — o mês em curso fica de fora da janela (é a **janela
   fechada**; ver a Tela 6, onde ela está declarada). O café, que eles já
-  compravam antes, divide por 3 e aparece com 0,7 kg mesmo comprado uma vez só;
+  compravam antes, divide por 3 e aparece com 700 g mesmo comprado uma vez só;
   um produto cuja primeira compra foi em junho divide por 2; e um que estreou no
   último mês fechado divide por 1. Dentro da vida do produto, mês sem compra
   continua contando zero. **O produto nascido no mês em curso não divide nada:**
@@ -1436,7 +1437,7 @@ O frango, que é o caso que pede o campo:
 │   └ na lista, "não encontrei"     *  │
 │  ────────────────────────────        │
 │  Mercearia                           │
-│  Café                faltam 0,7 kg   │
+│  Café                 faltam 700 g   │
 │                                      │
 │  [ Ver todos (5 sem faltar) ]↻    *  │
 ├──────────────────────────────────────┤
@@ -1456,7 +1457,7 @@ O frango, que é o caso que pede o campo:
 │  Carnes                              │
 │  Frango              8 de 8 kg       │
 │  Frios                               │
-│  Mussarela           0,5 de 0,4 kg   │
+│  Mussarela            500 de 400 g   │
 │  Laticínios                          │
 │  Iogurte             3 de 3 L     *  │
 │  Mercearia                           │

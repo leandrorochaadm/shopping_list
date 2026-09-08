@@ -1,129 +1,153 @@
-/// The unit a product type is added up in — and, with it, which measures the
-/// packaging screen may offer.
+/// The magnitude a product type is added up in — and the WHOLE unit every
+/// amount is typed and stored in.
 ///
 /// It lives on the type because the type is the level that SUMS: everything
 /// below it is converted into this before anything is added.
+///
+/// Each magnitude has ONE storage measure, always the small one: gram,
+/// millilitre, unit and centimetre. Nobody picks between 'g' and 'kg' on
+/// screen; the type already answered that when it was created.
 enum BaseUnit {
-  kilogram,
-  liter,
-  unit;
+  gram('g', 'Peso', 'grama', 1000, 'kg', 'quilo', 'o kg'),
+  milliliter('ml', 'Volume', 'mililitro', 1000, 'L', 'litro', 'o litro'),
+  unit('un', 'Contagem', 'unidade', 1, 'un', 'unidade', 'a unidade'),
+  centimeter('cm', 'Tamanho', 'centímetro', 100, 'm', 'metro', 'o metro');
+
+  const BaseUnit(
+    this.label,
+    this.magnitude,
+    this.magnitudeNoun,
+    this.unitsPerLargeUnit,
+    this._largeLabel,
+    this.pricingNoun,
+    this.pricingArticle,
+  );
+
+  /// The symbol of the STORED unit: 'g', 'ml', 'un', 'cm'. It is the suffix of
+  /// every typable field. pt-BR, because it is read on screen.
+  final String label;
+
+  /// The name of the magnitude: 'Peso', 'Volume', 'Contagem', 'Tamanho'.
+  final String magnitude;
+
+  /// The stored unit spelled out: 'grama', 'mililitro', 'unidade',
+  /// 'centímetro'. Only [magnitudeLabel] uses it.
+  final String magnitudeNoun;
+
+  /// How many stored units fit in the READING unit — and, by consequence, in
+  /// the PRICING one: 1 kg = 1000 g, 1 L = 1000 ml, 1 m = 100 cm, 1 un = 1 un.
+  ///
+  /// **One role only, and it is not the typing scale.** It is the point where
+  /// the display turns from '900 g' into '1 kg', and the same factor makes the
+  /// price read 'R$ 32,90 o kg' instead of 'R$ 0,03 a grama'. Since
+  /// [parseAmount] stopped scaling what was typed, nobody types in the large
+  /// unit — that is what the old name, `smallestUnits`, promised and did not
+  /// deliver.
+  final int unitsPerLargeUnit;
+
+  /// The symbol of the reading unit: 'kg', 'L', 'un', 'm'. **Private**:
+  /// whoever needs it from the outside is always a price or a type magnitude,
+  /// and both come in through [priceLabel]. Leaving it public would hand the
+  /// screen back the choice between 'kg' and 'g' that this enum exists to
+  /// make.
+  final String _largeLabel;
+
+  /// The pricing word spelled out: 'custo por quilo'.
+  final String pricingNoun;
+
+  /// The end of the footer sentence, WITH its article: 'o kg', 'a unidade'.
+  final String pricingArticle;
 
   static BaseUnit fromJson(String value) =>
       BaseUnit.values.firstWhere((unit) => unit.name == value.toLowerCase());
 
   String toJson() => name;
 
-  /// The measures the screen offers for this base — and no others. Weight
-  /// never offers millilitres, volume never offers grams, and a type counted
-  /// by unit offers only the count itself. Showing all five at once is how a
-  /// "350 g" of soft drink gets typed.
-  List<MeasureUnit> get measures => switch (this) {
-    BaseUnit.kilogram => const [MeasureUnit.gram, MeasureUnit.kilogram],
-    BaseUnit.liter => const [MeasureUnit.milliliter, MeasureUnit.liter],
-    BaseUnit.unit => const [MeasureUnit.unit],
-  };
+  /// How many decimal places the LARGE unit expresses without losing anything:
+  /// 3 in the kilo and the litre, 2 in the metre, 0 in the count. Private:
+  /// only [_formatAmount] uses it, and nobody outside needs to know it exists.
+  int get _largeDecimalPlaces => unitsPerLargeUnit.toString().length - 1;
 
-  /// How the amount is written on screen — the smallest unit is what is
-  /// STORED, this is what is read.
-  String get label => switch (this) {
-    BaseUnit.kilogram => 'kg',
-    BaseUnit.liter => 'L',
-    BaseUnit.unit => 'un',
-  };
+  /// Has the amount passed the point where it is worth reading in the large
+  /// unit? The count never passes — there is no such thing as a "kilo-unit".
+  bool usesLargeUnit(int amount) =>
+      unitsPerLargeUnit > 1 && amount >= unitsPerLargeUnit;
 
-  /// The measure a list quantity is TYPED in: kilo, litre or unit. Never the
-  /// smallest one — nobody asks for "6000 gramas de acém".
-  MeasureUnit get typedMeasure => switch (this) {
-    BaseUnit.kilogram => MeasureUnit.kilogram,
-    BaseUnit.liter => MeasureUnit.liter,
-    BaseUnit.unit => MeasureUnit.unit,
-  };
-
-  /// How many smallest units one base unit is worth: 1 kg = 1000 g.
-  int get smallestUnits => typedMeasure.smallestUnits;
-
-  /// What the list line shows: '6 kg', '2,5 L', '3 un'.
-  String formatQuantity(int amountInSmallestUnits) =>
-      '${typedMeasure.format(amountInSmallestUnits)} $label';
-}
-
-/// A measure someone can type. Every amount is stored as an INTEGER in the
-/// smallest unit of its base (grams, millilitres, units) — decision B5 — so
-/// nothing in the app or in the database ever holds a fractional quantity.
-enum MeasureUnit {
-  gram(BaseUnit.kilogram, 1, 'g'),
-  kilogram(BaseUnit.kilogram, 1000, 'kg'),
-  milliliter(BaseUnit.liter, 1, 'ml'),
-  liter(BaseUnit.liter, 1000, 'L'),
-  unit(BaseUnit.unit, 1, 'un');
-
-  const MeasureUnit(this.baseUnit, this.smallestUnits, this.label);
-
-  final BaseUnit baseUnit;
-
-  /// How many smallest units fit in one of these: 1 kg = 1000 g.
-  final int smallestUnits;
-
-  /// pt-BR, because it is read on screen.
-  final String label;
-
-  static MeasureUnit fromJson(String value) =>
-      MeasureUnit.values.firstWhere((unit) => unit.name == value.toLowerCase());
-
-  String toJson() => name;
-
-  /// Reads what was typed — '0,35', '1.5', '350' — and returns the amount in
-  /// SMALLEST UNITS, as an integer.
+  /// Reads what was typed and returns the INTEGER in the stored unit.
   ///
-  /// The parsing is done digit by digit and never goes through a double:
-  /// `0.35 * 1000` in binary floating point is 349.99999999999994, and one
-  /// truncation later a 350 ml bottle becomes a 349 ml one. That is the whole
-  /// reason decision 24 and B5 exist.
+  /// Digits only: there is no decimal place in any field of the app any more,
+  /// because the typed unit became the small one. '0,35' of a litre became
+  /// '350' of a millilitre, and the reason decision 24 and B5 exist — the
+  /// `0.35 * 1000 == 349.99999999999994` of floating point — lost its way in.
   int parseAmount(String typed) {
-    final cleaned = typed.trim().replaceAll(',', '.');
+    final cleaned = typed.trim();
     if (cleaned.isEmpty) throw const InvalidAmount();
+    if (cleaned.contains(',') || cleaned.contains('.')) {
+      throw const AmountMustBeWhole();
+    }
+    if (!RegExp(r'^\d+$').hasMatch(cleaned)) throw const InvalidAmount();
 
-    final parts = cleaned.split('.');
-    if (parts.length > 2) throw const InvalidAmount();
-
-    final whole = parts.first;
-    final fraction = parts.length == 2 ? parts[1] : '';
-    if (whole.isEmpty && fraction.isEmpty) throw const InvalidAmount();
-    if (!_isDigits(whole) || !_isDigits(fraction)) throw const InvalidAmount();
-
-    final places = decimalPlaces;
-    if (fraction.length > places) throw AmountTooPrecise(places);
-
-    final scaled = fraction.padRight(places, '0');
-    final amount =
-        int.parse(whole.isEmpty ? '0' : whole) * smallestUnits +
-        int.parse(scaled.isEmpty ? '0' : scaled);
-
-    if (amount <= 0) throw const InvalidAmount();
+    // `tryParse`, never `parse`: the RegExp accepts twenty-five digits and
+    // `parse` would answer that with a RAW `FormatException`, which none of
+    // the five screens catches — they only handle `InvalidAmount` and
+    // `AmountMustBeWhole`.
+    final amount = int.tryParse(cleaned);
+    if (amount == null || amount <= 0) throw const InvalidAmount();
     return amount;
   }
 
-  /// How many decimal places this unit can express without losing anything:
-  /// 3 in the kilogram and the litre, 0 in the gram, the millilitre and the
-  /// unit.
-  int get decimalPlaces => smallestUnits.toString().length - 1;
+  /// The NUMBER alone, with no unit, at the asked scale: 6000 reads '6' with
+  /// [large] true and '6000' with it false. The comma is for reading.
+  ///
+  /// **Private**, and it is what makes [typedText] hold: public, any widget
+  /// could pass `large: true` and `flutter analyze` would stay quiet. Its
+  /// three callers — [formatQuantity], [formatQuantityPair] and [typedText] —
+  /// are all in here.
+  String _formatAmount(int amount, {required bool large}) {
+    if (!large || unitsPerLargeUnit == 1) return '$amount';
 
-  /// The integer in smallest units written the way it is read: 350 -> '350'
-  /// in millilitres, 2500 -> '2,5' in litres. A comma, because it is read on
-  /// screen.
-  String format(int amountInSmallestUnits) {
-    if (decimalPlaces == 0) return '$amountInSmallestUnits';
-
-    final whole = amountInSmallestUnits ~/ smallestUnits;
-    final fraction = (amountInSmallestUnits % smallestUnits)
+    final whole = amount ~/ unitsPerLargeUnit;
+    final fraction = (amount % unitsPerLargeUnit)
         .toString()
-        .padLeft(decimalPlaces, '0')
+        .padLeft(_largeDecimalPlaces, '0')
         .replaceAll(RegExp(r'0+$'), '');
     return fraction.isEmpty ? '$whole' : '$whole,$fraction';
   }
 
-  static bool _isDigits(String value) =>
-      value.isEmpty || RegExp(r'^\d+$').hasMatch(value);
+  /// What the screen reads: '900 g', '6 kg', '1,25 L', '1,1 m'. The large unit
+  /// steps in as soon as the amount reaches it.
+  String formatQuantity(int amount) {
+    final large = usesLargeUnit(amount);
+    return '${_formatAmount(amount, large: large)} '
+        '${large ? _largeLabel : label}';
+  }
+
+  /// The unit a PRICE is quoted in, and it is always the large one:
+  /// 'R$ 32,90/kg', never 'R$ 0,03/g'. **The only door to the reading unit** —
+  /// the three cost-per-base-unit screens and the type magnitude subtitle come
+  /// in through here, because `_largeLabel` is private. The screen has no way
+  /// of picking wrong between 'kg' and 'g'.
+  String get priceLabel => _largeLabel;
+
+  /// What a TYPABLE field comes filled with: the integer, in the stored unit,
+  /// with no unit glued to it. It is the other end of the same rule as
+  /// [priceLabel] — no screen has to remember to pass `large: false`, and none
+  /// can forget.
+  String typedText(int amount) => _formatAmount(amount, large: false);
+
+  /// How the magnitude introduces itself in the type form: 'Peso — grama (g)'.
+  /// **The only place this sentence exists.**
+  String get magnitudeLabel => '$magnitude — $magnitudeNoun ($label)';
+
+  /// The pair '0,5 de 6 kg' — BOTH ends at the scale of the WHOLE, never each
+  /// at its own. Without this, 900 g consumed out of a 6 kg average would come
+  /// out as '900 de 6 kg'.
+  String formatQuantityPair(int part, int whole) {
+    final large = usesLargeUnit(whole);
+    return '${_formatAmount(part, large: large)} de '
+        '${_formatAmount(whole, large: large)} '
+        '${large ? _largeLabel : label}';
+  }
 }
 
 /// The typed amount is not a number. pt-BR: it is read on screen.
@@ -136,22 +160,14 @@ final class InvalidAmount implements Exception {
   String toString() => 'InvalidAmount: $message';
 }
 
-/// The typed amount has more decimal places than the unit can hold — '0,3505'
-/// of a litre is half a millilitre, and there is no such thing here.
-///
-/// **The sentence DERIVES from the number** (rule 6), and it has to: a type
-/// measured by unit holds zero decimal places, and a fixed "no máximo três
-/// casas decimais" would offer three that do not exist.
-final class AmountTooPrecise implements Exception {
-  const AmountTooPrecise(this.decimalPlaces);
+/// The typed amount carries a decimal separator, and no field does any more:
+/// every amount is typed in the small unit of its magnitude — grams,
+/// millilitres, units, centimetres — which is always a whole number.
+final class AmountMustBeWhole implements Exception {
+  const AmountMustBeWhole();
 
-  /// How many places the unit that refused the amount can hold.
-  final int decimalPlaces;
-
-  String get message => decimalPlaces == 0
-      ? 'Use um número inteiro.'
-      : 'Use no máximo $decimalPlaces casas decimais.';
+  String get message => 'Use um número inteiro.';
 
   @override
-  String toString() => 'AmountTooPrecise: $message';
+  String toString() => 'AmountMustBeWhole: $message';
 }

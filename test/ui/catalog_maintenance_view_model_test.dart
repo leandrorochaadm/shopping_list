@@ -171,10 +171,10 @@ void main() {
     // "Mercearia" so the suggestion could tell the one of requirement 8. What
     // this case protects is that the load brings the SIX catalogs at once, not
     // how many rows each of them holds.
-    expect(state.types, hasLength(5));
+    expect(state.types, hasLength(6));
     expect(state.brands, hasLength(4));
-    expect(state.registrations, hasLength(2));
-    expect(state.products, hasLength(5));
+    expect(state.registrations, hasLength(3));
+    expect(state.products, hasLength(6));
     expect(state.stores, hasLength(3));
   });
 
@@ -405,12 +405,12 @@ void main() {
       expect(
         await notifierOf(
           c,
-        ).changeBaseUnit('type-3', BaseUnit.kilogram, purchaseCount: 0),
+        ).changeBaseUnit('type-3', BaseUnit.gram, purchaseCount: 0),
         isNull,
       );
       expect(
         valueOf(c).types.where((e) => e.id == 'type-3').single.baseUnit,
-        BaseUnit.kilogram,
+        BaseUnit.gram,
       );
     },
   );
@@ -422,7 +422,7 @@ void main() {
     expect(
       await notifierOf(
         c,
-      ).changeBaseUnit('type-1', BaseUnit.kilogram, purchaseCount: 0),
+      ).changeBaseUnit('type-1', BaseUnit.gram, purchaseCount: 0),
       'Este tipo já tem produtos ou compras. A unidade base não pode mais '
       'mudar.',
     );
@@ -435,7 +435,7 @@ void main() {
     expect(
       await notifierOf(
         c,
-      ).changeBaseUnit('type-3', BaseUnit.kilogram, purchaseCount: 7),
+      ).changeBaseUnit('type-3', BaseUnit.gram, purchaseCount: 7),
       contains('não pode mais mudar'),
     );
   });
@@ -520,7 +520,7 @@ void main() {
         ProductType(
           name: 'Suco',
           categoryId: 'cat-1',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
         ),
       );
       await notifierOf(c).refresh();
@@ -549,7 +549,7 @@ void main() {
         Packaging(
           pieceCount: 1,
           pieceSize: 355,
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ),
       ),
       isNull,
@@ -559,7 +559,7 @@ void main() {
       Packaging(
         pieceCount: 1,
         pieceSize: 355,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       ),
     );
   });
@@ -578,7 +578,7 @@ void main() {
           Packaging(
             pieceCount: 1,
             pieceSize: 269,
-            pieceSizeUnit: MeasureUnit.milliliter,
+            baseUnit: BaseUnit.milliliter,
           ),
         ),
         'Este cadastro já tem uma embalagem com esse conteúdo.',
@@ -730,7 +730,7 @@ void main() {
               id: 't',
               name: 'Refrigerante',
               categoryId: 'c',
-              baseUnit: BaseUnit.liter,
+              baseUnit: BaseUnit.milliliter,
             ),
           ]),
       brands: brands ?? IList([Brand(id: 'b', name: 'Coca-Cola')]),

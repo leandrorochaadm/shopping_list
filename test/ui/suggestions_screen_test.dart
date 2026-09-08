@@ -71,7 +71,7 @@ ShoppingListItem _listItem({
     id: typeId,
     name: name,
     categoryId: 'cat-1',
-    baseUnit: BaseUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   ),
   category: _drinks,
   enteredOn: DateTime(2026, 8, 20),
@@ -160,7 +160,7 @@ void main() {
     // single purchase in the window, and the toilet paper by nothing.
     expect(find.text('Acém moído — 8 kg'), findsOneWidget);
     expect(find.text('Sabão em pó — 8 kg'), findsOneWidget);
-    expect(find.text('Café — 0,7 kg'), findsOneWidget);
+    expect(find.text('Café — 700 g'), findsOneWidget);
     expect(find.text('Refrigerante — 4,2 L'), findsOneWidget);
     expect(find.text('Papel higiênico — 12 un'), findsOneWidget);
 
@@ -341,7 +341,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // The retry worked, and the lines are there.
-    expect(find.text('Café — 0,7 kg'), findsOneWidget);
+    expect(find.text('Café — 700 g'), findsOneWidget);
   });
 
   testWidgets('pushed from screen 1 it carries a Back button', (tester) async {

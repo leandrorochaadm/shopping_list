@@ -114,13 +114,14 @@ final class TypeSpending {
   /// averages. 5 kg at R$ 30 plus 1 kg at R$ 42 is R$ 32 a kilo, not R$ 36 —
   /// that is the written acceptance criterion of requirement 4.
   ///
-  /// In cents per BASE unit (per kilo, per litre, per unit), rounded half-up
+  /// In cents per PRICING unit (per kilo, per litre, per unit, per metre),
+  /// rounded half-up
   /// without a single division in floating point — the same arithmetic as
   /// `PriceReference.costPerBaseUnit`, written here because that one takes the
   /// `(paid, quantity)` pair of ONE purchase and this one adds up many.
   int get costPerBaseUnit {
-    final smallest = baseUnit.smallestUnits;
-    return (spent.cents * smallest * 2 + quantityInBaseUnit) ~/
+    final perLarge = baseUnit.unitsPerLargeUnit;
+    return (spent.cents * perLarge * 2 + quantityInBaseUnit) ~/
         (quantityInBaseUnit * 2);
   }
 

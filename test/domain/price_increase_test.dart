@@ -51,18 +51,18 @@ void main() {
 
       expect(average.paid, const Money(19200));
       expect(average.quantityInBaseUnit, 6000);
-      expect(average.costPerBaseUnit(BaseUnit.kilogram), 3200);
+      expect(average.costPerBaseUnit(BaseUnit.gram), 3200);
     });
 
     test('cents per base unit round half-up, in both units', () {
       // 4200 ml for 6200 cents is 1476,19 cents a litre.
-      expect(crate().costPerBaseUnit(BaseUnit.liter), 1476);
+      expect(crate().costPerBaseUnit(BaseUnit.milliliter), 1476);
       // 1500 g for 4500 cents is exactly 3000 cents a kilo.
       expect(
         PriceBaseline(
           paid: const Money(4500),
           quantityInBaseUnit: 1500,
-        ).costPerBaseUnit(BaseUnit.kilogram),
+        ).costPerBaseUnit(BaseUnit.gram),
         3000,
       );
     });
@@ -228,7 +228,7 @@ void main() {
       expect(baselines.byProduct['prod-4']!.paid, const Money(12190));
       expect(baselines.byProduct['prod-4']!.quantityInBaseUnit, 8400);
       // R$ 14,51 a litre — the average the fake's story alerts against.
-      expect(baselines.byProduct['prod-4']!.costPerBaseUnit(BaseUnit.liter), 1451);
+      expect(baselines.byProduct['prod-4']!.costPerBaseUnit(BaseUnit.milliliter), 1451);
     });
 
     test('two leaves of the same TYPE add up at the type level only', () {

@@ -187,7 +187,7 @@ void main() {
         id: typeId,
         name: 'Leite',
         categoryId: 'cat-1',
-        baseUnit: BaseUnit.liter,
+        baseUnit: BaseUnit.milliliter,
       ),
       category: Category(id: 'cat-1', name: 'Laticínios'),
       enteredOn: enteredOn ?? DateTime(2026, 8, 28),

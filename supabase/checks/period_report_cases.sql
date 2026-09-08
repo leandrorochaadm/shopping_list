@@ -21,16 +21,16 @@ insert into public.category (id, name) values
 insert into public.product_type (id, name, category_id, base_unit) values
   (
     '00000000-0000-4000-8000-00000000bb01', 'Check Acém',
-    '00000000-0000-4000-8000-00000000ca01', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca01', 'gram'
   ),
   (
     '00000000-0000-4000-8000-00000000bb02', 'Check Sabão',
-    '00000000-0000-4000-8000-00000000ca01', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca01', 'gram'
   ),
   -- Deactivated, for case 7: a tidied-up catalog must not rewrite the past.
   (
     '00000000-0000-4000-8000-00000000bb03', 'Check Frango',
-    '00000000-0000-4000-8000-00000000ca02', 'kilogram'
+    '00000000-0000-4000-8000-00000000ca02', 'gram'
   );
 update public.product_type set active = false
 where id = '00000000-0000-4000-8000-00000000bb03';

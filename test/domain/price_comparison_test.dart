@@ -43,7 +43,7 @@ void main() {
       // The date INFORMS: the cheapest is the OLDEST of the three, and the
       // list is still ordered by price.
       expect(lines.first.purchasedOn, DateTime(2026, 7, 3));
-      expect(lines.first.baseUnit, BaseUnit.liter);
+      expect(lines.first.baseUnit, BaseUnit.milliliter);
     });
 
     test('the can of the same type is NOT in it — brand with brand', () {
@@ -340,7 +340,7 @@ void main() {
         ComparisonLine(
           store: store ?? carrefour,
           costPerBaseUnit: cents,
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
           purchasedOn: on ?? DateTime(2026, 7, 3),
         );
 
@@ -356,7 +356,7 @@ void main() {
           ComparisonLine(
             store: carrefour,
             costPerBaseUnit: 1143,
-            baseUnit: BaseUnit.kilogram,
+            baseUnit: BaseUnit.gram,
             purchasedOn: DateTime(2026, 7, 3),
           ),
         ),

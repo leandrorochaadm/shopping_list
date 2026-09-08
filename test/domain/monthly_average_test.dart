@@ -17,7 +17,7 @@ final meat = Category(id: 'cat-2', name: 'Carnes');
 ProductType typeOf(
   String id,
   String name, {
-  BaseUnit unit = BaseUnit.kilogram,
+  BaseUnit unit = BaseUnit.gram,
   String categoryId = 'cat-4',
   bool active = true,
 }) => ProductType(
@@ -31,7 +31,7 @@ ProductType typeOf(
 TypeConsumption rowOf({
   String id = 'type-1',
   String name = 'Café',
-  BaseUnit unit = BaseUnit.kilogram,
+  BaseUnit unit = BaseUnit.gram,
   Category? category,
   bool active = true,
   int window = 0,
@@ -54,7 +54,7 @@ TypeConsumption rowOf({
 MonthlyAverage averageOf({
   String id = 'type-1',
   String name = 'Café',
-  BaseUnit unit = BaseUnit.kilogram,
+  BaseUnit unit = BaseUnit.gram,
   Category? category,
   required int average,
   int consumedInMonth = 0,
@@ -127,32 +127,32 @@ void main() {
     test('the coffee of the wireframe: 667 g becomes 700 g', () {
       // `wireframes §Tela 2` writes `Café — 0,7 kg`. Without this the screen
       // would say 0,667 and contradict the document the client reads.
-      expect(roundToAverageStep(667, BaseUnit.kilogram), 700);
+      expect(roundToAverageStep(667, BaseUnit.gram), 700);
     });
 
     test('half goes UP, and the neighbour below goes down', () {
-      expect(roundToAverageStep(650, BaseUnit.kilogram), 700);
-      expect(roundToAverageStep(649, BaseUnit.kilogram), 600);
+      expect(roundToAverageStep(650, BaseUnit.gram), 700);
+      expect(roundToAverageStep(649, BaseUnit.gram), 600);
     });
 
     test('a multiple of the step does not move', () {
-      expect(roundToAverageStep(6000, BaseUnit.kilogram), 6000);
-      expect(roundToAverageStep(4200, BaseUnit.liter), 4200);
+      expect(roundToAverageStep(6000, BaseUnit.gram), 6000);
+      expect(roundToAverageStep(4200, BaseUnit.milliliter), 4200);
     });
 
     test('a positive amount NEVER becomes zero (E-d)', () {
       // 49 g in three months would round to 0 kg, and a line offering "0 kg"
       // is not an offer — `requisitos §8` says nothing is filtered for being a
       // rare purchase.
-      expect(roundToAverageStep(49, BaseUnit.kilogram), 100);
-      expect(roundToAverageStep(1, BaseUnit.liter), 100);
+      expect(roundToAverageStep(49, BaseUnit.gram), 100);
+      expect(roundToAverageStep(1, BaseUnit.milliliter), 100);
     });
 
     test('a zero stays zero (E-j) — it is a different case', () {
       // The product bought in March and again in August consumed NOTHING
       // inside the closed window, and the honest answer is nothing.
-      expect(roundToAverageStep(0, BaseUnit.kilogram), 0);
-      expect(roundToAverageStep(-5, BaseUnit.kilogram), 0);
+      expect(roundToAverageStep(0, BaseUnit.gram), 0);
+      expect(roundToAverageStep(-5, BaseUnit.gram), 0);
     });
 
     test('the unit base counts whole things: the step is one', () {
@@ -163,8 +163,10 @@ void main() {
     });
 
     test('the step is one decimal place of each base', () {
-      expect(averageStepOf(BaseUnit.kilogram), 100);
-      expect(averageStepOf(BaseUnit.liter), 100);
+      expect(averageStepOf(BaseUnit.gram), 100);
+      expect(averageStepOf(BaseUnit.milliliter), 100);
+      // The metre has two decimal places, so one of them is ten centimetres.
+      expect(averageStepOf(BaseUnit.centimeter), 10);
       expect(averageDecimalPlaces, 1);
     });
   });
@@ -285,11 +287,13 @@ void main() {
 
     test('the labels are what the two screens write', () {
       final coffee = averageOf(average: 700, consumedInMonth: 0);
-      expect(coffee.averageLabel, '0,7 kg');
-      expect(coffee.remainingLabel, '0,7 kg');
+      // Below the kilo the reading stays in grams: the large unit steps in
+      // only once the amount reaches it.
+      expect(coffee.averageLabel, '700 g');
+      expect(coffee.remainingLabel, '700 g');
 
       final drink = averageOf(
-        unit: BaseUnit.liter,
+        unit: BaseUnit.milliliter,
         average: 4200,
         consumedInMonth: 4200,
       );
@@ -345,7 +349,7 @@ void main() {
 
       // Screen 2 hands both entities to `addMany`, which takes nothing less.
       expect(lines.first.category, meat);
-      expect(lines.first.type.baseUnit, BaseUnit.kilogram);
+      expect(lines.first.type.baseUnit, BaseUnit.gram);
       expect(lines.first.consumedInMonth, 6000);
     });
 

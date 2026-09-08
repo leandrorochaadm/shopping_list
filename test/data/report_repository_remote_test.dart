@@ -150,7 +150,7 @@ void main() {
                 'id': 'type-1',
                 'name': 'Refrigerante',
                 'category_id': 'cat-1',
-                'base_unit': 'liter',
+                'base_unit': 'milliliter',
                 'active': true,
                 'category': {'id': 'cat-1', 'name': 'Bebidas'},
               },
@@ -217,7 +217,7 @@ void main() {
             'product_type_id': 'type-2',
             'product_type_name': 'Acém moído',
             'category_id': 'cat-2',
-            'base_unit': 'kilogram',
+            'base_unit': 'gram',
             'quantity_in_base_unit': 6000,
             'total_paid': 19200,
           },
@@ -237,7 +237,7 @@ void main() {
     final report = await repository.fetchPeriodReport(period);
 
     expect(report.total, const Money(19200));
-    expect(report.types.single.baseUnit, BaseUnit.kilogram);
+    expect(report.types.single.baseUnit, BaseUnit.gram);
     expect(report.types.single.costPerBaseUnit, 3200);
     expect(report.brands.single.hasBrand, isFalse);
   });

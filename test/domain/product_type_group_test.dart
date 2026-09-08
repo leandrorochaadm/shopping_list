@@ -17,7 +17,7 @@ void main() {
         id: id,
         name: name,
         categoryId: category,
-        baseUnit: BaseUnit.liter,
+        baseUnit: BaseUnit.milliliter,
       );
 
   group('groupTypesByCategory', () {

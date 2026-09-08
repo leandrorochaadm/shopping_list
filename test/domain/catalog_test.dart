@@ -73,7 +73,7 @@ void main() {
       );
       expect(
         findNameConflict([
-          ProductType(name: 'Leite', categoryId: 'c', baseUnit: BaseUnit.liter),
+          ProductType(name: 'Leite', categoryId: 'c', baseUnit: BaseUnit.milliliter),
         ], ' leite '),
         isNotNull,
       );
@@ -153,13 +153,12 @@ void main() {
       id: '1',
       name: 'Leite',
       categoryId: 'c1',
-      baseUnit: BaseUnit.liter,
+      baseUnit: BaseUnit.milliliter,
       active: active,
     );
 
     test('carries the base unit, because it is the level that sums', () {
-      expect(leite().baseUnit, BaseUnit.liter);
-      expect(leite().measures, [MeasureUnit.milliliter, MeasureUnit.liter]);
+      expect(leite().baseUnit, BaseUnit.milliliter);
     });
 
     test('points at the category by key, never by a copied name', () {
@@ -173,13 +172,13 @@ void main() {
         ProductType(
           name: '  Leite ',
           categoryId: 'c1',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
         ).name,
         'Leite',
       );
       expect(
         () =>
-            ProductType(name: ' ', categoryId: 'c1', baseUnit: BaseUnit.liter),
+            ProductType(name: ' ', categoryId: 'c1', baseUnit: BaseUnit.milliliter),
         throwsA(isA<BlankName>()),
       );
     });
@@ -198,7 +197,7 @@ void main() {
       expect(leite().hashCode, leite().hashCode);
       expect(leite(), isNot(leite().copyWith(baseUnit: BaseUnit.unit)));
       expect(leite(), isNot(leite().copyWith(categoryId: 'c2')));
-      expect(leite().toString(), 'ProductType(Leite, liter, active: true)');
+      expect(leite().toString(), 'ProductType(Leite, milliliter, active: true)');
     });
   });
 }

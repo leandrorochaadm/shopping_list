@@ -25,11 +25,13 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | cadastro de produto | `ProductRegistration` | `tipo + marca + descrição`. É o que não pode se repetir |
 | produto (a folha) | `Product` | cadastro **+ embalagem**. É o que a compra aponta |
 | embalagem | `Packaging` | quantas peças × quanto tem cada peça. **Não** `Package`, que em Dart já significa outra coisa |
-| medida da peça | `pieceSize` | guardada nas duas formas: a digitada e a convertida |
+| medida da peça | `pieceSize` | inteiro na unidade base do tipo. Uma forma só — a digitada É a gravada |
 | conteúdo total | `totalContent` | na unidade base. **Calculado, nunca digitado** |
-| unidade base | `BaseUnit` | enum: `kilogram`, `liter`, `unit` |
+| unidade base | `BaseUnit` | enum: `gram`, `milliliter`, `unit`, `centimeter`. É a unidade **pequena e inteira** de cada grandeza, e a única — não existe mais escolher entre "g" e "kg" |
+| grandeza | `magnitude` | Peso, Volume, Contagem e **Tamanho**. Uma por `BaseUnit`, e é o que o cadastro do tipo escolhe |
+| unidade de leitura e de preço | `priceLabel` / `unitsPerLargeUnit` | `kg`, `L`, `un`, `m`. O preço é sempre nela; a quantidade só sobe para ela quando alcança o fator |
 | vendido a peso / por peça | `SellingMode.byWeight` / `.byPiece` | decide o que o lançamento pergunta |
-| as três palavras do campo **Vendido** | `SellingChoice` | `Peso`, `Unidade` e `Volume`. `Peso` e `Volume` são o **mesmo** `by_weight`, e quem os separa é a unidade base do tipo. O único lugar onde o par (`SellingMode`, `BaseUnit`) vira UMA escolha |
+| as quatro palavras do campo **Vendido** | `SellingChoice` | `Peso`, `Unidade`, `Volume` e `Tamanho`. Peso, Volume e Tamanho são o **mesmo** `by_weight`, e quem os separa é a unidade base do tipo. O único lugar onde o par (`SellingMode`, `BaseUnit`) vira UMA escolha. O campo oferece **só as palavras da grandeza** — as quatro não cabem nos 390 pt do iPhone 12 |
 | custo proporcional / preço por unidade base | `costPerBaseUnit` | preço ÷ conteúdo total |
 | melhor custo | `bestCost` | o menor `costPerBaseUnit`, não o menor preço |
 | mercado | `Store` | supermercado, feira, açougue, hortifrúti |
@@ -87,7 +89,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | grupo das telas 2 e 6 | `MonthlyAverageGroup` | a terceira gêmea de `ShoppingListGroup` e `ProductTypeGroup` — e a única que serve **duas** telas |
 | janela fechada | `closedWindow` | os três meses fechados anteriores. Mora ao lado de `rollingWindowStart`, e as duas **nunca se misturam** |
 | meses fechados de vida | `closedMonthsOfLife` | 0 a 3. O **0 é resposta**: é o produto nascido no mês em curso |
-| passo do arredondamento | `averageStepOf` / `roundToAverageStep` | uma casa decimal da unidade base. **Nunca transforma positivo em zero** |
+| passo do arredondamento | `averageStepOf` / `roundToAverageStep` | uma casa decimal da unidade de **leitura** — 100 g, 100 ml, 1 un, 10 cm. **Nunca transforma positivo em zero** |
 | a sub-linha da Tela 6 | `listStatusLabel` | as quatro formas de "o que a lista está pedindo", mais o sufixo do "não encontrei" |
 | o item aberto de um tipo | `findOpenItemOfType` | o mais antigo quando há mais de um. É onde "editando o item que já existe, nunca criando um segundo" é decidido |
 | calculadora de custo proporcional | `proportional_cost.dart` | o painel `#3a`. **Não** `CostCalculator`: o que existe é a regra, e ela não é um objeto que calcula |
@@ -96,7 +98,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | a folha que está sendo lançada | `launching` | o parâmetro de `costCandidatesOf` e do painel. É a **única que abre marcada**, e a única que entra em `shown` sem preço (F-j) |
 | resposta da calculadora | `CostRanking` | as linhas ordenadas, o `★`, para onde o `[ Usar… ]` aponta e a frase do rodapé |
 | empate técnico | `costTieThreshold` | 1%. `const` no domínio, e **o único lugar onde o número existe** |
-| conteúdo que um preço compra | `contentPricedOf` | o `totalContent` da embalagem, ou a unidade base no vendido a peso |
+| conteúdo que um preço compra | `contentPricedOf` | o `totalContent` da embalagem, ou **uma unidade de preço** (1000 g, 100 cm) no vendido a peso |
 | conteúdo digitado na comparação | `typedContent` | o conteúdo que o `#3a` deixa digitar **só na folha sem embalagem** (`acceptsTypedContentOf`). No mapa que chega a `rankCosts`, `null` é "campo apagado" e a **ausência** da chave é outra coisa: ninguém digitou |
 | preço de abertura da linha | `openingPriceOf` | o pago por **uma** embalagem na última compra. `null` é a embalagem nunca comprada na janela |
 

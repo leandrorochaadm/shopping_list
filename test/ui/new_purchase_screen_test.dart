@@ -578,10 +578,6 @@ void main() {
 
     await tester.enterText(find.byKey(const ValueKey('size-1')), '600');
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('unit-1')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('ml').last);
-    await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('save')));
     await tester.pumpAndSettle();

@@ -8,69 +8,65 @@ void main() {
       final packaging = Packaging(
         pieceCount: 6,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       );
 
       expect(packaging.totalContent, 2100);
-      expect(packaging.baseUnit, BaseUnit.liter);
+      expect(packaging.baseUnit, BaseUnit.milliliter);
     });
 
-    test('converts what was typed before storing anything', () {
-      // The screen calls this: '6' and '0,35' in litres is 2100 ml.
+    test('reads what was typed as a whole number of the base unit', () {
+      // The screen calls this: '6' and '350' in millilitres is 2100 ml.
       final packaging = Packaging.typed(
         pieceCount: '6',
-        pieceSize: '0,35',
-        pieceSizeUnit: MeasureUnit.liter,
+        pieceSize: '350',
+        baseUnit: BaseUnit.milliliter,
       );
 
       expect(packaging.pieceSize, 350);
       expect(packaging.totalContent, 2100);
     });
 
-    test('recognises the same content written two different ways', () {
-      // The acceptance criterion of H2, and the reason everything here is an
-      // integer: 1 × 0,35 L and 1 × 350 ml are the SAME packaging.
-      final asLiters = Packaging.typed(
-        pieceCount: '1',
-        pieceSize: '0,35',
-        pieceSizeUnit: MeasureUnit.liter,
+    test('refuses a decimal, because the typed unit is the small one', () {
+      expect(
+        () => Packaging.typed(
+          pieceCount: '1',
+          pieceSize: '0,35',
+          baseUnit: BaseUnit.milliliter,
+        ),
+        throwsA(isA<AmountMustBeWhole>()),
       );
-      final asMilliliters = Packaging.typed(
-        pieceCount: '1',
-        pieceSize: '350',
-        pieceSizeUnit: MeasureUnit.milliliter,
-      );
-
-      expect(asLiters.hasSameContentAs(asMilliliters), isTrue);
-      // Same content, different way of writing it: NOT the same object.
-      expect(asLiters, isNot(asMilliliters));
     });
 
-    test('recognises 2 × 500 g and 1 × 1 kg as the same amount', () {
+    test('recognises 2 × 500 g and 1 × 1000 g as the same amount', () {
+      // The acceptance criterion of H2, and the reason everything here is an
+      // integer: the comparison happens on the total.
       final twoHalves = Packaging.typed(
         pieceCount: '2',
         pieceSize: '500',
-        pieceSizeUnit: MeasureUnit.gram,
+        baseUnit: BaseUnit.gram,
       );
       final whole = Packaging.typed(
         pieceCount: '1',
-        pieceSize: '1',
-        pieceSizeUnit: MeasureUnit.kilogram,
+        pieceSize: '1000',
+        baseUnit: BaseUnit.gram,
       );
 
       expect(twoHalves.hasSameContentAs(whole), isTrue);
+      // Same content, different way of writing it: NOT the same object.
+      expect(twoHalves, isNot(whole));
     });
 
     test('keeps weight and volume apart even at the same number', () {
       final grams = Packaging(
         pieceCount: 1,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.gram,
+        baseUnit: BaseUnit.gram,
       );
       final milliliters = Packaging(
         pieceCount: 1,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       );
 
       expect(grams.hasSameContentAs(milliliters), isFalse);
@@ -80,7 +76,7 @@ void main() {
       final eggs = Packaging.typed(
         pieceCount: '2',
         pieceSize: '12',
-        pieceSizeUnit: MeasureUnit.unit,
+        baseUnit: BaseUnit.unit,
       );
 
       expect(eggs.totalContent, 24);
@@ -92,7 +88,7 @@ void main() {
         () => Packaging(
           pieceCount: 0,
           pieceSize: 350,
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ),
         throwsA(isA<InvalidPieceCount>()),
       );
@@ -100,7 +96,7 @@ void main() {
         () => Packaging(
           pieceCount: 1,
           pieceSize: 0,
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ),
         throwsA(isA<InvalidAmount>()),
       );
@@ -109,7 +105,7 @@ void main() {
         Packaging(
           pieceCount: 1,
           pieceSize: 1,
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ).totalContent,
         1,
       );
@@ -122,7 +118,7 @@ void main() {
         Packaging.typed(
           pieceCount: '1',
           pieceSize: '350',
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ).label,
         '350 ml',
       );
@@ -130,44 +126,47 @@ void main() {
         Packaging.typed(
           pieceCount: '12',
           pieceSize: '350',
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ).label,
         '12 × 350 ml',
       );
     });
 
-    test('writes itself back the way it was typed', () {
-      expect(
-        Packaging.typed(
-          pieceCount: '6',
-          pieceSize: '350',
-          pieceSizeUnit: MeasureUnit.milliliter,
-        ).label,
-        '6 × 350 ml',
-      );
+    test('reads the large unit as soon as the amount reaches it', () {
       expect(
         Packaging.typed(
           pieceCount: '1',
-          pieceSize: '0,35',
-          pieceSizeUnit: MeasureUnit.liter,
-        ).label,
-        '0,35 L',
-      );
-      expect(
-        Packaging.typed(
-          pieceCount: '1',
-          pieceSize: '2',
-          pieceSizeUnit: MeasureUnit.liter,
+          pieceSize: '2000',
+          baseUnit: BaseUnit.milliliter,
         ).label,
         '2 L',
       );
       expect(
         Packaging.typed(
           pieceCount: '1',
-          pieceSize: '1,500',
-          pieceSizeUnit: MeasureUnit.kilogram,
+          pieceSize: '1500',
+          baseUnit: BaseUnit.gram,
         ).label,
         '1,5 kg',
+      );
+      // The composed form crosses the threshold too — '12 × 1 L', never
+      // '12 × 1000 ml'.
+      expect(
+        Packaging.typed(
+          pieceCount: '12',
+          pieceSize: '1000',
+          baseUnit: BaseUnit.milliliter,
+        ).label,
+        '12 × 1 L',
+      );
+      // The new magnitude: 30 m of foil, stored in centimetres.
+      expect(
+        Packaging.typed(
+          pieceCount: '1',
+          pieceSize: '3000',
+          baseUnit: BaseUnit.centimeter,
+        ).label,
+        '30 m',
       );
     });
 
@@ -175,7 +174,7 @@ void main() {
       final packaging = Packaging(
         pieceCount: 6,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       );
 
       expect(Packaging.fromJson(packaging.toJson()), packaging);
@@ -186,7 +185,7 @@ void main() {
       final one = Packaging(
         pieceCount: 6,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       );
 
       expect(one, one.copyWith());
@@ -199,7 +198,7 @@ void main() {
         Packaging(
           pieceCount: 6,
           pieceSize: 350,
-          pieceSizeUnit: MeasureUnit.milliliter,
+          baseUnit: BaseUnit.milliliter,
         ).toString(),
         'Packaging(6 × 350 ml = 2100)',
       );

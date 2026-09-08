@@ -16,7 +16,7 @@ final cheeseType = ProductType(
   id: 'type-9',
   name: 'Mussarela',
   categoryId: 'cat-3',
-  baseUnit: BaseUnit.kilogram,
+  baseUnit: BaseUnit.gram,
 );
 
 /// A leaf sold by piece with NO packaging — not representable in the schema
@@ -39,14 +39,14 @@ ProductOption kiloLeaf(String id) => optionByPiece(
   type: powderType,
   description: id,
   pieceSize: 1000,
-  unit: MeasureUnit.gram,
+  unit: BaseUnit.gram,
 );
 
 CostRanking rank(
   IList<ProductOption> options,
   Map<String, int> cents, {
   Set<String>? selected,
-  BaseUnit baseUnit = BaseUnit.liter,
+  BaseUnit baseUnit = BaseUnit.milliliter,
   Map<String, int?> contents = const {},
 }) => rankCosts(
   options: options,
@@ -149,7 +149,7 @@ void main() {
         type: powderType,
         brand: omoBrand,
         pieceSize: 500,
-        unit: MeasureUnit.gram,
+        unit: BaseUnit.gram,
         priceReference: reference(cents: 3000, quantityInBaseUnit: 1500),
       );
       expect(openingPriceOf(pack), const Money(1000));
@@ -375,20 +375,20 @@ void main() {
         type: powderType,
         brand: omoBrand,
         pieceSize: 500,
-        unit: MeasureUnit.gram,
+        unit: BaseUnit.gram,
       );
       final big = optionByPiece(
         id: 'omo-2300',
         type: powderType,
         brand: omoBrand,
         pieceSize: 2300,
-        unit: MeasureUnit.kilogram,
+        unit: BaseUnit.gram,
       );
 
       final ranking = rank(
         [small, big].lock,
         {'omo-500': 1000, 'omo-2300': 3300},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
       );
 
       expect(ranking.lines.map((line) => line.option.id), [
@@ -436,13 +436,13 @@ void main() {
         id: 'sliced',
         type: cheeseType,
         pieceSize: 200,
-        unit: MeasureUnit.gram,
+        unit: BaseUnit.gram,
       );
 
       final ranking = rank(
         [counter, sliced].lock,
         {'counter': 4800, 'sliced': 1100},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
       );
 
       expect(ranking.lines[0].option.id, 'counter');
@@ -459,14 +459,14 @@ void main() {
         type: paperType,
         description: 'folha dupla',
         pieceSize: 4,
-        unit: MeasureUnit.unit,
+        unit: BaseUnit.unit,
       );
       final big = optionByPiece(
         id: 'paper-12',
         type: paperType,
         description: 'folha dupla',
         pieceSize: 12,
-        unit: MeasureUnit.unit,
+        unit: BaseUnit.unit,
       );
 
       final ranking = rank(
@@ -554,7 +554,7 @@ void main() {
       final ranking = rank(
         [cheap, dear].lock,
         {'kilo-a': 1000, 'kilo-b': 1005},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
       );
 
       expect(ranking.best, isNull);
@@ -567,7 +567,7 @@ void main() {
       final ranking = rank(
         [kiloLeaf('kilo-a'), kiloLeaf('kilo-b')].lock,
         {'kilo-a': 9900, 'kilo-b': 10000},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
       );
 
       expect(ranking.best?.id, 'kilo-a');
@@ -578,7 +578,7 @@ void main() {
       final ranking = rank(
         [kiloLeaf('kilo-a'), kiloLeaf('kilo-b')].lock,
         {'kilo-a': 9901, 'kilo-b': 10000},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
       );
 
       expect(ranking.best, isNull);
@@ -589,7 +589,7 @@ void main() {
       final ranking = rank(
         [kiloLeaf('kilo-a'), kiloLeaf('kilo-b'), kiloLeaf('kilo-c')].lock,
         {'kilo-a': 10000, 'kilo-b': 10050, 'kilo-c': 16667},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
       );
 
       expect(ranking.best, isNull);
@@ -621,13 +621,13 @@ void main() {
         type: beefType,
         description: 'congelado',
         pieceSize: 1000,
-        unit: MeasureUnit.gram,
+        unit: BaseUnit.gram,
       );
 
       final ranking = rank(
         [tray, packed].lock,
         {'tray': 1200, 'packed': 1450},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
         contents: {'tray': 800},
       );
 
@@ -644,13 +644,13 @@ void main() {
         id: 'packed',
         type: beefType,
         pieceSize: 1000,
-        unit: MeasureUnit.gram,
+        unit: BaseUnit.gram,
       );
 
       final ranking = rank(
         [tray, packed].lock,
         {'tray': 1200, 'packed': 1450},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
         contents: {'tray': null},
       );
 
@@ -672,13 +672,13 @@ void main() {
         id: 'packed',
         type: beefType,
         pieceSize: 1000,
-        unit: MeasureUnit.gram,
+        unit: BaseUnit.gram,
       );
 
       final ranking = rank(
         [tray, packed].lock,
         {'tray': 1200, 'packed': 1450},
-        baseUnit: BaseUnit.kilogram,
+        baseUnit: BaseUnit.gram,
         contents: {'packed': null},
       );
 
@@ -717,8 +717,8 @@ void main() {
       final options = [kiloLeaf('kilo-b'), kiloLeaf('kilo-a')].lock;
       final prices = {'kilo-a': 1000, 'kilo-b': 1000};
 
-      final first = rank(options, prices, baseUnit: BaseUnit.kilogram);
-      final second = rank(options, prices, baseUnit: BaseUnit.kilogram);
+      final first = rank(options, prices, baseUnit: BaseUnit.gram);
+      final second = rank(options, prices, baseUnit: BaseUnit.gram);
 
       expect(first.lines.map((line) => line.option.id), ['kilo-a', 'kilo-b']);
       expect(first.lines, second.lines);
@@ -727,9 +727,10 @@ void main() {
 
   group('costHeaderFor', () {
     test('names the unit the computation is in', () {
-      expect(costHeaderFor(BaseUnit.kilogram), 'custo por kg');
-      expect(costHeaderFor(BaseUnit.liter), 'custo por litro');
+      expect(costHeaderFor(BaseUnit.gram), 'custo por quilo');
+      expect(costHeaderFor(BaseUnit.milliliter), 'custo por litro');
       expect(costHeaderFor(BaseUnit.unit), 'custo por unidade');
+      expect(costHeaderFor(BaseUnit.centimeter), 'custo por metro');
     });
   });
 

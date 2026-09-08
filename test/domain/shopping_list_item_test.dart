@@ -13,7 +13,7 @@ final _category = Category(id: 'cat-1', name: 'Bebidas');
 
 ProductType _type({
   String name = 'Leite',
-  BaseUnit baseUnit = BaseUnit.liter,
+  BaseUnit baseUnit = BaseUnit.milliliter,
 }) => ProductType(
   id: 'type-1',
   name: name,
@@ -37,7 +37,7 @@ Product _packagedLeaf() => Product(
     pieceSize: 1000,
     // Typed in litres, so the shelf name reads '1 L' and not '1000 ml' —
     // the packaging keeps the unit it was typed in.
-    pieceSizeUnit: MeasureUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   ),
 );
 
@@ -118,7 +118,7 @@ void main() {
   group('what the line reads', () {
     test('writes the quantity in the base unit of the type', () {
       expect(
-        _item(type: _type(baseUnit: BaseUnit.kilogram)).quantityLabel,
+        _item(type: _type(baseUnit: BaseUnit.gram)).quantityLabel,
         '6 kg',
       );
       expect(_item(quantity: 2500).quantityLabel, '2,5 L');
@@ -187,7 +187,7 @@ void main() {
         'id': 'type-1',
         'name': 'Leite',
         'category_id': 'cat-1',
-        'base_unit': 'liter',
+        'base_unit': 'milliliter',
         'active': true,
         'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
       },
@@ -204,7 +204,7 @@ void main() {
             'product_registration_id': 'reg-1',
             'piece_count': 1,
             'piece_size': 1000,
-            'piece_size_unit': 'liter',
+            'piece_size_unit': 'milliliter',
             'total_content': 1000,
             'active': true,
           },
@@ -371,7 +371,7 @@ void main() {
           'id': 'type-1',
           'name': 'Leite',
           'category_id': 'cat-1',
-          'base_unit': 'liter',
+          'base_unit': 'milliliter',
           'active': true,
           'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
         },
@@ -401,7 +401,7 @@ void main() {
           'id': 'type-1',
           'name': 'Leite',
           'category_id': 'cat-1',
-          'base_unit': 'liter',
+          'base_unit': 'milliliter',
           'active': true,
           'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
         },
@@ -462,7 +462,7 @@ void main() {
           'id': 'type-1',
           'name': 'Leite',
           'category_id': 'cat-1',
-          'base_unit': 'liter',
+          'base_unit': 'milliliter',
           'category': {'id': 'cat-1', 'name': 'Bebidas'},
         },
         'list_write_off': [
@@ -486,7 +486,7 @@ void main() {
           'id': 'type-1',
           'name': 'Leite',
           'category_id': 'cat-1',
-          'base_unit': 'liter',
+          'base_unit': 'milliliter',
           'category': {'id': 'cat-1', 'name': 'Bebidas'},
         },
       });
@@ -652,7 +652,7 @@ void main() {
     test('the unit is the type\'s base, whatever the preferred packaging', () {
       expect(
         _item(
-          type: _type(name: 'Acém moído', baseUnit: BaseUnit.kilogram),
+          type: _type(name: 'Acém moído', baseUnit: BaseUnit.gram),
           quantity: 2000,
         ).listStatusLabel,
         'na lista: pedindo 2 kg',

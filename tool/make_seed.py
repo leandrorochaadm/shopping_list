@@ -84,16 +84,19 @@ class Registration:
 CATEGORIES = {
     "Bebidas": ["Refrigerante", "Leite"],
     "Carnes": ["Acém"],
-    "Limpeza": ["Sabão em pó"],
+    "Limpeza": ["Sabão em pó", "Papel-alumínio"],
     "Hortifrúti": ["Banana"],
 }
 
 TYPE_BASE_UNIT = {
-    "Refrigerante": "liter",
-    "Leite": "liter",
-    "Acém": "kilogram",
-    "Sabão em pó": "kilogram",
-    "Banana": "kilogram",
+    "Refrigerante": "milliliter",
+    "Leite": "milliliter",
+    "Acém": "gram",
+    "Sabão em pó": "gram",
+    "Banana": "gram",
+    # The "Tamanho" magnitude: the shelf sells foil by the metre, and the
+    # seed carries one so the checks exercise centimetres.
+    "Papel-alumínio": "centimeter",
 }
 
 STORES = ["Supermercado Central", "Feira do Bairro"]
@@ -156,6 +159,19 @@ REGISTRATIONS = [
         prices={
             "Supermercado Central": [1890],
             "Feira do Bairro": [1990],
+        },
+    ),
+    Registration(
+        key="aluminio",
+        type_name="Papel-alumínio",
+        brand=None,
+        description="",
+        selling_mode="by_piece",
+        # 30 m in centimetres, which reads back as "30 m".
+        packagings=[Packaging(1, 3000, "centimeter")],
+        prices={
+            "Supermercado Central": [1290],
+            "Feira do Bairro": [1390],
         },
     ),
     Registration(
@@ -442,7 +458,7 @@ def build(anchor: date) -> str:
     lines.append(
         "insert into public.product_type (id, name, category_id, base_unit, "
         f"active) values ({sql_text(uid('type', 'Iogurte'))}, 'Iogurte', "
-        f"{sql_text(uid('category', 'Bebidas'))}, 'liter', false);"
+        f"{sql_text(uid('category', 'Bebidas'))}, 'milliliter', false);"
     )
     lines.append(
         "insert into public.brand (id, name, active) values "

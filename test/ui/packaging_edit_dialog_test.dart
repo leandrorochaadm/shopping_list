@@ -28,7 +28,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
     packaging: Packaging(
       pieceCount: 4,
       pieceSize: 1,
-      pieceSizeUnit: MeasureUnit.unit,
+      baseUnit: BaseUnit.unit,
     ),
   );
 
@@ -38,7 +38,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
     packaging: Packaging(
       pieceCount: 1,
       pieceSize: 600,
-      pieceSizeUnit: MeasureUnit.milliliter,
+      baseUnit: BaseUnit.milliliter,
     ),
     active: false,
   );
@@ -79,14 +79,14 @@ void main() {
     String id, {
     required int pieceCount,
     required int pieceSize,
-    required MeasureUnit unit,
+    required BaseUnit unit,
   }) => Product(
     id: id,
     productRegistrationId: 'reg-1',
     packaging: Packaging(
       pieceCount: pieceCount,
       pieceSize: pieceSize,
-      pieceSizeUnit: unit,
+      baseUnit: unit,
     ),
   );
 
@@ -96,12 +96,11 @@ void main() {
     'prod-2',
     pieceCount: 1,
     pieceSize: 269,
-    unit: MeasureUnit.milliliter,
+    unit: BaseUnit.milliliter,
   );
 
   final countField = find.byKey(const ValueKey('field-piece-count'));
   final sizeField = find.byKey(const ValueKey('field-piece-size'));
-  final unitField = find.byKey(const ValueKey('field-piece-unit'));
   final saveButton = find.byKey(const ValueKey('save-packaging'));
   final toggleButton = find.byKey(const ValueKey('toggle-active'));
 
@@ -150,45 +149,41 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('opens written in the unit it was TYPED in', (tester) async {
-    // 'prod-3' holds 2000 ml and was typed in litres: it reads '2 L', never
-    // '2000'.
+  testWidgets('opens written in the base unit, as a whole number', (
+    tester,
+  ) async {
+    // 'prod-3' holds 2000 ml: the field reads '2000', never '2'. The large
+    // unit belongs to the reading, not to the typing.
     await pumpDialog(
       tester,
       leaf: leafOf(
         'prod-3',
         pieceCount: 1,
         pieceSize: 2000,
-        unit: MeasureUnit.liter,
+        unit: BaseUnit.milliliter,
       ),
-      baseUnit: BaseUnit.liter,
+      baseUnit: BaseUnit.milliliter,
     );
 
     expect(find.text('Corrigir a embalagem'), findsOneWidget);
     expect(textOf(tester, countField), '1');
-    expect(textOf(tester, sizeField), '2');
-    expect(find.text('L'), findsOneWidget);
+    expect(textOf(tester, sizeField), '2000');
     expect(find.text(CatalogEntryEditDialog.footnote), findsOneWidget);
   });
 
-  testWidgets('the measures on offer are the base unit\'s, and no others', (
+  testWidgets('there is no measure to choose: the type already answered', (
     tester,
   ) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
-    await tester.tap(unitField);
-    await tester.pumpAndSettle();
-
-    expect(find.text('ml'), findsWidgets);
-    expect(find.text('L'), findsOneWidget);
-    // Weight never shows up under a type measured in litres — it is how a
-    // '350 g' of soft drink gets typed.
-    expect(find.text('g'), findsNothing);
-    expect(find.text('kg'), findsNothing);
+    // The field simply says which unit it is typed in. No dropdown, so a
+    // '350 g' of soft drink has no way of being typed.
+    expect(find.text('Quantidade em ml'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<BaseUnit>), findsNothing);
   });
 
   testWidgets('corrects the packaging and closes', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     await tester.enterText(sizeField, '500');
     await tester.tap(saveButton);
@@ -199,7 +194,7 @@ void main() {
       Packaging(
         pieceCount: 1,
         pieceSize: 500,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       ),
     );
     expect(find.byType(AlertDialog), findsNothing);
@@ -207,7 +202,7 @@ void main() {
 
   testWidgets('refuses a content the registration already has, under the '
       'field', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     // 'prod-1' is the 350 ml of the same registration.
     await tester.enterText(sizeField, '350');
@@ -224,14 +219,13 @@ void main() {
     expect(catalog.writes, isEmpty);
   });
 
-  testWidgets('the guard is CONTENT, not what was typed: 0,35 L is the '
-      '350 ml leaf', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+  testWidgets('the guard is CONTENT: 2 × 175 ml is the 350 ml leaf', (
+    tester,
+  ) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
-    await tester.enterText(sizeField, '0,35');
-    await tester.tap(unitField);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('L').last);
+    await tester.enterText(countField, '2');
+    await tester.enterText(sizeField, '175');
     await tester.pumpAndSettle();
 
     await tester.tap(saveButton);
@@ -247,7 +241,7 @@ void main() {
   testWidgets('a package with no pieces never reaches the repository', (
     tester,
   ) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     await tester.enterText(countField, '0');
     await tester.tap(saveButton);
@@ -257,39 +251,19 @@ void main() {
     expect(catalog.writes, isEmpty);
   });
 
-  testWidgets('a measure the unit cannot hold says how many places it has', (
-    tester,
-  ) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+  testWidgets('the size field takes digits and nothing else', (tester) async {
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
-    // Millilitres hold no decimals: half a millilitre is not a thing here.
+    // Every amount is typed in the small unit, which is a whole number — so
+    // the iPhone keyboard must not offer a comma to begin with.
     await tester.enterText(sizeField, '2,5');
-    await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Use um número inteiro.'), findsOneWidget);
-    expect(catalog.writes, isEmpty);
-  });
-
-  testWidgets('and the sentence DERIVES from the unit — litres hold three', (
-    tester,
-  ) async {
-    await pumpDialog(
-      tester,
-      leaf: leafOf(
-        'prod-3',
-        pieceCount: 1,
-        pieceSize: 2000,
-        unit: MeasureUnit.liter,
-      ),
-      baseUnit: BaseUnit.liter,
+    expect(textOf(tester, sizeField), '25');
+    expect(
+      tester.widget<TextField>(sizeField).keyboardType,
+      TextInputType.number,
     );
-
-    await tester.enterText(sizeField, '0,3505');
-    await tester.tap(saveButton);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Use no máximo 3 casas decimais.'), findsOneWidget);
   });
 
   testWidgets('a type measured in units has no measure field: the piece IS '
@@ -303,7 +277,6 @@ void main() {
     expect(find.text('Quantidade'), findsOneWidget);
     expect(find.text('Peças'), findsNothing);
     expect(sizeField, findsNothing);
-    expect(unitField, findsNothing);
 
     await tester.enterText(countField, '6');
     await tester.tap(saveButton);
@@ -314,13 +287,13 @@ void main() {
       Packaging(
         pieceCount: 6,
         pieceSize: 1,
-        pieceSizeUnit: MeasureUnit.unit,
+        baseUnit: BaseUnit.unit,
       ),
     );
   });
 
   testWidgets('deactivating writes and closes', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     expect(find.text('Desativar'), findsOneWidget);
     await tester.tap(toggleButton);
@@ -336,7 +309,7 @@ void main() {
     await pumpDialog(
       tester,
       leaf: _SpyCatalog.inactive,
-      baseUnit: BaseUnit.liter,
+      baseUnit: BaseUnit.milliliter,
     );
 
     expect(find.text('Reativar'), findsOneWidget);
@@ -349,7 +322,7 @@ void main() {
 
   testWidgets('a failed deactivation goes to a SnackBar, and the dialog '
       'stays', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     catalog.failNextWrite = ApiException(500, 'boom');
     await tester.tap(toggleButton);
@@ -366,7 +339,7 @@ void main() {
   testWidgets('a failed save goes under the field, without the exception', (
     tester,
   ) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     catalog.failNextWrite = ApiException(500, 'boom');
     await tester.enterText(sizeField, '500');
@@ -382,7 +355,7 @@ void main() {
   });
 
   testWidgets('Cancelar closes without writing', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     await tester.enterText(sizeField, '500');
     await tester.tap(find.text('Cancelar'));
@@ -394,7 +367,7 @@ void main() {
 
   testWidgets('the double tap fires one write: everything goes dead while it '
       'saves', (tester) async {
-    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.liter);
+    await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     catalog.gate = Completer<void>();
     await tester.enterText(sizeField, '500');

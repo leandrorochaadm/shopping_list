@@ -10,7 +10,7 @@ final class Money implements Comparable<Money> {
 
   /// Reads what was typed — '56,70', '56.70', '56' — and returns the cents.
   ///
-  /// Same algorithm as `MeasureUnit.parseAmount`, and for the same reason: it
+  /// Same algorithm as `BaseUnit.parseAmount`, and for the same reason: it
   /// is done digit by digit and NEVER goes through a double. A comma and a
   /// dot are both accepted because the iOS number keyboard offers whichever
   /// the layout feels like.

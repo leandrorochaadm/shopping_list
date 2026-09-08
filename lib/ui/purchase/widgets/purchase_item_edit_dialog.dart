@@ -79,7 +79,7 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
   /// the plain package count otherwise — where the bare number would read
   /// '1500' for a kilo and a half.
   static String _quantityTextOf(PurchaseItem item) => item.option.isSoldByWeight
-      ? item.option.baseUnit.typedMeasure.format(item.quantityInBaseUnit)
+      ? item.option.baseUnit.typedText(item.quantityInBaseUnit)
       : '${item.quantity}';
 
   /// Swapping the product may swap how the line is measured — a crate counted
@@ -97,13 +97,13 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
       // through a double: '0,35' × 100 in binary floating point is 34.999…,
       // and one truncation later a cent is gone.
       quantity = _option.isSoldByWeight
-          ? _option.baseUnit.typedMeasure.parseAmount(_quantityController.text)
-          : MeasureUnit.unit.parseAmount(_quantityController.text);
+          ? _option.baseUnit.parseAmount(_quantityController.text)
+          : BaseUnit.unit.parseAmount(_quantityController.text);
       paid = Money.parse(_valueController.text);
     } on InvalidAmount catch (e) {
       setState(() => _error = e.message);
       return;
-    } on AmountTooPrecise catch (e) {
+    } on AmountMustBeWhole catch (e) {
       setState(() => _error = e.message);
       return;
     } on InvalidMoney catch (e) {
@@ -143,12 +143,10 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
           TextField(
             key: const ValueKey('field-quantity'),
             controller: _quantityController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            // The iOS keyboard offers a comma or a dot depending on the
-            // layout, and the domain's parser reads both.
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-            ],
+            // Digits only: the quantity is typed in the small unit of its
+            // magnitude, which is always a whole number.
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(labelText: _option.quantityLabel),
           ),
           const SizedBox(height: 12),

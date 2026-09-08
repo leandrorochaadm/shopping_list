@@ -297,7 +297,7 @@ void main() {
             productTypeId: 'type-5',
             categoryId: 'cat-2',
             name: 'Frango',
-            baseUnit: BaseUnit.kilogram,
+            baseUnit: BaseUnit.gram,
             quantityInBaseUnit: 9000,
             spent: const Money(30000),
           ),

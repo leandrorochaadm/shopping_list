@@ -230,9 +230,10 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
             const SizedBox(height: 16),
             const Text('Unidade base'),
             // No default guessed, and the button stays disabled until one is
-            // chosen: the base unit decides whether the list asks for kilos,
-            // litres or units, and changing it later is the one path with no
-            // way back in the catalog (requirement 16).
+            // chosen: the base unit decides which magnitude the type is added
+            // up in — weight, volume, count or length — and changing it later
+            // is the one path with no way back in the catalog
+            // (requirement 16).
             RadioGroup<BaseUnit>(
               groupValue: _baseUnit,
               onChanged: (value) => setState(() => _baseUnit = value),
@@ -241,7 +242,7 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
                   for (final unit in BaseUnit.values)
                     RadioListTile<BaseUnit>(
                       value: unit,
-                      title: Text(_baseUnitLabel(unit)),
+                      title: Text(unit.magnitudeLabel),
                       contentPadding: EdgeInsets.zero,
                       enabled: !_saving,
                     ),
@@ -266,9 +267,4 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
 
   /// pt-BR, and spelled out: "kg" next to "litro" reads as an abbreviation of
   /// something else on a three-option list.
-  static String _baseUnitLabel(BaseUnit unit) => switch (unit) {
-    BaseUnit.kilogram => 'Quilo (peso)',
-    BaseUnit.liter => 'Litro (volume)',
-    BaseUnit.unit => 'Unidade (contagem)',
-  };
 }

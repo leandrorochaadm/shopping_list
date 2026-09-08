@@ -12,20 +12,19 @@ import 'type_consumption.dart';
 /// How many DECIMAL PLACES a suggested quantity is worth showing — and it is a
 /// number of a rule, so it lives here (rule 6).
 ///
-/// One: `wireframes §Tela 2` writes `Café — 0,7 kg` and `§Tela 6` writes
-/// `faltam 1,5 L` and `0,5 de 0,4 kg`. The exact average of the coffee is
-/// 666,66… g, and `MeasureUnit.format` would answer `0,667` — three decimals
-/// of precision a three-month average does not have, and a screen
-/// contradicting the document the client reads.
+/// One: the exact average of the coffee is 666,66… g, and reading it in the
+/// large unit without rounding would answer `0,667 kg` — three decimals of
+/// precision a three-month average does not have.
 const int averageDecimalPlaces = 1;
 
-/// The step the average is rounded to, in the SMALLEST unit of [unit]: 100 g,
-/// 100 ml, 1 un.
+/// The step the average is rounded to, in the BASE unit of [unit]: 100 g,
+/// 100 ml, 1 un, 10 cm.
 ///
-/// The `unit` base counts whole things — there is no 0,5 roll of toilet paper
-/// — so its step is 1 and the rounding is a no-op there.
+/// It is one decimal place of the LARGE unit, which is the scale the average
+/// is read in. The `unit` base counts whole things — there is no 0,5 roll of
+/// toilet paper — so its step is 1 and the rounding is a no-op there.
 int averageStepOf(BaseUnit unit) {
-  var step = unit.smallestUnits;
+  var step = unit.unitsPerLargeUnit;
   for (var i = 0; i < averageDecimalPlaces; i++) {
     if (step < 10) return 1;
     step ~/= 10;
@@ -176,12 +175,13 @@ final class MonthlyAverage {
   String get remainingLabel => type.baseUnit.formatQuantity(remainingForMonth);
 
   /// '4,2 de 4,2 L' — the bottom band of screen 6: what was consumed over the
-  /// average. The first number carries no unit because the second one does.
+  /// average. BOTH ends at the scale of the whole, never each at its own,
+  /// which is what `formatQuantityPair` is for.
   ///
   /// With no average there is nothing to be "de" (E-j), and the sentence says
   /// only what was bought: '5 kg comprados'.
   String get consumedOverAverageLabel => hasAverage
-      ? '${type.baseUnit.typedMeasure.format(consumedInMonth)} de $averageLabel'
+      ? type.baseUnit.formatQuantityPair(consumedInMonth, average)
       : '${type.baseUnit.formatQuantity(consumedInMonth)} comprados';
 
   @override

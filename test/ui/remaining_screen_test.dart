@@ -78,7 +78,7 @@ final _beef = ProductType(
   id: 'type-2',
   name: 'Acém moído',
   categoryId: 'cat-2',
-  baseUnit: BaseUnit.kilogram,
+  baseUnit: BaseUnit.gram,
 );
 
 ShoppingListItem _listItem({
@@ -167,7 +167,7 @@ void main() {
     // Bought once in the window and never this month — not hidden for being a
     // rare purchase.
     expect(find.text('Café'), findsOneWidget);
-    expect(find.text('faltam 0,7 kg'), findsOneWidget);
+    expect(find.text('faltam 700 g'), findsOneWidget);
 
     // Whoever has no balance is out of the band, behind the button.
     expect(find.text('Refrigerante'), findsNothing);
@@ -242,11 +242,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ItemDialog), findsOneWidget);
-      // Prefilled with what is missing — 2000 g are "2" kilos.
+      // Prefilled with what is missing, in the unit the field is typed in.
       final field = tester.widget<TextField>(
         find.byKey(const ValueKey('field-quantity')),
       );
-      expect(field.controller!.text, '2');
+      expect(field.controller!.text, '2000');
       // Nothing to mark as not found on a type nobody has asked for.
       expect(find.text('Não encontrei'), findsNothing);
       expect(find.text('Remover da lista'), findsNothing);

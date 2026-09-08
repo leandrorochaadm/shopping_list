@@ -80,13 +80,13 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     id: 'type-1',
     name: 'Refrigerante',
     categoryId: 'cat-1',
-    baseUnit: BaseUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   );
   static final _beef = ProductType(
     id: 'type-2',
     name: 'Acém moído',
     categoryId: 'cat-2',
-    baseUnit: BaseUnit.kilogram,
+    baseUnit: BaseUnit.gram,
   );
   static final _coke = Brand(id: 'brand-1', name: 'Coca-Cola');
 
@@ -180,8 +180,8 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   ///   * a purchase that knocked a "não encontrei" down, so undoing puts the
   ///     mark back.
   static List<PurchaseDetail> _seedPurchases() {
-    final crate = _byPiece('prod-4', 12, 350, MeasureUnit.milliliter);
-    final bottle = _byPiece('prod-3', 1, 2000, MeasureUnit.liter);
+    final crate = _byPiece('prod-4', 12, 350, BaseUnit.milliliter);
+    final bottle = _byPiece('prod-3', 1, 2000, BaseUnit.milliliter);
 
     ListWriteOff off({
       required String purchaseItem,
@@ -290,7 +290,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     String id,
     int pieceCount,
     int pieceSize,
-    MeasureUnit unit,
+    BaseUnit unit,
   ) => ProductOption(
     product: Product(
       id: id,
@@ -298,7 +298,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
       packaging: Packaging(
         pieceCount: pieceCount,
         pieceSize: pieceSize,
-        pieceSizeUnit: unit,
+        baseUnit: unit,
       ),
     ),
     registration: _softDrink,
@@ -310,10 +310,10 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   Future<IList<ProductOption>> fetchProductOptions() async {
     await Future<void>.delayed(latency);
     return [
-      _byPiece('prod-1', 1, 350, MeasureUnit.milliliter),
-      _byPiece('prod-2', 1, 269, MeasureUnit.milliliter),
-      _byPiece('prod-3', 1, 2000, MeasureUnit.liter),
-      _byPiece('prod-4', 12, 350, MeasureUnit.milliliter),
+      _byPiece('prod-1', 1, 350, BaseUnit.milliliter),
+      _byPiece('prod-2', 1, 269, BaseUnit.milliliter),
+      _byPiece('prod-3', 1, 2000, BaseUnit.milliliter),
+      _byPiece('prod-4', 12, 350, BaseUnit.milliliter),
       // Sold by weight: the leaf exists, the packaging does not (decision B1).
       ProductOption(
         product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),

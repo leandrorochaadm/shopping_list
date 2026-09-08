@@ -41,13 +41,13 @@ class CatalogRepositoryLocal implements CatalogRepository {
       id: 'type-1',
       name: 'Refrigerante',
       categoryId: 'cat-1',
-      baseUnit: BaseUnit.liter,
+      baseUnit: BaseUnit.milliliter,
     ),
     ProductType(
       id: 'type-2',
       name: 'Acém moído',
       categoryId: 'cat-2',
-      baseUnit: BaseUnit.kilogram,
+      baseUnit: BaseUnit.gram,
     ),
     ProductType(
       id: 'type-3',
@@ -62,7 +62,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
       id: 'type-4',
       name: 'Sabão em pó',
       categoryId: 'cat-3',
-      baseUnit: BaseUnit.kilogram,
+      baseUnit: BaseUnit.gram,
     ),
     // The coffee of `requisitos §8`: bought before the closed window and once
     // inside it, so it divides by three and screen 2 suggests 0,7 kg. Without
@@ -71,7 +71,15 @@ class CatalogRepositoryLocal implements CatalogRepository {
       id: 'type-5',
       name: 'Café',
       categoryId: 'cat-4',
-      baseUnit: BaseUnit.kilogram,
+      baseUnit: BaseUnit.gram,
+    ),
+    // The 'Tamanho' magnitude, which is what centimetres exist for: the roll
+    // of aluminium foil the shelf sells by the metre.
+    ProductType(
+      id: 'type-6',
+      name: 'Papel-alumínio',
+      categoryId: 'cat-3',
+      baseUnit: BaseUnit.centimeter,
     ),
   ];
 
@@ -100,16 +108,24 @@ class CatalogRepositoryLocal implements CatalogRepository {
       description: '',
       sellingMode: SellingMode.byWeight,
     ),
+    ProductRegistration(
+      id: 'reg-3',
+      productTypeId: 'type-6',
+      description: '',
+      sellingMode: SellingMode.byPiece,
+    ),
   ];
 
   late final List<Product> _products = [
     // The four packagings of the wireframe, all under ONE registration.
-    _leaf('prod-1', 'reg-1', 1, 350, MeasureUnit.milliliter),
-    _leaf('prod-2', 'reg-1', 1, 269, MeasureUnit.milliliter),
-    _leaf('prod-3', 'reg-1', 1, 2000, MeasureUnit.liter),
-    _leaf('prod-4', 'reg-1', 12, 350, MeasureUnit.milliliter),
+    _leaf('prod-1', 'reg-1', 1, 350, BaseUnit.milliliter),
+    _leaf('prod-2', 'reg-1', 1, 269, BaseUnit.milliliter),
+    _leaf('prod-3', 'reg-1', 1, 2000, BaseUnit.milliliter),
+    _leaf('prod-4', 'reg-1', 12, 350, BaseUnit.milliliter),
     // Sold by weight: the leaf exists, the packaging does not (decision B1).
     const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
+    // 30 m of foil, stored in centimetres: it reads back '30 m'.
+    _leaf('prod-6', 'reg-3', 1, 3000, BaseUnit.centimeter),
   ];
 
   var _nextId = 100;
@@ -119,14 +135,14 @@ class CatalogRepositoryLocal implements CatalogRepository {
     String registrationId,
     int pieceCount,
     int pieceSize,
-    MeasureUnit unit,
+    BaseUnit unit,
   ) => Product(
     id: id,
     productRegistrationId: registrationId,
     packaging: Packaging(
       pieceCount: pieceCount,
       pieceSize: pieceSize,
-      pieceSizeUnit: unit,
+      baseUnit: unit,
     ),
   );
 

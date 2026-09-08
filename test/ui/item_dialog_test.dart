@@ -84,7 +84,7 @@ final _softDrink = ProductType(
   id: 'type-1',
   name: 'Refrigerante',
   categoryId: 'cat-1',
-  baseUnit: BaseUnit.liter,
+  baseUnit: BaseUnit.milliliter,
 );
 
 ShoppingListItem _item({
@@ -181,13 +181,13 @@ void main() {
   ) async {
     await pumpDialog(tester, item: _item(quantity: 6000));
 
-    // 6000 millilitres are six LITRES on screen: the field speaks the base
-    // unit of the type, spelled out beside it.
+    // The field speaks the base unit of the type, which is the small one:
+    // 6000 millilitres are typed as "6000", with "ml" beside them.
     final field = tester.widget<TextField>(
       find.byKey(const ValueKey('field-quantity')),
     );
-    expect(field.controller!.text, '6');
-    expect(find.text('litros'), findsOneWidget);
+    expect(field.controller!.text, '6000');
+    expect(find.text('ml'), findsOneWidget);
     expect(find.text('Refrigerante'), findsOneWidget);
   });
 
@@ -227,15 +227,18 @@ void main() {
   testWidgets('saves the quantity and the not-found mark', (tester) async {
     final repository = await pumpDialog(tester);
 
-    await tester.enterText(find.byKey(const ValueKey('field-quantity')), '2,5');
+    await tester.enterText(
+      find.byKey(const ValueKey('field-quantity')),
+      '2500',
+    );
     await tester.tap(find.byKey(const ValueKey('field-not-found')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
-    // The dialog closed, and what was written speaks the base unit: 2,5 L is
-    // 2500 millilitres.
+    // The dialog closed, and what was written is what was typed: the field
+    // speaks the base unit.
     expect(find.text('Salvar'), findsNothing);
     expect(repository.written.single.quantity, 2500);
     expect(repository.written.single.notFound, isTrue);
@@ -260,7 +263,8 @@ void main() {
   ) async {
     final repository = await pumpDialog(tester);
 
-    await tester.enterText(find.byKey(const ValueKey('field-quantity')), 'abc');
+    // Zero passes the keyboard filter and is refused by the domain.
+    await tester.enterText(find.byKey(const ValueKey('field-quantity')), '0');
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
@@ -271,22 +275,22 @@ void main() {
     expect(repository.written, isEmpty);
   });
 
-  testWidgets('more decimals than the unit holds is refused the same way', (
-    tester,
-  ) async {
-    final repository = await pumpDialog(tester);
+  testWidgets('the field takes digits and nothing else', (tester) async {
+    await pumpDialog(tester);
 
-    // Litres go down to the millilitre — three decimal places — so a fourth
-    // is a typo the field has to say no to.
+    // The typed unit is the small one, so there is nothing to write after a
+    // comma — and the iPhone keyboard must not offer one.
     await tester.enterText(
       find.byKey(const ValueKey('field-quantity')),
-      '1,2345',
+      '1,25abc',
     );
-    await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('casas decimais'), findsOneWidget);
-    expect(repository.written, isEmpty);
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('field-quantity')),
+    );
+    expect(field.controller!.text, '125');
+    expect(field.keyboardType, TextInputType.number);
   });
 
   testWidgets('a failed save keeps the dialog open and shows the SnackBar', (
@@ -369,7 +373,10 @@ void main() {
 
     // No brands, no packagings — and the quantity still saves, which is the
     // whole reason `leavesOfType` answers with an empty list on failure.
-    await tester.enterText(find.byKey(const ValueKey('field-quantity')), '4');
+    await tester.enterText(
+      find.byKey(const ValueKey('field-quantity')),
+      '4000',
+    );
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
@@ -406,13 +413,16 @@ void main() {
     ) async {
       final repository = await pumpForType(tester, missing: 2000);
 
-      // It opened with the missing amount already in — 2000 ml is "2" litres.
+      // It opened with the missing amount already in, in the base unit.
       final field = tester.widget<TextField>(
         find.byKey(const ValueKey('field-quantity')),
       );
-      expect(field.controller!.text, '2');
+      expect(field.controller!.text, '2000');
 
-      await tester.enterText(find.byKey(const ValueKey('field-quantity')), '3');
+      await tester.enterText(
+        find.byKey(const ValueKey('field-quantity')),
+        '3000',
+      );
       await tester.tap(find.text('Salvar'));
       await tester.pumpAndSettle();
 
@@ -452,7 +462,7 @@ void main() {
       final field = tester.widget<TextField>(
         find.byKey(const ValueKey('field-quantity')),
       );
-      expect(field.controller!.text, '8');
+      expect(field.controller!.text, '8000');
     });
 
     testWidgets('with no prefill the stored quantity stays', (tester) async {
@@ -461,7 +471,7 @@ void main() {
       final field = tester.widget<TextField>(
         find.byKey(const ValueKey('field-quantity')),
       );
-      expect(field.controller!.text, '6');
+      expect(field.controller!.text, '6000');
     });
 
     testWidgets('the item on the list with NO quantity is warned that the '

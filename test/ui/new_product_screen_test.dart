@@ -90,10 +90,11 @@ void main() {
         find.byType(SegmentedButton<SellingChoice>),
       );
 
-  Map<SellingChoice, bool> enabledChoices(WidgetTester tester) => {
-    for (final segment in sellingField(tester).segments)
-      segment.value: segment.enabled,
-  };
+  /// The words the field OFFERS — a type has one bulk word plus `Unidade`,
+  /// never all four.
+  List<SellingChoice> offeredChoices(WidgetTester tester) => [
+    for (final segment in sellingField(tester).segments) segment.value,
+  ];
 
   /// The one field inside the open dialog — `find.byType(TextField)` alone
   /// also matches the description field of the screen behind it.
@@ -117,9 +118,9 @@ void main() {
   }
 
   testWidgets('asks for the type before offering any measure', (tester) async {
-    // Without a base unit the screen cannot know whether to offer g/kg or
-    // ml/L, and offering all four is how "350 ml" gets typed under a type
-    // measured in kilos.
+    // Without a type the screen does not know which magnitude the line is
+    // typed in, and a line typed in the wrong one is how a soft drink ends up
+    // adding volume to a weight total.
     await pumpScreen(tester);
 
     expect(find.text('Escolha o tipo do produto primeiro.'), findsOneWidget);
@@ -137,25 +138,20 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
 
-    expect(find.text('Unidade: litro (vem do tipo)'), findsOneWidget);
+    expect(find.text('Unidade: mililitro (vem do tipo)'), findsOneWidget);
   });
 
-  testWidgets('offers only the measures of the chosen base unit', (
-    tester,
-  ) async {
+  testWidgets('the line is typed in the magnitude of the type, with no '
+      'measure to pick', (tester) async {
     await pumpScreen(tester);
 
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
 
-    await tester.tap(find.byKey(const ValueKey('unit-1')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('ml'), findsWidgets);
-    expect(find.text('L'), findsWidgets);
-    // The weight family never shows up under a type measured in litres.
-    expect(find.text('g'), findsNothing);
-    expect(find.text('kg'), findsNothing);
+    // The field simply says which unit it is typed in — there is no dropdown
+    // through which a '350 g' of soft drink could be typed.
+    expect(find.text('Quantidade em ml'), findsOneWidget);
+    expect(find.byType(DropdownButtonFormField<BaseUnit>), findsNothing);
   });
 
   testWidgets('names the packaging the way the shelf does', (tester) async {
@@ -164,7 +160,6 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
 
     // "350 ml", not "1 × 350 ml": that is the name searched for at the till.
     expect(find.text('350 ml'), findsWidgets);
@@ -174,18 +169,17 @@ void main() {
   testWidgets('refuses two lines holding the same amount, however typed', (
     tester,
   ) async {
-    // By CONTENT, not by text: 1 × 0,35 L is the same packaging as 350 ml,
-    // because the comparison happens after the conversion.
+    // By CONTENT, not by text: 2 × 175 ml is the same packaging as 350 ml,
+    // because the comparison happens on the total.
     await pumpScreen(tester);
 
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
 
     await tapOn(tester, find.text('Adicionar embalagem'));
-    await type(tester, const ValueKey('size-2'), '0,35');
-    await choose(tester, const ValueKey('unit-2'), 'L');
+    await type(tester, const ValueKey('count-2'), '2');
+    await type(tester, const ValueKey('size-2'), '175');
 
     expect(find.text('Essa embalagem já está na lista'), findsOneWidget);
     expect(saveButton(tester).onPressed, isNull);
@@ -197,11 +191,9 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
 
     await tapOn(tester, find.text('Adicionar embalagem'));
-    await type(tester, const ValueKey('size-2'), '2');
-    await choose(tester, const ValueKey('unit-2'), 'L');
+    await type(tester, const ValueKey('size-2'), '2000');
 
     // Each line becomes a product of its own, with its own price history.
     expect(find.text('Salvar 2 produtos'), findsOneWidget);
@@ -230,13 +222,9 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
 
-    // Bulk olive oil is measured in litres: calling it "a peso" is the very
-    // mistake this field exists to fix.
-    expect(enabledChoices(tester), {
-      SellingChoice.weight: false,
-      SellingChoice.unit: true,
-      SellingChoice.volume: true,
-    });
+    // Bulk olive oil is measured in millilitres: calling it "a peso" is the
+    // very mistake this field exists to fix.
+    expect(offeredChoices(tester), [SellingChoice.unit, SellingChoice.volume]);
   });
 
   testWidgets('sells by volume the same way it sells by weight', (
@@ -264,11 +252,7 @@ void main() {
 
     // Decision H-b: there is no bulk in a type counted by unit, so the avulso
     // is a packaging of `1 un` like any other.
-    expect(enabledChoices(tester), {
-      SellingChoice.weight: false,
-      SellingChoice.unit: true,
-      SellingChoice.volume: false,
-    });
+    expect(offeredChoices(tester), [SellingChoice.unit]);
     expect(find.text('Embalagens deste produto'), findsOneWidget);
   });
 
@@ -308,7 +292,7 @@ void main() {
     expect(find.text('Embalagens deste produto'), findsOneWidget);
   });
 
-  testWidgets('fits the three words on an iPhone 12', (tester) async {
+  testWidgets('fits the words it offers on an iPhone 12', (tester) async {
     await pumpScreen(tester);
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
@@ -325,8 +309,9 @@ void main() {
 
     // The assertion is GEOMETRIC on purpose: `SegmentedButton` constrains its
     // children instead of overflowing, so `takeException()` is null at any
-    // width and would prove nothing. At 390 pt the widest label renders at
-    // 54,7 pt; at 320 pt it collapses to 31,3 pt and this fails.
+    // width and would prove nothing. Offering all four magnitudes at once
+    // squeezes this label to 35 pt, which is why the field offers only the
+    // words the magnitude can take.
     final label = find.descendant(
       of: find.byType(SegmentedButton<SellingChoice>),
       matching: find.text('Unidade'),
@@ -390,8 +375,7 @@ void main() {
     await tapOn(tester, find.text('Abrir e acrescentar embalagem'));
 
     // 0,35 L is the 350 ml bottle that is already saved.
-    await type(tester, const ValueKey('size-1'), '0,35');
-    await choose(tester, const ValueKey('unit-1'), 'L');
+    await type(tester, const ValueKey('size-1'), '350');
 
     expect(find.text('Essa embalagem já está na lista'), findsOneWidget);
   });
@@ -443,14 +427,14 @@ void main() {
     );
 
     await choose(tester, const ValueKey('field-type-category'), 'Bebidas');
-    await tapOn(tester, find.text('Quilo (peso)'));
+    await tapOn(tester, find.text(BaseUnit.gram.magnitudeLabel));
 
     await tester.tap(find.widgetWithText(FilledButton, 'Criar'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsNothing);
     // The type comes back chosen, with its unit already on screen.
-    expect(find.text('Unidade: quilo (vem do tipo)'), findsOneWidget);
+    expect(find.text('Unidade: grama (vem do tipo)'), findsOneWidget);
   });
 
   testWidgets('offers a retry instead of a spinner when nothing loads', (
@@ -474,7 +458,6 @@ void main() {
     await type(tester, const ValueKey('field-description'), 'zero');
     await leaveField(tester);
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
 
     await tapOn(tester, find.byKey(const ValueKey('save')));
 
@@ -492,7 +475,6 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
 
     await tapOn(tester, find.byKey(const ValueKey('save')));
 
@@ -517,7 +499,6 @@ void main() {
     await tapOn(tester, find.text('Abrir e acrescentar embalagem'));
 
     await type(tester, const ValueKey('size-1'), '600');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
     await tapOn(tester, find.byKey(const ValueKey('save')));
 
     expect(find.text('Produto salvo.'), findsOneWidget);
@@ -531,10 +512,8 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
     await tapOn(tester, find.text('Adicionar embalagem'));
     await type(tester, const ValueKey('size-2'), '2');
-    await choose(tester, const ValueKey('unit-2'), 'L');
     expect(find.text('Salvar 2 produtos'), findsOneWidget);
 
     await tapOn(tester, find.byTooltip('Remover embalagem').first);
@@ -552,10 +531,8 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
     await tapOn(tester, find.text('Adicionar embalagem'));
     await type(tester, const ValueKey('size-2'), '2');
-    await choose(tester, const ValueKey('unit-2'), 'L');
 
     await tapOn(tester, find.byType(Radio<int>).last);
 
@@ -643,7 +620,6 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await choose(tester, const ValueKey('unit-1'), 'ml');
 
     // Holds the write guard down: no `await`, so the call is still in flight
     // when the button is tapped. `_saving` of the widget is still false here,
@@ -660,7 +636,7 @@ void main() {
               Packaging.typed(
                 pieceCount: '1',
                 pieceSize: '350',
-                pieceSizeUnit: MeasureUnit.milliliter,
+                baseUnit: BaseUnit.milliliter,
               ),
             ].lock,
           ),
@@ -695,7 +671,7 @@ void main() {
             id: 'type-1',
             name: 'Refrigerante',
             categoryId: 'cat-1',
-            baseUnit: BaseUnit.liter,
+            baseUnit: BaseUnit.milliliter,
           ),
           brand: brand,
         );
@@ -829,7 +805,7 @@ void main() {
     await tapOn(tester, find.byTooltip('Novo tipo'));
     await tester.enterText(dialogField, 'papel higienico');
     await choose(tester, const ValueKey('field-type-category'), 'Limpeza');
-    await tapOn(tester, find.text('Unidade (contagem)'));
+    await tapOn(tester, find.text(BaseUnit.unit.magnitudeLabel));
     await tester.tap(find.widgetWithText(FilledButton, 'Criar'));
     await tester.pumpAndSettle();
 

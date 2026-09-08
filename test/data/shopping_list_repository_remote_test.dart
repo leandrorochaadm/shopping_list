@@ -82,7 +82,7 @@ ShoppingListItem _item({String? id = 'item-1'}) => ShoppingListItem(
     id: 'type-1',
     name: 'Leite',
     categoryId: 'cat-1',
-    baseUnit: BaseUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   ),
   category: Category(id: 'cat-1', name: 'Bebidas'),
   enteredOn: DateTime(2026, 8, 28),

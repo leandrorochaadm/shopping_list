@@ -129,13 +129,13 @@ class ConsumptionRepositoryLocal implements ConsumptionRepository {
       id: 'type-1',
       name: 'Refrigerante',
       categoryId: 'cat-1',
-      baseUnit: BaseUnit.liter,
+      baseUnit: BaseUnit.milliliter,
     ),
     'type-2': ProductType(
       id: 'type-2',
       name: 'Acém moído',
       categoryId: 'cat-2',
-      baseUnit: BaseUnit.kilogram,
+      baseUnit: BaseUnit.gram,
     ),
     'type-3': ProductType(
       id: 'type-3',
@@ -147,13 +147,13 @@ class ConsumptionRepositoryLocal implements ConsumptionRepository {
       id: 'type-4',
       name: 'Sabão em pó',
       categoryId: 'cat-3',
-      baseUnit: BaseUnit.kilogram,
+      baseUnit: BaseUnit.gram,
     ),
     'type-5': ProductType(
       id: 'type-5',
       name: 'Café',
       categoryId: 'cat-4',
-      baseUnit: BaseUnit.kilogram,
+      baseUnit: BaseUnit.gram,
     ),
   };
 

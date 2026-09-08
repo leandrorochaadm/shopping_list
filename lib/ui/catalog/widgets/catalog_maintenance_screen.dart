@@ -291,7 +291,7 @@ class _CatalogMaintenanceScreenState
     final category = loaded.categories
         .where((c) => c.id == type.categoryId)
         .firstOrNull;
-    return '${category?.name ?? 'Sem categoria'} · ${type.baseUnit.label}';
+    return '${category?.name ?? 'Sem categoria'} · ${type.baseUnit.priceLabel}';
   }
 
   static String _registrationTitle(

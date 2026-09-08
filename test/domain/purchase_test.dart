@@ -45,7 +45,7 @@ void main() {
       final item = purchaseItem(id: 'i1', option: beef, quantity: 1500);
 
       expect(item.quantityInBaseUnit, 1500);
-      expect(item.baseUnit, BaseUnit.kilogram);
+      expect(item.baseUnit, BaseUnit.gram);
     });
 
     test('refuses a quantity of zero or less', () {

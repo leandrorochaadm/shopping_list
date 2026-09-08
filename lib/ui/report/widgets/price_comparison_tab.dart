@@ -218,7 +218,7 @@ class _ComparisonRow extends StatelessWidget {
           Expanded(child: Text(line.store.name)),
           Text(
             '${formatMoney(Money(line.costPerBaseUnit))}/'
-            '${line.baseUnit.label}',
+            '${line.baseUnit.priceLabel}',
             style: theme.textTheme.titleSmall,
           ),
           const SizedBox(width: 16),

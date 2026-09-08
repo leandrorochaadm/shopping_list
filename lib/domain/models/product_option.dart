@@ -158,14 +158,14 @@ final class ProductOption {
     quantityInBaseUnit: quantityInBaseUnit,
   );
 
-  /// Turns what was typed into the type's base unit, in its SMALLEST unit —
-  /// and this is the only place that conversion exists.
+  /// Turns what was typed into the type's base unit — and this is the only
+  /// place that conversion exists.
   ///
   /// Sold by piece, the typed number is a count of packages: "1 fardo de
   /// 12 × 350 ml" is 4200 ml, and so is "12 garrafas de 350 ml". Sold by
   /// weight, the amount was already parsed by the screen through
-  /// `baseUnit.typedMeasure.parseAmount`, so it arrives in grams or
-  /// millilitres and passes straight through.
+  /// `baseUnit.parseAmount`, so it arrives in grams, millilitres or
+  /// centimetres and passes straight through.
   int toBaseUnit(int typedQuantity) {
     final packaging = product.packaging;
     if (isSoldByWeight || packaging == null) return typedQuantity;
@@ -181,9 +181,10 @@ final class ProductOption {
   String get quantityLabel {
     if (!isSoldByWeight) return 'Quantidade';
     return switch (baseUnit) {
-      BaseUnit.kilogram => 'Peso (kg)',
-      BaseUnit.liter => 'Volume (L)',
+      BaseUnit.gram => 'Peso (g)',
+      BaseUnit.milliliter => 'Volume (ml)',
       BaseUnit.unit => 'Quantidade (un)',
+      BaseUnit.centimeter => 'Tamanho (cm)',
     };
   }
 

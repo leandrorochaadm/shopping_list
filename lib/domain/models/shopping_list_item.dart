@@ -315,8 +315,7 @@ final class ShoppingListItem {
         ? 'na lista, sem quantidade'
         : writtenOffQuantity > 0
         ? 'na lista: restam '
-              '${type.baseUnit.typedMeasure.format(remainingQuantity!)} de '
-              '${type.baseUnit.formatQuantity(asked)}'
+              '${type.baseUnit.formatQuantityPair(remainingQuantity!, asked)}'
         : 'na lista: pedindo ${type.baseUnit.formatQuantity(asked)}';
     return notFound ? '$base, "não encontrei"' : base;
   }

@@ -194,14 +194,14 @@ class ReportRepositoryLocal implements ReportRepository {
     'Refrigerante',
     'cat-1',
     'Bebidas',
-    BaseUnit.liter,
+    BaseUnit.milliliter,
   );
   static const _beef = _Type(
     'type-2',
     'Acém moído',
     'cat-2',
     'Carnes',
-    BaseUnit.kilogram,
+    BaseUnit.gram,
   );
   static const _paper = _Type(
     'type-3',
@@ -215,7 +215,7 @@ class ReportRepositoryLocal implements ReportRepository {
     'Sabão em pó',
     'cat-3',
     'Limpeza',
-    BaseUnit.kilogram,
+    BaseUnit.gram,
   );
   // Born with H17, in `CatalogRepositoryLocal` too: it is the type of the
   // written story of `requisitos §8` — bought before the window and once
@@ -225,7 +225,7 @@ class ReportRepositoryLocal implements ReportRepository {
     'Café',
     'cat-4',
     'Mercearia',
-    BaseUnit.kilogram,
+    BaseUnit.gram,
   );
 
   static ReportLine _line(
@@ -317,13 +317,13 @@ class ReportRepositoryLocal implements ReportRepository {
     id: 'type-1',
     name: 'Refrigerante',
     categoryId: 'cat-1',
-    baseUnit: BaseUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   );
   static final _beefType = ProductType(
     id: 'type-2',
     name: 'Acém moído',
     categoryId: 'cat-2',
-    baseUnit: BaseUnit.kilogram,
+    baseUnit: BaseUnit.gram,
   );
   static final _cokeBrand = Brand(id: 'brand-1', name: 'Coca-Cola');
 
@@ -337,7 +337,7 @@ class ReportRepositoryLocal implements ReportRepository {
       packaging: Packaging(
         pieceCount: 12,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       ),
     ),
     registration: ProductRegistration(
@@ -356,7 +356,7 @@ class ReportRepositoryLocal implements ReportRepository {
       packaging: Packaging(
         pieceCount: 1,
         pieceSize: 350,
-        pieceSizeUnit: MeasureUnit.milliliter,
+        baseUnit: BaseUnit.milliliter,
       ),
     ),
     registration: ProductRegistration(

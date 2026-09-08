@@ -21,8 +21,8 @@ void main() {
     active: active,
   );
 
-  Packaging bottle(String size, MeasureUnit unit) =>
-      Packaging.typed(pieceCount: '1', pieceSize: size, pieceSizeUnit: unit);
+  Packaging bottle(String size, BaseUnit unit) =>
+      Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
 
   group('identity — tipo + marca + descrição', () {
     test('is the same registration however the description was written', () {
@@ -94,7 +94,7 @@ void main() {
     test('accepts a by-piece registration with one packaging', () {
       expect(
         () => cocaCola().checkPackagings(
-          IList([bottle('350', MeasureUnit.milliliter)]),
+          IList([bottle('350', BaseUnit.milliliter)]),
         ),
         returnsNormally,
       );
@@ -106,7 +106,7 @@ void main() {
       expect(
         () => cocaCola(
           sellingMode: SellingMode.byWeight,
-        ).checkPackagings(IList([bottle('350', MeasureUnit.milliliter)])),
+        ).checkPackagings(IList([bottle('350', BaseUnit.milliliter)])),
         throwsA(isA<UnexpectedPackaging>()),
       );
     });
@@ -183,7 +183,7 @@ void main() {
     test('carries the packaging of a by-piece product', () {
       final leaf = Product(
         productRegistrationId: 'r1',
-        packaging: bottle('350', MeasureUnit.milliliter),
+        packaging: bottle('350', BaseUnit.milliliter),
       );
 
       expect(leaf.isSoldByWeight, isFalse);
@@ -193,11 +193,15 @@ void main() {
     test('recognises the same packaging written two ways', () {
       final asLiters = Product(
         productRegistrationId: 'r1',
-        packaging: bottle('0,35', MeasureUnit.liter),
+        packaging: Packaging.typed(
+          pieceCount: '2',
+          pieceSize: '175',
+          baseUnit: BaseUnit.milliliter,
+        ),
       );
       final asMilliliters = Product(
         productRegistrationId: 'r1',
-        packaging: bottle('350', MeasureUnit.milliliter),
+        packaging: bottle('350', BaseUnit.milliliter),
       );
 
       expect(asLiters.hasSameContentAs(asMilliliters), isTrue);
@@ -206,11 +210,11 @@ void main() {
     test('never confuses two leaves of different registrations', () {
       final mine = Product(
         productRegistrationId: 'r1',
-        packaging: bottle('350', MeasureUnit.milliliter),
+        packaging: bottle('350', BaseUnit.milliliter),
       );
       final theirs = Product(
         productRegistrationId: 'r2',
-        packaging: bottle('350', MeasureUnit.milliliter),
+        packaging: bottle('350', BaseUnit.milliliter),
       );
 
       expect(mine.hasSameContentAs(theirs), isFalse);
@@ -225,7 +229,7 @@ void main() {
         one.hasSameContentAs(
           Product(
             productRegistrationId: 'r1',
-            packaging: bottle('350', MeasureUnit.milliliter),
+            packaging: bottle('350', BaseUnit.milliliter),
           ),
         ),
         isFalse,
@@ -247,7 +251,7 @@ void main() {
         final withPackaging = Product(
           id: 'p1',
           productRegistrationId: 'r1',
-          packaging: bottle('350', MeasureUnit.milliliter),
+          packaging: bottle('350', BaseUnit.milliliter),
         );
         const withoutPackaging = Product(id: 'p2', productRegistrationId: 'r1');
 
@@ -268,7 +272,7 @@ void main() {
       expect(leaf, isNot(leaf.deactivated()));
       expect(
         leaf,
-        isNot(leaf.copyWith(packaging: bottle('1', MeasureUnit.unit))),
+        isNot(leaf.copyWith(packaging: bottle('1', BaseUnit.unit))),
       );
     });
   });

@@ -136,7 +136,7 @@ class _ProductTypeEditDialogState extends ConsumerState<ProductTypeEditDialog> {
             ),
             items: [
               for (final unit in BaseUnit.values)
-                DropdownMenuItem(value: unit, child: Text(unit.label)),
+                DropdownMenuItem(value: unit, child: Text(unit.magnitudeLabel)),
             ],
             onChanged: _saving || !_baseUnitEditable
                 ? null

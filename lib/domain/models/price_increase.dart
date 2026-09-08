@@ -55,15 +55,15 @@ final class PriceBaseline {
   /// Everything paid for the thing within the window.
   final Money paid;
 
-  /// All the quantity that money bought, in the SMALLEST unit of the base.
+  /// All the quantity that money bought, in the BASE unit.
   final int quantityInBaseUnit;
 
   /// Cents per base unit — to display and to check in a test, never to
   /// compare: whoever compares is [evaluatePriceIncrease], in integers and
   /// without coming through here.
   int costPerBaseUnit(BaseUnit baseUnit) {
-    final smallest = baseUnit.smallestUnits;
-    return (paid.cents * smallest * 2 + quantityInBaseUnit) ~/
+    final perLarge = baseUnit.unitsPerLargeUnit;
+    return (paid.cents * perLarge * 2 + quantityInBaseUnit) ~/
         (quantityInBaseUnit * 2);
   }
 
@@ -124,8 +124,8 @@ final class PriceIncrease {
 /// The whole rule of H15, in integers and without a single division in
 /// floating point.
 ///
-/// The price per base unit on both sides is `paid × smallestUnit ÷ quantity`,
-/// and the `smallestUnit` **cancels out** in the ratio — which is why
+/// The price per pricing unit on both sides is `paid × unitsPerLargeUnit ÷
+/// quantity`, and the factor **cancels out** in the ratio — which is why
 /// [BaseUnit] does not appear here. Comparing `current/base` becomes a cross
 /// multiplication:
 ///

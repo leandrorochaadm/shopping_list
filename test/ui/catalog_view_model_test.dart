@@ -148,8 +148,8 @@ void main() {
         ],
       );
 
-  Packaging bottle(String size, MeasureUnit unit) =>
-      Packaging.typed(pieceCount: '1', pieceSize: size, pieceSizeUnit: unit);
+  Packaging bottle(String size, BaseUnit unit) =>
+      Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
 
   group('loading the three lists', () {
     test('brings categories, types and brands together', () async {
@@ -309,7 +309,7 @@ void main() {
               name: 'refrigerante',
               // A different category, and it still collides.
               categoryId: 'cat-3',
-              baseUnit: BaseUnit.liter,
+              baseUnit: BaseUnit.milliliter,
             ),
         'Já existe o tipo Refrigerante.',
       );
@@ -327,7 +327,7 @@ void main() {
             .createType(
               name: 'Achocolatado',
               categoryId: 'cat-1',
-              baseUnit: BaseUnit.kilogram,
+              baseUnit: BaseUnit.gram,
             ),
         isNull,
       );
@@ -337,7 +337,7 @@ void main() {
           .value!
           .types
           .lastWhere((type) => type.name == 'Achocolatado');
-      expect(created.baseUnit, BaseUnit.kilogram);
+      expect(created.baseUnit, BaseUnit.gram);
       expect(created.categoryId, 'cat-1');
     });
 
@@ -474,13 +474,13 @@ void main() {
               sellingMode: SellingMode.byPiece,
             ),
             packagings: [
-              bottle('350', MeasureUnit.milliliter),
-              bottle('269', MeasureUnit.milliliter),
-              bottle('2', MeasureUnit.liter),
+              bottle('350', BaseUnit.milliliter),
+              bottle('269', BaseUnit.milliliter),
+              bottle('2', BaseUnit.milliliter),
               Packaging.typed(
                 pieceCount: '12',
                 pieceSize: '350',
-                pieceSizeUnit: MeasureUnit.milliliter,
+                baseUnit: BaseUnit.milliliter,
               ),
             ].lock,
           );
@@ -558,7 +558,7 @@ void main() {
                 productTypeId: 'type-2',
                 sellingMode: SellingMode.byWeight,
               ),
-              packagings: [bottle('350', MeasureUnit.milliliter)].lock,
+              packagings: [bottle('350', BaseUnit.milliliter)].lock,
             )
             .then(_saveMessage),
         'Produto vendido solto não tem embalagem.',
@@ -581,7 +581,7 @@ void main() {
                 productTypeId: 'type-1',
                 sellingMode: SellingMode.byPiece,
               ),
-              packagings: [bottle('350', MeasureUnit.milliliter)].lock,
+              packagings: [bottle('350', BaseUnit.milliliter)].lock,
             )
             .then(_saveMessage),
         'Já existe um cadastro com esses dados.',
@@ -598,7 +598,7 @@ void main() {
         productTypeId: 'type-1',
         sellingMode: SellingMode.byPiece,
       );
-      final packagings = [bottle('350', MeasureUnit.milliliter)].lock;
+      final packagings = [bottle('350', BaseUnit.milliliter)].lock;
 
       await Future.wait([
         notifier.save(registration: registration, packagings: packagings),
@@ -619,7 +619,7 @@ void main() {
             .read(catalogViewModelProvider.notifier)
             .addPackagings(
               registrationId: 'reg-1',
-              packagings: [bottle('600', MeasureUnit.milliliter)].lock,
+              packagings: [bottle('600', BaseUnit.milliliter)].lock,
             )
             .then((outcome) => (outcome! as PackagingsAdded).products),
         hasLength(1),
@@ -740,7 +740,7 @@ void main() {
           id: typeId,
           name: 'Refrigerante',
           categoryId: 'cat-1',
-          baseUnit: BaseUnit.liter,
+          baseUnit: BaseUnit.milliliter,
         ),
       ].lock,
       brands: [Brand(id: brandId, name: 'Coca-Cola')].lock,

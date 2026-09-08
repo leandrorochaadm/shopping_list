@@ -50,7 +50,7 @@ ShoppingListItem _item({
     id: 'type-$id',
     name: typeName,
     categoryId: categoryId,
-    baseUnit: BaseUnit.liter,
+    baseUnit: BaseUnit.milliliter,
   ),
   category: Category(id: categoryId, name: categoryName),
   quantity: quantity,
