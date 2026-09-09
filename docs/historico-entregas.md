@@ -4,6 +4,53 @@ Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra.
 
 ---
 
+## O que a Entrega 15 mudou fora das telas dela
+
+**`ScaffoldMessenger.of` NÃO exige um context abaixo do `Scaffold`** — quem exige é
+`Scaffold.of`. O messenger é instalado pelo `MaterialApp`, acima do `Scaffold`. O
+`Builder` dentro de `actions:` continua sendo o certo por convenção do projeto, porque é
+ele que amarra o SnackBar ao `Scaffold` desta tela; o que não pode é guardar o
+`BuildContext` num campo do `State` para usá-lo depois de vários `await`.
+
+**Os três ViewModels do catálogo são estados separados** — `CatalogMaintenanceViewModel`
+(as seis listas), `CatalogViewModel` (categorias, tipos e marcas) e `StoreViewModel`. Criar
+por um deles **não** atualiza a lista do outro: sem o `refresh()` da manutenção, a linha
+criada é gravada e nunca desenhada.
+
+**Cache velho quebra a decisão B3.** Sem recarregar o `CatalogViewModel` antes de abrir o
+diálogo, a trava de duplicidade diria *"já existe"* onde deve oferecer `[ Reativar ]` — e
+pior, com o provider nunca lido ela não veria conflito nenhum e deixaria nascer o
+duplicado. Por isso o recarregamento falhado é **parada dura**, não aviso.
+
+**`canPop()` é o que separa a URL das portas de dentro.** As três portas para
+`/products/new` usam `context.push`; o único `canPop()` falso que sobra é a URL digitada
+do PWA, e ali a Tela 1 continua sendo a saída de R11. O `≡` **não tem** entrada para
+`/products/new`.
+
+**`show` de diálogo que navega por dentro não dá para esperar:** o `Future` completa
+quando o diálogo fecha, não quando a tela seguinte volta. Quem precisa redesenhar depois
+da viagem é quem tem de empilhá-la — daí o `RegistrationEditDialog` devolver o id e a
+tela empilhar.
+
+**`use_build_context_synchronously` dispara em TODOS os ramos de um `switch` expression
+com `await` dentro**, mesmo que só um ramo rode: o analisador lê cada braço como vivendo
+depois da lacuna dos outros. A saída foi um método próprio com `switch` **statement**, o
+que também tira o `await` da frente do `context`.
+
+**A Tela 4 aberta por `registrationId` nascia com a linha de embalagem sem grandeza.**
+`_onTypeChanged` levava a unidade do tipo para as linhas já digitadas, mas
+`_openFromCatalog` — que também define o tipo — não. A primeira linha, criada no
+`initState` antes de se saber qual cadastro é, ficava com `unit: null` e nunca parseava:
+os dois campos preenchidos e a legenda insistindo em *"Use números maiores que zero"*.
+Nenhum teste passava por ali de ponta a ponta até o caso "coming back from screen 4 the
+list is up to date".
+
+**Sobrescrever o mesmo provider duas vezes lança no Riverpod 3**
+(`AssertionError('Tried to override a provider twice within the same container')`), e
+`purchaseOverrides()` já traz `storeOverride()` dentro.
+
+---
+
 ## O que a Entrega 14 mudou fora das telas dela
 
 **`smallestUnits` virou `unitsPerLargeUnit`, e é preciso dizer o que NÃO mudou:** os cinco

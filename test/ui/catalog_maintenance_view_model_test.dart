@@ -546,21 +546,13 @@ void main() {
     expect(
       await notifierOf(c).correctPackaging(
         'prod-1',
-        Packaging(
-          pieceCount: 1,
-          pieceSize: 355,
-          baseUnit: BaseUnit.milliliter,
-        ),
+        Packaging(pieceCount: 1, pieceSize: 355, baseUnit: BaseUnit.milliliter),
       ),
       isNull,
     );
     expect(
       valueOf(c).products.where((e) => e.id == 'prod-1').single.packaging,
-      Packaging(
-        pieceCount: 1,
-        pieceSize: 355,
-        baseUnit: BaseUnit.milliliter,
-      ),
+      Packaging(pieceCount: 1, pieceSize: 355, baseUnit: BaseUnit.milliliter),
     );
   });
 
@@ -816,6 +808,15 @@ void main() {
     test('carries the article the conflict sentence needs', () {
       expect(CatalogKind.category.noun, 'a categoria');
       expect(CatalogKind.store.noun, 'o mercado');
+    });
+
+    test('every catalog names its create action in its own gender', () {
+      expect(CatalogKind.category.createLabel, 'Nova categoria');
+      expect(CatalogKind.productType.createLabel, 'Novo tipo');
+      expect(CatalogKind.brand.createLabel, 'Nova marca');
+      expect(CatalogKind.registration.createLabel, 'Novo cadastro de produto');
+      expect(CatalogKind.packaging.createLabel, 'Nova embalagem');
+      expect(CatalogKind.store.createLabel, 'Novo mercado');
     });
   });
 }

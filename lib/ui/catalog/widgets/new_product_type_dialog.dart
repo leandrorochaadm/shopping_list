@@ -51,8 +51,7 @@ class NewProductTypeDialog extends ConsumerStatefulWidget {
     if (name == null) return null;
 
     return findNameConflict(
-      ref.read(catalogViewModelProvider).value?.types ??
-          const <ProductType>[],
+      ref.read(catalogViewModelProvider).value?.types ?? const <ProductType>[],
       name,
     );
   }
@@ -118,8 +117,7 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
   /// out to offer.
   ProductType? _findReactivable() {
     final conflict = findNameConflict(
-      ref.read(catalogViewModelProvider).value?.types ??
-          const <ProductType>[],
+      ref.read(catalogViewModelProvider).value?.types ?? const <ProductType>[],
       _controller.text,
     );
     return conflict == null || conflict.active ? null : conflict;

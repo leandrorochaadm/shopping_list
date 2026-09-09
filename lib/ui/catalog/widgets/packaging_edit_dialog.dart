@@ -27,8 +27,7 @@ class PackagingEditDialog extends ConsumerStatefulWidget {
     required BaseUnit baseUnit,
   }) => showDialog<void>(
     context: context,
-    builder: (context) =>
-        PackagingEditDialog(leaf: leaf, baseUnit: baseUnit),
+    builder: (context) => PackagingEditDialog(leaf: leaf, baseUnit: baseUnit),
   );
 
   final Product leaf;
@@ -110,9 +109,7 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
               padding: const EdgeInsets.only(top: 12),
               child: Text(
                 _error!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
               ),
             ),
           Padding(

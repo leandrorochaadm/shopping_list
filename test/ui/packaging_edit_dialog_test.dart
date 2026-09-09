@@ -25,11 +25,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   static final counted = Product(
     id: 'prod-9',
     productRegistrationId: 'reg-3',
-    packaging: Packaging(
-      pieceCount: 4,
-      pieceSize: 1,
-      baseUnit: BaseUnit.unit,
-    ),
+    packaging: Packaging(pieceCount: 4, pieceSize: 1, baseUnit: BaseUnit.unit),
   );
 
   static final inactive = Product(
@@ -113,7 +109,10 @@ void main() {
     required BaseUnit baseUnit,
   }) async {
     final container = ProviderContainer.test(
-      overrides: [catalogOverride(repository: catalog), storeOverride()],
+      overrides: [
+        catalogOverride(repository: catalog),
+        storeOverride(),
+      ],
     );
 
     await tester.pumpWidget(
@@ -191,11 +190,7 @@ void main() {
 
     expect(
       catalog.writes.single.packaging,
-      Packaging(
-        pieceCount: 1,
-        pieceSize: 500,
-        baseUnit: BaseUnit.milliliter,
-      ),
+      Packaging(pieceCount: 1, pieceSize: 500, baseUnit: BaseUnit.milliliter),
     );
     expect(find.byType(AlertDialog), findsNothing);
   });
@@ -284,11 +279,7 @@ void main() {
 
     expect(
       catalog.writes.single.packaging,
-      Packaging(
-        pieceCount: 6,
-        pieceSize: 1,
-        baseUnit: BaseUnit.unit,
-      ),
+      Packaging(pieceCount: 6, pieceSize: 1, baseUnit: BaseUnit.unit),
     );
   });
 

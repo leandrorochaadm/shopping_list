@@ -21,20 +21,30 @@ import '../../core/error_translation.dart';
 /// of the product. It is the list of the screen's selector, and the order here
 /// is the order there.
 enum CatalogKind {
-  category('Categorias', 'a categoria'),
-  productType('Tipos de produto', 'o tipo'),
-  brand('Marcas', 'a marca'),
-  registration('Cadastros de produto', 'o cadastro'),
-  packaging('Embalagens', 'a embalagem'),
-  store('Mercados', 'o mercado');
+  category('Categorias', 'a categoria', 'Nova categoria'),
+  productType('Tipos de produto', 'o tipo', 'Novo tipo'),
+  brand('Marcas', 'a marca', 'Nova marca'),
+  registration(
+    'Cadastros de produto',
+    'o cadastro',
+    'Novo cadastro de produto',
+  ),
+  packaging('Embalagens', 'a embalagem', 'Nova embalagem'),
+  store('Mercados', 'o mercado', 'Novo mercado');
 
-  const CatalogKind(this.label, this.noun);
+  const CatalogKind(this.label, this.noun, this.createLabel);
 
   /// What the selector reads — pt-BR, plural, because it names a list.
   final String label;
 
   /// The catalog with its article, for the duplicate guard's sentence.
   final String noun;
+
+  /// What the `+` of the AppBar promises, in the gender of this catalog. It
+  /// is written out and not derived from [noun]: "a categoria" -> "Nova
+  /// categoria" is a rule of Portuguese, and a rule of Portuguese inside a
+  /// widget is six sentences waiting to disagree.
+  final String createLabel;
 }
 
 /// Everything the maintenance screen lists, loaded together: the screen swaps

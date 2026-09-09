@@ -7,6 +7,7 @@ import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repo
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/routing/router.dart';
+import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/routing/routes.dart';
 
 import '../helpers/catalog.dart';
@@ -292,13 +293,258 @@ void main() {
   testWidgets('a search that finds nothing says so', (tester) async {
     await pumpCatalog(tester);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('field-search')),
-      'zzzz',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-search')), 'zzzz');
     await tester.pumpAndSettle();
 
     expect(find.text('Nenhum cadastro encontrado.'), findsOneWidget);
+  });
+
+  testWidgets('the create button follows the selector', (tester) async {
+    await pumpCatalog(tester);
+
+    // Decision D-1: the `+` promises what the list below it is showing, in
+    // the gender of that catalog.
+    expect(find.byTooltip('Nova categoria'), findsOneWidget);
+
+    await selectKind(tester, 'Mercados');
+    expect(find.byTooltip('Novo mercado'), findsOneWidget);
+
+    await selectKind(tester, 'Embalagens');
+    expect(find.byTooltip('Nova embalagem'), findsOneWidget);
+  });
+
+  testWidgets('creating a category shows it on the list', (tester) async {
+    await pumpCatalog(tester);
+
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(dialogField, 'Padaria');
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    // The three catalog states are separate: without the `refresh()` of the
+    // maintenance ViewModel the row would be written and never drawn.
+    expect(find.text('Padaria'), findsOneWidget);
+  });
+
+  testWidgets('creating a brand shows it on the list', (tester) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Marcas');
+
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(dialogField, 'Ypê');
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ypê'), findsOneWidget);
+  });
+
+  testWidgets('creating a store shows it on the list', (tester) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Mercados');
+
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(dialogField, 'Hortifruti da esquina');
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hortifruti da esquina'), findsOneWidget);
+  });
+
+  testWidgets('a name that already exists is refused under the field', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(dialogField, 'limpeza');
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Já existe a categoria Limpeza.'), findsOneWidget);
+    // The dialog stays open and the list behind it is untouched.
+    expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  testWidgets('a deactivated name offers to reactivate, not to duplicate', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+
+    // Deactivated HERE, in the maintenance's own state…
+    await tester.tap(find.byTooltip('Editar Limpeza'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('toggle-active')));
+    await tester.pumpAndSettle();
+
+    // …and typed again in the create dialog, which reads the OTHER state.
+    // Without the reload of `_reloadCatalog` the guard would look at a list
+    // that never heard of the deactivation, and decision B3 would lose its
+    // way back.
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+    await tester.enterText(dialogField, 'Limpeza');
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('reactivate')), findsOneWidget);
+  });
+
+  testWidgets('a double tap on + opens one dialog', (tester) async {
+    await pumpCatalog(tester);
+
+    final button = find.byKey(const ValueKey('create-entry'));
+    await tester.tap(button);
+    await tester.tap(button, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    // Without the `_busy` guard the second tap would stack a second dialog
+    // over a list the first one is already changing.
+    expect(find.byType(AlertDialog), findsOneWidget);
+  });
+
+  testWidgets('with Embalagens selected, + asks which product first', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Embalagens');
+
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nova embalagem'), findsWidgets);
+    await tester.tap(find.byKey(const ValueKey('field-registration')));
+    await tester.pumpAndSettle();
+
+    // Only the ACTIVE registrations are offered.
+    expect(find.text('Coca-Cola original · Refrigerante'), findsWidgets);
+  });
+
+  testWidgets('the + is off until the six lists are in', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer.test(
+      overrides: [
+        deviceUserOverride(),
+        // With latency the first frame has no value at all, which is the
+        // state this case is about.
+        catalogOverride(
+          repository: CatalogRepositoryLocal(
+            latency: const Duration(milliseconds: 50),
+          ),
+        ),
+        shoppingListOverride(
+          repository: ShoppingListRepositoryLocal(latency: Duration.zero),
+        ),
+        ...purchaseOverrides(),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: container.read(appRouterProvider),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go(Routes.catalog);
+    await tester.pump();
+
+    final button = tester.widget<IconButton>(
+      find.byKey(const ValueKey('create-entry')),
+    );
+    expect(button.onPressed, isNull);
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('when the catalog cannot be reloaded, nothing opens and the '
+      'reason is said', (tester) async {
+    final container = await pumpCatalog(tester);
+    // The catalog ViewModel is created HERE, before the failure is armed:
+    // creating it costs a `build()` of its own, and that build would eat the
+    // armed failure and leave `refresh()` to succeed.
+    container.read(catalogViewModelProvider);
+    await tester.pumpAndSettle();
+
+    catalog.failNextCall = ApiException(500, 'boom');
+    await tester.tap(find.byKey(const ValueKey('create-entry')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.textContaining('ApiException'), findsNothing);
+  });
+
+  testWidgets('the pencil hands back the id only for the packaging door', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Cadastros de produto');
+
+    // The contract `_editRegistration` depends on: the dialog answers with
+    // the id when the packaging door was tapped, and with null otherwise.
+    // Only the two closings that write NOTHING are exercised here — the
+    // `[ Salvar ]` path goes through the CatalogViewModel, and the edit case
+    // above already asserts its null.
+    await tester.tap(find.byTooltip('Editar Coca-Cola original'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Abrir e acrescentar embalagem'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Handing the id back is what puts screen 4 on the stack, from the
+    // SCREEN — the dialog no longer travels on its own.
+    expect(find.text('Novo produto'), findsWidgets);
+  });
+
+  testWidgets('coming back from screen 4 the list is up to date', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Cadastros de produto');
+
+    await tester.tap(find.byTooltip('Editar Coca-Cola original'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Abrir e acrescentar embalagem'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final size = find.byKey(const ValueKey('size-1'));
+    await tester.ensureVisible(size);
+    await tester.pumpAndSettle();
+    await tester.enterText(size, '750');
+    await tester.pumpAndSettle();
+
+    final save = find.byKey(const ValueKey('save'));
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    // Back on the maintenance screen — not on the shopping list (step 2) —
+    // and with the new packaging on the list (the `refresh()` of the pencil).
+    expect(find.text('Manutenção do cadastro'), findsOneWidget);
+    await selectKind(tester, 'Embalagens');
+    expect(find.textContaining('750 ml'), findsOneWidget);
   });
 
   testWidgets('has an exit of its own', (tester) async {

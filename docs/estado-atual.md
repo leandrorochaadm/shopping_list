@@ -2,7 +2,27 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
-**Atualizado em 07/09/2026**, ao fim da Entrega 14
+**Atualizado em 08/09/2026**, ao fim da Entrega 15
+(`temp/plan/plano-manutencao-criar-cadastro-2026-09-07.md`) — **acréscimo fora das 19
+histórias**, pedido pelo usuário em 07/09/2026: a tela `/catalog` ganhou a **terceira
+ação**. Ela editava, desativava e reativava os seis cadastros, mas não criava nenhum: um
+`+` no `AppBar` agora cria uma linha do cadastro que o seletor mostra, com o `tooltip`
+concordando em gênero (`CatalogKind.createLabel`). Criar **não ganhou código novo de
+escrita**: os quatro nomeados reusam os diálogos que já existiam
+(`NewCategoryDialog`, `NewProductTypeDialog`, `NewBrandDialog`, `NewStoreDialog`), o
+cadastro de produto abre a Tela 4 em branco e a embalagem passa por um
+`PickRegistrationDialog` novo — a pergunta "de qual produto é a embalagem?" — antes de
+abrir a Tela 4 com o cadastro carregado. **Nenhuma migration, nenhum repository, nenhum
+provider, nenhuma rota e nenhuma regra de domínio.** Fora da tela dela mudaram duas
+coisas: **salvar na Tela 4 volta para quem a empilhou** (`canPop() ? pop() : go`), o que
+já conserta o lápis → embalagem que despejava a pessoa na Tela 1; e
+`RegistrationEditDialog.show` passou a devolver `Future<String?>` — o id, quando o
+`[ Abrir e acrescentar embalagem ]` foi tocado — em vez de navegar por dentro de si.
+Junto veio a correção de um defeito que ninguém tinha exercitado: a Tela 4 aberta com
+`registrationId` deixava a primeira linha de embalagem **sem grandeza**, e ela nunca
+parseava — as duas caixas preenchidas e o botão salvar morto.
+
+Antes dela veio a Entrega 14
 (`temp/plan/plano-unidade-base-tamanho-2026-09-07.md`) — **acréscimo fora das 19
 histórias**, pedido pelo usuário em 07/09/2026: **as unidades base passaram de três para
 quatro, e cada uma virou a unidade pequena e inteira da sua grandeza** — `gram` (g),

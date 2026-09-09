@@ -21,8 +21,7 @@ abstract final class NewBrandDialog {
         // Same door, same reason as the category's — see there.
         findReactivable: (name) {
           final conflict = findNameConflict(
-            ref.read(catalogViewModelProvider).value?.brands ??
-                const <Brand>[],
+            ref.read(catalogViewModelProvider).value?.brands ?? const <Brand>[],
             name,
           );
           return conflict == null || conflict.active ? null : conflict;

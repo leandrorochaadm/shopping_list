@@ -1,16 +1,13 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_maintenance.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
-import '../../../routing/routes.dart';
 import '../view_model/catalog_maintenance_view_model.dart';
 import 'catalog_entry_edit_dialog.dart';
-import 'new_product_screen.dart';
 
 /// Editing a product registration — description, brand and TYPE.
 ///
@@ -27,12 +24,18 @@ class RegistrationEditDialog extends ConsumerStatefulWidget {
     super.key,
   });
 
-  static Future<void> show(
+  /// Returns the registration's id when `[ Abrir e acrescentar embalagem ]`
+  /// was tapped, and null on any other closing.
+  ///
+  /// The trip to screen 4 is NOT made from inside this dialog: only whoever
+  /// awaits it can redraw the list when it comes back, and `show` completes
+  /// when the dialog closes, not when screen 4 returns.
+  static Future<String?> show(
     BuildContext context, {
     required ProductRegistration registration,
     required IList<ProductType> types,
     required IList<Brand> brands,
-  }) => showDialog<void>(
+  }) => showDialog<String>(
     context: context,
     builder: (context) => RegistrationEditDialog(
       registration: registration,
@@ -228,13 +231,9 @@ class _RegistrationEditDialogState
   /// `CatalogViewModel.addPackagings` was written in H2 and nothing of it is
   /// rewritten here.
   ///
-  /// `push`, never `go`: `go` would replace the maintenance screen, and Back
-  /// would leave the catalog instead of returning to it.
+  /// It hands the id back and stops there: the SCREEN pushes screen 4, which
+  /// is what lets it reload the list when the trip ends.
   void _openPackagings() {
-    Navigator.of(context).pop();
-    context.push(
-      Routes.newProduct,
-      extra: NewProductRequest(registrationId: widget.registration.id),
-    );
+    Navigator.of(context).pop(widget.registration.id);
   }
 }

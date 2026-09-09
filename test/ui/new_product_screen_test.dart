@@ -464,7 +464,36 @@ void main() {
     expect(find.text('Produto salvo.'), findsOneWidget);
     // Saving LEAVES the screen: a registration saved twice is what this
     // avoids, and screen 3 is where H7 will bring it back to.
+    //
+    // With NO stack — which is how this helper mounts the screen, and which
+    // in the app is the typed URL of the PWA — the list is the exit R11
+    // asks for. The pushed case is the next one.
     expect(find.text('Lista de compras'), findsOneWidget);
+  });
+
+  testWidgets('saving pops back when the screen was pushed', (tester) async {
+    final container = await pumpScreen(tester);
+
+    // Mounted again, this time PUSHED over the catalog — the three doors of
+    // the maintenance screen all use `push`, and `go` would leave the person
+    // on the shopping list, away from the list they were tidying up.
+    final router = container.read(appRouterProvider);
+    router.go(Routes.catalog);
+    await tester.pumpAndSettle();
+    router.push(Routes.newProduct);
+    await tester.pumpAndSettle();
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+    await choose(tester, const ValueKey('field-brand'), 'Coca-Cola');
+    await type(tester, const ValueKey('field-description'), 'zero');
+    await leaveField(tester);
+    await type(tester, const ValueKey('size-1'), '350');
+
+    await tapOn(tester, find.byKey(const ValueKey('save')));
+
+    expect(find.text('Manutenção do cadastro'), findsOneWidget);
+    expect(find.text('Lista de compras'), findsNothing);
   });
 
   testWidgets('says why it could not save, keeping what was typed', (

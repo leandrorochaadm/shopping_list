@@ -62,10 +62,7 @@ final class PickedProduct {
 /// A `final class` and not a record (rule 16): the same shape as
 /// [PickedProduct], which makes the trip back and lives right above.
 final class NewProductRequest {
-  const NewProductRequest({
-    this.returnsSelection = false,
-    this.registrationId,
-  });
+  const NewProductRequest({this.returnsSelection = false, this.registrationId});
 
   final bool returnsSelection;
   final String? registrationId;
@@ -180,6 +177,14 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           _brandId = conflict.registration.brandId;
           _descriptionController.text = conflict.registration.description;
           _conflict = null;
+          // The magnitude of a line is the TYPE's, and here the type arrives
+          // after the line does — `initState` opened the first one before
+          // anybody knew which registration this is. Without carrying it
+          // down, that line never parses: both fields filled and the caption
+          // still reading "Use números maiores que zero", with the save
+          // button dead. `_baseUnit` reads `_typeId`, so it comes after it.
+          final unit = _baseUnit;
+          _drafts = _drafts.map((draft) => draft.withUnit(unit)).toIList();
         });
       case OpenRegistrationFailed(:final message):
         messenger.showSnackBar(SnackBar(content: Text(message)));
@@ -411,14 +416,22 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     messenger.showSnackBar(const SnackBar(content: Text('Produto salvo.')));
 
     if (!widget.returnsSelection) {
+      // Whoever PUSHED this screen gets it back: the catalog maintenance
+      // opens it to create a registration, to add a packaging and from the
+      // pencil of a registration, and `go` would leave the person on the
+      // shopping list, three taps away from the list they were tidying up.
+      // With no stack — a typed URL, which is also how the tests mount this
+      // screen — the list stays the exit, as R11 asks.
+      if (router.canPop()) {
+        router.pop();
+        return;
+      }
       router.go(Routes.shoppingList);
       return;
     }
     // `pop`, never `go`: screen 3 is underneath with a purchase on it, and
     // `go` would replace the route and take the draft off the screen.
-    router.pop<PickedProduct>(
-      _picked(registration, written, options, type),
-    );
+    router.pop<PickedProduct>(_picked(registration, written, options, type));
   }
 
   /// Which leaf goes back to screen 3: the one registered LAST.
@@ -774,7 +787,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         ? 'Falta completar 1 embalagem.'
         : 'Faltam completar $incomplete embalagens.';
   }
-
 }
 
 class _CategoryField extends StatelessWidget {
@@ -992,10 +1004,7 @@ class _ConflictWarning extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              _sentence,
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
+            Text(_sentence, style: TextStyle(color: scheme.onErrorContainer)),
             const SizedBox(height: 8),
             FilledButton.tonal(
               key: const ValueKey('open-conflict'),
