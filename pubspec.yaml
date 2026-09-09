@@ -49,6 +49,23 @@ dependencies:
   # transitive of supabase_flutter; declaring it is what keeps
   # `depend_on_referenced_packages` quiet, and the analyze of the CI green.
   web: ^1.1.1
+  # The shared widget kit — today only `AppTextField`, the one field every
+  # screen types into. **Acréscimo à lista congelada**, ver
+  # `docs/decisoes-divergencias.md`.
+  #
+  # `git:` and not `path:`: the package lives in a sibling repository, and the
+  # `ubuntu-latest` of `deploy.yml` only checks THIS one out — a path would
+  # break `pub get` on the first push.
+  #
+  # The `ref` follows `main`, by choice: the kit and this app are written by
+  # the same person, and pinning a commit would mean editing this file at
+  # every fix over there. What holds the build still is `pubspec.lock`, which
+  # keeps the resolved commit and is committed — a new `main` only arrives
+  # here with a `flutter pub upgrade tekton_core`.
+  tekton_core:
+    git:
+      url: https://github.com/leandrorochaadm/tekton_core.git
+      ref: main
 
 dev_dependencies:
   flutter_test:

@@ -54,3 +54,6 @@ app.*.map.json
 /.env
 /.env.*
 !/.env.example
+
+# Local override that points tekton_core at the clone next door — never committed.
+pubspec_overrides.yaml

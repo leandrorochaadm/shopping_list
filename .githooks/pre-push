@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Keeps the committed `pubspec.lock` pointing at the GitHub tekton_core.
+
+Two things pull this lock in opposite directions:
+
+* `pubspec_overrides.yaml` (local, git-ignored) points tekton_core at the clone
+  next door, so the kit can be edited without a commit in between. Every
+  `flutter pub get` then writes a lock with `source: path`.
+* `deploy.yml` checks out THIS repository alone. A lock with `source: path`
+  breaks its `flutter pub get` on the first line.
+
+So before every push this hook steps the override aside, resolves tekton_core
+from `main`, amends the resulting lock into the commit going out, and puts the
+override back. The push is then STOPPED on purpose: `git push` had already
+resolved the old commit, and only the next push carries the amended one.
+"""
+
+import os
+import shutil
+import subprocess
+import sys
+
+ZERO = '0' * 40
+OVERRIDES = 'pubspec_overrides.yaml'
+STASHED = 'pubspec_overrides.yaml.pre-push'
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, capture_output=True, text=True, **kwargs)
+
+
+def out(*args):
+    return run(*args).stdout.strip()
+
+
+def deletes_only():
+    """A branch being deleted has an all-zero local sha and nothing to build."""
+    lines = [line.split() for line in sys.stdin.read().splitlines() if line.strip()]
+    return all(parts[1] == ZERO for parts in lines) if lines else True
+
+
+def resolve_from_git():
+    """Writes the lock the CI needs, with the override out of the way."""
+    stashed = os.path.exists(OVERRIDES)
+    if stashed:
+        shutil.move(OVERRIDES, STASHED)
+    try:
+        run('flutter', 'pub', 'upgrade', 'tekton_core')
+    finally:
+        if stashed:
+            shutil.move(STASHED, OVERRIDES)
+
+
+def main():
+    if deletes_only():
+        return 0
+
+    # The hook also runs from an IDE, where the login shell's PATH is not
+    # loaded. Missing Flutter is not a reason to block a push.
+    if shutil.which('flutter') is None:
+        print('pre-push: flutter is not on the PATH, skipping the tekton_core upgrade', file=sys.stderr)
+        return 0
+
+    print('pre-push: resolving tekton_core from main...')
+    resolve_from_git()
+
+    committed = out('git', 'show', 'HEAD:pubspec.lock')
+    with open('pubspec.lock', encoding='utf-8') as handle:
+        resolved = handle.read().strip()
+
+    try:
+        if resolved == committed:
+            return 0
+
+        # An amend rewrites history, only safe while the commit is ours alone.
+        if out('git', 'branch', '-r', '--contains', 'HEAD'):
+            print('pre-push: pubspec.lock moved, and HEAD is already on the remote.', file=sys.stderr)
+            print('          Commit the lock yourself and push again.', file=sys.stderr)
+            return 1
+
+        # `--only` takes this path alone: whatever else is staged stays staged.
+        run('git', 'commit', '--amend', '--no-edit', '--only', '--', 'pubspec.lock')
+        head = out('git', 'rev-parse', '--short', 'HEAD')
+        print(f'pre-push: pubspec.lock was amended into {head}. Push again.', file=sys.stderr)
+        return 1
+    finally:
+        # Whatever happened above, the working tree goes back to the local
+        # clone — leaving the CI's lock behind would be a silent trap.
+        run('flutter', 'pub', 'get')
+
+
+if __name__ == '__main__':
+    sys.exit(main())
