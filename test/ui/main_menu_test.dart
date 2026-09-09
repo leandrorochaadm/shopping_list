@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shopping_list/routing/routes.dart';
+import 'package:shopping_list/ui/core/widgets/app_version_label.dart';
 import 'package:shopping_list/ui/core/widgets/main_menu.dart';
 
 /// A file of its own for the `≡`, because what changed in it is a rule of its
@@ -176,5 +177,18 @@ void main() {
     }
 
     expect(reached, hasLength(4));
+  });
+
+  testWidgets('the footer shows the build, and it is not a fifth door', (
+    tester,
+  ) async {
+    await openMenu(tester);
+
+    // Local test run: no --dart-define, so the label takes its local form.
+    expect(find.byType(AppVersionLabel), findsOneWidget);
+    expect(find.textContaining('Versão'), findsOneWidget);
+    // The four doors are still four: the label must never become a ListTile,
+    // or the test above would read it as a door.
+    expect(find.byType(ListTile), findsNWidgets(4));
   });
 }

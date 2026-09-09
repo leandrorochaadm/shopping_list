@@ -303,6 +303,19 @@ em script), constrói com os dois `--dart-define` e publica no Cloudflare Pages,
 publicação é **pulada, não falhada**, quando as credenciais faltam. O remote existe
 (`origin`, `leandrorochaadm/shopping_list`, privado) e `main` é a branch padrão.
 
+**O rodapé do menu `≡` diz qual build está no aparelho** — `Versão 1.0.0 (build 42)` e
+`Commit a1b2c3d`, e um toque copia as duas linhas em uma só, para colar numa mensagem.
+O número do build é o `github.run_number` do `deploy.yml`, **não** o `+N` do
+`pubspec.yaml`, que segue em `1.0.0+1`: ele cresce sozinho a cada execução, sem commit
+de volta no repositório, e por isso **pula** entre dois deploys de `main` (o workflow
+roda em push de qualquer branch). Rodando local, sem os `--dart-define`, o label mostra
+só `Versão 1.0.0 (local)`. O `1.0.0` existe em **dois lugares** — o `pubspec.yaml` e
+`Environment.fallbackVersionName` —, porque web não lê o pubspec em runtime e o pacote
+que leria está fora da lista congelada; quem impede a divergência é
+`test/config/environment_test.dart`, que lê o pubspec e falha quando os dois se separam.
+Como o service worker só entrega o build novo na abertura seguinte do PWA, esse label é
+também a forma de saber se o aparelho já pegou o deploy.
+
 **Aquelas duas execuções verdes não provam que a publicação funciona, e o motivo é um bug
 que só se corrigiu em 31/08:** o `if:` dos dois últimos steps lia `env.CLOUDFLARE_API_TOKEN`,
 mas **o `env:` de um step não é visível ao `if:` daquele mesmo step** — a condição é

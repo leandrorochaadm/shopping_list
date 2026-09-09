@@ -427,3 +427,28 @@ existir.
 fakes **só dispara quando um frame é bombeado COM duração**. `await repository.add(...)`
 antes de um `pump` é um deadlock; `await tester.pump()` sem duração não resolve — precisa
 ser `pump(const Duration(milliseconds: 1))`.
+
+---
+
+## Label de versão no `≡` (08/09/2026)
+
+**O que mudou fora da tela dela:** o `.github/workflows/deploy.yml` ganhou um step
+(`app version`) e quatro flags no `flutter build web` — os três `--dart-define`
+(`APP_VERSION`, `APP_BUILD_NUMBER`, `APP_COMMIT`) e um `--build-number`. O último não
+alimenta o label: ele existe para o `build/web/version.json`, que o Flutter escreve a
+partir do pubspec e publicaria `1` para sempre — dois números contando a mesma coisa,
+um deles errado.
+
+**A armadilha:** o `1.0.0` passou a existir em **dois lugares**, o `pubspec.yaml` e
+`Environment.fallbackVersionName`. Não há como evitar — web não lê o pubspec em runtime,
+e `package_info_plus` está fora da lista congelada. O que segura a duplicata é um teste
+que **lê o `pubspec.yaml` do disco** e compara com a constante: subir a versão e esquecer
+a constante derruba o CI antes de publicar um app que anuncia a versão anterior para
+sempre.
+
+**E uma do bottom sheet:** o `pop` do rodapé tem de vir **antes** do SnackBar — um sheet
+fica por cima dele, e a confirmação apareceria escondida. O `ScaffoldMessenger` e o
+`Navigator` são capturados antes do `await` do clipboard, porque depois do `pop` o
+contexto do label não existe mais. O teste monta o widget **dentro de um sheet** de
+propósito: montado direto no `home`, o `pop` fecharia a rota e o bug passaria.
+

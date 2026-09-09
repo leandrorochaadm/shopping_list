@@ -112,11 +112,42 @@ jobs:
             echo "target: dev (preview)"
           fi
 
+      # The three numbers the `≡` footer shows. They are NOT read from the
+      # pubspec at runtime: web cannot read it, and a package that could is
+      # outside the frozen dependency list (tecnico §3).
+      #
+      # The build number is `github.run_number` — the workflow's own run
+      # counter, which grows on every run. The alternative, bumping `+N` in the
+      # pubspec and pushing the commit back, would need a write token, a
+      # `[skip ci]` guard against the workflow triggering itself, and would
+      # still race with a push made while the run is in flight.
+      - name: app version
+        id: version
+        run: |
+          set -euo pipefail
+          name=$(sed -n 's/^version:[[:space:]]*\([0-9.]*\).*/\1/p' pubspec.yaml)
+          if [ -z "$name" ]; then
+            echo "::error::no version: line in pubspec.yaml"; exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          echo "commit=$(echo "${{ github.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
+          echo "publishing $name+${{ github.run_number }}"
+
       - name: flutter build web
+        # `--build-number` does not feed the label — nothing on web reads the
+        # pubspec at runtime, which is why the defines exist. It is here because
+        # `flutter build web` writes `build/web/version.json` from the pubspec,
+        # and without it that file would publish `1` forever: a second number,
+        # visible at the origin, contradicting what the `≡` shows.
         run: |
           flutter build web --release \
             --dart-define=SUPABASE_URL='${{ steps.environment.outputs.url }}' \
-            --dart-define=SUPABASE_ANON_KEY='${{ steps.environment.outputs.key }}'
+            --dart-define=SUPABASE_ANON_KEY='${{ steps.environment.outputs.key }}' \
+            --dart-define=APP_VERSION='${{ steps.version.outputs.name }}' \
+            --dart-define=APP_BUILD_NUMBER='${{ steps.version.outputs.build }}' \
+            --dart-define=APP_COMMIT='${{ steps.version.outputs.commit }}' \
+            --build-number='${{ steps.version.outputs.build }}'
 
       - name: publish to Cloudflare Pages
         # Skipped, not failed, when the credentials are absent.

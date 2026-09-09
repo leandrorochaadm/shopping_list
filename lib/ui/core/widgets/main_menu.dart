@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../config/environment.dart';
 import '../../../routing/routes.dart';
+import 'app_version_label.dart';
 import 'main_bottom_bar.dart';
 import 'menu_entry.dart';
 
@@ -35,6 +37,13 @@ import 'menu_entry.dart';
 /// **"Corrigir compra" is not one of the doors**, and it did not become
 /// enabled either: `/purchases/:id/edit` does not navigate without an id, and
 /// the only screen that knows which id is the history — one line above it.
+///
+/// **The footer is not a door.** Below the four entries the menu shows which
+/// build is on this phone — version, build and commit — and it is here because
+/// the three screens that mount this `≡` are exactly where one notices the two
+/// iPhones have drifted apart. It is NOT a `ListTile`, on purpose: the doors
+/// are tiles, and `main_menu_test` reads the door labels by listing every
+/// `ListTile` in the sheet.
 abstract final class MainMenu {
   static const _entries = <MenuEntry>[
     MenuEntry(
@@ -74,6 +83,8 @@ abstract final class MainMenu {
                 context.go(entry.route);
               },
             ),
+          const Divider(height: 1),
+          AppVersionLabel(version: Environment.appVersion),
         ],
       ),
     ),

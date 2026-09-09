@@ -101,6 +101,9 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | conteúdo que um preço compra | `contentPricedOf` | o `totalContent` da embalagem, ou **uma unidade de preço** (1000 g, 100 cm) no vendido a peso |
 | conteúdo digitado na comparação | `typedContent` | o conteúdo que o `#3a` deixa digitar **só na folha sem embalagem** (`acceptsTypedContentOf`). No mapa que chega a `rankCosts`, `null` é "campo apagado" e a **ausência** da chave é outra coisa: ninguém digitou |
 | preço de abertura da linha | `openingPriceOf` | o pago por **uma** embalagem na última compra. `null` é a embalagem nunca comprada na janela |
+| versão do app | `AppVersion` | as três informações que identificam um build: versão, build e commit. Dart puro — não conhece a palavra "Versão" |
+| número do build | `buildNumber` | o contador de execuções do CI (`github.run_number`), **não** o `+N` do `pubspec.yaml`. `null` é o build local |
+| commit do build | `commit` | os 7 primeiros caracteres do hash, sem tradução. `null` é o build local |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso

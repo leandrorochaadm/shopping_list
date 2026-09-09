@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../domain/models/app_version.dart';
+
 /// Which Supabase project this build talks to. There are two — `dev` and
 /// `prod` (`tecnico §1.5`) — and they are chosen at build time, never at
 /// runtime: web has no flavors, so the separation is `--dart-define` plus two
@@ -14,6 +16,40 @@ abstract final class Environment {
 
   static bool get isSupabaseConfigured =>
       supabaseUrl.isNotEmpty && supabaseAnonKey.isNotEmpty;
+
+  /// The `version:` of `pubspec.yaml`, WITHOUT the `+build` suffix.
+  ///
+  /// It is duplicated here because the pubspec is not readable at runtime on
+  /// web and reading it would cost a new dependency, which the frozen list of
+  /// `tecnico §3` rules out. What keeps the copy honest is
+  /// `test/config/environment_test.dart`, which reads the pubspec and fails
+  /// when the two drift apart.
+  static const fallbackVersionName = '1.0.0';
+
+  /// Filled by the CI from the pubspec; empty on a local run, when the
+  /// constant above answers instead.
+  static const _versionName = String.fromEnvironment(
+    'APP_VERSION',
+    defaultValue: fallbackVersionName,
+  );
+
+  /// `github.run_number`. Empty on a local run.
+  static const _buildNumber = String.fromEnvironment('APP_BUILD_NUMBER');
+
+  /// The first 7 chars of `github.sha`. Empty on a local run.
+  static const _commit = String.fromEnvironment('APP_COMMIT');
+
+  /// What the `≡` shows in its footer.
+  ///
+  /// An empty define and an absent define are the same thing here — a local
+  /// build — and both become `null`, never `''` or `0`: [AppVersion] treats
+  /// `null` as "nobody counted this run". `int.tryParse('')` already returns
+  /// `null`, which is why the build number needs no extra `if`.
+  static AppVersion get appVersion => AppVersion(
+    name: _versionName.isEmpty ? fallbackVersionName : _versionName,
+    buildNumber: int.tryParse(_buildNumber),
+    commit: _commit.isEmpty ? null : _commit,
+  );
 
   /// The guard below is a SAFETY NET, not the mechanism that protects a
   /// forgotten deploy: `main` only calls this inside `StartupPlan.remote`, and
