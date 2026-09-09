@@ -1,13 +1,12 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:tekton_core/tekton_core.dart';
 
-import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/shopping_list_item.dart' show InvalidQuantity;
-import '../../core/formatting.dart';
+import '../../core/unit_specs.dart';
 import 'product_field.dart';
 
 /// One line of a purchase being corrected (H9): quantity, amount paid, the
@@ -63,7 +62,7 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
     text: _quantityTextOf(widget.item),
   );
   late final _valueController = TextEditingController(
-    text: formatMoneyPlain(widget.item.paid),
+    text: UnitSpec.currency.format(widget.item.paid.cents),
   );
 
   String? _error;
@@ -75,12 +74,21 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
     super.dispose();
   }
 
+  /// The mask of the quantity field, and the ONE place the choice is made:
+  /// sold by weight it is the magnitude of the type, sold by piece it is a
+  /// plain count of packages.
+  UnitSpec get _quantitySpec =>
+      _option.isSoldByWeight ? specOf(_option.baseUnit) : countSpec;
+
   /// What the field opens written with: the amount for something weighed,
-  /// the plain package count otherwise — where the bare number would read
-  /// '1500' for a kilo and a half.
-  static String _quantityTextOf(PurchaseItem item) => item.option.isSoldByWeight
-      ? item.option.baseUnit.typedText(item.quantityInBaseUnit)
-      : '${item.quantity}';
+  /// the plain package count otherwise.
+  static String _quantityTextOf(PurchaseItem item) =>
+      (item.option.isSoldByWeight ? specOf(item.option.baseUnit) : countSpec)
+          .format(
+            item.option.isSoldByWeight
+                ? item.quantityInBaseUnit
+                : item.quantity,
+          );
 
   /// Swapping the product may swap how the line is measured — a crate counted
   /// by piece for beef sold by weight. The typed quantity is kept, because
@@ -90,24 +98,20 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
       setState(() => _option = option);
 
   void _submit() {
-    final int quantity;
-    final Money paid;
-    try {
-      // Both parsers are the DOMAIN's, digit by digit, and neither goes
-      // through a double: '0,35' × 100 in binary floating point is 34.999…,
-      // and one truncation later a cent is gone.
-      quantity = _option.isSoldByWeight
-          ? _option.baseUnit.parseAmount(_quantityController.text)
-          : BaseUnit.unit.parseAmount(_quantityController.text);
-      paid = Money.parse(_valueController.text);
-    } on InvalidAmount catch (e) {
-      setState(() => _error = e.message);
+    // The value comes off the mask already in cents, so nothing here goes
+    // through a double: '0,35' × 100 in binary floating point is 34.999…, and
+    // one truncation later a cent is gone. What is left to refuse is the
+    // empty field.
+    final cents = UnitSpec.currency.parse(_valueController.text);
+    if (cents <= 0) {
+      setState(() => _error = 'Informe um valor válido.');
       return;
-    } on AmountMustBeWhole catch (e) {
-      setState(() => _error = e.message);
-      return;
-    } on InvalidMoney catch (e) {
-      setState(() => _error = e.message);
+    }
+    final paid = Money(cents);
+
+    final quantity = _quantitySpec.parse(_quantityController.text);
+    if (quantity <= 0) {
+      setState(() => _error = 'Informe uma quantidade válida.');
       return;
     }
 
@@ -140,26 +144,19 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
             onSelected: _onProductChosen,
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField.unit(
             key: const ValueKey('field-quantity'),
             controller: _quantityController,
-            // Digits only: the quantity is typed in the small unit of its
-            // magnitude, which is always a whole number.
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            spec: _quantitySpec,
             decoration: InputDecoration(labelText: _option.quantityLabel),
           ),
           const SizedBox(height: 12),
-          TextField(
+          AppTextField.currency(
             key: const ValueKey('field-value'),
             controller: _valueController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [
-              FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-            ],
-            decoration: InputDecoration(
+            errorText: _error,
+            decoration: const InputDecoration(
               labelText: 'Valor total pago',
-              errorText: _error,
               // The message can be two lines long, and the default clips it.
               errorMaxLines: 3,
             ),

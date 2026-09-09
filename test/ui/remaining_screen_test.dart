@@ -242,11 +242,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(ItemDialog), findsOneWidget);
-      // Prefilled with what is missing, in the unit the field is typed in.
+      // Prefilled with what is missing: typed in millilitres, read in litres.
       final field = tester.widget<TextField>(
-        find.byKey(const ValueKey('field-quantity')),
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
       );
-      expect(field.controller!.text, '2000');
+      expect(field.controller!.text, '2,000');
       // Nothing to mark as not found on a type nobody has asked for.
       expect(find.text('Não encontrei'), findsNothing);
       expect(find.text('Remover da lista'), findsNothing);
@@ -318,7 +321,10 @@ void main() {
       await tester.pumpAndSettle();
 
       final field = tester.widget<TextField>(
-        find.byKey(const ValueKey('field-quantity')),
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
       );
       expect(field.controller!.text, '');
     });

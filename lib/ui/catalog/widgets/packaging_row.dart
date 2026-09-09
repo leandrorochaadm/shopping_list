@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/packaging.dart';
+import '../../core/unit_specs.dart';
 
 /// One line of the packaging list WHILE it is being typed.
 ///
@@ -27,17 +28,22 @@ final class PackagingDraft {
   final String pieceSize;
   final BaseUnit? unit;
 
-  /// The parsed line, or null while it is incomplete or invalid. The parsing
-  /// is the domain's: nothing here reimplements the integer reading.
+  /// The parsed line, or null while it is incomplete or invalid.
+  ///
+  /// The text is read by the MASK, which is the only thing that could have
+  /// written it; what refuses a zero or a blank is still the domain, in the
+  /// [Packaging] constructor.
   Packaging? get packaging {
     final unit = this.unit;
     if (unit == null) return null;
     try {
-      return Packaging.typed(
-        pieceCount: pieceCount,
+      return Packaging(
+        pieceCount: (unit == BaseUnit.unit ? specOf(unit) : countSpec).parse(
+          pieceCount,
+        ),
         // A type counted by unit has no measure of its own: the piece IS the
         // unit, so the count is the whole amount.
-        pieceSize: unit == BaseUnit.unit ? '1' : pieceSize,
+        pieceSize: unit == BaseUnit.unit ? 1 : specOf(unit).parse(pieceSize),
         baseUnit: unit,
       );
     } on Object {
@@ -122,43 +128,59 @@ class PackagingRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              // The `×` sits on the BASELINE of what is typed, and no longer
+              // on a padding measured by hand against the old field height:
+              // the filled box and the always-floating label of
+              // `AppTextField` moved that height. `InputDecorator` publishes
+              // the baseline of the typed text, so the `×` follows the field
+              // whatever it grows into — a label, an error line, another
+              // density.
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
               children: [
                 Expanded(
-                  child: TextFormField(
+                  child: AppTextField.unit(
                     key: ValueKey('count-${draft.id}'),
                     initialValue: draft.pieceCount,
                     enabled: enabled,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    // "Quantas unidades?" is the Count magnitude of the type
+                    // and reads `un`; "Quantas peças?" counts pieces, and a
+                    // piece is not a unit of measurement.
+                    spec: _countsOnly ? specOf(baseUnit) : countSpec,
+                    // Two fields side by side on a 390 pt phone: there is no
+                    // room for a 24 pt button in either of them.
+                    showClearButton: false,
                     decoration: InputDecoration(
                       labelText: _countsOnly
                           ? 'Quantas unidades?'
                           : 'Quantas peças?',
-                      suffixText: _countsOnly ? baseUnit.label : null,
                     ),
+                    // `?? ''`, and it is not decoration: `copyWith` reads null
+                    // as "keep what you had", so a cleared field would come
+                    // back with the value it had just lost.
                     onChanged: (value) =>
-                        onChanged(draft.copyWith(pieceCount: value)),
+                        onChanged(draft.copyWith(pieceCount: value ?? '')),
                   ),
                 ),
                 if (!_countsOnly) ...[
                   const Padding(
-                    padding: EdgeInsets.only(top: 20, left: 8, right: 8),
+                    // The 8 is spacing between siblings, not a measure of the
+                    // field: it stays.
+                    padding: EdgeInsets.symmetric(horizontal: 8),
                     child: Text('×'),
                   ),
                   Expanded(
-                    child: TextFormField(
+                    child: AppTextField.unit(
                       key: ValueKey('size-${draft.id}'),
                       initialValue: draft.pieceSize,
                       enabled: enabled,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: InputDecoration(
+                      spec: specOf(baseUnit),
+                      showClearButton: false,
+                      decoration: const InputDecoration(
                         labelText: 'Quanto tem cada?',
-                        suffixText: baseUnit.label,
                       ),
                       onChanged: (value) =>
-                          onChanged(draft.copyWith(pieceSize: value)),
+                          onChanged(draft.copyWith(pieceSize: value ?? '')),
                     ),
                   ),
                 ],

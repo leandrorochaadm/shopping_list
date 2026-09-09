@@ -181,13 +181,16 @@ void main() {
   ) async {
     await pumpDialog(tester, item: _item(quantity: 6000));
 
-    // The field speaks the base unit of the type, which is the small one:
-    // 6000 millilitres are typed as "6000", with "ml" beside them.
+    // The field is still TYPED in the base unit — 6000 keystrokes of digit —
+    // but it is READ in the large one: "6,000" with "L" beside it.
     final field = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-quantity')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-quantity')),
+        matching: find.byType(TextField),
+      ),
     );
-    expect(field.controller!.text, '6000');
-    expect(find.text('ml'), findsOneWidget);
+    expect(field.controller!.text, '6,000');
+    expect(find.text('L'), findsOneWidget);
     expect(find.text('Refrigerante'), findsOneWidget);
   });
 
@@ -197,8 +200,12 @@ void main() {
     await pumpDialog(tester, item: _item());
 
     final field = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-quantity')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-quantity')),
+        matching: find.byType(TextField),
+      ),
     );
+    // Empty, and NOT '0,000': nothing asked for is not zero asked for.
     expect(field.controller!.text, '');
     expect(find.text('Vazio: sai na primeira compra do tipo.'), findsOneWidget);
   });
@@ -263,7 +270,7 @@ void main() {
   ) async {
     final repository = await pumpDialog(tester);
 
-    // Zero passes the keyboard filter and is refused by the domain.
+    // Zero is what the mask still lets through, and the dialog refuses it.
     await tester.enterText(find.byKey(const ValueKey('field-quantity')), '0');
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
@@ -278,8 +285,8 @@ void main() {
   testWidgets('the field takes digits and nothing else', (tester) async {
     await pumpDialog(tester);
 
-    // The typed unit is the small one, so there is nothing to write after a
-    // comma — and the iPhone keyboard must not offer one.
+    // The mask keeps the digits and writes the comma itself: '1,25abc' has
+    // three of them, and 125 millilitres read as '0,125'.
     await tester.enterText(
       find.byKey(const ValueKey('field-quantity')),
       '1,25abc',
@@ -287,9 +294,12 @@ void main() {
     await tester.pumpAndSettle();
 
     final field = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-quantity')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-quantity')),
+        matching: find.byType(TextField),
+      ),
     );
-    expect(field.controller!.text, '125');
+    expect(field.controller!.text, '0,125');
     expect(field.keyboardType, TextInputType.number);
   });
 
@@ -415,9 +425,12 @@ void main() {
 
       // It opened with the missing amount already in, in the base unit.
       final field = tester.widget<TextField>(
-        find.byKey(const ValueKey('field-quantity')),
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
       );
-      expect(field.controller!.text, '2000');
+      expect(field.controller!.text, '2,000');
 
       await tester.enterText(
         find.byKey(const ValueKey('field-quantity')),
@@ -443,7 +456,10 @@ void main() {
       final repository = await pumpForType(tester);
 
       final field = tester.widget<TextField>(
-        find.byKey(const ValueKey('field-quantity')),
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
       );
       expect(field.controller!.text, '');
 
@@ -460,18 +476,24 @@ void main() {
       await pumpForType(tester, existing: _item(quantity: 6000), missing: 8000);
 
       final field = tester.widget<TextField>(
-        find.byKey(const ValueKey('field-quantity')),
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
       );
-      expect(field.controller!.text, '8000');
+      expect(field.controller!.text, '8,000');
     });
 
     testWidgets('with no prefill the stored quantity stays', (tester) async {
       await pumpForType(tester, existing: _item(quantity: 6000));
 
       final field = tester.widget<TextField>(
-        find.byKey(const ValueKey('field-quantity')),
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
       );
-      expect(field.controller!.text, '6000');
+      expect(field.controller!.text, '6,000');
     });
 
     testWidgets('the item on the list with NO quantity is warned that the '

@@ -109,12 +109,16 @@ void main() {
       find.text(r'Gastou R$ 1.300,00 de R$ 1.500,00 neste mês.'),
       findsOneWidget,
     );
-    // The field opens filled with what is in force, with no grouping dot —
-    // `Money.parse` refuses one.
+    // The field opens filled with what is in force, written the way the mask
+    // writes it: the symbol, the grouping dot and a NO-BREAK SPACE between
+    // them (`\u{A0}`, not a plain one).
     final field = tester.widget<TextField>(
-      find.byKey(const ValueKey('cap-amount')),
+      find.descendant(
+        of: find.byKey(const ValueKey('cap-amount')),
+        matching: find.byType(TextField),
+      ),
     );
-    expect(field.controller!.text, '1500,00');
+    expect(field.controller!.text, 'R\$\u{A0}1.500,00');
   });
 
   testWidgets('a month with no cap says so instead of showing a blank', (
@@ -211,7 +215,11 @@ void main() {
     );
     await pumpSettings(tester, caps: repository);
 
-    await tester.enterText(find.byKey(const ValueKey('cap-amount')), '1500');
+    await tester.enterText(
+      find.byKey(const ValueKey('cap-amount')),
+      // Cents: the mask turns it into R$ 1.500,00.
+      '150000',
+    );
     await tester.tap(find.byKey(const ValueKey('save-cap')));
     await tester.pumpAndSettle();
 
@@ -229,7 +237,11 @@ void main() {
     );
     await pumpSettings(tester, caps: repository);
 
-    await tester.enterText(find.byKey(const ValueKey('cap-amount')), '1500');
+    await tester.enterText(
+      find.byKey(const ValueKey('cap-amount')),
+      // Cents: the mask turns it into R$ 1.500,00.
+      '150000',
+    );
     await tester.tap(find.byKey(const ValueKey('save-cap')));
     await tester.pumpAndSettle();
 
@@ -258,11 +270,13 @@ void main() {
     expect(repository.saved, isEmpty);
   });
 
-  testWidgets('refuses a value that is not a value', (tester) async {
+  testWidgets('refuses the field left empty', (tester) async {
     final repository = _SpyRepository(today: today);
     await pumpSettings(tester, caps: repository);
 
-    // The other refusal of the same field, and it is a different one.
+    // The other refusal of the same field, and it is a different one. Letters
+    // ARE the empty field now: the mask drops everything that is not a digit,
+    // so 'abc' never becomes text in there.
     await tester.enterText(find.byKey(const ValueKey('cap-amount')), 'abc');
     await tester.tap(find.byKey(const ValueKey('save-cap')));
     await tester.pumpAndSettle();
@@ -280,7 +294,10 @@ void main() {
     )..failNextWrite = NetworkException('offline');
     await pumpSettings(tester, caps: repository);
 
-    await tester.enterText(find.byKey(const ValueKey('cap-amount')), '1800');
+    await tester.enterText(
+      find.byKey(const ValueKey('cap-amount')),
+      '180000',
+    );
     await tester.tap(find.byKey(const ValueKey('save-cap')));
     await tester.pumpAndSettle();
 

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
+import '../../core/unit_specs.dart';
 import '../view_model/catalog_maintenance_view_model.dart';
 import 'catalog_entry_edit_dialog.dart';
 
@@ -45,20 +46,26 @@ class PackagingEditDialog extends ConsumerStatefulWidget {
 
 class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
   late final _countController = TextEditingController(
-    text: '${widget.leaf.packaging?.pieceCount ?? 1}',
+    text: _countSpec.format(widget.leaf.packaging?.pieceCount ?? 1),
   );
   late final _sizeController = TextEditingController(text: _initialSize);
 
   String? _error;
   bool _saving = false;
 
-  /// What the field opens written with: the whole number, in the base unit —
-  /// the domain decides the scale, and the screen never asks for the large
-  /// one.
+  /// The mask of the FIRST field, and the two it can be are not the same
+  /// thing: "Quantas unidades?" is the Count magnitude of the type and reads
+  /// `un`; "Quantas peças?" counts pieces, and a piece is not a unit of
+  /// measurement.
+  UnitSpec get _countSpec => _countsOnly ? specOf(widget.baseUnit) : countSpec;
+
+  /// What the size field opens written with. `''` and not `format(0)`: a leaf
+  /// with no packaging opens BLANK, and zero is a number the field would then
+  /// be showing as an answer.
   String get _initialSize {
     final packaging = widget.leaf.packaging;
     if (packaging == null) return '';
-    return widget.baseUnit.typedText(packaging.pieceSize);
+    return specOf(widget.baseUnit).format(packaging.pieceSize);
   }
 
   /// A type measured in units has no size field: the piece IS the unit.
@@ -79,29 +86,23 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          AppTextField.unit(
             key: const ValueKey('field-piece-count'),
             controller: _countController,
             enabled: !_saving,
-            keyboardType: TextInputType.number,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            spec: _countSpec,
             decoration: InputDecoration(
               labelText: _countsOnly ? 'Quantas unidades?' : 'Quantas peças?',
-              suffixText: _countsOnly ? widget.baseUnit.label : null,
             ),
           ),
           if (!_countsOnly) ...[
             const SizedBox(height: 12),
-            TextField(
+            AppTextField.unit(
               key: const ValueKey('field-piece-size'),
               controller: _sizeController,
               enabled: !_saving,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: 'Quanto tem cada?',
-                suffixText: widget.baseUnit.label,
-              ),
+              spec: specOf(widget.baseUnit),
+              decoration: const InputDecoration(labelText: 'Quanto tem cada?'),
             ),
           ],
           if (_error != null)
@@ -145,19 +146,21 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
 
     final Packaging packaging;
     try {
-      // The parsing is the DOMAIN's: nothing here re-reads a number.
-      packaging = Packaging.typed(
-        pieceCount: _countController.text,
-        pieceSize: _countsOnly ? '1' : _sizeController.text,
+      // The text is read by the MASK, which is the only thing that could have
+      // written it; what refuses zero and less is still the domain, in the
+      // constructor below. `AmountMustBeWhole` is gone with the comma the
+      // user can no longer type.
+      packaging = Packaging(
+        pieceCount: _countSpec.parse(_countController.text),
+        pieceSize: _countsOnly
+            ? 1
+            : specOf(widget.baseUnit).parse(_sizeController.text),
         baseUnit: widget.baseUnit,
       );
     } on InvalidPieceCount catch (e) {
       setState(() => _error = e.message);
       return;
     } on InvalidAmount catch (e) {
-      setState(() => _error = e.message);
-      return;
-    } on AmountMustBeWhole catch (e) {
       setState(() => _error = e.message);
       return;
     }

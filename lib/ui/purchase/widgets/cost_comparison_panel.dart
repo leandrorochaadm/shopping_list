@@ -1,12 +1,13 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/proportional_cost.dart';
 import '../../core/formatting.dart';
+import '../../core/unit_specs.dart';
 
 /// The `#3a` panel — **Comparar custo**, the proportional cost calculator.
 ///
@@ -92,7 +93,10 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       if (id == null) continue;
       final opening = openingPriceOf(option);
       _priceControllers[id] = TextEditingController(
-        text: opening == null ? '' : formatMoneyPlain(opening),
+        // `''` and not `format(0)`: the mask reads an empty field as zero,
+        // but a leaf never bought in the window opens BLANK, and `format`
+        // would write 'R$ 0,00' into every one of them.
+        text: opening == null ? '' : UnitSpec.currency.format(opening.cents),
       );
       // The quantity opens at what ONE typed price buys — which the domain
       // already answers, and is one pricing unit on the weighed line. So the
@@ -100,7 +104,7 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       // correct, not a question to answer before using it.
       if (acceptsTypedContentOf(option)) {
         _contentControllers[id] = TextEditingController(
-          text: option.baseUnit.typedText(contentPricedOf(option)),
+          text: specOf(option.baseUnit).format(contentPricedOf(option)),
         );
       }
     }
@@ -117,8 +121,9 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
     super.dispose();
   }
 
-  /// What is typed, already filtered by what `Money.parse` accepts — a field
-  /// with "1,2,3" in it is a field being typed, not an error to report.
+  /// What is typed, and the mask has already made "1,2,3" impossible to type:
+  /// what is left of a field being filled in is the EMPTY one, which reads as
+  /// zero and stays out of the computation.
   ///
   /// **Only the visible lines**, and not the whole of `_priceControllers`:
   /// `initState` creates a controller for every leaf of the type, and a leaf
@@ -129,12 +134,10 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
     for (final option in _lines) {
       final id = option.id;
       if (id == null) continue;
-      try {
-        final money = Money.parse(_priceControllers[id]!.text);
-        if (money.cents > 0) parsed[id] = money;
-      } on InvalidMoney {
-        // It stays out of the computation, and the line simply shows no cost.
-      }
+      final cents = UnitSpec.currency.parse(_priceControllers[id]!.text);
+      // Zero keeps the line out of the computation, and it simply shows no
+      // cost — which is what the empty field used to mean.
+      if (cents > 0) parsed[id] = Money(cents);
     }
     return parsed.lock;
   }
@@ -153,13 +156,11 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       final id = option.id;
       final controller = id == null ? null : _contentControllers[id];
       if (id == null || controller == null) continue;
-      try {
-        parsed[id] = option.baseUnit.parseAmount(controller.text);
-      } on InvalidAmount {
-        parsed[id] = null;
-      } on AmountMustBeWhole {
-        parsed[id] = null;
-      }
+      // Zero is the CLEARED field, and it keeps meaning null — the explicit
+      // "I erased this" the domain tells apart from the key that is simply
+      // not here (`typedContent`, in the glossary).
+      final typed = specOf(option.baseUnit).parse(controller.text);
+      parsed[id] = typed > 0 ? typed : null;
     }
     return parsed.lock;
   }
@@ -398,20 +399,23 @@ class _CostRow extends StatelessWidget {
                   value: line.selected,
                   onChanged: (_) => onToggle(),
                 ),
-                SizedBox(
-                  width: 118,
-                  child: TextField(
+                // The three columns SHARE what the checkbox leaves of the
+                // line, and none of them measures points: 9 : 8 : 8 is what
+                // 118 : 104 : 104 was on an iPhone 12, so nothing moves on the
+                // phone this was drawn for and everything follows on a
+                // narrower or a wider one. What lines the rows up is every row
+                // splitting with the SAME weights, not a number repeated.
+                Expanded(
+                  flex: 9,
+                  child: AppTextField.currency(
                     key: ValueKey('cost-price-${line.option.id}'),
                     controller: priceController,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    // The iOS keyboard offers a comma or a dot depending on
-                    // the layout, and the domain's parser reads both.
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-                    ],
-                    decoration: _fieldBox('Preço', prefix: r'R$ '),
+                    // The column is the narrowest of the three and the clear
+                    // button costs 24 pt of it (decision D4).
+                    showClearButton: false,
+                    // No `prefix` any more: the mask writes the `R$` inside
+                    // the text itself.
+                    decoration: _fieldBox('Preço'),
                     onChanged: (_) => onEdited(),
                   ),
                 ),
@@ -420,27 +424,24 @@ class _CostRow extends StatelessWidget {
                 // in the same place when a weighed leaf and a packaging sit
                 // side by side, which is the whole reason the line has two
                 // heights (F-k).
-                SizedBox(
-                  width: 104,
+                Expanded(
+                  flex: 8,
                   child: contentController == null
                       ? const SizedBox.shrink()
-                      : TextField(
+                      : AppTextField.unit(
                           key: ValueKey('cost-content-${line.option.id}'),
                           controller: contentController,
-                          // Digits only: the content is typed in the small
-                          // unit of the magnitude, always a whole number.
-                          keyboardType: TextInputType.number,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: _fieldBox(
-                            'Quanto vem',
-                            suffix: baseUnit.label,
-                          ),
+                          // The suffix comes with the spec now, and it is the
+                          // READING unit: 'kg', not 'g'.
+                          spec: specOf(baseUnit),
+                          // Same narrow column (decision D4).
+                          showClearButton: false,
+                          decoration: _fieldBox('Quanto vem'),
                           onChanged: (_) => onEdited(),
                         ),
                 ),
                 Expanded(
+                  flex: 8,
                   // `min` and not the default `max`: the item of a `ListView`
                   // is given an unbounded height, and a `RenderFlex` with an
                   // unbounded main axis and `MainAxisSize.max` trips an
@@ -507,18 +508,13 @@ class _CostRow extends StatelessWidget {
 /// The box of the two fields of a line. A function and not two literals: the
 /// two fields have to keep the same height, and two copies drift apart at the
 /// first padding tweak.
-InputDecoration _fieldBox(String label, {String? prefix, String? suffix}) =>
-    InputDecoration(
-      labelText: label,
-      prefixText: prefix,
-      suffixText: suffix,
-      // **Without this the label hides the `R$ ` and the unit.** In Material's
-      // `InputDecorator` the prefix and the suffix only show while the label
-      // floats — a focused or filled field. The still-empty line is exactly
-      // where the hint matters.
-      floatingLabelBehavior: FloatingLabelBehavior.always,
-      isDense: true,
-      filled: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-    );
+InputDecoration _fieldBox(String label) => InputDecoration(
+  labelText: label,
+  // The `R$` moved INTO the text with the mask, and the unit comes from
+  // the spec through `suffixText`. What is left here is the box: the two
+  // fields have to keep the same height.
+  isDense: true,
+  filled: true,
+  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+);

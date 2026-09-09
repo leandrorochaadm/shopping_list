@@ -613,3 +613,56 @@ usuário:** `Packaging.label` **não escreve o "1 ×" da embalagem de peça úni
 "350 ml", não "1 × 350 ml" —, porque é esse o nome da prateleira que se procura no
 lançamento, e é o que o wireframe da Tela 4 desenha. Com duas peças ou mais ele volta:
 "12 × 350 ml".
+
+## Entrega 9 — os campos digitáveis viraram `AppTextField`
+
+**Não é história nova**: nenhuma tela ganhou função, e nenhuma regra de negócio mudou de
+lugar. O que mudou é **quem lê o texto de um campo**.
+
+Os **19 campos** de `lib/ui/` deixaram de ser `TextField`/`TextFormField` do Material e
+passaram a ser o **`AppTextField` do `tekton_core`**, com as máscaras `UnitSpec`. Ficaram
+de fora, de propósito, os 3 campos de `lib/ui/spike/` (a tela descartável existe para
+medir digitação crua) e o de `product_field.dart` (o `TextField` vem do `fieldViewBuilder`
+do `Autocomplete`, que entrega controller e focus próprios).
+
+O que se vê na tela:
+
+- todo campo tem **botão `✕`**, **rótulo sempre flutuante** e **fundo preenchido**;
+- **dinheiro é digitado em centavos** e desenhado `R$ 1.500,00` — o `R$` está **dentro do
+  texto**, e o separador entre ele e o número é um NO-BREAK SPACE (`\u{A0}`);
+- **quantidade continua digitada na unidade pequena** e passa a ser **lida na de leitura**:
+  350 gramas mostram `0,350` com o sufixo `kg`. A exibição **fora** dos campos não mudou —
+  `BaseUnit.formatQuantity` continua sendo a régua da J-c.
+
+O que nasceu:
+
+- `lib/ui/core/unit_specs.dart` — `specOf(BaseUnit)`, `unitCountSpec` e `countSpec`;
+- `lib/ui/core/widgets/app_field_theme.dart` — `appDisabledFillColor`, porque o padrão do
+  pacote é escuro e este app é claro. **Nenhum campo do app usa `readOnly` hoje**, então
+  ele é a decisão tomada para o primeiro que nascer.
+
+Três armadilhas que esta entrega revelou, e que a próxima vai encontrar de novo:
+
+1. **A key fica no `AppTextField`, e o `TextField` é filho dele.** `tester.enterText` e
+   `find.text` continuam funcionando pela key, mas todo
+   `tester.widget<TextField>(find.byKey(...))` vira `_TypeError` — precisa de
+   `find.descendant(of: …, matching: find.byType(TextField))`. São 8 arquivos de teste.
+2. **`onChanged` é `void Function(String?)`.** O `✕` dispara `onChanged('')` **antes** de
+   limpar o controller; um `copyWith(x: value)` que leia null como "não mexe" faria o
+   botão parecer quebrado. Daí o `?? ''` em `catalog_maintenance_screen` e em
+   `packaging_row`.
+3. **`UnitSpec.parse('')` devolve `0` e nunca lança**, e `format(0)` devolve `'0,00'` —
+   **não** vazio. Todo prefill que escrevia `''` para "sem valor" continua precisando do
+   `if (x == null) ''`, ou a tela abre com um zero que ninguém pediu.
+
+**Um teste do plano perdeu o objeto**: o `✕` do `PackagingRow` não existe — as duas colunas
+da Tela 4 estão lado a lado num aparelho de 390 pt e ficaram com `showClearButton: false`,
+como as duas do painel `#3a`. O `?? ''` continua lá, defensivo.
+
+**Falta fazer, e é do CI, não do app:** a correção do `suffixIcon` do `AppTextField` está
+aplicada no clone ao lado e **ainda não foi commitada nem publicada** no `main` do
+`tekton_core`. Enquanto não for, o `pubspec.yaml` (que aponta para o git) resolve o commit
+**com o bug**, e no `deploy.yml` os campos das colunas estreitas do painel `#3a` nascem com
+48 pt a menos de texto. Localmente nada disso aparece: o `pubspec_overrides.yaml`
+git-ignored aponta para o clone. **O `pubspec.lock` modificado é dessa mesma origem e não
+deve ser commitado como está.**

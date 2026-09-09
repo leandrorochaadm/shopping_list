@@ -26,6 +26,7 @@ com `IList<T>`, não `List<T>`.
 | `http` | só pelo `ClientException`: o `postgrest` fala por ele e é assim que falha de transporte chega |
 | `flutter_localizations` | os delegates pt-BR do Material. Vem do SDK — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` |
 | `web` | só os eventos `online`/`offline` do navegador, atrás de um *conditional import* — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` |
+| `tekton_core` | o `AppTextField` de todo campo digitável e as máscaras `UnitSpec` — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` (**L-d**). Vem do **git**; o `pubspec_overrides.yaml` local, git-ignored, aponta para o clone ao lado |
 
 Em desenvolvimento: `flutter_test`, `mocktail`, `flutter_lints` ^6.0.0.
 

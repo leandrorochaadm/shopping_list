@@ -100,8 +100,12 @@ void main() {
   final saveButton = find.byKey(const ValueKey('save-packaging'));
   final toggleButton = find.byKey(const ValueKey('toggle-active'));
 
+  /// The `TextField` an `AppTextField` builds: the key is on the wrapper.
+  Finder fieldIn(Finder field) =>
+      find.descendant(of: field, matching: find.byType(TextField));
+
   String textOf(WidgetTester tester, Finder field) =>
-      tester.widget<TextField>(field).controller!.text;
+      tester.widget<TextField>(fieldIn(field)).controller!.text;
 
   Future<void> pumpDialog(
     WidgetTester tester, {
@@ -166,7 +170,9 @@ void main() {
 
     expect(find.text('Corrigir a embalagem'), findsOneWidget);
     expect(textOf(tester, countField), '1');
-    expect(textOf(tester, sizeField), '2000');
+    // Typed in millilitres, READ in litres: the mask puts the comma in and
+    // the suffix beside it says `L`.
+    expect(textOf(tester, sizeField), '2,000');
     expect(find.text(CatalogEntryEditDialog.footnote), findsOneWidget);
   });
 
@@ -242,7 +248,13 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(find.text('Informe uma quantidade válida.'), findsOneWidget);
+    // The sentence is the DOMAIN's, and it is the one about pieces: the
+    // mask writes nothing malformed any more, so what used to be refused by
+    // the text parser now reaches `Packaging` and is refused by the rule.
+    expect(
+      find.text('A embalagem precisa ter pelo menos uma peça.'),
+      findsOneWidget,
+    );
     expect(catalog.writes, isEmpty);
   });
 
@@ -254,9 +266,10 @@ void main() {
     await tester.enterText(sizeField, '2,5');
     await tester.pumpAndSettle();
 
-    expect(textOf(tester, sizeField), '25');
+    // The mask keeps the digits and writes the comma itself: 25 millilitres.
+    expect(textOf(tester, sizeField), '0,025');
     expect(
-      tester.widget<TextField>(sizeField).keyboardType,
+      tester.widget<TextField>(fieldIn(sizeField)).keyboardType,
       TextInputType.number,
     );
   });
@@ -366,8 +379,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('Salvando...'), findsOneWidget);
-    expect(tester.widget<TextField>(countField).enabled, isFalse);
-    expect(tester.widget<TextField>(sizeField).enabled, isFalse);
+    expect(tester.widget<TextField>(fieldIn(countField)).enabled, isFalse);
+    expect(tester.widget<TextField>(fieldIn(sizeField)).enabled, isFalse);
     expect(tester.widget<FilledButton>(saveButton).onPressed, isNull);
     expect(tester.widget<TextButton>(toggleButton).onPressed, isNull);
 

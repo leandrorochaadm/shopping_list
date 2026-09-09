@@ -1,16 +1,16 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../data/repositories/catalog/catalog_repository.dart';
-import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../catalog/view_model/catalog_view_model.dart';
+import '../../core/unit_specs.dart';
 import '../view_model/shopping_list_view_model.dart';
 
 /// The item dialog of H6: quantity, preferred brand, preferred packaging,
@@ -118,7 +118,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     // the whole number, never the large unit. Screen 6's prefill wins over
     // it — the dialog was opened from that number.
     text: switch (widget.prefilledQuantity ?? widget.item?.quantity) {
-      final int amount => widget.type.baseUnit.typedText(amount),
+      final int amount => specOf(widget.type.baseUnit).format(amount),
       null => '',
     },
   );
@@ -195,19 +195,20 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   Future<void> _save() async {
     final typed = _quantity.text.trim();
 
+    // The EMPTY field stays null, and that is an answer: it is the "sai na
+    // primeira compra do tipo" of the dialog. Only a filled one is read, and
+    // the mask leaves nothing malformed to refuse — what is left is a field
+    // holding zero.
     int? quantity;
     if (typed.isNotEmpty) {
-      try {
-        quantity = widget.type.baseUnit.parseAmount(typed);
-      } on InvalidAmount catch (e) {
-        setState(() => _quantityError = e.message);
-        return;
-      } on AmountMustBeWhole catch (e) {
+      final parsed = specOf(widget.type.baseUnit).parse(typed);
+      if (parsed <= 0) {
         // Under the field, never a SnackBar: it is an answer about what was
         // just typed, and it belongs next to what was typed.
-        setState(() => _quantityError = e.message);
+        setState(() => _quantityError = 'Informe uma quantidade válida.');
         return;
       }
+      quantity = parsed;
     }
 
     final messenger = ScaffoldMessenger.of(context);
@@ -322,21 +323,18 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
+            AppTextField.unit(
               key: const ValueKey('field-quantity'),
               controller: _quantity,
               enabled: !_saving,
-              // Digits only: the quantity is typed in the small unit of the
-              // type's magnitude, which is always a whole number.
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              // The spec of the type's BASE unit, never the packaging: what
+              // sums is the type, and six litres typed here are six litres
+              // even with a 350 ml packaging preferred. The suffix comes with
+              // it, and it is the READING unit now — 'L', not 'ml'.
+              spec: specOf(widget.type.baseUnit),
+              errorText: _quantityError,
               decoration: InputDecoration(
                 labelText: 'Quantidade',
-                // The BASE unit of the type, never the packaging: what sums is
-                // the type, and "6000" here is six litres even with a 350 ml
-                // packaging preferred.
-                suffixText: widget.type.baseUnit.label,
-                errorText: _quantityError,
                 errorMaxLines: 3,
                 helperText: _quantityHelper,
                 helperMaxLines: 3,

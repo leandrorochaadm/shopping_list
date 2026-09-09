@@ -1,11 +1,10 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../core/online_status.dart';
-import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/price_increase.dart';
@@ -19,6 +18,7 @@ import '../../catalog/widgets/new_product_screen.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 import '../../core/formatting.dart';
+import '../../core/unit_specs.dart';
 import '../../core/widgets/warning_dialog.dart';
 import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
@@ -99,19 +99,25 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     super.dispose();
   }
 
-  int? get _typedQuantity {
+  /// The mask of the quantity field, and the ONE place the choice is made:
+  /// sold by weight it is the magnitude of the type, sold by piece it is a
+  /// plain count of packages — which is what `BaseUnit.unit.parseAmount` used
+  /// to say on the three lines that read this field.
+  ///
+  /// Null option is the field disabled; the count spec keeps the mask from
+  /// changing shape at the moment a product is chosen.
+  UnitSpec get _quantitySpec {
     final option = _option;
-    if (option == null) return null;
-    try {
-      // Sold by weight, "1,5" is a kilo and a half and becomes 1500 g; sold
-      // by piece it is a plain count of packages. The parsing is the domain's,
-      // digit by digit, and never goes through a double.
-      return option.isSoldByWeight
-          ? option.baseUnit.parseAmount(_quantityController.text)
-          : BaseUnit.unit.parseAmount(_quantityController.text);
-    } on Object {
-      return null;
-    }
+    if (option == null || !option.isSoldByWeight) return countSpec;
+    return specOf(option.baseUnit);
+  }
+
+  int? get _typedQuantity {
+    if (_option == null) return null;
+    // Nothing throws any more: the mask only lets digits in, and an empty
+    // field reads as zero — which is the "not typed yet" this getter means.
+    final typed = _quantitySpec.parse(_quantityController.text);
+    return typed > 0 ? typed : null;
   }
 
   /// **H15** — the warning of the item being typed, or null.
@@ -126,12 +132,12 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     final typed = _typedQuantity;
     if (option == null || typed == null) return null;
 
-    final Money paid;
-    try {
-      paid = Money.parse(_valueController.text);
-    } on InvalidMoney {
-      return null;
-    }
+    // The mask never lets a malformed value exist, so what is left to guard is
+    // the field with nothing in it — and that is the "no warning before the
+    // amount and the value" the acceptance criterion asks for.
+    final cents = UnitSpec.currency.parse(_valueController.text);
+    if (cents <= 0) return null;
+    final paid = Money(cents);
 
     return option.priceIncreaseFor(
       paid: paid,
@@ -146,8 +152,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     final typed = _typedQuantity;
     if (reference == null || typed == null) return;
 
-    _valueController.text = formatMoneyPlain(
-      reference.estimateFor(_option!.toBaseUnit(typed)),
+    _valueController.text = UnitSpec.currency.format(
+      reference.estimateFor(_option!.toBaseUnit(typed)).cents,
     );
   }
 
@@ -180,10 +186,10 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       _valueTouched = true;
     });
     _productController.text = item.label;
-    _quantityController.text = item.option.isSoldByWeight
-        ? item.option.baseUnit.typedText(item.quantityInBaseUnit)
-        : '${item.quantity}';
-    _valueController.text = formatMoneyPlain(item.paid);
+    _quantityController.text = _quantitySpec.format(
+      item.option.isSoldByWeight ? item.quantityInBaseUnit : item.quantity,
+    );
+    _valueController.text = UnitSpec.currency.format(item.paid.cents);
   }
 
   Future<void> _addItem() async {
@@ -192,24 +198,23 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
 
-    final int quantity;
-    final Money paid;
-    try {
-      // Both parsers are the DOMAIN's, digit by digit, and neither goes
-      // through a double: '0,35' × 100 in binary floating point is 34.999…,
-      // and one truncation later a cent is gone.
-      quantity = option.isSoldByWeight
-          ? option.baseUnit.parseAmount(_quantityController.text)
-          : BaseUnit.unit.parseAmount(_quantityController.text);
-      paid = Money.parse(_valueController.text);
-    } on InvalidAmount catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    // The value comes off the mask already in cents, so nothing here goes
+    // through a double: '0,35' × 100 in binary floating point is 34.999…, and
+    // one truncation later a cent is gone.
+    final cents = UnitSpec.currency.parse(_valueController.text);
+    if (cents <= 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Informe um valor válido.')),
+      );
       return;
-    } on AmountMustBeWhole catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-      return;
-    } on InvalidMoney catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
+    final paid = Money(cents);
+
+    final quantity = _quantitySpec.parse(_quantityController.text);
+    if (quantity <= 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Informe uma quantidade válida.')),
+      );
       return;
     }
 
@@ -444,31 +449,22 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                   ),
                 ),
             const SizedBox(height: 12),
-            TextField(
+            AppTextField.unit(
               key: const ValueKey('field-quantity'),
               controller: _quantityController,
               focusNode: _quantityFocus,
               enabled: _option != null && !_saving,
-              // Digits only: every amount is typed in the small unit of its
-              // magnitude, which is always a whole number.
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              spec: _quantitySpec,
               decoration: InputDecoration(
                 labelText: _option?.quantityLabel ?? 'Quantidade',
               ),
               onChanged: (_) => setState(_onQuantityChanged),
             ),
             const SizedBox(height: 12),
-            TextField(
+            AppTextField.currency(
               key: const ValueKey('field-value'),
               controller: _valueController,
               enabled: _option != null && !_saving,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-              ],
               decoration: InputDecoration(
                 labelText: 'Valor total pago',
                 helperText: _option?.priceReference == null

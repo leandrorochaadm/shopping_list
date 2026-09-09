@@ -120,15 +120,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  String priceIn(WidgetTester tester, String id) => tester
-      .widget<TextField>(find.byKey(ValueKey('cost-price-$id')))
-      .controller!
-      .text;
+  /// The `TextField` an `AppTextField` builds: the key is on the wrapper, and
+  /// what carries the controller and the decoration is the field below it.
+  Finder fieldOf(String key) => find.descendant(
+    of: find.byKey(ValueKey(key)),
+    matching: find.byType(TextField),
+  );
 
-  String contentIn(WidgetTester tester, String id) => tester
-      .widget<TextField>(find.byKey(ValueKey('cost-content-$id')))
-      .controller!
-      .text;
+  String priceIn(WidgetTester tester, String id) =>
+      tester.widget<TextField>(fieldOf('cost-price-$id')).controller!.text;
+
+  String contentIn(WidgetTester tester, String id) =>
+      tester.widget<TextField>(fieldOf('cost-content-$id')).controller!.text;
 
   bool tickedIn(WidgetTester tester, Key key) =>
       tester.widget<Checkbox>(find.byKey(key)).value!;
@@ -144,14 +147,51 @@ void main() {
     expect(tickedIn(tester, canKey), isFalse);
   });
 
+  testWidgets('the field column follows the width of the screen', (
+    tester,
+  ) async {
+    // Decision D7: the width of a field is not a number. The three columns
+    // split what the checkbox leaves of the line, so a narrower phone
+    // squeezes them and a wider one gives them room — and neither overflows.
+    await openPanel(tester, viewport: const Size(320, 2400));
+    expect(tester.takeException(), isNull);
+    final narrow = tester.getSize(fieldOf('cost-price-prod-4')).width;
+
+    // The same panel on a wider screen — reopening it would leave two of
+    // them in the tree and every finder would match twice.
+    tester.view.physicalSize = const Size(430, 2400);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    final wide = tester.getSize(fieldOf('cost-price-prod-4')).width;
+
+    expect(wide, greaterThan(narrow));
+  });
+
+  testWidgets('a line with the quantity wiped answers null, not absence', (
+    tester,
+  ) async {
+    // The contract `rankCosts` reads (`typedContent`, in the glossary): an
+    // erased field is an explicit "no content", and it is NOT the same as the
+    // key never being there. The panel says so by refusing to price the line
+    // instead of falling back to one kilo.
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+    expect(find.text('12,00/kg'), findsOneWidget);
+
+    await tester.enterText(fieldOf('cost-content-chick-1'), '');
+    await tester.pumpAndSettle();
+
+    expect(contentIn(tester, 'chick-1'), isEmpty);
+    expect(find.text('12,00/kg'), findsNothing);
+  });
+
   testWidgets('each line opens with what ONE package last cost', (
     tester,
   ) async {
     await openPanel(tester);
 
-    expect(priceIn(tester, 'prod-4'), '42,00');
-    expect(priceIn(tester, 'prod-3'), '10,00');
-    expect(priceIn(tester, 'prod-1'), '4,00');
+    expect(priceIn(tester, 'prod-4'), 'R\$\u{A0}42,00');
+    expect(priceIn(tester, 'prod-3'), 'R\$\u{A0}10,00');
+    expect(priceIn(tester, 'prod-1'), 'R\$\u{A0}4,00');
     // And each line is named by the leaf's own label, never re-assembled.
     expect(find.text(crateLabel), findsOneWidget);
     expect(find.text(bottleLabel), findsOneWidget);
@@ -237,7 +277,8 @@ void main() {
     // The crate on sale: R$ 8,00 for 4,2 L is R$ 1,90 a litre.
     await tester.enterText(
       find.byKey(const ValueKey('cost-price-prod-4')),
-      '8,00',
+      // Cents: the mask writes R$ 8,00.
+      '800',
     );
     await tester.pumpAndSettle();
 
@@ -279,7 +320,7 @@ void main() {
     await openPanel(tester);
 
     // The bottle carries R$ 10,00 in its field and is not ticked.
-    expect(priceIn(tester, 'prod-3'), '10,00');
+    expect(priceIn(tester, 'prod-3'), 'R\$\u{A0}10,00');
     expect(find.text('5,00/L'), findsNothing);
     expect(find.textContaining('%'), findsNothing);
   });
@@ -408,7 +449,7 @@ void main() {
     await openPanel(tester, options: chicken(), launchingId: 'chick-1');
 
     InputDecoration decorationOf(String key) =>
-        tester.widget<TextField>(find.byKey(ValueKey(key))).decoration!;
+        tester.widget<TextField>(fieldOf(key)).decoration!;
 
     expect(decorationOf('cost-price-chick-1').labelText, 'Preço');
     expect(decorationOf('cost-content-chick-1').labelText, 'Quanto vem');
@@ -500,16 +541,15 @@ void main() {
   ) async {
     await openPanel(tester, options: chicken(), launchingId: 'chick-1');
 
-    // One kilo, written in the unit the field is typed in.
-    expect(contentIn(tester, 'chick-1'), '1000');
+    // One kilo. It is still typed in grams — 1000 keystrokes of digit — but
+    // the mask READS it in the pricing unit, and so does the suffix.
+    expect(contentIn(tester, 'chick-1'), '1,000');
     expect(
       tester
-          .widget<TextField>(find.byKey(const ValueKey('cost-content-chick-1')))
+          .widget<TextField>(fieldOf('cost-content-chick-1'))
           .decoration!
           .suffixText,
-      // The field is typed in the STORED unit; the price header is what
-      // carries the kilo.
-      'g',
+      'kg',
     );
   });
 
@@ -607,7 +647,7 @@ void main() {
 
     await tester.enterText(
       find.byKey(const ValueKey('cost-price-chick-1')),
-      '9,00',
+      '900',
     );
     await tester.pumpAndSettle();
     await tester.enterText(
@@ -617,8 +657,9 @@ void main() {
     await tester.pumpAndSettle();
 
     // The `setState` does not recreate a controller.
-    expect(priceIn(tester, 'chick-1'), '9,00');
-    expect(contentIn(tester, 'chick-1'), '600');
+    expect(priceIn(tester, 'chick-1'), 'R\$\u{A0}9,00');
+    // 600 grams typed, read as kilos — the suffix next to it says `kg`.
+    expect(contentIn(tester, 'chick-1'), '0,600');
   });
 
   testWidgets('with the keyboard up the quantity field is above the fold', (

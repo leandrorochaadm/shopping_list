@@ -247,24 +247,47 @@ void main() {
     await fillItem(tester);
 
     final value = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-value')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-value')),
+        matching: find.byType(TextField),
+      ),
     );
-    expect(value.controller!.text, '62,00');
+    expect(value.controller!.text, 'R\$\u{A0}62,00');
+  });
+
+  testWidgets('the value left empty is refused, and nothing is added', (
+    tester,
+  ) async {
+    // What replaces the old "not a number" refusal: the mask makes a
+    // malformed value impossible to type, so the field can only be EMPTY.
+    await pumpScreen(tester);
+    await fillItem(tester);
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '');
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('add-item')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Informe um valor válido.'), findsOneWidget);
+    expect(find.byType(PurchaseItemRow), findsNothing);
   });
 
   testWidgets('a value typed by hand stops being recomputed', (tester) async {
     await pumpScreen(tester);
     await fillItem(tester);
 
-    await tester.enterText(find.byKey(const ValueKey('field-value')), '55,00');
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '5500');
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('field-quantity')), '2');
     await tester.pumpAndSettle();
 
     final value = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-value')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-value')),
+        matching: find.byType(TextField),
+      ),
     );
-    expect(value.controller!.text, '55,00');
+    expect(value.controller!.text, 'R\$\u{A0}55,00');
   });
 
   testWidgets('a price 10% over the window average warns while typing (H15)', (
@@ -276,7 +299,7 @@ void main() {
     await pumpScreen(tester);
     await fillItem(tester);
 
-    await tester.enterText(find.byKey(const ValueKey('field-value')), '70,00');
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '7000');
     await tester.pumpAndSettle();
 
     expect(find.text('Subiu 15% sobre a média'), findsOneWidget);
@@ -291,7 +314,7 @@ void main() {
     // R$ 62,00 is what the field pre-fills, and it is +7% over the average.
     expect(find.textContaining('sobre a média'), findsNothing);
 
-    await tester.enterText(find.byKey(const ValueKey('field-value')), '62,00');
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '6200');
     await tester.pumpAndSettle();
 
     expect(find.textContaining('sobre a média'), findsNothing);
@@ -304,7 +327,7 @@ void main() {
     // base unit that is compared, and it comes out of the two.
     await pumpScreen(tester);
     await fillItem(tester);
-    await tester.enterText(find.byKey(const ValueKey('field-value')), '70,00');
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '7000');
     await tester.pumpAndSettle();
     expect(find.text('Subiu 15% sobre a média'), findsOneWidget);
 
@@ -326,7 +349,10 @@ void main() {
     expect(find.byType(PurchaseItemRow), findsOneWidget);
     expect(find.text(r'R$ 62,00'), findsWidgets);
     final quantity = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-quantity')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-quantity')),
+        matching: find.byType(TextField),
+      ),
     );
     expect(quantity.controller!.text, isEmpty);
   });
@@ -341,11 +367,14 @@ void main() {
 
     expect(find.text('Salvar alteração'), findsOneWidget);
     final value = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-value')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-value')),
+        matching: find.byType(TextField),
+      ),
     );
-    expect(value.controller!.text, '62,00');
+    expect(value.controller!.text, 'R\$\u{A0}62,00');
 
-    await tester.enterText(find.byKey(const ValueKey('field-value')), '59,00');
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '5900');
     await tester.tap(find.byKey(const ValueKey('add-item')));
     await tester.pumpAndSettle();
 
@@ -590,7 +619,10 @@ void main() {
     expect(product.controller!.text, contains('limão'));
     // It is selectable straight away, without the picker being reloaded.
     final quantity = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-quantity')),
+      find.descendant(
+        of: find.byKey(const ValueKey('field-quantity')),
+        matching: find.byType(TextField),
+      ),
     );
     expect(quantity.enabled, isTrue);
   });
@@ -671,15 +703,25 @@ void main() {
       // for 2000 ml, one bottle -> R$ 10,00.
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('field-value')))
+            .widget<TextField>(
+              find.descendant(
+                of: find.byKey(const ValueKey('field-value')),
+                matching: find.byType(TextField),
+              ),
+            )
             .controller!
             .text,
-        '10,00',
+        'R\$\u{A0}10,00',
       );
       // The cursor is on the quantity, which is what requirement 17 asks for.
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('field-quantity')))
+            .widget<TextField>(
+              find.descendant(
+                of: find.byKey(const ValueKey('field-quantity')),
+                matching: find.byType(TextField),
+              ),
+            )
             .focusNode!
             .hasFocus,
         isTrue,
@@ -706,7 +748,7 @@ void main() {
       // Typing inside the panel is not writing anywhere.
       await tester.enterText(
         find.byKey(const ValueKey('cost-price-prod-3')),
-        '9,50',
+        '950',
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const ValueKey('cost-close')));
@@ -717,10 +759,15 @@ void main() {
       // And the purchase is exactly as it was.
       expect(
         tester
-            .widget<TextField>(find.byKey(const ValueKey('field-value')))
+            .widget<TextField>(
+              find.descendant(
+                of: find.byKey(const ValueKey('field-value')),
+                matching: find.byType(TextField),
+              ),
+            )
             .controller!
             .text,
-        '62,00',
+        'R\$\u{A0}62,00',
       );
     });
   });

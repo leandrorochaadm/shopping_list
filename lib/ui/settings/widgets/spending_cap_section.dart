@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/money.dart';
 import '../../../domain/models/report_period.dart';
@@ -45,16 +46,17 @@ class _SpendingCapSectionState extends ConsumerState<SpendingCapSection> {
   Future<void> _save() async {
     final messenger = ScaffoldMessenger.of(context);
 
-    final Money amount;
-    try {
-      // The parser is the DOMAIN's, digit by digit, and it never goes through
-      // a double. An empty or malformed field is ITS refusal, and the cap of
-      // zero below is another one — two different noes from the same field.
-      amount = Money.parse(_controller.text);
-    } on InvalidMoney catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    // The mask leaves no malformed text to refuse, so the only no the screen
+    // still owns is the EMPTY field. A typed zero is a different no, and it
+    // is the DOMAIN's: `SpendingCap` has the sentence for it, and reading it
+    // here would be the view reimplementing a rule (rule 11).
+    if (_controller.text.trim().isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Informe um valor válido.')),
+      );
       return;
     }
+    final amount = Money(UnitSpec.currency.parse(_controller.text));
 
     setState(() => _saving = true);
     final outcome = await ref
@@ -103,7 +105,7 @@ class _SpendingCapSectionState extends ConsumerState<SpendingCapSection> {
     final cap = state.value?.cap;
     if (cap != null && cap != _filledFrom) {
       _filledFrom = cap;
-      _controller.text = formatMoneyPlain(cap.amount);
+      _controller.text = UnitSpec.currency.format(cap.amount.cents);
     }
 
     return Column(
@@ -167,14 +169,12 @@ class _Body extends StatelessWidget {
           style: Theme.of(context).textTheme.bodyMedium,
         ),
         const SizedBox(height: 16),
-        TextField(
+        AppTextField.currency(
           key: const ValueKey('cap-amount'),
           controller: controller,
           enabled: !saving,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: const InputDecoration(
             labelText: 'Teto do mês',
-            prefixText: r'R$ ',
             border: OutlineInputBorder(),
           ),
           onSubmitted: saving ? null : (_) => onSave(),
