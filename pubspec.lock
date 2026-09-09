@@ -821,10 +821,12 @@ packages:
   tekton_core:
     dependency: "direct main"
     description:
-      path: "../tekton_core"
-      relative: true
-    source: path
-    version: "0.2.0"
+      path: "."
+      ref: main
+      resolved-ref: af8869dd502090f1ea3b01f58cdbfec1583fcd16
+      url: "https://github.com/leandrorochaadm/tekton_core.git"
+    source: git
+    version: "0.3.0"
   term_glyph:
     dependency: transitive
     description:

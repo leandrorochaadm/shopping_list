@@ -393,6 +393,23 @@ void main() {
     expect(repository.written.single.quantity, 4000);
   });
 
+  testWidgets('a preferred brand that is not among the leaves opens as '
+      '"Qualquer uma"', (tester) async {
+    // The leaves did not load, so the stored brand has no item of its own in
+    // the dropdown. Showing a value with no matching item is what trips the
+    // DropdownButton assertion and takes the whole dialog down.
+    final catalog = _SpyCatalog()..failNextLeaves = NetworkException('x');
+    await pumpDialog(
+      tester,
+      catalog: catalog,
+      item: _item(quantity: 6000, brand: Brand(id: 'brand-9', name: 'Italac')),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Italac'), findsNothing);
+    expect(find.text('Qualquer uma'), findsWidgets);
+  });
+
   group('the two doors of screen 6 (H18)', () {
     testWidgets('the creating mode shows neither "Não encontrei" nor '
         '"Remover da lista"', (tester) async {

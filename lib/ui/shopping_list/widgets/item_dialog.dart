@@ -343,7 +343,13 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String?>(
               key: const ValueKey('field-brand'),
-              initialValue: _brandId,
+              // The stored brand only becomes an option once the leaves have
+              // loaded — until then `_brands` is empty and a value with no
+              // matching item trips the DropdownButton assertion. Same guard
+              // as the packaging below.
+              initialValue: brands.any((b) => b.id == _brandId)
+                  ? _brandId
+                  : null,
               decoration: const InputDecoration(labelText: 'Marca preferida'),
               items: [
                 const DropdownMenuItem(child: Text('Qualquer uma')),
