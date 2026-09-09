@@ -146,7 +146,8 @@ void main() {
           .widget<TextField>(find.byKey(const ValueKey('field-product')))
           .controller!
           .text,
-      'Coca-Cola original 269 ml',
+      // The type comes in front: the field shows no group header.
+      'Refrigerante Coca-Cola original 269 ml',
     );
   });
 
@@ -158,7 +159,8 @@ void main() {
           .widget<TextField>(find.byKey(const ValueKey('field-product')))
           .controller!
           .text,
-      beef.label,
+      // Loose, with no brand and no description: the type appears ONCE.
+      'Acém moído (peso)',
     );
   });
 

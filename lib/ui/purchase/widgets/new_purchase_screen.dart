@@ -274,7 +274,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     // `_registerProduct`: writing into the Autocomplete's controller outside
     // a `setState` reopens the options overlay over the field just filled in.
     _onProductChosen(picked);
-    _productController.text = picked.label;
+    _productController.text = picked.selectedLabel;
     _quantityFocus.requestFocus();
   }
 
@@ -302,7 +302,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       _option = option;
       _valueTouched = false;
     });
-    _productController.text = option.label;
+    _productController.text = option.selectedLabel;
   }
 
   Future<void> _save() async {

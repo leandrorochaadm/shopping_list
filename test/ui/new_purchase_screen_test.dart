@@ -203,7 +203,7 @@ void main() {
     expect(find.text('Tentar de novo'), findsOneWidget);
     // The purchase is STILL on screen.
     expect(find.byType(PurchaseItemRow), findsOneWidget);
-    expect(find.text('Coca-Cola 12 × 350 ml'), findsOneWidget);
+    expect(find.text('Refrigerante Coca-Cola 12 × 350 ml'), findsOneWidget);
     expect(find.text(r'R$ 62,00'), findsWidgets);
     // And the raw exception never reaches it.
     expect(find.textContaining('NetworkException'), findsNothing);
@@ -336,7 +336,7 @@ void main() {
   ) async {
     await pumpScreen(tester, draft: draftWithItem());
 
-    await tester.tap(find.byTooltip('Corrigir Coca-Cola 12 × 350 ml'));
+    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola 12 × 350 ml'));
     await tester.pumpAndSettle();
 
     expect(find.text('Salvar alteração'), findsOneWidget);
@@ -358,7 +358,7 @@ void main() {
   ) async {
     await pumpScreen(tester, draft: draftWithItem());
 
-    await tester.tap(find.byTooltip('Remover Coca-Cola 12 × 350 ml'));
+    await tester.tap(find.byTooltip('Remover Refrigerante Coca-Cola 12 × 350 ml'));
     await tester.pumpAndSettle();
 
     expect(find.byType(PurchaseItemRow), findsNothing);
@@ -665,7 +665,7 @@ void main() {
             .widget<TextField>(find.byKey(const ValueKey('field-product')))
             .controller!
             .text,
-        'Coca-Cola original 2 L',
+        'Refrigerante Coca-Cola original 2 L',
       );
       // ...and the suggested value was redone against ITS history: R$ 10,00
       // for 2000 ml, one bottle -> R$ 10,00.

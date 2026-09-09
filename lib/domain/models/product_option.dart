@@ -119,29 +119,51 @@ final class ProductOption {
   /// and the group header already says it — except when nothing else is left,
   /// which is the weight-sold product with no brand and no description: there
   /// the type name IS the name of the thing.
-  String get label {
-    final parts = [
-      if (brand != null) brand!.name,
-      if (registration.description.isNotEmpty) registration.description,
-      if (product.packaging != null) product.packaging!.label,
-    ];
-    if (parts.isEmpty) parts.add(type.name);
-    if (isSoldByWeight) {
-      parts.add('(${SellingChoice.looseNameOf(baseUnit).toLowerCase()})');
-    }
-    return parts.join(' ');
-  }
+  String get label =>
+      _join(_identifyingParts.isEmpty ? [type.name] : _identifyingParts);
+
+  /// 'Refrigerante Coca-Cola 12 × 350 ml', 'Acém moído (peso)'.
+  ///
+  /// What the Produto field is left holding once this option is chosen.
+  /// [label] leaves the type out because the picker's rows sit under the
+  /// type's own group header — but the field, once an option is picked,
+  /// shows no header at all, so the type comes back here, in front.
+  ///
+  /// It is NOT `'${type.name} $label'`: the weight-sold product with no
+  /// brand and no description is already named after its type, and stacking
+  /// one getter on the other would read 'Acém moído Acém moído (peso)'.
+  String get selectedLabel => _join([type.name, ..._identifyingParts]);
+
+  /// What tells this leaf apart from the others OF ITS TYPE — brand,
+  /// description and packaging, in that order, skipping whatever does not
+  /// exist. Empty is a real answer: the loose product with no brand and no
+  /// description has nothing but its type.
+  List<String> get _identifyingParts => [
+    if (brand != null) brand!.name,
+    if (registration.description.isNotEmpty) registration.description,
+    if (product.packaging != null) product.packaging!.label,
+  ];
+
+  /// The loose suffix goes on last, and on both labels.
+  String _join(List<String> parts) => [
+    ...parts,
+    if (isSoldByWeight)
+      '(${SellingChoice.looseNameOf(baseUnit).toLowerCase()})',
+  ].join(' ');
 
   /// The C1 search: it matches a STRETCH of the name, ignoring case, blanks
   /// and accents — `normalizeName` on both sides, then `contains`.
   ///
-  /// It looks at the type as well as at brand, description and packaging, so
-  /// 'lei' finds every milk and 'italac' finds it by brand alone. And '350'
-  /// finds it by the packaging, which is how a shelf is actually searched.
+  /// It searches [selectedLabel] — the type as well as brand, description and
+  /// packaging — so 'lei' finds every milk and 'italac' finds it by brand
+  /// alone. And '350' finds it by the packaging, which is how a shelf is
+  /// actually searched. Searching the same text the field ends up holding is
+  /// what lets a chosen option still find itself when the field is focused
+  /// again.
   bool matches(String query) {
     final needle = normalizeName(query);
     if (needle.isEmpty) return true;
-    return normalizeName('${type.name} $label').contains(needle);
+    return normalizeName(selectedLabel).contains(needle);
   }
 
   /// **H15** — did this price go up? The View ASKS (rule 11); it does not

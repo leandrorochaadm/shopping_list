@@ -126,7 +126,7 @@ void main() {
 
     expect(find.text('28/08/2026'), findsOneWidget);
     expect(find.text('Carrefour'), findsWidgets);
-    expect(find.text('Coca-Cola original 12 × 350 ml'), findsOneWidget);
+    expect(find.text('Refrigerante Coca-Cola original 12 × 350 ml'), findsOneWidget);
     expect(find.text('R\$ 62,00'), findsWidgets);
   });
 
@@ -232,7 +232,7 @@ void main() {
   ) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Remover Coca-Cola original 12 × 350 ml'));
+    await tester.tap(find.byTooltip('Remover Refrigerante Coca-Cola original 12 × 350 ml'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('save-correction')));
     await tester.pumpAndSettle();
@@ -289,7 +289,7 @@ void main() {
   ) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Corrigir Coca-Cola original 12 × 350 ml'));
+    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const ValueKey('field-value')), '38,00');
@@ -305,18 +305,18 @@ void main() {
   ) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Corrigir Coca-Cola original 12 × 350 ml'));
+    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('remove-item')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Coca-Cola original 12 × 350 ml'), findsNothing);
+    expect(find.text('Refrigerante Coca-Cola original 12 × 350 ml'), findsNothing);
   });
 
   testWidgets('an amount typed wrong stays in the dialog', (tester) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Corrigir Coca-Cola original 12 × 350 ml'));
+    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const ValueKey('field-value')), '');

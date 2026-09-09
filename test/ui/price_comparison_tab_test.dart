@@ -100,7 +100,7 @@ void main() {
       'coca',
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Coca-Cola 12 × 350 ml').last);
+    await tester.tap(find.text('Refrigerante Coca-Cola 12 × 350 ml').last);
     await tester.pumpAndSettle();
   }
 
@@ -333,7 +333,13 @@ void main() {
 
       expect(find.text('Bebidas'), findsOneWidget);
       expect(find.text('Carnes'), findsOneWidget);
+      // The header is the category, never the type...
       expect(find.text('Refrigerante'), findsNothing);
+      // ...which is why the ROW carries the type here, unlike screen 3: with
+      // 'Bebidas' above it, 'Coca-Cola 12 × 350 ml' alone would not say what
+      // kind of drink it is.
+      expect(find.text('Refrigerante Coca-Cola 12 × 350 ml'), findsOneWidget);
+      expect(find.text('Coca-Cola 12 × 350 ml'), findsNothing);
     });
   });
 }

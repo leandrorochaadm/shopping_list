@@ -71,8 +71,13 @@ final class PurchaseItem {
 
   BaseUnit get baseUnit => option.baseUnit;
 
-  /// What the row reads: 'Coca-Cola 12 × 350 ml'.
-  String get label => option.label;
+  /// What the row reads: 'Refrigerante Coca-Cola 12 × 350 ml'.
+  ///
+  /// The type is in it — [ProductOption.label] leaves it out because the
+  /// picker groups by type and the header says it, and the rows of a
+  /// purchase have no header at all: without the type, a leaf with no brand
+  /// and no description would be a line reading '350 ml'.
+  String get label => option.selectedLabel;
 
   /// The Quantidade column of the row: '1' for a crate, '1,5 kg' for
   /// something weighed — where the bare number would say '1500'.
@@ -126,6 +131,5 @@ final class PurchaseItem {
       Object.hash(id, option, quantity, quantityInBaseUnit, paid);
 
   @override
-  String toString() =>
-      'PurchaseItem($label, $quantityLabel, ${paid.cents})';
+  String toString() => 'PurchaseItem($label, $quantityLabel, ${paid.cents})';
 }

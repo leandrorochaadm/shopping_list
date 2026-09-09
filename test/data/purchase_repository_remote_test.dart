@@ -725,7 +725,7 @@ void main() {
       expect(detail.purchase.registeredBy, 'Leandro');
       // The line comes back COMPLETE, because the item carries the whole
       // option — no view around it, and no second query to the catalog.
-      expect(detail.items.single.label, 'Coca-Cola 12 × 350 ml');
+      expect(detail.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
       expect(detail.items.single.paid, const Money(6200));
       expect(detail.trail.single.shoppingListItemId, 'l1');
       expect(detail.trail.single.purchaseItemId, 'i1');

@@ -52,7 +52,7 @@ void main() {
     expect(back.total, const Money(6200));
     // The leaf travels whole, which is what lets the line be drawn with no
     // network — the whole point of H8.
-    expect(back.items.single.label, 'Coca-Cola 12 × 350 ml');
+    expect(back.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
     expect(back.items.single.quantityInBaseUnit, 4200);
   });
 
@@ -68,7 +68,7 @@ void main() {
     final again = repository.readNow()!;
     expect(again.bannerDismissed, isTrue);
     // And the purchase is still all there.
-    expect(again.items.single.label, 'Coca-Cola 12 × 350 ml');
+    expect(again.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
   });
 
   test('the pending mark survives, or the resend would never happen', () async {

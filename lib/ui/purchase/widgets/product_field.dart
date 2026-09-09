@@ -26,6 +26,7 @@ class ProductField extends StatefulWidget {
     this.enabled = true,
     this.hintText,
     this.groupBy,
+    this.labelOf,
     this.fieldKey,
     super.key,
   });
@@ -58,6 +59,16 @@ class ProductField extends StatefulWidget {
   /// the first change.
   final IList<ProductGroup> Function(IList<ProductOption>)? groupBy;
 
+  /// What each ROW of the list reads. The default is `label`, which leaves
+  /// the type out — on screen 3 the group header above the row already says
+  /// it. The comparison tab passes `selectedLabel`, because there the header
+  /// is the CATEGORY: without the type in the row, a leaf with no brand and
+  /// no description would be a line reading '350 ml' under 'Bebidas'.
+  ///
+  /// It travels with [groupBy], and for the same reason: one parameter
+  /// instead of two widgets that would diverge on the first change.
+  final String Function(ProductOption)? labelOf;
+
   /// The key of the `TextField`. The default stays `field-product`, which is
   /// what the tests of screen 3 look for; the comparison tab passes its own,
   /// because the two tabs coexist in the tree of the `TabBarView` and a
@@ -75,7 +86,7 @@ class _ProductFieldState extends State<ProductField> {
   TextEditingController get _controller =>
       widget.controller ??
       (_ownController ??= TextEditingController(
-        text: widget.initial?.label ?? '',
+        text: widget.initial?.selectedLabel ?? '',
       ));
 
   FocusNode get _focusNode =>
@@ -95,7 +106,7 @@ class _ProductFieldState extends State<ProductField> {
     // the field.
     textEditingController: _controller,
     focusNode: _focusNode,
-    displayStringForOption: (option) => option.label,
+    displayStringForOption: (option) => option.selectedLabel,
     optionsBuilder: (value) {
       final query = value.text;
       // C1: a STRETCH of the name, ignoring case, blanks and accents. An
@@ -118,6 +129,7 @@ class _ProductFieldState extends State<ProductField> {
         ),
     optionsViewBuilder: (context, onSelected, iterable) => _GroupedOptions(
       groups: (widget.groupBy ?? groupForPicker)(iterable.toIList()),
+      labelOf: widget.labelOf ?? (option) => option.label,
       onSelected: onSelected,
     ),
   );
@@ -128,9 +140,14 @@ class _ProductFieldState extends State<ProductField> {
 /// in alphabetical order on the comparison tab. A flat list would put a soft
 /// drink between two milks.
 class _GroupedOptions extends StatelessWidget {
-  const _GroupedOptions({required this.groups, required this.onSelected});
+  const _GroupedOptions({
+    required this.groups,
+    required this.labelOf,
+    required this.onSelected,
+  });
 
   final IList<ProductGroup> groups;
+  final String Function(ProductOption) labelOf;
   final ValueChanged<ProductOption> onSelected;
 
   @override
@@ -160,7 +177,7 @@ class _GroupedOptions extends StatelessWidget {
                 for (final option in group.options)
                   ListTile(
                     dense: true,
-                    title: Text(option.label),
+                    title: Text(labelOf(option)),
                     onTap: () => onSelected(option),
                   ),
               ],

@@ -103,6 +103,40 @@ void main() {
     });
   });
 
+  group('selectedLabel', () {
+    test('puts the type in front of brand, description and packaging', () {
+      expect(
+        byPiece(id: 'p1', brand: coke, pieceCount: 12).selectedLabel,
+        'Refrigerante Coca-Cola 12 × 350 ml',
+      );
+      expect(
+        byPiece(
+          id: 'p2',
+          brand: coke,
+          description: 'zero',
+          pieceSize: 2000,
+        ).selectedLabel,
+        'Refrigerante Coca-Cola zero 2 L',
+      );
+    });
+
+    test(
+      'with no brand and no description, the type carries the packaging',
+      () {
+        expect(byPiece(id: 'p3').selectedLabel, 'Refrigerante 350 ml');
+      },
+    );
+
+    test(
+      'does NOT repeat the type the loose product is already named after',
+      () {
+        // 'Acém moído Acém moído (peso)' is what stacking the two getters
+        // would read — the type belongs in there once.
+        expect(groundBeef.selectedLabel, 'Acém moído (peso)');
+      },
+    );
+  });
+
   group('matches', () {
     final option = byPiece(
       id: 'p1',
@@ -215,10 +249,7 @@ void main() {
     });
 
     test('one never bought comes after one that was', () {
-      final bought = byPiece(
-        id: 'p1',
-        lastPurchasedOn: DateTime(2026, 7, 1),
-      );
+      final bought = byPiece(id: 'p1', lastPurchasedOn: DateTime(2026, 7, 1));
       final never = byPiece(id: 'p2', pieceSize: 269);
 
       expect(compareForPicker(bought, never), lessThan(0));
@@ -268,31 +299,34 @@ void main() {
     });
   });
 
-  test('withHistory attaches the count and the reference, keeping the rest', () {
-    final reference = PriceReference(
-      paid: const Money(6200),
-      quantityInBaseUnit: 12000,
-      purchasedOn: DateTime(2026, 8, 18),
-    );
-    final average = PriceBaseline(
-      paid: const Money(12190),
-      quantityInBaseUnit: 8400,
-    );
-    final ranked = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
-      purchaseCount: 4,
-      lastPurchasedOn: DateTime(2026, 8, 18),
-      priceReference: reference,
-      baseline: average,
-    );
+  test(
+    'withHistory attaches the count and the reference, keeping the rest',
+    () {
+      final reference = PriceReference(
+        paid: const Money(6200),
+        quantityInBaseUnit: 12000,
+        purchasedOn: DateTime(2026, 8, 18),
+      );
+      final average = PriceBaseline(
+        paid: const Money(12190),
+        quantityInBaseUnit: 8400,
+      );
+      final ranked = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
+        purchaseCount: 4,
+        lastPurchasedOn: DateTime(2026, 8, 18),
+        priceReference: reference,
+        baseline: average,
+      );
 
-    expect(ranked.purchaseCount, 4);
-    expect(ranked.priceReference, reference);
-    expect(ranked.baseline, average);
-    expect(ranked.label, 'Coca-Cola 12 × 350 ml');
-    expect(ranked.baseUnit, BaseUnit.milliliter);
-    expect(ranked.id, 'p1');
-    expect(ranked.isSoldByWeight, isFalse);
-  });
+      expect(ranked.purchaseCount, 4);
+      expect(ranked.priceReference, reference);
+      expect(ranked.baseline, average);
+      expect(ranked.label, 'Coca-Cola 12 × 350 ml');
+      expect(ranked.baseUnit, BaseUnit.milliliter);
+      expect(ranked.id, 'p1');
+      expect(ranked.isSoldByWeight, isFalse);
+    },
+  );
 
   group('priceIncreaseFor (H15)', () {
     // 12 × 350 ml, so a crate is 4200 ml; the window paid R$ 121,90 for two
@@ -327,10 +361,9 @@ void main() {
 
     test('a leaf with no baseline stays quiet', () {
       expect(
-        byPiece(id: 'p1').priceIncreaseFor(
-          paid: const Money(7000),
-          quantityInBaseUnit: 4200,
-        ),
+        byPiece(
+          id: 'p1',
+        ).priceIncreaseFor(paid: const Money(7000), quantityInBaseUnit: 4200),
         isNull,
       );
     });

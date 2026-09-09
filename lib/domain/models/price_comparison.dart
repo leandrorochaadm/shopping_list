@@ -208,8 +208,12 @@ IList<ProductGroup> buildComparisonGroups({
   }
 
   for (final group in byCategory.values) {
+    // By `selectedLabel`, which starts with the type: inside 'Bebidas' the
+    // refrigerantes stay together instead of interleaving with the sucos by
+    // brand. It is also the text the rows read here.
     group.sort(
-      (a, b) => normalizeName(a.label).compareTo(normalizeName(b.label)),
+      (a, b) =>
+          normalizeName(a.selectedLabel).compareTo(normalizeName(b.selectedLabel)),
     );
   }
 

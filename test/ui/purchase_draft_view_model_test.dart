@@ -81,7 +81,7 @@ void main() {
 
       final draft = container.read(purchaseDraftViewModelProvider);
       expect(draft.purchaseId, 'a1');
-      expect(draft.items.single.label, 'Coca-Cola 12 × 350 ml');
+      expect(draft.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
       expect(container.read(recoveryBannerProvider), isTrue);
     });
 

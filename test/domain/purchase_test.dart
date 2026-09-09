@@ -77,7 +77,7 @@ void main() {
     test('reads what the row shows', () {
       expect(
         purchaseItem(id: 'i1', option: crate).label,
-        'Coca-Cola 12 × 350 ml',
+        'Refrigerante Coca-Cola 12 × 350 ml',
       );
       expect(purchaseItem(id: 'i1', option: crate).quantityLabel, '1');
       // A bare '1500' on the row would be read as fifteen hundred kilos.
@@ -114,7 +114,7 @@ void main() {
       final back = PurchaseItem.fromJson(item.toDraftJson());
 
       expect(back, item);
-      expect(back.label, 'Coca-Cola 12 × 350 ml');
+      expect(back.label, 'Refrigerante Coca-Cola 12 × 350 ml');
       expect(back.quantityInBaseUnit, 4200);
     });
 
@@ -328,7 +328,7 @@ void main() {
       expect(back.registeredBy, 'Leandro');
       expect(back.storeId, 'store-1');
       expect(back.pendingSubmission, isTrue);
-      expect(back.items.single.label, 'Coca-Cola 12 × 350 ml');
+      expect(back.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
       expect(back.total, const Money(6200));
     });
 

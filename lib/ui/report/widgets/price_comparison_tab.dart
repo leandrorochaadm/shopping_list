@@ -165,6 +165,10 @@ class _Body extends StatelessWidget {
             options: filtered,
             categoryNames: categoryNames,
           ),
+          // With the CATEGORY as the header, the type is not said anywhere
+          // else — a leaf with no brand and no description would be a row
+          // reading '350 ml' under 'Bebidas'.
+          labelOf: (option) => option.selectedLabel,
           hintText: 'Escolha um produto',
           onSelected: onSelected,
         ),
