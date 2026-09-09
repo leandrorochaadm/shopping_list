@@ -290,6 +290,159 @@ void main() {
     expect(value.controller!.text, 'R\$\u{A0}55,00');
   });
 
+  Future<void> fillLooseItem(
+    WidgetTester tester, {
+    String quantity = '500',
+  }) async {
+    await tester.enterText(
+      find.byKey(const ValueKey('field-product')),
+      'Acém',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Acém moído (peso)').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('field-quantity')),
+      quantity,
+    );
+    await tester.pumpAndSettle();
+  }
+
+  String textOf(WidgetTester tester, String key) => tester
+      .widget<TextField>(
+        find.descendant(
+          of: find.byKey(ValueKey(key)),
+          matching: find.byType(TextField),
+        ),
+      )
+      .controller!
+      .text;
+
+  testWidgets('the price per pricing unit only exists sold by weight', (
+    tester,
+  ) async {
+    // Sold by piece the price already IS the package's: a crate has no
+    // "price per litre" to type.
+    await pumpScreen(tester);
+    await fillItem(tester);
+    expect(find.byKey(const ValueKey('field-unit-price')), findsNothing);
+
+    await fillLooseItem(tester);
+
+    expect(find.byKey(const ValueKey('field-unit-price')), findsOneWidget);
+    expect(find.text('Valor por kg'), findsOneWidget);
+  });
+
+  testWidgets('typing the price per kilo redoes the total paid', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await fillLooseItem(tester);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('field-unit-price')),
+      '3990',
+    );
+    await tester.pumpAndSettle();
+
+    // Half a kilo at R$ 39,90 the kilo.
+    expect(textOf(tester, 'field-value'), 'R\$\u{A0}19,95');
+  });
+
+  testWidgets('typing the total paid redoes the price per kilo', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await fillLooseItem(tester);
+
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '1995');
+    await tester.pumpAndSettle();
+
+    expect(textOf(tester, 'field-unit-price'), 'R\$\u{A0}39,90');
+  });
+
+  testWidgets('changing the amount redoes the field that was NOT typed', (
+    tester,
+  ) async {
+    // The price per kilo is what the shelf tag says: it does not change
+    // because the piece on the scale weighs more.
+    await pumpScreen(tester);
+    await fillLooseItem(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('field-unit-price')),
+      '3990',
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('field-quantity')),
+      '1000',
+    );
+    await tester.pumpAndSettle();
+
+    expect(textOf(tester, 'field-unit-price'), 'R\$\u{A0}39,90');
+    expect(textOf(tester, 'field-value'), 'R\$\u{A0}39,90');
+  });
+
+  testWidgets('the total typed by hand keeps its place when the amount grows', (
+    tester,
+  ) async {
+    await pumpScreen(tester);
+    await fillLooseItem(tester);
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '1995');
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const ValueKey('field-quantity')),
+      '1000',
+    );
+    await tester.pumpAndSettle();
+
+    // The total is the source, so it stays and the price per kilo halves.
+    expect(textOf(tester, 'field-value'), 'R\$\u{A0}19,95');
+    expect(textOf(tester, 'field-unit-price'), 'R\$\u{A0}19,95');
+  });
+
+  testWidgets('emptying the total empties the price per kilo', (tester) async {
+    await pumpScreen(tester);
+    await fillLooseItem(tester);
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '1995');
+    await tester.pumpAndSettle();
+    expect(textOf(tester, 'field-unit-price'), isNotEmpty);
+
+    await tester.enterText(find.byKey(const ValueKey('field-value')), '');
+    await tester.pumpAndSettle();
+
+    expect(textOf(tester, 'field-unit-price'), isEmpty);
+  });
+
+  testWidgets('changing the product clears the amount and both money fields', (
+    tester,
+  ) async {
+    // A different product is a different line: nothing of the previous one
+    // may stay in the fields.
+    await pumpScreen(tester);
+    await fillLooseItem(tester);
+    await tester.enterText(
+      find.byKey(const ValueKey('field-unit-price')),
+      '3990',
+    );
+    await tester.pumpAndSettle();
+    expect(textOf(tester, 'field-value'), isNotEmpty);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('field-product')),
+      'Coca',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coca-Cola original 12 × 350 ml').last);
+    await tester.pumpAndSettle();
+
+    expect(textOf(tester, 'field-quantity'), isEmpty);
+    expect(textOf(tester, 'field-value'), isEmpty);
+    expect(find.byKey(const ValueKey('field-unit-price')), findsNothing);
+  });
+
   testWidgets('a price 10% over the window average warns while typing (H15)', (
     tester,
   ) async {

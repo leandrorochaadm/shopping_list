@@ -2,6 +2,28 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 09/09/2026**, ao fim da Entrega 16 — **acréscimo fora das 19
+histórias**, pedido pelo usuário em 09/09/2026: a Tela 3 ganhou o campo **Valor por kg**,
+e ele é o preço da etiqueta do açougue. **Só aparece no vendido a peso** (peso, volume e
+tamanho): vendido por peça o preço já é o da embalagem, e um segundo campo de dinheiro
+seria só mais um campo para preencher. O rótulo é dinâmico — 'Valor por kg', 'Valor por L',
+'Valor por m' —, saindo de `BaseUnit.priceLabel`, o único portal para a unidade de
+leitura. Os dois campos de dinheiro andam **nos dois sentidos**: digitar o valor por kg
+refaz o valor total pago, digitar o total refaz o valor por kg, e **mudar a quantidade
+refaz aquele que a pessoa NÃO digitou**. Quem decide é `domain/models/unit_price.dart`
+(`pricePerLargeUnitOf` / `paidAtPricePerLargeUnit`), com arredondamento meio-para-cima em
+inteiros, como `PriceReference.estimateFor` — nenhum `double` entra. Na tela, o booleano
+`_valueTouched` deu lugar ao enum `_PriceSource` (`none`/`total`/`unitPrice`): com dois
+campos a pergunta deixou de ser "a sugestão ainda pode escrever aqui?" e passou a ser
+"quem é a fonte agora?", que um booleano não responde. **Trocar o produto no seletor zera os três campos** — quantidade, valor total pago e
+valor por kg: produto diferente é linha diferente, e um valor herdado do anterior é
+plausível e errado. A volta do painel `#3a` é a exceção, e de propósito: lá o produto
+muda DENTRO do mesmo tipo, com a quantidade já digitada, e o requisito 17 manda a volta
+cair na quantidade. **Sem migration, sem repository,
+sem provider, sem rota** — a compra continua gravando quantidade e valor total pago, e o
+alerta ⚠ da H15 continua saindo do total. A Tela de correção (`/purchases/:id/edit`) e o
+diálogo de item **não** ganharam o campo.
+
 **Atualizado em 08/09/2026**, ao fim da Entrega 15
 (`temp/plan/plano-manutencao-criar-cadastro-2026-09-07.md`) — **acréscimo fora das 19
 histórias**, pedido pelo usuário em 07/09/2026: a tela `/catalog` ganhou a **terceira

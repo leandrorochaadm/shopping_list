@@ -13,6 +13,7 @@ import '../../../domain/models/proportional_cost.dart';
 import '../../../domain/models/purchase_draft.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/store.dart';
+import '../../../domain/models/unit_price.dart';
 import '../../../routing/routes.dart';
 import '../../catalog/widgets/new_product_screen.dart';
 import '../../core/app_failure.dart';
@@ -47,6 +48,11 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   final _quantityController = TextEditingController();
   final _valueController = TextEditingController();
 
+  /// The price of ONE pricing unit — the "R$ 39,90 o kg" of the shelf tag.
+  /// It is the same money as [_valueController] seen from the other side, and
+  /// the two are kept in step by [_recomputePrices].
+  final _unitPriceController = TextEditingController();
+
   /// The Autocomplete's own controller and focus node, held here rather than
   /// left to it: a product registered on screen 4 arrives ALREADY chosen, and
   /// without the controller there is no way to write its name into the field.
@@ -69,9 +75,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// watched by the widget and not by the ViewModel.
   IList<ProductOption> _justRegistered = const IList.empty();
 
-  /// Set once the Valor field is touched by hand: from then on nothing
-  /// recomputes it. It is the acceptance criterion, literally.
-  bool _valueTouched = false;
+  /// Which of the two money fields was typed LAST — and therefore which one
+  /// the other is computed from.
+  ///
+  /// It replaced the old `_valueTouched` boolean, which only had to answer
+  /// "may the suggestion still write here?". With two fields the question
+  /// became "who is the source now?", and a boolean cannot say it: typing the
+  /// price per kilo has to redo the total, typing the total has to redo the
+  /// price per kilo, and changing the amount has to redo whichever the person
+  /// did NOT type.
+  _PriceSource _priceSource = _PriceSource.none;
 
   /// The line being corrected by `[ed]`, so `[ + Adicionar ]` replaces it
   /// instead of adding a second one.
@@ -93,6 +106,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   void dispose() {
     _quantityController.dispose();
     _valueController.dispose();
+    _unitPriceController.dispose();
     _productController.dispose();
     _productFocus.dispose();
     _quantityFocus.dispose();
@@ -145,34 +159,118 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     );
   }
 
-  /// Each change of quantity redoes the value — until it is typed by hand.
-  void _onQuantityChanged() {
-    if (_valueTouched) return;
-    final reference = _option?.priceReference;
+  /// The typed amount already converted into the base unit, or null while
+  /// there is no product or no amount — which is when neither money field can
+  /// be computed from the other.
+  int? get _quantityInBaseUnit {
+    final option = _option;
     final typed = _typedQuantity;
-    if (reference == null || typed == null) return;
+    if (option == null || typed == null) return null;
+    return option.toBaseUnit(typed);
+  }
 
-    _valueController.text = UnitSpec.currency.format(
-      reference.estimateFor(_option!.toBaseUnit(typed)).cents,
+  /// What a money field holds, or null when it is empty. The mask never lets
+  /// a malformed value exist, so an empty field is the only case left.
+  Money? _moneyIn(TextEditingController controller) {
+    final cents = UnitSpec.currency.parse(controller.text);
+    return cents > 0 ? Money(cents) : null;
+  }
+
+  /// Writes a computed value into a field — or clears it, when there is
+  /// nothing to compute.
+  ///
+  /// It never bounces back: `onChanged` fires on TYPING, and writing into a
+  /// controller from here is not typing.
+  void _write(TextEditingController controller, Money? value) {
+    controller.text = value == null
+        ? ''
+        : UnitSpec.currency.format(value.cents);
+  }
+
+  /// Redoes the money field the person did NOT type — and, while neither was
+  /// typed, pre-fills the total from the last purchase.
+  ///
+  /// Whoever decides is the domain: `PriceReference.estimateFor` for the
+  /// suggestion, `pricePerLargeUnitOf` and `paidAtPricePerLargeUnit` for the
+  /// two directions. This method only says WHICH of them to ask.
+  void _recomputePrices() {
+    final option = _option;
+    if (option == null) return;
+    final quantity = _quantityInBaseUnit;
+
+    // The price per pricing unit is the SOURCE: it is the total that follows.
+    if (_priceSource == _PriceSource.unitPrice) {
+      final unitPrice = _moneyIn(_unitPriceController);
+      _write(
+        _valueController,
+        unitPrice == null || quantity == null
+            ? null
+            : paidAtPricePerLargeUnit(
+                pricePerLargeUnit: unitPrice,
+                quantityInBaseUnit: quantity,
+                unit: option.baseUnit,
+              ),
+      );
+      return;
+    }
+
+    // No money typed yet, and the last purchase has something to say.
+    final reference = option.priceReference;
+    if (_priceSource == _PriceSource.none &&
+        reference != null &&
+        quantity != null) {
+      _write(_valueController, reference.estimateFor(quantity));
+    }
+
+    // From here the total is the source, whether it was typed or suggested —
+    // and the price per pricing unit MIRRORS whatever is on screen. Deriving
+    // it every time is what keeps a price per kilo of the previous product
+    // from surviving a product swap the suggestion could not overwrite.
+    final paid = _moneyIn(_valueController);
+    _write(
+      _unitPriceController,
+      paid == null || quantity == null
+          ? null
+          : pricePerLargeUnitOf(
+              paid: paid,
+              quantityInBaseUnit: quantity,
+              unit: option.baseUnit,
+            ),
     );
+  }
+
+  /// A product picked in the **Produto field** — and a different product is a
+  /// different purchase line: the amount, the total paid and the price per
+  /// pricing unit are all cleared before it takes over.
+  ///
+  /// It is NOT what the `#3a` panel comes back through: there the product
+  /// changes INSIDE the same type, with the amount already typed, and
+  /// requirement 17 says the way back lands on the amount — clearing it would
+  /// throw away exactly what the comparison was made for.
+  void _onProductChanged(ProductOption option) {
+    _quantityController.clear();
+    _valueController.clear();
+    _unitPriceController.clear();
+    _onProductChosen(option);
   }
 
   void _onProductChosen(ProductOption option) {
     setState(() {
       _option = option;
-      _valueTouched = false;
+      _priceSource = _PriceSource.none;
     });
-    _onQuantityChanged();
+    _recomputePrices();
   }
 
   void _clearForm() {
     setState(() {
       _option = null;
       _editingItemId = null;
-      _valueTouched = false;
+      _priceSource = _PriceSource.none;
     });
     _quantityController.clear();
     _valueController.clear();
+    _unitPriceController.clear();
     _productController.clear();
   }
 
@@ -182,14 +280,17 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     setState(() {
       _option = item.option;
       _editingItemId = item.id;
-      // What is loaded IS the typed value, so nothing may recompute over it.
-      _valueTouched = true;
+      // What is loaded IS the total that was typed, so the suggestion may not
+      // write over it — and the price per pricing unit is derived from it,
+      // exactly as if it had just been typed.
+      _priceSource = _PriceSource.total;
     });
     _productController.text = item.label;
     _quantityController.text = _quantitySpec.format(
       item.option.isSoldByWeight ? item.quantityInBaseUnit : item.quantity,
     );
     _valueController.text = UnitSpec.currency.format(item.paid.cents);
+    _recomputePrices();
   }
 
   Future<void> _addItem() async {
@@ -305,8 +406,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     setState(() {
       _justRegistered = _justRegistered.add(option);
       _option = option;
-      _valueTouched = false;
+      _priceSource = _PriceSource.none;
     });
+    // A leaf registered a minute ago is a product change like any other: it
+    // has never been bought, so there is nothing to suggest and nothing of
+    // the previous product may stay behind.
+    _quantityController.clear();
+    _valueController.clear();
+    _unitPriceController.clear();
     _productController.text = option.selectedLabel;
   }
 
@@ -423,7 +530,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               focusNode: _productFocus,
               selected: _option,
               enabled: !_saving,
-              onChosen: _onProductChosen,
+              onChosen: _onProductChanged,
               onRetry: () =>
                   ref.read(newPurchaseViewModelProvider.notifier).refresh(),
               onCreate: _registerProduct,
@@ -458,7 +565,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               decoration: InputDecoration(
                 labelText: _option?.quantityLabel ?? 'Quantidade',
               ),
-              onChanged: (_) => setState(_onQuantityChanged),
+              onChanged: (_) => setState(_recomputePrices),
             ),
             const SizedBox(height: 12),
             AppTextField.currency(
@@ -471,13 +578,40 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     ? 'Sem base de comparação'
                     : 'Sugerido pela última compra',
               ),
-              // The first touch by hand stops every recalculation, for good.
+              // Typing here makes the total the SOURCE: the suggestion stops
+              // writing over it, and the price per pricing unit is redone
+              // from it.
               //
-              // The `setState` is new, and it is not decoration: the ⚠ of H15
-              // comes out of the typed value, and without repainting it would
-              // only appear on the next touch of another field.
-              onChanged: (_) => setState(() => _valueTouched = true),
+              // The `setState` is not decoration: the ⚠ of H15 comes out of
+              // the typed value, and without repainting it would only appear
+              // on the next touch of another field.
+              onChanged: (_) => setState(() {
+                _priceSource = _PriceSource.total;
+                _recomputePrices();
+              }),
             ),
+            // The price of ONE pricing unit — the number on the shelf tag.
+            //
+            // **Only where the product is sold by weight**: the amount there
+            // is a weight, a volume or a length, and 'R$ 39,90 o kg' is what
+            // is compared at the counter. Sold by piece the price already IS
+            // the package's, and a second money field would only be one more
+            // thing to fill in.
+            if (_option case final option? when option.isSoldByWeight) ...[
+              const SizedBox(height: 12),
+              AppTextField.currency(
+                key: const ValueKey('field-unit-price'),
+                controller: _unitPriceController,
+                enabled: !_saving,
+                decoration: InputDecoration(
+                  labelText: 'Valor por ${option.baseUnit.priceLabel}',
+                ),
+                onChanged: (_) => setState(() {
+                  _priceSource = _PriceSource.unitPrice;
+                  _recomputePrices();
+                }),
+              ),
+            ],
             if (_priceIncrease case final increase?)
               PriceIncreaseWarning(increase: increase),
             const SizedBox(height: 16),
@@ -787,3 +921,10 @@ class _ProductField extends StatelessWidget {
         : null;
   }
 }
+
+/// Which of the two money fields of the form was typed LAST.
+///
+/// It is what tells `_recomputePrices` which direction to compute in — and
+/// `none`, the form nobody has touched, is what lets the last purchase
+/// pre-fill both.
+enum _PriceSource { none, total, unitPrice }

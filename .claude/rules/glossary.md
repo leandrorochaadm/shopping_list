@@ -32,6 +32,8 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | unidade de leitura e de preço | `priceLabel` / `unitsPerLargeUnit` | `kg`, `L`, `un`, `m`. O preço é sempre nela; a quantidade só sobe para ela quando alcança o fator |
 | vendido a peso / por peça | `SellingMode.byWeight` / `.byPiece` | decide o que o lançamento pergunta |
 | as quatro palavras do campo **Vendido** | `SellingChoice` | `Peso`, `Unidade`, `Volume` e `Tamanho`. Peso, Volume e Tamanho são o **mesmo** `by_weight`, e quem os separa é a unidade base do tipo. O único lugar onde o par (`SellingMode`, `BaseUnit`) vira UMA escolha. O campo oferece **só as palavras da grandeza** — as quatro não cabem nos 390 pt do iPhone 12 |
+| valor por kg (o da etiqueta) | `pricePerLargeUnit` | o preço de UMA unidade de leitura, DIGITÁVEL na Tela 3. `pricePerLargeUnitOf` e `paidAtPricePerLargeUnit` são os dois sentidos da conversão com o valor total pago; o campo só existe no vendido a peso |
+| quem foi digitado por último | `PriceSource` | `none`/`total`/`unitPrice`. Diz qual dos dois campos de dinheiro da Tela 3 é a FONTE, e por consequência qual dos dois a quantidade recalcula |
 | custo proporcional / preço por unidade base | `costPerBaseUnit` | preço ÷ conteúdo total |
 | melhor custo | `bestCost` | o menor `costPerBaseUnit`, não o menor preço |
 | mercado | `Store` | supermercado, feira, açougue, hortifrúti |
