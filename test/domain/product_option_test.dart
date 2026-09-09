@@ -196,8 +196,9 @@ void main() {
       expect(byPiece(id: 'p1', pieceCount: 12).quantityLabel, 'Quantidade');
     });
 
-    test('sold by weight carries the unit of its base', () {
-      expect(groundBeef.quantityLabel, 'Peso (g)');
+    test('sold by weight names the magnitude of its base', () {
+      // Without the unit: the field's mask writes 'kg' beside the number.
+      expect(groundBeef.quantityLabel, 'Peso');
 
       final bulkOil = ProductOption(
         product: const Product(id: 'p9', productRegistrationId: 'reg-9'),
@@ -208,7 +209,7 @@ void main() {
         ),
         type: softDrink,
       );
-      expect(bulkOil.quantityLabel, 'Volume (ml)');
+      expect(bulkOil.quantityLabel, 'Volume');
 
       final looseRolls = ProductOption(
         product: const Product(id: 'p8', productRegistrationId: 'reg-8'),
@@ -219,7 +220,7 @@ void main() {
         ),
         type: paper,
       );
-      expect(looseRolls.quantityLabel, 'Quantidade (un)');
+      expect(looseRolls.quantityLabel, 'Quantidade');
     });
   });
 

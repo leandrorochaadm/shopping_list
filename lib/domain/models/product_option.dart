@@ -197,16 +197,17 @@ final class ProductOption {
   /// The label of the Quantidade field.
   ///
   /// Sold by piece it is just 'Quantidade': the packaging name right above it
-  /// already says what is being counted, and "Quantidade (un)" beside
-  /// "12 × 350 ml" reads as twelve units. Sold by weight the unit has to be
-  /// on the field, because there is no packaging to say it.
+  /// already says what is being counted. Sold by weight it is the name of the
+  /// magnitude, and the UNIT is left out on purpose — the field's own mask
+  /// writes it ('1,250 kg'), so a label saying '(g)' beside a value ending in
+  /// 'kg' named two different units for the same number.
   String get quantityLabel {
     if (!isSoldByWeight) return 'Quantidade';
     return switch (baseUnit) {
-      BaseUnit.gram => 'Peso (g)',
-      BaseUnit.milliliter => 'Volume (ml)',
-      BaseUnit.unit => 'Quantidade (un)',
-      BaseUnit.centimeter => 'Tamanho (cm)',
+      BaseUnit.gram => 'Peso',
+      BaseUnit.milliliter => 'Volume',
+      BaseUnit.unit => 'Quantidade',
+      BaseUnit.centimeter => 'Tamanho',
     };
   }
 

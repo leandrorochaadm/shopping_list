@@ -795,7 +795,9 @@ void main() {
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Carrefour'), findsWidgets);
+    // The header folds as soon as the purchase knows its store, and the store
+    // it chose is what the folded line says.
+    expect(find.textContaining('Carrefour'), findsWidgets);
     // And the picker was NOT reloaded — the product field never went blank.
     expect(find.text('Carregando...'), findsNothing);
   });
@@ -957,8 +959,42 @@ void main() {
         lessThan(iPhone12KeyboardFold),
         reason: 'field-quantity is under the keyboard',
       );
+      // And so is the button the loop of twenty items comes back to. It is
+      // what the folded header and the shared line of fields bought.
+      expect(
+        tester.getBottomLeft(find.byKey(const ValueKey('add-item'))).dy,
+        lessThan(iPhone12KeyboardFold),
+        reason: '[ + Adicionar à compra ] is under the keyboard',
+      );
     },
   );
+
+  group('the Data/Mercado header', () {
+    testWidgets('opens by itself while the purchase has no store', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+
+      expect(find.byKey(const ValueKey('field-date')), findsOneWidget);
+      expect(find.byKey(const ValueKey('field-store')), findsOneWidget);
+      expect(find.textContaining('escolha o mercado'), findsOneWidget);
+    });
+
+    testWidgets('folds once the store is known, and a tap brings it back', (
+      tester,
+    ) async {
+      await pumpScreen(tester, draft: draftWithItem());
+
+      expect(find.byKey(const ValueKey('field-date')), findsNothing);
+      expect(find.byKey(const ValueKey('field-store')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('purchase-header')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('field-date')), findsOneWidget);
+      expect(find.byKey(const ValueKey('field-store')), findsOneWidget);
+    });
+  });
 }
 
 /// A catalog with nothing in it — the first opening of the app.

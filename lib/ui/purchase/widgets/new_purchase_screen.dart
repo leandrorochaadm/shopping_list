@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +22,7 @@ import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 import '../../core/formatting.dart';
 import '../../core/unit_specs.dart';
+import '../../core/widgets/adaptive_field_row.dart';
 import '../../core/widgets/warning_dialog.dart';
 import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
@@ -92,6 +95,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
   bool _saving = false;
 
+  /// Whether the Data/Mercado header is open — `null` while nobody has
+  /// touched it, which is what lets it answer for itself: open while there is
+  /// no store on the draft, closed the moment there is one.
+  ///
+  /// The two of them are filled in ONCE per purchase and then read twenty
+  /// times, so what they owe the screen after that is a line, not two fields.
+  bool? _headerOpen;
+
   /// Today, read ONCE and rounded to the day — rule 9. A fresh instant on
   /// every frame would rebuild the date picker's bound on every build, and a
   /// `DateTime.now()` inside `build()` is the classic way an `==` stops
@@ -125,6 +136,38 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     if (option == null || !option.isSoldByWeight) return countSpec;
     return specOf(option.baseUnit);
   }
+
+  /// The widest amount and the widest price ONE line of a purchase promises
+  /// to keep on a shared line: 99 of the reading unit — 99 kg, 99 L, 99 un —
+  /// and R$ 999,00.
+  ///
+  /// Neither is a width, and neither is a limit: type past them and
+  /// [AdaptiveFieldRow] measures the longer text and gives the field a line of
+  /// its own. They only say how far the screen promises three columns — and
+  /// they are the shape of a supermarket line, not of a layout. A single line
+  /// weighing 99 kg does not happen; one costing R$ 999 does.
+  static const int _wideReadingAmount = 99;
+  static const int _wideMoneyCents = 99900;
+
+  /// The widest text the quantity field promises to show, suffix included —
+  /// the decoration draws it beside the number and it takes the same room.
+  String get _widestQuantity {
+    final spec = _quantitySpec;
+    final sample = spec.format(
+      _wideReadingAmount * math.pow(10, spec.decimalDigits).toInt(),
+    );
+    final suffix = spec.suffix;
+    final widest = _widest(sample, _quantityController.text);
+    return suffix == null ? widest : '$widest $suffix';
+  }
+
+  String _widestMoney(TextEditingController controller) =>
+      _widest(UnitSpec.currency.format(_wideMoneyCents), controller.text);
+
+  /// Whichever of the two is longer — so a value already typed is never
+  /// measured short, however far past the promise it goes.
+  String _widest(String sample, String typed) =>
+      typed.length > sample.length ? typed : sample;
 
   int? get _typedQuantity {
     if (_option == null) return null;
@@ -476,6 +519,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     final stores = ref.watch(storeViewModelProvider);
     final online = ref.watch(onlineStatusProvider);
     final showsRecovery = ref.watch(recoveryBannerProvider);
+    // Nobody touched the header yet: it answers for itself.
+    final headerOpen = _headerOpen ?? (draft.storeId == null);
 
     return Scaffold(
       appBar: AppBar(
@@ -497,24 +542,22 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
           children: [
             if (showsRecovery) _RecoveryBanner(draft: draft),
             if (!online) const _OfflineBanner(),
-            _DateField(
-              value: draft.date,
+            _PurchaseHeader(
+              date: draft.date,
               today: _today,
+              stores: stores,
+              storeId: draft.storeId,
+              open: headerOpen,
               enabled: !_saving,
-              onChanged: (date) => ref
+              onToggle: () => setState(() => _headerOpen = !headerOpen),
+              onDateChanged: (date) => ref
                   .read(purchaseDraftViewModelProvider.notifier)
                   .setDate(date),
-            ),
-            const SizedBox(height: 12),
-            _StoreField(
-              stores: stores,
-              value: draft.storeId,
-              enabled: !_saving,
-              onChanged: (id) {
+              onStoreChanged: (id) {
                 if (id == null) return;
                 ref.read(purchaseDraftViewModelProvider.notifier).setStore(id);
               },
-              onCreate: () async {
+              onCreateStore: () async {
                 final created = await NewStoreDialog.show(context, ref);
                 if (!mounted || created?.id == null) return;
                 await ref
@@ -556,60 +599,89 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                   ),
                 ),
             const SizedBox(height: 12),
-            AppTextField.unit(
-              key: const ValueKey('field-quantity'),
-              controller: _quantityController,
-              focusNode: _quantityFocus,
-              enabled: _option != null && !_saving,
-              spec: _quantitySpec,
-              decoration: InputDecoration(
-                labelText: _option?.quantityLabel ?? 'Quantidade',
-              ),
-              onChanged: (_) => setState(_recomputePrices),
+            // The three fields of the item SIDE BY SIDE — for as long as they
+            // fit. Stacked they pushed `[ + Adicionar ]` under the keyboard,
+            // and it is the button the loop of twenty items comes back to.
+            // `AdaptiveFieldRow` measures the text and breaks the line by
+            // itself when the phone's font grows.
+            AdaptiveFieldRow(
+              fields: [
+                AdaptiveFieldSpec(
+                  label: _option?.quantityLabel ?? 'Quantidade',
+                  widestValue: _widestQuantity,
+                  build: (context, compact) => AppTextField.unit(
+                    key: const ValueKey('field-quantity'),
+                    controller: _quantityController,
+                    focusNode: _quantityFocus,
+                    enabled: _option != null && !_saving,
+                    spec: _quantitySpec,
+                    showClearButton: !compact,
+                    decoration: InputDecoration(
+                      labelText: _option?.quantityLabel ?? 'Quantidade',
+                    ),
+                    onChanged: (_) => setState(_recomputePrices),
+                  ),
+                ),
+                AdaptiveFieldSpec(
+                  label: 'Valor total',
+                  widestValue: _widestMoney(_valueController),
+                  build: (context, compact) => AppTextField.currency(
+                    key: const ValueKey('field-value'),
+                    controller: _valueController,
+                    enabled: _option != null && !_saving,
+                    showClearButton: !compact,
+                    decoration: const InputDecoration(labelText: 'Valor total'),
+                    // Typing here makes the total the SOURCE: the suggestion
+                    // stops writing over it, and the price per pricing unit is
+                    // redone from it.
+                    //
+                    // The `setState` is not decoration: the ⚠ of H15 comes out
+                    // of the typed value, and without repainting it would only
+                    // appear on the next touch of another field.
+                    onChanged: (_) => setState(() {
+                      _priceSource = _PriceSource.total;
+                      _recomputePrices();
+                    }),
+                  ),
+                ),
+                // The price of ONE pricing unit — the number on the shelf tag.
+                //
+                // **Only where the product is sold by weight**: the amount
+                // there is a weight, a volume or a length, and 'R$ 39,90 o kg'
+                // is what is compared at the counter. Sold by piece the price
+                // already IS the package's, and a second money field would
+                // only be one more thing to fill in.
+                if (_option case final option? when option.isSoldByWeight)
+                  AdaptiveFieldSpec(
+                    label: 'Valor por ${option.baseUnit.priceLabel}',
+                    widestValue: _widestMoney(_unitPriceController),
+                    build: (context, compact) => AppTextField.currency(
+                      key: const ValueKey('field-unit-price'),
+                      controller: _unitPriceController,
+                      enabled: !_saving,
+                      showClearButton: !compact,
+                      decoration: InputDecoration(
+                        labelText: 'Valor por ${option.baseUnit.priceLabel}',
+                      ),
+                      onChanged: (_) => setState(() {
+                        _priceSource = _PriceSource.unitPrice;
+                        _recomputePrices();
+                      }),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 12),
-            AppTextField.currency(
-              key: const ValueKey('field-value'),
-              controller: _valueController,
-              enabled: _option != null && !_saving,
-              decoration: InputDecoration(
-                labelText: 'Valor total pago',
-                helperText: _option?.priceReference == null
+            // What used to be the total field's `helperText`. Out of the
+            // decoration and onto a line of its own: in a shared column the
+            // sentence wrapped to three lines and pushed the two fields beside
+            // it out of alignment.
+            if (_option != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                _option?.priceReference == null
                     ? 'Sem base de comparação'
                     : 'Sugerido pela última compra',
-              ),
-              // Typing here makes the total the SOURCE: the suggestion stops
-              // writing over it, and the price per pricing unit is redone
-              // from it.
-              //
-              // The `setState` is not decoration: the ⚠ of H15 comes out of
-              // the typed value, and without repainting it would only appear
-              // on the next touch of another field.
-              onChanged: (_) => setState(() {
-                _priceSource = _PriceSource.total;
-                _recomputePrices();
-              }),
-            ),
-            // The price of ONE pricing unit — the number on the shelf tag.
-            //
-            // **Only where the product is sold by weight**: the amount there
-            // is a weight, a volume or a length, and 'R$ 39,90 o kg' is what
-            // is compared at the counter. Sold by piece the price already IS
-            // the package's, and a second money field would only be one more
-            // thing to fill in.
-            if (_option case final option? when option.isSoldByWeight) ...[
-              const SizedBox(height: 12),
-              AppTextField.currency(
-                key: const ValueKey('field-unit-price'),
-                controller: _unitPriceController,
-                enabled: !_saving,
-                decoration: InputDecoration(
-                  labelText: 'Valor por ${option.baseUnit.priceLabel}',
-                ),
-                onChanged: (_) => setState(() {
-                  _priceSource = _PriceSource.unitPrice;
-                  _recomputePrices();
-                }),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
             if (_priceIncrease case final increase?)
@@ -647,29 +719,22 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                   },
                 ),
             ],
-            const Divider(height: 32),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Total da compra',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                Text(
-                  formatMoney(draft.total),
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              key: const ValueKey('save'),
-              onPressed: _saving ? null : _save,
-              child: Text(_saveLabel(online)),
-            ),
           ],
         ),
       ),
+      // The total and `[ Salvar ]` out of the scroll: with ten items launched
+      // they were below the fold, and the total is the number the person
+      // checks against the till receipt.
+      //
+      // Gone while the keyboard is up — nobody saves mid-typing, and the
+      // hundred points it gives back are the ones the item fields need.
+      bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
+          ? null
+          : _PurchaseFooter(
+              total: draft.total,
+              label: _saveLabel(online),
+              onSave: _saving ? null : _save,
+            ),
     );
   }
 
@@ -678,6 +743,60 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     // What the platform actually delivers: WebKit has no Background Sync
     // (R16), so nothing goes up with the app closed, and the label says so.
     return online ? 'Salvar compra' : 'Salvar quando eu abrir com sinal';
+  }
+}
+
+/// The total and `[ Salvar ]`, pinned below the scroll.
+class _PurchaseFooter extends StatelessWidget {
+  const _PurchaseFooter({
+    required this.total,
+    required this.label,
+    required this.onSave,
+  });
+
+  final Money total;
+  final String label;
+  final VoidCallback? onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      // Elevation and not a border: it is what tells the eye the bar is ABOVE
+      // the list, and therefore that the list goes on under it.
+      elevation: 8,
+      color: theme.colorScheme.surface,
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Total da compra', style: theme.textTheme.titleMedium),
+                  Text(formatMoney(total), style: theme.textTheme.titleMedium),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Full width, and the label on its own line: offline it reads
+              // 'Salvar quando eu abrir com sinal', which beside the total
+              // would have nowhere to go.
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  key: const ValueKey('save'),
+                  onPressed: onSave,
+                  child: Text(label),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -727,6 +846,104 @@ class _OfflineBanner extends StatelessWidget {
     ),
     actions: [SizedBox.shrink()],
   );
+}
+
+/// Data and Mercado — the two the purchase asks ONCE, folded into one line.
+///
+/// They were two full fields at the top of the screen, spending a fifth of the
+/// 844 pt of an iPhone 12 on answers that do not change while twenty items are
+/// launched. Folded, they read as "hoje, 09/09 · Extra" and a tap brings them
+/// back.
+class _PurchaseHeader extends StatelessWidget {
+  const _PurchaseHeader({
+    required this.date,
+    required this.today,
+    required this.stores,
+    required this.storeId,
+    required this.open,
+    required this.enabled,
+    required this.onToggle,
+    required this.onDateChanged,
+    required this.onStoreChanged,
+    required this.onCreateStore,
+  });
+
+  final DateTime date;
+
+  /// Read once by the screen and rounded to the day — never here.
+  final DateTime today;
+
+  final AsyncValue<IList<Store>> stores;
+  final String? storeId;
+  final bool open;
+  final bool enabled;
+  final VoidCallback onToggle;
+  final ValueChanged<DateTime> onDateChanged;
+  final ValueChanged<String?> onStoreChanged;
+  final VoidCallback onCreateStore;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          key: const ValueKey('purchase-header'),
+          onTap: onToggle,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _summary,
+                    style: theme.textTheme.titleMedium,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                Icon(open ? Icons.expand_less : Icons.expand_more),
+              ],
+            ),
+          ),
+        ),
+        if (open) ...[
+          const SizedBox(height: 8),
+          _DateField(
+            value: date,
+            today: today,
+            enabled: enabled,
+            onChanged: onDateChanged,
+          ),
+          const SizedBox(height: 12),
+          _StoreField(
+            stores: stores,
+            value: storeId,
+            enabled: enabled,
+            onChanged: onStoreChanged,
+            onCreate: onCreateStore,
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// The one line the header is when it is closed.
+  String get _summary {
+    final when = date == today
+        ? 'hoje, ${formatShortDate(date)}'
+        : formatDate(date);
+    final store = _storeName;
+    return store == null ? '$when · escolha o mercado' : '$when · $store';
+  }
+
+  String? get _storeName {
+    for (final store in stores.value ?? const IList<Store>.empty()) {
+      if (store.id == storeId) return store.name;
+    }
+    return null;
+  }
 }
 
 class _DateField extends StatelessWidget {
