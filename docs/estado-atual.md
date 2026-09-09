@@ -245,7 +245,13 @@ Supabase e a leitura de plataforma do online/offline — o estado que a expõe �
   `PurchaseDraftRepositoryLocal.writes` prova em teste. **A Entrega 13 acrescentou a esse
   domínio o `acceptsTypedContentOf`, o `typedContent:` de `contentPricedOf`, o getter
   `CostLine.acceptsTypedContent` e o `contents` de `rankCosts` — o campo de quantidade da
-  linha vendida a peso (F-m/F-n).**
+  linha vendida a peso (F-m/F-n).** **O acabamento visual do painel veio depois
+  (`plano-comparar-custo-visual-2026-09-07.md`, só `ui/`): a linha vencedora ganhou fundo
+  tinto e o selo `MELHOR CUSTO` (F-p), os dois campos ganharam borda e os rótulos `Preço`
+  e `Quanto vem` (F-q), e a coluna da diferença deixou de escrever `−28%` para escrever
+  `a melhor economiza 28%`, com `melhor` na linha do `★` (F-o) — mesma conta, leitura
+  invertida. Nenhuma chave `cost-*` mudou, e `new_purchase_screen_test.dart` passou sem
+  uma linha de edição.**
 
 O `main.dart` tem **cinco saídas**, e nenhuma delas é tela branca — deixar uma exceção
 escapar do `main` pinta exatamente isso, e o PWA instalado não tem console para

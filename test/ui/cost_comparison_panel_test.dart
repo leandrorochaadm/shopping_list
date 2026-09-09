@@ -222,7 +222,7 @@ void main() {
     // R$ 10,00 for 2 L against R$ 42,00 for 4,2 L.
     expect(find.text('5,00/L'), findsOneWidget);
     expect(find.text('10,00/L'), findsOneWidget);
-    expect(find.text('−50%'), findsOneWidget);
+    expect(find.text('a melhor economiza 50%'), findsOneWidget);
     expect(find.byIcon(Icons.star), findsOneWidget);
     expect(headlineIn(tester), '$bottleLabel — 50% mais barato o litro');
   });
@@ -362,15 +362,56 @@ void main() {
     // in the same place on every line, whatever the name.
     expect(
       find.descendant(
-        of: find.ancestor(
-          of: find.byKey(crateKey),
-          matching: find.byType(Row),
-        ),
+        of: find.ancestor(of: find.byKey(crateKey), matching: find.byType(Row)),
         matching: find.text(crateLabel),
       ),
       findsNothing,
     );
     expect(find.text(crateLabel), findsOneWidget);
+  });
+
+  testWidgets('the best line carries the badge and the others do not', (
+    tester,
+  ) async {
+    await openPanel(tester);
+    await tester.tap(find.byKey(bottleKey));
+    await tester.pumpAndSettle();
+
+    expect(find.text('MELHOR CUSTO'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('cost-row-prod-3')),
+        matching: find.text('MELHOR CUSTO'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('the dearer line names who saves, never a discount', (
+    tester,
+  ) async {
+    await openPanel(tester);
+    await tester.tap(find.byKey(bottleKey));
+    await tester.pumpAndSettle();
+
+    // The sentence puts the saving on the side of whoever saves, and the
+    // number is the same one the old `−50%` printed: the wording changed,
+    // the computation did not (F-o).
+    expect(find.text('a melhor economiza 50%'), findsOneWidget);
+    expect(find.text('melhor'), findsOneWidget);
+    expect(find.textContaining('−'), findsNothing);
+  });
+
+  testWidgets('both fields carry a label', (tester) async {
+    // The chicken and not the default fixture: the bottle and the crate have
+    // packaging, and their quantity column is empty by F-n.
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+
+    InputDecoration decorationOf(String key) =>
+        tester.widget<TextField>(find.byKey(ValueKey(key))).decoration!;
+
+    expect(decorationOf('cost-price-chick-1').labelText, 'Preço');
+    expect(decorationOf('cost-content-chick-1').labelText, 'Quanto vem');
   });
 
   testWidgets('the icon-only button and the star carry their labels', (

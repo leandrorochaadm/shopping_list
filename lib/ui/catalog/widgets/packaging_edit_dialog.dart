@@ -87,7 +87,8 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
             decoration: InputDecoration(
-              labelText: _countsOnly ? 'Quantidade' : 'Peças',
+              labelText: _countsOnly ? 'Quantas unidades?' : 'Quantas peças?',
+              suffixText: _countsOnly ? widget.baseUnit.label : null,
             ),
           ),
           if (!_countsOnly) ...[
@@ -99,7 +100,8 @@ class _PackagingEditDialogState extends ConsumerState<PackagingEditDialog> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
-                labelText: 'Quantidade em ${widget.baseUnit.label}',
+                labelText: 'Quanto tem cada?',
+                suffixText: widget.baseUnit.label,
               ),
             ),
           ],

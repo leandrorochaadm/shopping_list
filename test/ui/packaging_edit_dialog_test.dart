@@ -178,7 +178,7 @@ void main() {
 
     // The field simply says which unit it is typed in. No dropdown, so a
     // '350 g' of soft drink has no way of being typed.
-    expect(find.text('Quantidade em ml'), findsOneWidget);
+    expect(find.text('Quanto tem cada?'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<BaseUnit>), findsNothing);
   });
 
@@ -274,8 +274,8 @@ void main() {
       baseUnit: BaseUnit.unit,
     );
 
-    expect(find.text('Quantidade'), findsOneWidget);
-    expect(find.text('Peças'), findsNothing);
+    expect(find.text('Quantas unidades?'), findsOneWidget);
+    expect(find.text('Quantas peças?'), findsNothing);
     expect(sizeField, findsNothing);
 
     await tester.enterText(countField, '6');

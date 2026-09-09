@@ -120,7 +120,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   SellingMode _sellingMode = SellingMode.byPiece;
 
   IList<PackagingDraft> _drafts = const IList.empty();
-  int? _selectedDraftId;
   var _nextDraftId = 1;
 
   /// The registration that already holds the typed identity, if any: the
@@ -140,9 +139,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   void initState() {
     super.initState();
     // The first line is already there: the wireframe's list is never empty
-    // for a product sold by piece, and the radio has to have somewhere to be.
+    // for a product sold by piece, so the screen opens with somewhere to
+    // type instead of an empty block and a button.
     _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++));
-    _selectedDraftId = _drafts.first.id;
 
     final registrationId = widget.registrationId;
     if (registrationId != null) {
@@ -422,11 +421,17 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     );
   }
 
-  /// Which leaf the radio marked, and it comes from a DIFFERENT place in each
-  /// of the three paths — `_selectedDraftId` numbers the rows being typed, it
-  /// is not a database id. The match is by `totalContent`, which is the
-  /// natural key of a packaging inside a registration: the unique index of
-  /// the schema is `product (product_registration_id, total_content)`.
+  /// Which leaf goes back to screen 3: the one registered LAST.
+  ///
+  /// Until the layout review of 08/09/2026 a radio on each line answered
+  /// "which one am I buying now" — a naked circle on a card, in the middle of
+  /// a screen that is the REGISTRATION and not the purchase. It left, and the
+  /// last packaging typed is the answer: swapping it in screen 3's selector
+  /// is one tap.
+  ///
+  /// The match is by `totalContent`, which is the natural key of a packaging
+  /// inside a registration: the unique index of the schema is
+  /// `product (product_registration_id, total_content)`.
   PickedProduct? _picked(
     ProductRegistration registration,
     IList<Product> written,
@@ -440,13 +445,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       return leaf == null ? null : _option(leaf, registration, options, type);
     }
 
-    final marked = _drafts
-        .where((draft) => draft.id == _selectedDraftId)
-        .firstOrNull
-        ?.packaging;
+    final marked = _packagings.isEmpty ? null : _packagings.last;
     if (marked == null) {
-      // The radio sits on a packaging that ALREADY existed — nothing came
-      // back from the database for it, because nothing was written.
+      // Nothing was typed: the screen is the maintenance path over a product
+      // that already has its packagings.
       final leaf = _existing.firstOrNull ?? written.firstOrNull;
       return leaf == null ? null : _option(leaf, registration, options, type);
     }
@@ -647,49 +649,35 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             'Embalagens deste produto',
             style: Theme.of(context).textTheme.titleMedium,
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Cada embalagem vira um produto, com preço e histórico próprios.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
           if (type == null)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Text('Escolha o tipo do produto primeiro.'),
             )
           else ...[
-            // One RadioGroup around the whole list: which packaging is being
-            // bought right now is a single answer, and the group is what says
-            // so to the accessibility tree.
-            RadioGroup<int>(
-              groupValue: _selectedDraftId,
-              // Always live: RadioGroup requires a callback, and disabling
-              // happens on each Radio through PackagingRow's `enabled`.
-              onChanged: (id) => setState(() => _selectedDraftId = id),
-              child: Column(
-                children: [
-                  for (final draft in _drafts)
-                    PackagingRow(
-                      key: ValueKey(draft.id),
-                      draft: draft,
-                      baseUnit: type.baseUnit,
-                      duplicate: _isDuplicate(draft),
-                      enabled: !_saving && _conflict == null,
-                      onChanged: (updated) => setState(() {
-                        _drafts = _drafts.replace(
-                          _drafts.indexOf(draft),
-                          updated,
-                        );
-                      }),
-                      onRemoved: () => setState(() {
-                        _drafts = _drafts.remove(draft);
-                        // The radio never ends up empty.
-                        if (_selectedDraftId == draft.id) {
-                          _selectedDraftId = _drafts.firstOrNull?.id;
-                        }
-                      }),
-                    ),
-                ],
+            for (final draft in _drafts)
+              PackagingRow(
+                key: ValueKey(draft.id),
+                draft: draft,
+                baseUnit: type.baseUnit,
+                duplicate: _isDuplicate(draft),
+                enabled: !_saving && _conflict == null,
+                onChanged: (updated) => setState(() {
+                  _drafts = _drafts.replace(_drafts.indexOf(draft), updated);
+                }),
+                onRemoved: () => setState(() {
+                  _drafts = _drafts.remove(draft);
+                }),
               ),
-            ),
             TextButton.icon(
               icon: const Icon(Icons.add),
-              label: const Text('Adicionar embalagem'),
+              label: const Text('Adicionar outra embalagem'),
               // It is blocked while the identity is taken: a line built here
               // would be born inside a registration that will not be saved.
               onPressed: _saving || _conflict != null
@@ -702,7 +690,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                         unit: _baseUnit,
                       );
                       _drafts = _drafts.add(draft);
-                      _selectedDraftId ??= draft.id;
                     }),
             ),
           ],
@@ -711,16 +698,44 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           // packagings. Only the maintenance path ever fills this list.
           if (_existing.isNotEmpty) ...[
             const SizedBox(height: 8),
-            for (final product in _existing)
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.check),
-                title: Text(product.packaging?.label ?? ''),
-                subtitle: const Text('já cadastrada'),
+            // Collapsed, and without the check icon it used to carry: six
+            // ticked lines under the ones being typed read as a checklist
+            // waiting to be answered, when they are only "you already have
+            // these".
+            ExpansionTile(
+              key: const ValueKey('existing-packagings'),
+              tilePadding: EdgeInsets.zero,
+              title: Text(
+                _existing.length == 1
+                    ? 'Já cadastrada neste produto (1)'
+                    : 'Já cadastradas neste produto (${_existing.length})',
+                style: Theme.of(context).textTheme.titleSmall,
               ),
+              children: [
+                for (final product in _existing)
+                  ListTile(
+                    dense: true,
+                    title: Text(product.packaging?.label ?? ''),
+                  ),
+              ],
+            ),
           ],
         ],
         const SizedBox(height: 24),
+        if (_blockReason case final reason?) ...[
+          Text(
+            reason,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              // Red only for what IS a mistake. A screen that opens with an
+              // empty line and paints "falta completar" in error colour is
+              // scolding before anyone typed a character.
+              color: _hasDuplicate
+                  ? Theme.of(context).colorScheme.error
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         FilledButton(
           key: const ValueKey('save'),
           onPressed: _canSave ? _save : null,
@@ -732,12 +747,32 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
 
   /// Each line becomes a product of its own, with its own price and history —
   /// which is why the button says how many are about to be born.
+  ///
+  /// It never writes a zero: "Salvar 0 produtos" on a dead button reads as a
+  /// broken screen, and what is missing is said by [_blockReason] instead.
   String get _saveLabel {
     if (_saving) return 'Salvando...';
     if (_soldByWeight) return 'Salvar produto';
 
     final count = _packagings.length;
-    return count == 1 ? 'Salvar 1 produto' : 'Salvar $count produtos';
+    return count > 1 ? 'Salvar $count produtos' : 'Salvar produto';
+  }
+
+  /// Why the button is dead, in the words of whoever is looking at it — and
+  /// only for what this block owns. What is said elsewhere on the screen (no
+  /// type chosen, identity taken) is not repeated down here.
+  String? get _blockReason {
+    if (_saving || _soldByWeight) return null;
+    if (_typeId == null || (_conflict != null && !_locked)) return null;
+    if (_hasDuplicate) return 'Há duas embalagens iguais na lista.';
+
+    final incomplete = _drafts.length - _packagings.length;
+    if (incomplete == 0) {
+      return _packagings.isEmpty ? 'Acrescente ao menos uma embalagem.' : null;
+    }
+    return incomplete == 1
+        ? 'Falta completar 1 embalagem.'
+        : 'Faltam completar $incomplete embalagens.';
   }
 
 }

@@ -15,6 +15,25 @@ da tela em que ele é lido**, e uma das ordens desenhadas contrariava isso:
   `[ + Adicionar à compra ]↻`. Estava entre o Mercado e o Produto, e cada item
   lançado empurrava Produto, Quantidade e Valor — os três campos do caminho
   normal — para debaixo do teclado. Nota nova explicando o porquê.
+**O que mudou na 2.1** (08/09/2026) — a **revisão de layout do bloco de
+embalagens da Tela 4**, decidida por ele diante do print da tela real:
+
+- **Cada embalagem virou um cartão**, com os dois campos numa linha e
+  `Vai se chamar:` na de baixo. Contagem, `×`, medida, nome, rádio e remover são
+  seis controles numa linha só, e nos 390 pt do iPhone 12 os dois campos ficavam
+  mais estreitos que os rótulos em cima deles.
+- **O rádio "qual estou comprando agora" saiu da tela** (divergência **K-a**).
+  Quem volta selecionada na Tela 3 é a **última embalagem cadastrada**.
+- **Os rótulos passaram para linguagem de quem usa:** `Quantas peças?`,
+  `Quanto tem cada?` (com a unidade como sufixo do campo) e `Quantas unidades?`
+  no tipo contado por unidade. Valem também no diálogo de correção da embalagem,
+  na manutenção do cadastro.
+- **O nome da embalagem nunca é espaço em branco:** meio digitada, a linha diz o
+  que falta — "Falta dizer quanto tem cada peça".
+- **O botão nunca escreve `Salvar 0 produtos`**; o motivo do bloqueio vira uma
+  frase acima dele.
+- **A lista "já cadastradas" virou bloco recolhido**, com contagem e sem os `✓`.
+
 - **A Tela 4 ganhou a nota do estado da manutenção:** as embalagens **já
   cadastradas** aparecem abaixo das linhas editáveis e do
   `[ + Adicionar embalagem ]↻`, nunca acima. O quadro não muda — esse estado
@@ -891,10 +910,13 @@ continua aparecendo atrás dela.
 │  ══   Comparar custo        [ X ]→3  │
 │  sabão em pó · custo por kg       *  │
 │  ────────────────────────────        │
-│      produto       preço    /kg  dif │
-│  {x} Omo 500g   R$ 10,00  20,00 −28%*│
-│  {x} Omo 2,3kg  R$ 33,00 ★14,35     *│
-│  { } Tixan 1kg  R$ 17,00            *│
+│  {x} Omo 500g                      * │
+│      [Preço R$10,00]      20,00/kg   │
+│                a melhor economiza 28%│
+│▓ {x} ★ Omo 2,3kg     MELHOR CUSTO  ▓ │
+│▓     [Preço R$33,00]  14,35/kg melhor│
+│  { } Tixan 1kg                       │
+│      [Preço R$17,00]                 │
 │  [ Ver todas do tipo ]↻            * │
 │         ↕ rola se tiver mais         │
 ├──────────────────────────────────────┤
@@ -926,6 +948,12 @@ continua aparecendo atrás dela.
   vazia e do mesmo tamanho nas outras (decisão **F-n**): sem essa reserva, o
   custo mudaria de lugar de uma linha para a outra e a coluna deixaria de poder
   ser descida com o olho.
+- **A linha vencedora tem fundo tinto e o selo `MELHOR CUSTO`** ao lado do nome
+  (decisão **F-p**), além do `★`: numa lista de cinco linhas uma estrela pequena
+  não é achada de longe, e o painel existe para responder em dez segundos.
+- **Os dois campos são caixas com borda e rótulo** — `Preço` e `Quanto vem`
+  (decisão **F-q**). Dois campos de sublinhado lado a lado não dizem qual é qual
+  para quem não montou a tela, e o campo estreito cortava o valor digitado.
 - `*` **Não existe botão "Comparar".** O custo por unidade base de cada linha
   **marcada** aparece **enquanto ele digita**, à direita do preço, e o `★` pula
   sozinho para a linha mais barata a cada mudança. Sem segunda etapa, sem tela de resultado,
@@ -990,11 +1018,14 @@ O frango, que é o caso que pede o campo:
 │  ══   Comparar custo        [ X ]→3  │
 │  frango · custo por kg            *  │
 │  ────────────────────────────        │
-│   produto      preço    qtd   /kg dif│
 │  {x} Frango (a peso)                 │
-│      R$ 12,00 [0,8 kg] 15,00  −3%   *│
-│  {x} Frango congelado 1 kg           │
-│      R$ 14,50 (      ) ★14,50       *│
+│      [Preço  ] [Quanto vem] 15,00/kg │
+│      [R$12,00] [   800   g]          │
+│             a melhor economiza 3%  * │
+│▓ {x} ★ Frango congelado 1 kg       ▓ │
+│▓                     MELHOR CUSTO  ▓ │
+│▓     [R$14,50] (          ) 14,50/kg │
+│▓                             melhor▓ │
 ├──────────────────────────────────────┤
 │  ★ Frango congelado 1 kg — 3% mais   │
 │    barato o kg                       │
@@ -1017,9 +1048,12 @@ O frango, que é o caso que pede o campo:
   │  ══   Comparar custo        [ X ]→3  │
   │  frango · custo por kg               │
   │  ────────────────────────────        │
-  │   produto     preço    qtd   /kg dif │
-  │  {x} bandeja  R$12,00 [0,8]kg 15,00  │
-  │  {x} cong.1kg R$14,50   ( )  ★14,50  │
+  │  {x} bandeja                         │
+  │      [R$12,00] [800 g]      15,00/kg │
+  │             a melhor economiza 3%    │
+  │▓ {x} ★ cong.1kg       MELHOR CUSTO  ▓│
+  │▓     [R$14,50] (     )      14,50/kg │
+  │▓                             melhor ▓│
   ├──────────────────────────────────────┤
   │  ★ cong.1kg — 3% mais barato o kg    │
   │  [      Usar cong.1kg      ]→3       │
@@ -1027,8 +1061,12 @@ O frango, que é o caso que pede o campo:
 
 - `*` **O rodapé diz quanto o melhor custo sai mais barato** que a pior linha em
   comparação: `(preço da linha − melhor preço) ÷ preço da linha`, os dois na
-  unidade base, arredondado para o inteiro. **O mesmo `−%` fica ao lado de cada
-  linha perdedora, sempre** — com duas opções ou com dez, sem exceção por
+  unidade base, arredondado para o inteiro. **A mesma diferença fica ao lado de
+  cada linha perdedora, sempre**, escrita como **`a melhor economiza 28%`** e
+  não como `−28%` (decisão **F-o**): o denominador da conta é o preço da linha
+  **cara**, então o número responde *"quanto a melhor economiza sobre mim"*, e
+  um `−` em vermelho na linha mais cara se lê ao contrário, como desconto. A
+  linha vencedora escreve **`melhor`** no mesmo lugar — com duas opções ou com dez, sem exceção por
   contagem. O rodapé repete a maior diferença em frase. Uma fórmula só, que
   continua legível com dez linhas na tela: o Omo de 2,3 kg a R$ 14,35 o quilo
   sai **28% mais barato** que o de 500 g a R$ 20,00 o quilo. **A porcentagem é
@@ -1088,14 +1126,20 @@ O frango, que é o caso que pede o campo:
 │  Descrição: original              *  │
 │  ────────────────────────────        │
 │  Embalagens deste produto         *  │
-│  Peças   Cada unidade   Fica como *  │
-│   1 × [ 350 ]▼ml   350ml   (•) [x]↻  │
-│   1 × [ 269 ]▼ml   269ml   ( ) [x]↻  │
-│   1 × [   2 ]▼L    2L      ( ) [x]↻  │
-│  12 × [ 350 ]▼ml  12x350ml ( ) [x]↻  │
-│  [   + Adicionar embalagem   ]↻      │
+│  Cada embalagem vira um produto,     │
+│  com preço e histórico próprios.     │
+│ ┌──────────────────────────────────┐ │
+│ │ Quantas peças?  Quanto tem cada? │ │
+│ │  [    1   ]  ×  [  350   ] ml    │ │
+│ │  Vai se chamar: 350 ml  [Remover]│ │
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │
+│ │  [   12   ]  ×  [  350   ] ml    │ │
+│ │  Vai se chamar: 12x350ml[Remover]│ │
+│ └──────────────────────────────────┘ │
+│  [ + Adicionar outra embalagem ]↻    │
 │                                      │
-│  [    Salvar 4 produtos    ]→3    *  │
+│  [    Salvar 2 produtos    ]→3    *  │
 └──────────────────────────────────────┘
 ```
 
@@ -1120,8 +1164,9 @@ O frango, que é o caso que pede o campo:
   unidades diferentes, senão o consumo do tipo para de somar. Quem define a
   unidade de um tipo novo é o mini-cadastro do `[+Novo]↻` do Tipo, e não esta
   tela: é lá que ela é obrigatória e não tem padrão adivinhado.
-- `*` **Cada linha da lista de embalagens é `peças × medida da peça`**, e a
-  coluna ao lado mostra **como aquela embalagem vai se chamar** em toda tela:
+- `*` **Cada embalagem é um cartão com `peças × medida da peça`**, e logo abaixo
+  dos dois campos a linha **`Vai se chamar:`** mostra como aquela embalagem se
+  chama em toda tela:
   "350ml" quando é uma peça só, "12x350ml" quando são doze. É esse nome que ele
   procura no lançamento, e é ele que dispensa qualquer rótulo de "fardo" ou
   "pacote". Na embalagem de uma peça só, o "1 ×" é o padrão e não precisa ser
@@ -1144,15 +1189,20 @@ O frango, que é o caso que pede o campo:
   Cadastrá-la vale quando o cupom traz o fardo como uma linha só, com preço
   fechado; quem compra lata solta lança 12 vezes a linha "350ml" e chega aos
   mesmos 4,2 litros.
-- `*` **Cada linha vira um produto próprio ao salvar**, com preço e histórico
-  separados — por isso o botão diz quantos produtos vão nascer. É o que resolve
+- `*` **Cada cartão vira um produto próprio ao salvar**, com preço e histórico
+  separados — por isso o botão diz quantos produtos vão nascer, e a frase logo
+  abaixo do título repete isso antes de a primeira embalagem ser digitada. **O
+  botão nunca escreve zero**: com nada preenchido ele diz `Salvar produto`,
+  travado, e o que falta é dito **acima dele** — "Falta completar 1 embalagem.",
+  "Há duas embalagens iguais na lista.". `Salvar 0 produtos` num botão morto lia
+  como tela quebrada. É o que resolve
   ter que refazer o cadastro inteiro quatro vezes para o mesmo refrigerante.
-- `*` **O rádio marca qual embalagem ele está comprando agora**, e é só ela que
-  volta selecionada na Tela 3. Ele já nasce na **primeira linha** e nunca fica
-  vazio — parar o lançamento para perguntar "qual delas?" custaria mais do que
-  errar e trocar no seletor. Sem isso, salvar quatro embalagens deixaria a
-  Tela 3 sem saber qual escolher, e ele perderia na busca o tempo que este
-  cadastro economizou.
+- `*` **Quem volta selecionada na Tela 3 é a embalagem cadastrada por último**
+  (decisão de 08/09/2026, divergência **K-a**). Até aqui havia um **rádio** em cada
+  linha marcando "qual estou comprando agora": uma bolinha sem rótulo, no meio de
+  uma tela que é o **cadastro** e não a compra, e que vindo pelo `≡` não decidia
+  nada. Ela saiu, e a última embalagem digitada é a resposta — trocar no seletor
+  da Tela 3 é um toque.
 - `*` **Duas linhas idênticas são recusadas na hora**, com "essa embalagem já
   está na lista" — e **idêntica é pelo conteúdo, não pelo texto**: `1 × 0,35 L`
   bate com `1 × 350 ml` e é recusada, porque a comparação acontece depois da
@@ -1202,16 +1252,20 @@ O frango, que é o caso que pede o campo:
   vendido.** Produto por peça exige pelo menos uma linha — sem ela não há como
   converter a compra para litro ou quilo. Produto a peso não tem nenhuma. O acém
   moído não preenche marca, descrição nem embalagem.
-- `*` Ao salvar, volta para a Tela 3 **com a embalagem marcada já selecionada**
-  no campo "Produto". As primeiras semanas de uso são feitas quase só de produto
+- `*` Ao salvar, volta para a Tela 3 **com a última embalagem cadastrada já
+  selecionada** no campo "Produto". As primeiras semanas de uso são feitas quase só de produto
   novo — um passo a mais aqui pesa muito nos 2 minutos.
 - `*` **Abrindo esta tela para acrescentar embalagem a um produto que já
   existe** — o caminho da manutenção do cadastro, que o quadro acima não desenha
   porque ele parte de um cadastro em branco —, aparece também a lista do que
-  **já está cadastrado**, cada linha com o nome da embalagem e "já cadastrada".
-  Essa lista fica **abaixo** das linhas editáveis e do `[ + Adicionar
-  embalagem ]↻`, nunca acima: o que se digita não pode descer conforme o produto
-  acumula embalagens. É a regra do tamanho da tela, nas Convenções de notação.
+  **já está cadastrado**, **recolhida**, sob o título
+  `Já cadastradas neste produto (4) ▾`. Ela fica **abaixo** dos cartões editáveis
+  e do `[ + Adicionar outra embalagem ]↻`, nunca acima: o que se digita não pode
+  descer conforme o produto acumula embalagens. É a regra do tamanho da tela, nas
+  Convenções de notação. Aberta, cada linha traz só o nome da embalagem — o `✓`
+  que ela carregava saiu junto com o rádio: seis linhas marcadas embaixo das que
+  se digita liam como uma lista de seleção esperando resposta, quando são apenas
+  "você já tem estas".
 
 **Estados:**
 - **Carregando:** Categoria, Tipo e Marca mostram "Carregando..." até as listas
@@ -1256,11 +1310,14 @@ O frango, que é o caso que pede o campo:
 │  [ Abrir e acrescentar embalagem ]→4 │
 │  ────────────────────────────        │
 │  Embalagens deste produto         *  │
-│  Peças   Cada unidade   Fica como    │
-│   1 × [ 600 ]▼ml   600ml   (•) [x]↻  │
-│  [   + Adicionar embalagem   ][–]    │
+│ ┌──────────────────────────────────┐ │
+│ │ Quantas peças?  Quanto tem cada? │ │
+│ │  [    1   ]  ×  [  600   ] ml    │ │
+│ │  Vai se chamar: 600 ml  [Remover]│ │
+│ └──────────────────────────────────┘ │
+│  [ + Adicionar outra embalagem ][–]  │
 │                                      │
-│  [    Salvar 1 produto     ][–]   *  │
+│  [    Salvar produto       ][–]   *  │
 └──────────────────────────────────────┘
 ```
 
@@ -1278,7 +1335,7 @@ O frango, que é o caso que pede o campo:
   lista de lá. **Quem chegou pelo lançamento continua voltando para ele**: salvar
   a embalagem nova devolve à Tela 3 com ela já selecionada, como qualquer
   cadastro feito pelo `[+Novo]→4`.
-- `*` `[ + Adicionar embalagem ]` também trava: qualquer linha montada aqui
+- `*` `[ + Adicionar outra embalagem ]` também trava: qualquer linha montada aqui
   nasceria dentro de um cadastro que não vai ser salvo.
 
 ---

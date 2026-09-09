@@ -41,9 +41,9 @@ final class PackagingDraft {
         baseUnit: unit,
       );
     } on Object {
-      // Invalid is the normal state of a line halfway typed. The screen shows
-      // nothing in the "Fica como" column and refuses the save; it does not
-      // shout at every keystroke.
+      // Invalid is the normal state of a line halfway typed. The card says
+      // what is still missing and the save stays blocked; it does not shout
+      // at every keystroke.
       return null;
     }
   }
@@ -70,12 +70,20 @@ final class PackagingDraft {
   );
 }
 
-/// `peças × cada unidade`, with what it will be CALLED next to it.
+/// One packaging being typed, as a card: the two fields on top and what it
+/// will be CALLED right below them.
+///
+/// It was a single row until the layout review of 08/09/2026: count, `×`,
+/// measure, name, radio and remove is six controls on a 390 pt phone, and the
+/// two fields ended up narrower than the words above them. The card gives
+/// each thing a line, and the naked radio — "which one am I buying" — left
+/// the screen with it: this is the REGISTRATION, and the purchase gets the
+/// packaging registered last.
 ///
 /// There is no measure to choose: the type already answered that, and the
-/// line simply writes the type's unit next to the field. Letting the line pick
-/// "ml" under a type measured in grams would make that type's total add volume
-/// to weight, and that total is what every report is built on.
+/// field simply writes the type's unit as a suffix. Letting the line pick
+/// "ml" under a type measured in grams would make that type's total add
+/// volume to weight, and that total is what every report is built on.
 class PackagingRow extends StatelessWidget {
   const PackagingRow({
     required this.draft,
@@ -103,76 +111,110 @@ class PackagingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final packaging = draft.packaging;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 64,
-            child: TextFormField(
-              key: ValueKey('count-${draft.id}'),
-              initialValue: draft.pieceCount,
-              enabled: enabled,
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                labelText: _countsOnly ? 'Quantidade' : 'Peças',
-              ),
-              onChanged: (value) =>
-                  onChanged(draft.copyWith(pieceCount: value)),
-            ),
-          ),
-          if (!_countsOnly) ...[
-            const Padding(
-              padding: EdgeInsets.only(top: 20, left: 8, right: 8),
-              child: Text('×'),
-            ),
-            Expanded(
-              child: TextFormField(
-                key: ValueKey('size-${draft.id}'),
-                initialValue: draft.pieceSize,
-                enabled: enabled,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                decoration: InputDecoration(
-                  labelText: 'Quantidade em ${baseUnit.label}',
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    key: ValueKey('count-${draft.id}'),
+                    initialValue: draft.pieceCount,
+                    enabled: enabled,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: InputDecoration(
+                      labelText: _countsOnly
+                          ? 'Quantas unidades?'
+                          : 'Quantas peças?',
+                      suffixText: _countsOnly ? baseUnit.label : null,
+                    ),
+                    onChanged: (value) =>
+                        onChanged(draft.copyWith(pieceCount: value)),
+                  ),
                 ),
-                onChanged: (value) =>
-                    onChanged(draft.copyWith(pieceSize: value)),
-              ),
+                if (!_countsOnly) ...[
+                  const Padding(
+                    padding: EdgeInsets.only(top: 20, left: 8, right: 8),
+                    child: Text('×'),
+                  ),
+                  Expanded(
+                    child: TextFormField(
+                      key: ValueKey('size-${draft.id}'),
+                      initialValue: draft.pieceSize,
+                      enabled: enabled,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      decoration: InputDecoration(
+                        labelText: 'Quanto tem cada?',
+                        suffixText: baseUnit.label,
+                      ),
+                      onChanged: (value) =>
+                          onChanged(draft.copyWith(pieceSize: value)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            Row(
+              children: [
+                // The name is never a blank space: half typed, the line says
+                // WHAT is missing instead of showing nothing and looking
+                // broken.
+                Expanded(
+                  child: Text(
+                    _caption(packaging),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: duplicate
+                          ? scheme.error
+                          : packaging == null
+                          ? scheme.onSurfaceVariant
+                          : scheme.onSurface,
+                    ),
+                  ),
+                ),
+                TextButton.icon(
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Remover'),
+                  onPressed: enabled ? onRemoved : null,
+                ),
+              ],
             ),
           ],
-          const SizedBox(width: 8),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Text(
-                duplicate
-                    ? 'Essa embalagem já está na lista'
-                    : packaging?.label ?? '',
-                style: TextStyle(
-                  color: duplicate
-                      ? Theme.of(context).colorScheme.error
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ),
-          ),
-          // Which packaging is being bought right now. It starts on the FIRST
-          // line and is never empty: stopping the purchase to ask "which one?"
-          // would cost more than getting it wrong and switching in the
-          // selector. The RadioGroup that owns it is on the screen.
-          Radio<int>(value: draft.id, enabled: enabled),
-          IconButton(
-            icon: const Icon(Icons.close),
-            tooltip: 'Remover embalagem',
-            onPressed: enabled ? onRemoved : null,
-          ),
-        ],
+        ),
       ),
     );
+  }
+
+  /// What sits under the fields: the shelf name once the line parses, and
+  /// WHICH field is still missing while it does not.
+  ///
+  /// Both fields take digits only, so a line that refuses to parse is either
+  /// empty or a zero — there is no third case to word.
+  String _caption(Packaging? packaging) {
+    if (duplicate) return 'Essa embalagem já está na lista';
+    if (packaging != null) return 'Vai se chamar: ${packaging.label}';
+
+    if (_countsOnly) {
+      return draft.pieceCount.trim().isEmpty
+          ? 'Falta dizer quantas unidades'
+          : 'A quantidade tem de ser maior que zero';
+    }
+    // The measure first: it is the one that opens empty, and saying "falta a
+    // quantidade de peças" while the person is looking at an empty measure
+    // field points at the wrong place.
+    if (draft.pieceSize.trim().isEmpty) {
+      return 'Falta dizer quanto tem cada peça';
+    }
+    if (draft.pieceCount.trim().isEmpty) return 'Falta dizer quantas peças';
+    return 'Use números maiores que zero';
   }
 }

@@ -150,7 +150,7 @@ void main() {
 
     // The field simply says which unit it is typed in — there is no dropdown
     // through which a '350 g' of soft drink could be typed.
-    expect(find.text('Quantidade em ml'), findsOneWidget);
+    expect(find.text('Quanto tem cada?'), findsOneWidget);
     expect(find.byType(DropdownButtonFormField<BaseUnit>), findsNothing);
   });
 
@@ -162,8 +162,8 @@ void main() {
     await type(tester, const ValueKey('size-1'), '350');
 
     // "350 ml", not "1 × 350 ml": that is the name searched for at the till.
-    expect(find.text('350 ml'), findsWidgets);
-    expect(find.text('Salvar 1 produto'), findsOneWidget);
+    expect(find.text('Vai se chamar: 350 ml'), findsOneWidget);
+    expect(find.text('Salvar produto'), findsOneWidget);
   });
 
   testWidgets('refuses two lines holding the same amount, however typed', (
@@ -177,7 +177,7 @@ void main() {
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
 
-    await tapOn(tester, find.text('Adicionar embalagem'));
+    await tapOn(tester, find.text('Adicionar outra embalagem'));
     await type(tester, const ValueKey('count-2'), '2');
     await type(tester, const ValueKey('size-2'), '175');
 
@@ -192,7 +192,7 @@ void main() {
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
 
-    await tapOn(tester, find.text('Adicionar embalagem'));
+    await tapOn(tester, find.text('Adicionar outra embalagem'));
     await type(tester, const ValueKey('size-2'), '2000');
 
     // Each line becomes a product of its own, with its own price history.
@@ -209,7 +209,7 @@ void main() {
     await tapOn(tester, find.text('Peso'));
 
     expect(find.text('Embalagens deste produto'), findsNothing);
-    expect(find.text('Adicionar embalagem'), findsNothing);
+    expect(find.text('Adicionar outra embalagem'), findsNothing);
     // Quantity is what the PURCHASE asks for, not the registration.
     expect(find.text('Salvar produto'), findsOneWidget);
   });
@@ -238,7 +238,7 @@ void main() {
 
     // `Volume` IS `by_weight`: same loose product, other grandeza.
     expect(find.text('Embalagens deste produto'), findsNothing);
-    expect(find.text('Adicionar embalagem'), findsNothing);
+    expect(find.text('Adicionar outra embalagem'), findsNothing);
     expect(find.text('Salvar produto'), findsOneWidget);
   });
 
@@ -355,7 +355,7 @@ void main() {
 
     // The packagings it already has are on screen, and the line being built
     // came along instead of being thrown away.
-    expect(find.text('já cadastrada'), findsNWidgets(4));
+    expect(find.text('Já cadastradas neste produto (4)'), findsOneWidget);
     expect(
       find.text('Acrescentando embalagem a um produto que já existe.'),
       findsOneWidget,
@@ -483,7 +483,7 @@ void main() {
       findsOneWidget,
     );
     // An ACTION that failed never takes over the screen — the form is intact.
-    expect(find.text('350 ml'), findsWidgets);
+    expect(find.text('Vai se chamar: 350 ml'), findsOneWidget);
   });
 
   testWidgets('saves a packaging into the registration that already exists', (
@@ -504,7 +504,7 @@ void main() {
     expect(find.text('Produto salvo.'), findsOneWidget);
   });
 
-  testWidgets('removes a line and keeps the radio on a line that exists', (
+  testWidgets('removes a line and keeps saving the ones that survived', (
     tester,
   ) async {
     await pumpScreen(tester);
@@ -512,31 +512,67 @@ void main() {
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await tapOn(tester, find.text('Adicionar embalagem'));
+    await tapOn(tester, find.text('Adicionar outra embalagem'));
     await type(tester, const ValueKey('size-2'), '2');
     expect(find.text('Salvar 2 produtos'), findsOneWidget);
 
-    await tapOn(tester, find.byTooltip('Remover embalagem').first);
+    await tapOn(tester, find.widgetWithText(TextButton, 'Remover').first);
 
-    expect(find.text('Salvar 1 produto'), findsOneWidget);
-    // The radio never ends up empty: it moved to the line that survived.
+    expect(find.text('Salvar produto'), findsOneWidget);
     expect(saveButton(tester).onPressed, isNotNull);
   });
 
-  testWidgets('picks which packaging is being bought right now', (
+  testWidgets('asks nothing about which packaging is being bought', (
     tester,
   ) async {
+    // The radio left in the layout review of 08/09/2026: this screen is the
+    // REGISTRATION, and a naked circle on each card asked a question of the
+    // purchase in the middle of it. The packaging typed LAST is the one
+    // screen 3 gets back, and swapping it there is one tap.
     await pumpScreen(tester);
 
     await choose(tester, const ValueKey('field-category'), 'Bebidas');
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
     await type(tester, const ValueKey('size-1'), '350');
-    await tapOn(tester, find.text('Adicionar embalagem'));
-    await type(tester, const ValueKey('size-2'), '2');
+    await tapOn(tester, find.text('Adicionar outra embalagem'));
+    await type(tester, const ValueKey('size-2'), '2000');
 
-    await tapOn(tester, find.byType(Radio<int>).last);
+    expect(find.byType(Radio<int>), findsNothing);
+    expect(find.text('Vai se chamar: 2 L'), findsOneWidget);
+  });
 
-    expect(tester.widget<Radio<int>>(find.byType(Radio<int>).last).value, 2);
+  testWidgets('points at the field that is missing, not at the other one', (
+    tester,
+  ) async {
+    // The count opens filled with "1" and the measure opens empty, so the
+    // sentence has to name the MEASURE — and a zero is not the same case as
+    // an empty field.
+    await pumpScreen(tester);
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+
+    expect(find.text('Falta dizer quanto tem cada peça'), findsOneWidget);
+
+    await type(tester, const ValueKey('size-1'), '350');
+    await type(tester, const ValueKey('count-1'), '');
+    expect(find.text('Falta dizer quantas peças'), findsOneWidget);
+
+    await type(tester, const ValueKey('count-1'), '0');
+    expect(find.text('Use números maiores que zero'), findsOneWidget);
+  });
+
+  testWidgets('never writes a zero on the save button', (tester) async {
+    // "Salvar 0 produtos" on a dead button reads as a broken screen. What is
+    // missing is said above it instead.
+    await pumpScreen(tester);
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+
+    expect(find.textContaining('0 produto'), findsNothing);
+    expect(find.text('Falta completar 1 embalagem.'), findsOneWidget);
+    expect(saveButton(tester).onPressed, isNull);
   });
 
   testWidgets('asks a type counted by unit for the count and nothing else', (
@@ -550,11 +586,11 @@ void main() {
     await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
 
     expect(find.text('Unidade: unidade (vem do tipo)'), findsOneWidget);
-    expect(find.text('Quantidade'), findsOneWidget);
+    expect(find.text('Quantas unidades?'), findsOneWidget);
     expect(find.byKey(const ValueKey('size-1')), findsNothing);
 
     await type(tester, const ValueKey('count-1'), '12');
-    expect(find.text('12 × 1 un'), findsOneWidget);
+    expect(find.text('Vai se chamar: 12 × 1 un'), findsOneWidget);
   });
 
   testWidgets('takes the suggested description with one tap', (tester) async {
@@ -707,7 +743,7 @@ void main() {
       find.text('Acrescentando embalagem a um produto que já existe.'),
       findsOneWidget,
     );
-    expect(find.text('já cadastrada'), findsNWidgets(4));
+    expect(find.text('Já cadastradas neste produto (4)'), findsOneWidget);
   });
 
   testWidgets('the packaging lines being typed come before the ones already '
@@ -719,12 +755,14 @@ void main() {
       request: const NewProductRequest(registrationId: 'reg-1'),
     );
 
-    expect(find.text('já cadastrada'), findsNWidgets(4));
+    expect(find.text('Já cadastradas neste produto (4)'), findsOneWidget);
     // Geometric on purpose: nothing here is renamed, only reordered, and
     // order is the only thing an assertion can see.
     expect(
       tester.getTopLeft(find.byType(PackagingRow).first).dy,
-      lessThan(tester.getTopLeft(find.text('já cadastrada').first).dy),
+      lessThan(
+        tester.getTopLeft(find.text('Já cadastradas neste produto (4)')).dy,
+      ),
       reason: 'what is already registered is above what is being typed',
     );
   });

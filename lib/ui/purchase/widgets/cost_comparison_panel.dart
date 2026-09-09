@@ -194,6 +194,19 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // ── Band 1: fixed header ─────────────────────────────────────
+          // The `══` the wireframe draws: it is what says "this is a panel,
+          // not a screen".
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Container(
+              width: 32,
+              height: 4,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           ListTile(
             title: const Text('Comparar custo'),
             subtitle: Text(
@@ -320,117 +333,192 @@ class _CostRow extends StatelessWidget {
     final cost = line.costPerBaseUnit;
     final saving = line.savingPercent;
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Height 1: the name, with the whole width ────────────────
-          Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: Row(
+    return Material(
+      // The winning line is found without reading a number. `withValues` and
+      // not `withOpacity`, which is deprecated in Flutter 3.44.
+      color: line.isBest
+          ? theme.colorScheme.primaryContainer.withValues(alpha: 0.35)
+          : Colors.transparent,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Height 1: the name, with the whole width ────────────────
+            // The name toggles the line too. Height 2 is NOT wrapped: an
+            // `InkWell` over the two fields would steal the tap of whoever
+            // is aiming at them to type.
+            InkWell(
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 8),
+                child: Row(
+                  children: [
+                    if (line.isBest)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 4),
+                        child: Icon(
+                          Icons.star,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                          // The `★` is information, not decoration: without
+                          // this a screen reader has no idea which line won.
+                          semanticLabel: 'Melhor custo',
+                        ),
+                      ),
+                    Expanded(child: Text(line.option.label)),
+                    if (line.isBest)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        // The colour goes INSIDE the decoration: `color`
+                        // beside `decoration` trips an assertion at runtime.
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          'MELHOR CUSTO',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.onPrimary,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            // ── Height 2: the fields, always in the same place ──────────
+            Row(
               children: [
-                if (line.isBest)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Icon(
-                      Icons.star,
-                      size: 16,
-                      color: theme.colorScheme.primary,
-                      // The `★` is information, not decoration: without this
-                      // a screen reader has no idea which line won.
-                      semanticLabel: 'Melhor custo',
+                Checkbox(
+                  key: ValueKey('cost-check-${line.option.id}'),
+                  value: line.selected,
+                  onChanged: (_) => onToggle(),
+                ),
+                SizedBox(
+                  width: 118,
+                  child: TextField(
+                    key: ValueKey('cost-price-${line.option.id}'),
+                    controller: priceController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
                     ),
+                    // The iOS keyboard offers a comma or a dot depending on
+                    // the layout, and the domain's parser reads both.
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
+                    ],
+                    decoration: _fieldBox('Preço', prefix: r'R$ '),
+                    onChanged: (_) => onEdited(),
                   ),
-                Expanded(child: Text(line.option.label)),
+                ),
+                // The quantity column exists on EVERY line, with a field or
+                // without one: it is what keeps the cost and the difference
+                // in the same place when a weighed leaf and a packaging sit
+                // side by side, which is the whole reason the line has two
+                // heights (F-k).
+                SizedBox(
+                  width: 104,
+                  child: contentController == null
+                      ? const SizedBox.shrink()
+                      : TextField(
+                          key: ValueKey('cost-content-${line.option.id}'),
+                          controller: contentController,
+                          // Digits only: the content is typed in the small
+                          // unit of the magnitude, always a whole number.
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
+                          decoration: _fieldBox(
+                            'Quanto vem',
+                            suffix: baseUnit.label,
+                          ),
+                          onChanged: (_) => onEdited(),
+                        ),
+                ),
+                Expanded(
+                  // `min` and not the default `max`: the item of a `ListView`
+                  // is given an unbounded height, and a `RenderFlex` with an
+                  // unbounded main axis and `MainAxisSize.max` trips an
+                  // assertion.
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        // **No "R$ " here**, and it is not saving pixels: the
+                        // panel's header already says "custo por litro", the
+                        // field beside it already carries the symbol in its
+                        // `prefixText`, and repeating it on every line is a
+                        // whole column saying the same thing.
+                        //
+                        // A line that does not compete shows neither cost nor
+                        // difference, EVEN with the price filled in.
+                        //
+                        // `priceLabel` and NEVER `label`: this column is read
+                        // in the type's pricing unit.
+                        cost == null
+                            ? ''
+                            : '${formatMoneyPlain(Money(cost))}'
+                                  '/${baseUnit.priceLabel}',
+                        textAlign: TextAlign.right,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      // The difference, in words. The View does not decide
+                      // whether there is one: `savingPercent`, in the domain,
+                      // does (F-d).
+                      if (line.isBest)
+                        Text(
+                          'melhor',
+                          textAlign: TextAlign.right,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.primary,
+                          ),
+                        )
+                      else if (saving != null)
+                        Text(
+                          // `savingPercent` measures what the best one saves
+                          // over THIS line, and the sentence says exactly
+                          // that. A `−29%` in red on the dearest line is the
+                          // grammar of a discount and reads backwards (F-o).
+                          'a melhor economiza $saving%',
+                          textAlign: TextAlign.right,
+                          maxLines: 2,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ],
             ),
-          ),
-          // ── Height 2: the fields, always in the same place ──────────
-          Row(
-            children: [
-              Checkbox(
-                key: ValueKey('cost-check-${line.option.id}'),
-                value: line.selected,
-                onChanged: (_) => onToggle(),
-              ),
-              SizedBox(
-                width: 96,
-                child: TextField(
-                  key: ValueKey('cost-price-${line.option.id}'),
-                  controller: priceController,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  // The iOS keyboard offers a comma or a dot depending on the
-                  // layout, and the domain's parser reads both.
-                  inputFormatters: [
-                    FilteringTextInputFormatter.allow(RegExp(r'[\d,.]')),
-                  ],
-                  decoration: const InputDecoration(
-                    isDense: true,
-                    prefixText: r'R$ ',
-                  ),
-                  onChanged: (_) => onEdited(),
-                ),
-              ),
-              // The quantity column exists on EVERY line, with a field or
-              // without one: it is what keeps the cost and the `−%` in the
-              // same place when a weighed leaf and a packaging sit side by
-              // side, which is the whole reason the line has two heights
-              // (F-k).
-              SizedBox(
-                width: 76,
-                child: contentController == null
-                    ? const SizedBox.shrink()
-                    : TextField(
-                        key: ValueKey('cost-content-${line.option.id}'),
-                        controller: contentController,
-                        // Digits only: the content is typed in the small unit
-                        // of the magnitude, which is always a whole number.
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        decoration: InputDecoration(
-                          isDense: true,
-                          suffixText: baseUnit.label,
-                        ),
-                        onChanged: (_) => onEdited(),
-                      ),
-              ),
-              Expanded(
-                child: Text(
-                  // **No "R$ " here**, and it is not saving pixels: the
-                  // panel's header already says "custo por litro", the field
-                  // beside it already carries the symbol in its `prefixText`,
-                  // and repeating it on every line is a whole column saying
-                  // the same thing.
-                  //
-                  // A line that does not compete shows neither cost nor
-                  // difference, EVEN with the price filled in.
-                  cost == null
-                      ? ''
-                      : '${formatMoneyPlain(Money(cost))}'
-                            '/${baseUnit.priceLabel}',
-                  textAlign: TextAlign.right,
-                  style: theme.textTheme.bodyMedium,
-                ),
-              ),
-              SizedBox(
-                width: 52,
-                child: Text(
-                  saving == null ? '' : '−$saving%',
-                  textAlign: TextAlign.right,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
+
+/// The box of the two fields of a line. A function and not two literals: the
+/// two fields have to keep the same height, and two copies drift apart at the
+/// first padding tweak.
+InputDecoration _fieldBox(String label, {String? prefix, String? suffix}) =>
+    InputDecoration(
+      labelText: label,
+      prefixText: prefix,
+      suffixText: suffix,
+      // **Without this the label hides the `R$ ` and the unit.** In Material's
+      // `InputDecorator` the prefix and the suffix only show while the label
+      // floats — a focused or filled field. The still-empty line is exactly
+      // where the hint matters.
+      floatingLabelBehavior: FloatingLabelBehavior.always,
+      isDense: true,
+      filled: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+    );
