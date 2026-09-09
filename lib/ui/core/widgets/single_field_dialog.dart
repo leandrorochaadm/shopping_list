@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/catalog_entry.dart';
 
@@ -142,19 +143,17 @@ class _SingleFieldDialogState extends State<SingleFieldDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          AppTextField(
             controller: _controller,
             autofocus: true,
             enabled: !_saving,
-            textCapitalization: TextCapitalization.sentences,
-            textInputAction: TextInputAction.done,
             onSubmitted: _saving ? null : (_) => _submit(),
             onChanged: (_) {
               if (_reactivable != null) setState(() => _reactivable = null);
             },
+            errorText: _error,
             decoration: InputDecoration(
               labelText: widget.fieldLabel,
-              errorText: _error,
               // The message can be two lines long, and the default clips it.
               errorMaxLines: 3,
             ),

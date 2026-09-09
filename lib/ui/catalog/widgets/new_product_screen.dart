@@ -2,6 +2,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
@@ -609,11 +610,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           onFocusChange: (hasFocus) {
             if (!hasFocus) _checkIdentity();
           },
-          child: TextField(
+          child: AppTextField(
             key: const ValueKey('field-description'),
             controller: _descriptionController,
             enabled: !_locked && !_saving,
-            textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
               labelText: 'Descrição (opcional)',
               helperText: 'Separa "zero" de "original" no mesmo tipo e marca.',

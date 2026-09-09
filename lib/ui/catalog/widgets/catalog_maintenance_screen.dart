@@ -2,6 +2,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/name_normalization.dart';
@@ -121,14 +122,18 @@ class _CatalogMaintenanceScreenState
                     onChanged: (kind) => setState(() => _kind = kind ?? _kind),
                   ),
                   const SizedBox(height: 8),
-                  TextField(
+                  AppTextField(
                     key: const ValueKey('field-search'),
                     controller: _searchController,
                     decoration: const InputDecoration(
                       labelText: 'Buscar',
                       prefixIcon: Icon(Icons.search),
                     ),
-                    onChanged: (value) => setState(() => _query = value),
+                    // `?? ''`, and it is not decoration: the callback takes a
+                    // `String?`, and the clear button fires it with '' before
+                    // emptying the controller — a null here would leave the
+                    // filter showing the query the user has just wiped.
+                    onChanged: (value) => setState(() => _query = value ?? ''),
                   ),
                   CheckboxListTile(
                     key: const ValueKey('show-inactive'),

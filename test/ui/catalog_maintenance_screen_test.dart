@@ -299,6 +299,22 @@ void main() {
     expect(find.text('Nenhum cadastro encontrado.'), findsOneWidget);
   });
 
+  testWidgets('the ✕ of the search brings the whole list back', (tester) async {
+    await pumpCatalog(tester);
+
+    await tester.enterText(find.byKey(const ValueKey('field-search')), 'zzzz');
+    await tester.pumpAndSettle();
+    expect(find.text('Nenhum cadastro encontrado.'), findsOneWidget);
+
+    // The button fires `onChanged('')` BEFORE emptying the controller, so the
+    // filter only comes back if the screen reads that '' — a `String?` taken
+    // as null would leave the list filtered by a query nobody can see.
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nenhum cadastro encontrado.'), findsNothing);
+  });
+
   testWidgets('the create button follows the selector', (tester) async {
     await pumpCatalog(tester);
 

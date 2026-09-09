@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/catalog_entry.dart';
@@ -169,14 +170,13 @@ class _NewProductTypeDialogState extends ConsumerState<NewProductTypeDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            TextField(
+            AppTextField(
               controller: _controller,
               autofocus: true,
               enabled: !_saving,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
+              errorText: _error,
+              decoration: const InputDecoration(
                 labelText: 'Nome do tipo',
-                errorText: _error,
                 errorMaxLines: 3,
               ),
               onChanged: (_) => setState(() {

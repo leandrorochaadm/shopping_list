@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_maintenance.dart';
@@ -94,14 +95,13 @@ class _RegistrationEditDialogState
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          TextField(
+          AppTextField(
             key: const ValueKey('field-description'),
             controller: _descriptionController,
             enabled: !_saving,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
+            errorText: _error,
+            decoration: const InputDecoration(
               labelText: 'Descrição',
-              errorText: _error,
               errorMaxLines: 3,
             ),
           ),

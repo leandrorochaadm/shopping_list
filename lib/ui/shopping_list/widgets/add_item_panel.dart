@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/catalog_entry.dart';
 import '../../../domain/models/category.dart';
@@ -147,15 +148,16 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TextField(
+              child: AppTextField(
                 controller: _controller,
                 autofocus: true,
                 enabled: !_working,
-                textCapitalization: TextCapitalization.sentences,
                 decoration: const InputDecoration(
                   labelText: 'Tipo',
                   prefixIcon: Icon(Icons.search),
                 ),
+                // The `_` drops the `String?`: the filter reads the
+                // controller, which the clear button has already emptied.
                 onChanged: (_) => setState(() {}),
               ),
             ),
