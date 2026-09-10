@@ -622,28 +622,6 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     onChanged: (_) => setState(_recomputePrices),
                   ),
                 ),
-                AdaptiveFieldSpec(
-                  label: 'Valor total',
-                  widestValue: _widestMoney(_valueController),
-                  build: (context, compact) => AppTextField.currency(
-                    key: const ValueKey('field-value'),
-                    controller: _valueController,
-                    enabled: _option != null && !_saving,
-                    showClearButton: !compact,
-                    decoration: const InputDecoration(labelText: 'Valor total'),
-                    // Typing here makes the total the SOURCE: the suggestion
-                    // stops writing over it, and the price per pricing unit is
-                    // redone from it.
-                    //
-                    // The `setState` is not decoration: the ⚠ of H15 comes out
-                    // of the typed value, and without repainting it would only
-                    // appear on the next touch of another field.
-                    onChanged: (_) => setState(() {
-                      _priceSource = _PriceSource.total;
-                      _recomputePrices();
-                    }),
-                  ),
-                ),
                 // The price of ONE pricing unit — the number on the shelf tag.
                 //
                 // **Only where the product is sold by weight**: the amount
@@ -669,6 +647,28 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                       }),
                     ),
                   ),
+                AdaptiveFieldSpec(
+                  label: 'Valor total',
+                  widestValue: _widestMoney(_valueController),
+                  build: (context, compact) => AppTextField.currency(
+                    key: const ValueKey('field-value'),
+                    controller: _valueController,
+                    enabled: _option != null && !_saving,
+                    showClearButton: !compact,
+                    decoration: const InputDecoration(labelText: 'Valor total'),
+                    // Typing here makes the total the SOURCE: the suggestion
+                    // stops writing over it, and the price per pricing unit is
+                    // redone from it.
+                    //
+                    // The `setState` is not decoration: the ⚠ of H15 comes out
+                    // of the typed value, and without repainting it would only
+                    // appear on the next touch of another field.
+                    onChanged: (_) => setState(() {
+                      _priceSource = _PriceSource.total;
+                      _recomputePrices();
+                    }),
+                  ),
+                ),
               ],
             ),
             // What used to be the total field's `helperText`. Out of the
