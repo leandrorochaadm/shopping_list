@@ -473,10 +473,12 @@ continua aparecendo atrás dela.
 │  [    + Adicionar item    ]→1a       │
 │                                      │
 │  [   Sugerir itens   ]→2             │
-│  [     Lançar compra     ]→3 *       │
-├──────────────────────────────────────┤
-│  Lista     Falta→6     Relatórios→5  │
-└──────────────────────────────────────┘
+│                                      │
+├──────────────┐  ╭────╮  ┌────────────┤
+│ Lista Falta→6│  │ 🛒 │→3│Relatórios→5│
+│              │  ╰────╯ *│            │
+│              │  Lançar  │            │
+└──────────────┴──────────┴────────────┘
 ```
 
 **Notas:**
@@ -536,7 +538,10 @@ continua aparecendo atrás dela.
   do tipo na hora quando nada bate. O item entra só com o tipo; quantidade,
   marca e embalagem preferidas ficam para o diálogo de edição, tocando no item
   depois.
-- `*` "Lançar compra" é quem de fato dá baixa nos itens.
+- `*` "Lançar compra" é quem de fato dá baixa nos itens. Desde 19/09/2026 é o
+  **botão redondo no centro da barra** (`Lançar`), e não mais um botão do rodapé
+  da lista — e por estar na barra aparece também nas Telas 5 e 6. É uma ação,
+  não um destino: a Tela 3 continua fora do trio (decisão **I-d**).
 - `*` O menu `≡` guarda histórico de compras, correção de compra lançada,
   manutenção do cadastro e configurações (teto do mês) — telas não desenhadas
   neste rascunho, e por isso o único botão sem destino marcado.

@@ -2,6 +2,12 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 19/09/2026** — ajuste pedido pelo usuário: o `[ Lançar compra ]` saiu do
+rodapé da Tela 1 e virou um **botão redondo no centro da barra de baixo** (`Lançar`), nas
+Telas 1, 5 e 6 (decisão **I-d**, que revoga a I-b). É ação, não destino: a Tela 3 segue
+sem barra. `MainBottomBar` deixou de ser um `NavigationBar` e desenha os destinos à mão;
+a `ValueKey('new-purchase')` foi junto para o botão. Sem rota, sem domínio, sem migration.
+
 **Atualizado em 09/09/2026**, ao fim da Entrega 16 — **acréscimo fora das 19
 histórias**, pedido pelo usuário em 09/09/2026: a Tela 3 ganhou o campo **Valor por kg**,
 e ele é o preço da etiqueta do açougue. **Só aparece no vendido a peso** (peso, volume e

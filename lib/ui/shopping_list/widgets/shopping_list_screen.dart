@@ -228,15 +228,8 @@ class _Body extends ConsumerWidget {
                 onPressed: () => context.push(Routes.suggestions),
                 child: const Text('Sugerir itens'),
               ),
-              const SizedBox(height: 8),
-              // `go` and not `push`, unlike the button above: registering a
-              // purchase ENDS on the list — screen 3 goes back there by
-              // itself once it saves — so there is no stack worth keeping.
-              OutlinedButton(
-                key: const ValueKey('new-purchase'),
-                onPressed: () => context.go(Routes.newPurchase),
-                child: const Text('Lançar compra'),
-              ),
+              // `[ Lançar compra ]` moved to the middle of the bottom bar
+              // (decision I-d), where screens 5 and 6 reach it too.
             ],
           ),
         ),

@@ -13,7 +13,7 @@ void main() {
     ),
   );
 
-  /// A router of three routes, because a tap on any destination now calls
+  /// A router of the three destinations plus screen 3, because a tap on any destination now calls
   /// `context.go` — and without a GoRouter in the tree that throws. Until H18
   /// the bar alone could be asked about the destinations that did not
   /// navigate; there are none left.
@@ -42,6 +42,11 @@ void main() {
             body: Text('o relatório'),
             bottomNavigationBar: MainBottomBar(current: Routes.reports),
           ),
+        ),
+        GoRoute(
+          path: Routes.newPurchase,
+          builder: (context, state) =>
+              const Scaffold(body: Text('o lançamento')),
         ),
       ],
     );
@@ -102,6 +107,54 @@ void main() {
     for (final label in const ['Lista', 'Falta', 'Relatórios']) {
       expect(find.byTooltip(label), findsOneWidget, reason: label);
     }
+  });
+
+  testWidgets('[ Lançar ] sits in the exact middle of the bar', (
+    tester,
+  ) async {
+    await pumpBar(tester);
+
+    final bar = tester.getRect(find.byType(MainBottomBar));
+    final button = tester.getRect(find.byKey(const ValueKey('new-purchase')));
+
+    expect(button.center.dx, closeTo(bar.center.dx, 0.5));
+    expect(find.text('Lançar'), findsOneWidget);
+    expect(find.byTooltip('Lançar compra'), findsOneWidget);
+  });
+
+  testWidgets('[ Lançar ] opens screen 3 from any of the three screens', (
+    tester,
+  ) async {
+    final router = await pumpRoutedBar(tester);
+
+    for (final from in const [
+      Routes.shoppingList,
+      Routes.remainingThisMonth,
+      Routes.reports,
+    ]) {
+      router.go(from);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('new-purchase')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('o lançamento'), findsOneWidget, reason: from);
+    }
+  });
+
+  testWidgets('the screen on display is the one marked selected', (
+    tester,
+  ) async {
+    await pumpBar(tester);
+
+    expect(
+      tester.getSemantics(find.text('Lista')),
+      containsSemantics(isButton: true, isSelected: true, label: 'Lista'),
+    );
+    expect(
+      tester.getSemantics(find.text('Falta')),
+      containsSemantics(isButton: true, isSelected: false, label: 'Falta'),
+    );
   });
 
   testWidgets('the destination already on screen does nothing loud', (

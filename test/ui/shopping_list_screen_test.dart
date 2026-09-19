@@ -313,13 +313,9 @@ void main() {
     expect(button.onPressed, isNotNull);
   });
 
-  testWidgets('[ Lançar compra ] navigates, and the screen 1 opens at all', (
-    tester,
-  ) async {
-    // Two assertions in one, and the second is the reason the button stopped
-    // being a `_PendingButton` in the same step the map lost `newPurchase`:
-    // `_PendingButton` reads that map with a `!`, so a screen 1 that builds
-    // its footer at all is the proof the order was not inverted.
+  testWidgets('the bar\'s [ Lançar ] navigates to screen 3', (tester) async {
+    // The button left the footer for the middle of the bottom bar
+    // (decision I-d); the key travelled with it.
     await pumpScreen(
       tester,
       repository: _SpyRepository(initial: seed),
@@ -341,18 +337,12 @@ void main() {
     await tester.tap(find.byTooltip('Menu'));
     await tester.pumpAndSettle();
 
-    // `widgetWithText(ListTile, …)` and not a plain `find.text`: with the
-    // sheet open over screen 1, "Lançar compra" is written TWICE — the
-    // footer's OutlinedButton and this menu's ListTile (decision I-b). A
-    // `findsWidgets` here would be satisfied by the footer alone and would
-    // stop proving the door exists.
     expect(find.widgetWithText(ListTile, 'Lançar compra'), findsOneWidget);
-    // And the footer button did NOT leave: screen 1 keeps BOTH doors, which
-    // is decision I-b. Without this line, deleting the footer button one day
-    // would leave this test green.
+    // The footer button is gone — it moved to the bottom bar, which writes
+    // only "Lançar" (decision I-d).
     expect(
       find.widgetWithText(OutlinedButton, 'Lançar compra'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Histórico de compras'), findsOneWidget);
     expect(find.text('Manutenção do cadastro'), findsOneWidget);

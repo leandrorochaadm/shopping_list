@@ -22,10 +22,9 @@ import 'menu_entry.dart';
 /// `wireframes §330` forbids. Decision I-a.
 ///
 /// It is the FIRST entry because it is the most frequent action of the three
-/// screens that mount this menu, and screen 1 keeps its footer button beside
-/// it: hiding one of the two would cost this menu a `current` parameter, like
-/// [MainBottomBar] has, to erase a line that does not get in the way
-/// (decision I-b).
+/// screens that mount this menu. Since 19/09/2026 the same action also sits in
+/// the middle of [MainBottomBar], as a button and not a destination
+/// (decision I-d); screen 1's footer button left for it.
 ///
 /// It lives in `ui/core/` and not in `ui/shopping_list/`, for the same reason
 /// [MainBottomBar] does: the wireframe draws this same `≡` in the header of
