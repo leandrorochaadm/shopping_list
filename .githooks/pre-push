@@ -13,9 +13,13 @@ So before every push this hook steps the override aside, resolves tekton_core
 from `main`, amends the resulting lock into the commit going out, and puts the
 override back. The push is then STOPPED on purpose: `git push` had already
 resolved the old commit, and only the next push carries the amended one.
+
+Then it runs the same gates as `deploy.yml` (analyze, tests, coverage floor),
+so a push that CI would reject is stopped here instead.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -23,6 +27,8 @@ import sys
 ZERO = '0' * 40
 OVERRIDES = 'pubspec_overrides.yaml'
 STASHED = 'pubspec_overrides.yaml.pre-push'
+WORKFLOW = '.github/workflows/deploy.yml'
+LCOV = 'coverage/lcov.info'
 
 
 def run(*args, **kwargs):
@@ -51,16 +57,7 @@ def resolve_from_git():
             shutil.move(STASHED, OVERRIDES)
 
 
-def main():
-    if deletes_only():
-        return 0
-
-    # The hook also runs from an IDE, where the login shell's PATH is not
-    # loaded. Missing Flutter is not a reason to block a push.
-    if shutil.which('flutter') is None:
-        print('pre-push: flutter is not on the PATH, skipping the tekton_core upgrade', file=sys.stderr)
-        return 0
-
+def sync_lock():
     print('pre-push: resolving tekton_core from main...')
     resolve_from_git()
 
@@ -87,6 +84,60 @@ def main():
         # Whatever happened above, the working tree goes back to the local
         # clone — leaving the CI's lock behind would be a silent trap.
         run('flutter', 'pub', 'get')
+
+
+def min_coverage():
+    """Reads the floor from the workflow, so the number lives in one place."""
+    with open(WORKFLOW, encoding='utf-8') as handle:
+        match = re.search(r"MIN_COVERAGE:\s*'?([\d.]+)'?", handle.read())
+    return float(match.group(1)) if match else 90.0
+
+
+def line_coverage():
+    found = hit = 0
+    with open(LCOV, encoding='utf-8') as handle:
+        for line in handle:
+            if line.startswith('LF:'):
+                found += int(line[3:])
+            elif line.startswith('LH:'):
+                hit += int(line[3:])
+    return 100 * hit / found if found else 0.0
+
+
+def gate(title, *args):
+    """Runs one CI gate with its output visible. True when it passed."""
+    print(f'pre-push: {title}...')
+    return subprocess.run(args).returncode == 0
+
+
+def checks():
+    """The same gates `deploy.yml` runs before the build, in the same order."""
+    if not gate('flutter analyze', 'flutter', 'analyze'):
+        print('pre-push: flutter analyze failed.', file=sys.stderr)
+        return 1
+    if not gate('flutter test --coverage', 'flutter', 'test', '--coverage'):
+        print('pre-push: flutter test failed.', file=sys.stderr)
+        return 1
+    total, floor = line_coverage(), min_coverage()
+    print(f'pre-push: line coverage {total:.1f}% (floor {floor}%)')
+    if total < floor:
+        print(f'pre-push: coverage is below the {floor}% floor.', file=sys.stderr)
+        return 1
+    return 0
+
+
+def main():
+    if deletes_only():
+        return 0
+
+    # The hook also runs from an IDE, where the login shell's PATH is not
+    # loaded. Missing Flutter is not a reason to block a push.
+    if shutil.which('flutter') is None:
+        print('pre-push: flutter is not on the PATH, skipping the checks', file=sys.stderr)
+        return 0
+
+    code = sync_lock()
+    return code if code else checks()
 
 
 if __name__ == '__main__':
