@@ -137,7 +137,7 @@ void main() {
     );
 
     expect(find.text('Sua lista está vazia.'), findsOneWidget);
-    expect(find.text('Adicionar item'), findsOneWidget);
+    expect(find.byKey(const ValueKey('add-item')), findsOneWidget);
     expect(find.text('Sugerir itens'), findsOneWidget);
   });
 

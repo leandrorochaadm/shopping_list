@@ -88,6 +88,12 @@ class ShoppingListScreen extends ConsumerWidget {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton(
+        key: const ValueKey('add-item'),
+        tooltip: 'Adicionar item',
+        onPressed: () => AddItemPanel.show(context),
+        child: const Icon(Icons.add),
+      ),
       bottomNavigationBar: const MainBottomBar(current: Routes.shoppingList),
     );
   }
@@ -170,19 +176,10 @@ class _Body extends ConsumerWidget {
         children: [
           const MessageView('Sua lista está vazia.'),
           Center(
-            child: Column(
-              children: [
-                FilledButton(
-                  onPressed: () => AddItemPanel.show(context),
-                  child: const Text('Adicionar item'),
-                ),
-                const SizedBox(height: 8),
-                OutlinedButton(
-                  key: const ValueKey('suggest-items-empty'),
-                  onPressed: () => context.push(Routes.suggestions),
-                  child: const Text('Sugerir itens'),
-                ),
-              ],
+            child: OutlinedButton(
+              key: const ValueKey('suggest-items-empty'),
+              onPressed: () => context.push(Routes.suggestions),
+              child: const Text('Sugerir itens'),
             ),
           ),
         ],
@@ -212,28 +209,19 @@ class _Body extends ConsumerWidget {
         ],
         const SizedBox(height: 16),
         Center(
-          child: Column(
-            children: [
-              FilledButton.icon(
-                onPressed: () => AddItemPanel.show(context),
-                icon: const Icon(Icons.add),
-                label: const Text('Adicionar item'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton(
-                key: const ValueKey('suggest-items'),
-                // `push`, never `go`: the routes are flat, and screen 2 has to
-                // come BACK here — both from its Back button and from
-                // `[ Adicionar selecionados ]`.
-                onPressed: () => context.push(Routes.suggestions),
-                child: const Text('Sugerir itens'),
-              ),
-              // `[ Lançar compra ]` moved to the middle of the bottom bar
-              // (decision I-d), where screens 5 and 6 reach it too.
-            ],
+          child: OutlinedButton(
+            key: const ValueKey('suggest-items'),
+            // `push`, never `go`: the routes are flat, and screen 2 has to
+            // come BACK here — both from its Back button and from
+            // `[ Adicionar selecionados ]`.
+            onPressed: () => context.push(Routes.suggestions),
+            child: const Text('Sugerir itens'),
           ),
+          // `[ Lançar compra ]` moved to the middle of the bottom bar
+          // (decision I-d), where screens 5 and 6 reach it too.
         ),
-        const SizedBox(height: 24),
+        // Room for the floating button, so it never hides the last row.
+        const SizedBox(height: 88),
       ],
     );
   }
