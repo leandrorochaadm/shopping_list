@@ -149,11 +149,11 @@ void main() {
 
     expect(
       tester.getSemantics(find.text('Lista')),
-      containsSemantics(isButton: true, isSelected: true, label: 'Lista'),
+      isSemantics(isButton: true, isSelected: true, label: 'Lista'),
     );
     expect(
       tester.getSemantics(find.text('Falta')),
-      containsSemantics(isButton: true, isSelected: false, label: 'Falta'),
+      isSemantics(isButton: true, isSelected: false, label: 'Falta'),
     );
   });
 
