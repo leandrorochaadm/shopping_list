@@ -386,7 +386,7 @@ void main() {
 
       expect(find.byType(ReportsScreen), findsOneWidget);
       expect(find.text('Lista'), findsOneWidget);
-      expect(find.text('Falta'), findsOneWidget);
+      expect(find.text('Despensa'), findsOneWidget);
       // Twice: the app bar title AND the bar's own label. The TabBar does NOT
       // add a third — its tabs are 'Resumo' and 'Comparação de preço'.
       expect(find.text('Relatórios'), findsNWidgets(2));
