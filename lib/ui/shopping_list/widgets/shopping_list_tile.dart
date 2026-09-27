@@ -62,11 +62,14 @@ class ShoppingListTile extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (item.notFound)
-            Icon(
-              Icons.error_outline,
-              size: 20,
-              color: theme.colorScheme.error,
-              semanticLabel: 'não encontrei',
+            Tooltip(
+              message: 'Não encontrado na última compra',
+              child: Icon(
+                Icons.error_outline,
+                size: 20,
+                color: theme.colorScheme.error,
+                semanticLabel: 'não encontrei',
+              ),
             ),
           if (quantity != null)
             Padding(
