@@ -44,7 +44,7 @@ void main() {
     '/purchases/purchase-1/edit': 'Corrigir compra',
     Routes.catalog: 'Manutenção do cadastro',
     Routes.reports: 'Relatórios',
-    Routes.suggestions: 'Sugestão de itens',
+    Routes.suggestions: 'Conferir despensa',
     Routes.remainingThisMonth: 'Falta comprar este mês',
   };
 
@@ -277,12 +277,12 @@ void main() {
     expect(find.byTooltip('Menu'), findsOneWidget);
   });
 
-  testWidgets('gives "falta comprar" no exit either — the third destination', (
+  testWidgets('gives the pantry check no exit either — the third destination', (
     tester,
   ) async {
-    // The third and last screen with the bottom bar, and the same exception
-    // for the same reason: "alternar entre eles não é voltar". Screen 1 and
-    // screen 5 already have a case each; this closes the set.
+    // The third and last screen with the bottom bar since 27/09/2026, when it
+    // took screen 6's slot, and the same exception for the same reason:
+    // "alternar entre eles não é voltar".
     final router = await pumpRouter(
       tester,
       overrides: [
@@ -296,28 +296,27 @@ void main() {
     );
 
     // Pushed, which is the case that WOULD grow one.
-    router.push(Routes.remainingThisMonth);
+    router.push(Routes.suggestions);
     await tester.pumpAndSettle();
 
-    expect(find.byType(RemainingScreen), findsOneWidget);
+    expect(find.byType(SuggestionsScreen), findsOneWidget);
     expect(find.byType(BackButton), findsNothing);
     expect(find.byTooltip('Ir para a lista'), findsNothing);
     expect(find.byTooltip('Menu'), findsOneWidget);
 
     // And opened directly, with an empty stack: still the `≡` and the bar.
-    router.go(Routes.remainingThisMonth);
+    router.go(Routes.suggestions);
     await tester.pumpAndSettle();
 
     expect(find.byType(BackButton), findsNothing);
     expect(find.byTooltip('Menu'), findsOneWidget);
   });
 
-  testWidgets('gives the suggestion a Back button — it IS pushed', (
+  testWidgets('gives "falta comprar" the exit of the ≡ screens', (
     tester,
   ) async {
-    // The opposite of the three above, and the reason screen 1 opens it with
-    // `push`: the wireframe sends screen 2 back to the list, both from this
-    // button and from `[ Adicionar selecionados ]`.
+    // Screen 6 left the bottom bar for the `≡`, and with it the "no exit"
+    // exception: pushed it goes Back, opened from the menu it goes home.
     final router = await pumpRouter(
       tester,
       overrides: [
@@ -330,18 +329,17 @@ void main() {
       ],
     );
 
-    router.push(Routes.suggestions);
+    router.push(Routes.remainingThisMonth);
     await tester.pumpAndSettle();
 
-    expect(find.byType(SuggestionsScreen), findsOneWidget);
+    expect(find.byType(RemainingScreen), findsOneWidget);
     expect(find.byType(BackButton), findsOneWidget);
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
     expect(find.text('Lista de compras'), findsOneWidget);
 
-    // Opened by a pasted link, with an empty stack: the exit is the house.
-    router.go(Routes.suggestions);
+    router.go(Routes.remainingThisMonth);
     await tester.pumpAndSettle();
 
     expect(find.byType(BackButton), findsNothing);

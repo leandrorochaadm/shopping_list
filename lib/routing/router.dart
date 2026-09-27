@@ -62,9 +62,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.suggestions,
         name: RouteNames.suggestions,
-        // Screen 1 opens it with `push`, never `go`: the routes are flat, and
-        // the wireframe sends this one BACK to the list — with `go` there
-        // would be no stack to pop.
+        // The third permanent destination of the bottom bar since 27/09/2026,
+        // reached with `go`: switching between the three is not going back,
+        // so it carries no Back button.
         builder: (context, state) => const SuggestionsScreen(),
       ),
       // Declared BEFORE the ':id' route below, because go_router matches in
@@ -112,9 +112,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.remainingThisMonth,
         name: RouteNames.remainingThisMonth,
-        // The third permanent destination of the bottom bar, and the bar
-        // reaches it with `go`: switching between the three is not going back,
-        // so it carries no Back button.
         builder: (context, state) => const RemainingScreen(),
       ),
       GoRoute(

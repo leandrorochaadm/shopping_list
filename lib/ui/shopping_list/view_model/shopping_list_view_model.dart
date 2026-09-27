@@ -108,7 +108,8 @@ final class ShoppingListViewModel
     }
   }
 
-  /// `[ Adicionar selecionados ]` of screen 2 — several items, ONE guard.
+  /// `[ Adicionar à lista ]` da Tela 2 (conferir despensa) — several items,
+  /// ONE guard.
   ///
   /// It exists because [add] cannot be called in a loop: the reentrancy guard
   /// of rule 14 would swallow every call after the first and return `null`,
@@ -140,11 +141,11 @@ final class ShoppingListViewModel
                 id: newUuidV4(),
                 type: line.type,
                 category: line.category,
-                // Null when the average is zero (E-j): the entity refuses a
-                // quantity of zero, and no quantity is the right answer there
-                // — the item leaves the list on the first purchase of the
-                // type, which is what the `#1a` panel already creates.
-                quantity: line.suggestedQuantity,
+                // PantryCheck nunca pergunta quantidade (glossário
+                // `PantryCheck`): o item sai da despensa sem número, e a
+                // linha deixa a lista na primeira compra do tipo — a mesma
+                // forma que o painel `#1a` já cria.
+                quantity: null,
                 enteredOn: day,
               ),
             );

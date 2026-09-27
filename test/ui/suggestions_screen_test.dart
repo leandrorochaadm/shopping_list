@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:go_router/go_router.dart';
 import 'package:shopping_list/data/repositories/consumption/consumption_repository.dart';
 import 'package:shopping_list/data/repositories/consumption/consumption_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
@@ -80,42 +79,16 @@ ShoppingListItem _listItem({
 );
 
 void main() {
-  /// A router of its own with the two routes this screen needs, and not the
-  /// app's: `context.canPop()` needs a GoRouter in the tree, and a minimal one
-  /// is what lets both sides of it be exercised — pushed from screen 1, and
-  /// reached by a pasted link.
   Future<void> pumpScreen(
     WidgetTester tester, {
     ConsumptionRepository? consumption,
     _SpyList? list,
-    bool pushed = true,
   }) async {
     // A tall viewport: five suggestion lines plus the button do not fit the
     // default 800×600, and a button outside the render tree cannot be tapped.
     tester.view.physicalSize = const Size(1200, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
-
-    final router = GoRouter(
-      initialLocation: '/',
-      routes: [
-        GoRoute(
-          path: '/',
-          builder: (context, state) => Scaffold(
-            body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => context.push('/suggestions'),
-                child: const Text('ir para a sugestão'),
-              ),
-            ),
-          ),
-        ),
-        GoRoute(
-          path: '/suggestions',
-          builder: (context, state) => const SuggestionsScreen(),
-        ),
-      ],
-    );
 
     await tester.pumpWidget(
       ProviderScope(
@@ -130,17 +103,9 @@ void main() {
             () => MonthlyAverageViewModel(today: testToday),
           ),
         ],
-        child: MaterialApp.router(routerConfig: router),
+        child: const MaterialApp(home: SuggestionsScreen()),
       ),
     );
-    await tester.pumpAndSettle();
-
-    if (pushed) {
-      await tester.tap(find.text('ir para a sugestão'));
-    } else {
-      // The pasted link: no stack behind it.
-      router.go('/suggestions');
-    }
     await tester.pumpAndSettle();
   }
 
@@ -149,20 +114,16 @@ void main() {
   ) async {
     await pumpScreen(tester);
 
-    expect(find.text('Sugestão de itens'), findsOneWidget);
-    expect(
-      find.text('Baseado no que compraram nos três meses fechados anteriores.'),
-      findsOneWidget,
-    );
+    expect(find.text('Conferir despensa'), findsOneWidget);
+    expect(find.text('Marque o que acabou em casa.'), findsOneWidget);
 
-    // The written story of requirement 8, and every number is a rule:
-    // the beef divides by three, the powder by two, the coffee by three with a
-    // single purchase in the window, and the toilet paper by nothing.
-    expect(find.text('Acém moído — 8 kg'), findsOneWidget);
-    expect(find.text('Sabão em pó — 8 kg'), findsOneWidget);
-    expect(find.text('Café — 700 g'), findsOneWidget);
-    expect(find.text('Refrigerante — 4,2 L'), findsOneWidget);
-    expect(find.text('Papel higiênico — 12 un'), findsOneWidget);
+    // The written story of requirement 8 — every type appears, with no
+    // quantity: PantryCheck never shows or writes one.
+    expect(find.text('Acém moído'), findsOneWidget);
+    expect(find.text('Sabão em pó'), findsOneWidget);
+    expect(find.text('Café'), findsOneWidget);
+    expect(find.text('Refrigerante'), findsOneWidget);
+    expect(find.text('Papel higiênico'), findsOneWidget);
 
     // Grouped by category, alphabetically — the same organization screen 1
     // uses, never "do mais comprado para o menos comprado".
@@ -267,33 +228,46 @@ void main() {
     expect(find.text('(já está na lista)'), findsNothing);
   });
 
-  testWidgets('ticking two and adding writes both, with the quantity, and '
-      'goes back', (tester) async {
-    final list = _SpyList(initial: const []);
-    await pumpScreen(tester, list: list);
+  testWidgets(
+    'ticking two and adding writes both, with no quantity, and stays',
+    (tester) async {
+      final list = _SpyList(initial: const []);
+      await pumpScreen(tester, list: list);
 
-    await tester.tap(find.byKey(const ValueKey('suggestion-type-5')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('suggestion-type-2')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('suggestion-type-5')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('suggestion-type-2')));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('add-selected')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('add-selected')));
+      // Advances the clock enough to drain both of the fake's own
+      // `Future.delayed` writes (Duration.zero still needs a tick), then one
+      // more frame for the SnackBar to appear.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
 
-    expect(list.added, hasLength(2));
-    final byName = {for (final item in list.added) item.type.name: item};
-    // The suggestion fills the field — and from then on it is the item's, and
-    // editable (requirement 13).
-    expect(byName['Café']!.quantity, 700);
-    expect(byName['Acém moído']!.quantity, 8000);
-    // The line carries the whole category (D4).
-    expect(byName['Café']!.category.name, 'Mercearia');
+      expect(find.text('2 itens adicionados à lista.'), findsOneWidget);
 
-    // `pop`, not `go`: screen 1 pushed this one, and the wireframe sends it
-    // back there.
-    expect(find.byType(SuggestionsScreen), findsNothing);
-    expect(find.text('ir para a sugestão'), findsOneWidget);
-  });
+      await tester.pumpAndSettle();
+
+      expect(list.added, hasLength(2));
+      final byName = {for (final item in list.added) item.type.name: item};
+      expect(byName['Café']!.quantity, isNull);
+      expect(byName['Acém moído']!.quantity, isNull);
+      // The line carries the whole category (D4).
+      expect(byName['Café']!.category.name, 'Mercearia');
+
+      // A permanent destination does not leave on its own: the two lines
+      // come back locked, and the ticks went with the write — a tick left on
+      // a locked line would be added again by the next tap.
+      expect(find.byType(SuggestionsScreen), findsOneWidget);
+      expect(find.text('(já está na lista)'), findsNWidgets(2));
+      final button = tester.widget<FilledButton>(
+        find.byKey(const ValueKey('add-selected')),
+      );
+      expect(button.onPressed, isNull);
+    },
+  );
 
   testWidgets('a failing add keeps the screen and says why', (tester) async {
     final list = _SpyList(initial: const [])
@@ -314,12 +288,13 @@ void main() {
   testWidgets('with no history it says so, and offers no action', (
     tester,
   ) async {
-    // What the wireframe draws: "Ainda não há compras suficientes para sugerir
-    // nada", with no button — there is nothing a tap could do about it.
+    // What the wireframe draws: "Ainda não há compras suficientes para
+    // conferir a despensa", with no button — there is nothing a tap could do
+    // about it.
     await pumpScreen(tester, consumption: _SpyConsumption(lines: const []));
 
     expect(
-      find.text('Ainda não há compras suficientes para sugerir nada.'),
+      find.text('Ainda não há compras suficientes para conferir a despensa.'),
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('add-selected')), findsNothing);
@@ -341,22 +316,30 @@ void main() {
     await tester.pumpAndSettle();
 
     // The retry worked, and the lines are there.
-    expect(find.text('Café — 700 g'), findsOneWidget);
+    expect(find.text('Café'), findsOneWidget);
   });
 
-  testWidgets('pushed from screen 1 it carries a Back button', (tester) async {
+  testWidgets('it is a permanent destination: the ≡ and the bar, no Back', (
+    tester,
+  ) async {
+    // "Alternar entre eles não é voltar" — screen 2 took screen 6's slot in
+    // the bottom bar on 27/09/2026, and the rule came with the slot.
     await pumpScreen(tester);
 
-    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
     expect(find.byIcon(Icons.home_outlined), findsNothing);
+    expect(find.byTooltip('Menu'), findsOneWidget);
+    expect(find.byKey(const ValueKey('new-purchase')), findsOneWidget);
   });
 
-  testWidgets('with no stack to pop the way out is the house', (tester) async {
-    // R11: in a standalone PWA there is no browser Back button, and this
-    // screen is reachable by a pasted link.
-    await pumpScreen(tester, pushed: false);
+  testWidgets('the ≡ opens the doors here too', (tester) async {
+    await pumpScreen(tester);
 
-    expect(find.byType(BackButton), findsNothing);
-    expect(find.byIcon(Icons.home_outlined), findsOneWidget);
+    await tester.tap(find.byTooltip('Menu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lançar compra'), findsOneWidget);
+    expect(find.text('Falta comprar este mês'), findsOneWidget);
+    expect(find.text('Configurações'), findsOneWidget);
   });
 }

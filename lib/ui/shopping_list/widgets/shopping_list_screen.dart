@@ -1,7 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
@@ -163,10 +162,6 @@ class _ErrorBody extends ConsumerWidget {
   );
 }
 
-// Screen 2 is temporarily hidden while its scope is being decided. The route
-// and the screen stay in place; flip this to `true` to bring the button back.
-const _showSuggestionsButton = false;
-
 class _Body extends ConsumerWidget {
   const _Body({required this.items});
 
@@ -177,17 +172,7 @@ class _Body extends ConsumerWidget {
     if (items.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          const MessageView('Sua lista está vazia.'),
-          if (_showSuggestionsButton)
-            Center(
-              child: OutlinedButton(
-                key: const ValueKey('suggest-items-empty'),
-                onPressed: () => context.push(Routes.suggestions),
-                child: const Text('Sugerir itens'),
-              ),
-            ),
-        ],
+        children: const [MessageView('Sua lista está vazia.')],
       );
     }
 
@@ -212,20 +197,6 @@ class _Body extends ConsumerWidget {
               onOpen: () => ItemDialog.show(context, item),
             ),
         ],
-        const SizedBox(height: 16),
-        if (_showSuggestionsButton)
-          Center(
-            child: OutlinedButton(
-              key: const ValueKey('suggest-items'),
-              // `push`, never `go`: the routes are flat, and screen 2 has to
-              // come BACK here — both from its Back button and from
-              // `[ Adicionar selecionados ]`.
-              onPressed: () => context.push(Routes.suggestions),
-              child: const Text('Sugerir itens'),
-            ),
-            // `[ Lançar compra ]` moved to the middle of the bottom bar
-            // (decision I-d), where screens 5 and 6 reach it too.
-          ),
         // Room for the floating button, so it never hides the last row.
         const SizedBox(height: 88),
       ],

@@ -28,12 +28,10 @@ void main() {
           ),
         ),
         GoRoute(
-          path: Routes.remainingThisMonth,
+          path: Routes.suggestions,
           builder: (context, state) => const Scaffold(
-            body: Text('o que falta'),
-            bottomNavigationBar: MainBottomBar(
-              current: Routes.remainingThisMonth,
-            ),
+            body: Text('a despensa'),
+            bottomNavigationBar: MainBottomBar(current: Routes.suggestions),
           ),
         ),
         GoRoute(
@@ -61,19 +59,19 @@ void main() {
     await pumpBar(tester);
 
     expect(find.text('Lista'), findsOneWidget);
-    expect(find.text('Falta'), findsOneWidget);
+    expect(find.text('Despensa'), findsOneWidget);
     expect(find.text('Relatórios'), findsOneWidget);
+    // Screen 6 left the bar for the `≡` on 27/09/2026.
+    expect(find.text('Falta'), findsNothing);
   });
 
-  testWidgets('"Falta" navigates to screen 6', (tester) async {
-    // It used to answer '"Falta comprar este mês" chega na H18.'; H18 is this
-    // delivery, and there is no story left to announce.
+  testWidgets('"Despensa" navigates to screen 2', (tester) async {
     await pumpRoutedBar(tester);
 
-    await tester.tap(find.text('Falta'));
+    await tester.tap(find.text('Despensa'));
     await tester.pumpAndSettle();
 
-    expect(find.text('o que falta'), findsOneWidget);
+    expect(find.text('a despensa'), findsOneWidget);
   });
 
   testWidgets('"Relatórios" navigates to screen 5', (tester) async {
@@ -98,13 +96,13 @@ void main() {
 
     for (final icon in const [
       Icons.checklist,
-      Icons.event_note,
+      Icons.fact_check_outlined,
       Icons.bar_chart,
     ]) {
       expect(tester.widget<Icon>(find.byIcon(icon)).color, isNot(disabled));
     }
 
-    for (final label in const ['Lista', 'Falta', 'Relatórios']) {
+    for (final label in const ['Lista', 'Despensa', 'Relatórios']) {
       expect(find.byTooltip(label), findsOneWidget, reason: label);
     }
   });
@@ -129,7 +127,7 @@ void main() {
 
     for (final from in const [
       Routes.shoppingList,
-      Routes.remainingThisMonth,
+      Routes.suggestions,
       Routes.reports,
     ]) {
       router.go(from);
@@ -152,8 +150,8 @@ void main() {
       isSemantics(isButton: true, isSelected: true, label: 'Lista'),
     );
     expect(
-      tester.getSemantics(find.text('Falta')),
-      isSemantics(isButton: true, isSelected: false, label: 'Falta'),
+      tester.getSemantics(find.text('Despensa')),
+      isSemantics(isButton: true, isSelected: false, label: 'Despensa'),
     );
   });
 

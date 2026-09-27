@@ -51,6 +51,11 @@ abstract final class MainMenu {
       label: 'Lançar compra',
     ),
     MenuEntry(
+      route: Routes.remainingThisMonth,
+      icon: Icons.event_note,
+      label: 'Falta comprar este mês',
+    ),
+    MenuEntry(
       route: Routes.purchaseHistory,
       icon: Icons.receipt_long,
       label: 'Histórico de compras',

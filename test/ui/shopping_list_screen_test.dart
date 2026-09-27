@@ -15,6 +15,7 @@ import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/ui/shopping_list/widgets/shopping_list_tile.dart';
 
 import '../helpers/catalog.dart';
+import '../helpers/consumption.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
 import '../helpers/purchase.dart';
@@ -138,8 +139,6 @@ void main() {
 
     expect(find.text('Sua lista está vazia.'), findsOneWidget);
     expect(find.byKey(const ValueKey('add-item')), findsOneWidget);
-    // The second way out, `[ Sugerir itens ]`, is hidden for now.
-    expect(find.text('Sugerir itens'), findsNothing);
   });
 
   testWidgets('translates a failed load and offers to try again', (
@@ -278,22 +277,24 @@ void main() {
     expect(tester.widget<Checkbox>(find.byType(Checkbox).first).value, isTrue);
   });
 
-  // Screen 2 is temporarily hidden (`_showSuggestionsButton` in the screen).
-  // When the flag goes back to `true`, restore these two as "is enabled".
-  testWidgets('[ Sugerir itens ] is hidden for now', (tester) async {
-    await pumpScreen(tester, repository: _SpyRepository(initial: seed));
-
-    expect(find.byKey(const ValueKey('suggest-items')), findsNothing);
-    expect(find.text('Sugerir itens'), findsNothing);
-  });
-
-  testWidgets('the empty state hides the button too', (tester) async {
+  testWidgets('screen 2 is a tab of the bar, not an icon of the app bar', (
+    tester,
+  ) async {
+    // The app bar icon left on 27/09/2026, when screen 2 took screen 6's slot
+    // in the bottom bar: two doors to the same place, one tap apart.
     await pumpScreen(
       tester,
-      repository: _SpyRepository(initial: const <ShoppingListItem>[]),
+      repository: _SpyRepository(initial: seed),
+      overrides: [consumptionOverride()],
     );
 
-    expect(find.byKey(const ValueKey('suggest-items-empty')), findsNothing);
+    expect(find.byTooltip('Conferir despensa'), findsNothing);
+
+    await tester.tap(find.text('Despensa'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Conferir despensa'), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
   });
 
   testWidgets('the bar\'s [ Lançar ] navigates to screen 3', (tester) async {

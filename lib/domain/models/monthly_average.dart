@@ -157,19 +157,10 @@ final class MonthlyAverage {
   /// Whether there is an average to show at all — false only in the E-j case.
   bool get hasAverage => average > 0;
 
-  /// What screen 2 puts in the new item's quantity, and **null when there is
-  /// no average**: `ShoppingListItem` refuses a quantity of zero, and an item
-  /// with no quantity is a valid line that leaves the list on the first
-  /// purchase of the type — exactly what the `#1a` panel creates.
-  int? get suggestedQuantity => hasAverage ? average : null;
-
   /// What screen 6 pre-fills the dialog with, and **null when nothing is
   /// missing**: the bottom band opens the dialog too, and a prefilled `0`
   /// would make saving throw `InvalidQuantity`.
   int? get prefillQuantity => hasShortage ? remainingForMonth : null;
-
-  /// '6 kg', '0,7 kg', '12 un' — what screen 2 suggests.
-  String get averageLabel => type.baseUnit.formatQuantity(average);
 
   /// 'faltam 2 kg' is composed by the screen; this is the '2 kg' of it.
   String get remainingLabel => type.baseUnit.formatQuantity(remainingForMonth);

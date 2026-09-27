@@ -379,7 +379,7 @@ A partir da Tela 1:
 
 1 Lista de compras ──→ 1a Adicionar item ──→ (volta para 1)
         │
-        ├──────────→ 2 Sugestão de itens ──→ (volta para 1)
+        ├──────────→ 2 Conferir despensa ──→ (volta para 1)
         │
         └──────────→ 3 Lançar compra ──→ 4 Novo produto ──→ (volta para 3)
                             │
@@ -676,17 +676,22 @@ continua aparecendo atrás dela.
 
 ---
 
-## Tela 2 — Sugestão de itens  `#2`
+## Tela 2 — Conferir despensa  `#2`
+
+Reimaginada em 25/09/2026 (mock aprovado em
+`temp/plan/plano-mock-conferir-despensa-2026-09-25.md`, feature entregue em
+`temp/plan/plano-feature-conferir-despensa-2026-09-27.md`): deixou de sugerir
+**quantidade** e passou a ser só a conferência do que acabou em casa, marcado antes de
+sair — o item entra na lista **sem número**, do mesmo jeito que o painel `#1a` já cria.
 
 ```
 ┌──────────────────────────────────────┐
-│ < Voltar   Sugestão de itens         │
+│ < Voltar   Conferir despensa         │
 ├──────────────────────────────────────┤
-│  Baseado no que compraram nos        │
-│  três meses fechados anteriores   *  │
+│  Marque o que acabou em casa      *  │
 │  ────────────────────────────        │
 │  Higiene                             │
-│  {x} Papel higiênico — 12 un         │
+│  {x} Papel higiênico                 │
 │  ────────────────────────────        │
 │  Laticínios                          │
 │  {–} Leite (já está na lista)     *  │
@@ -695,10 +700,10 @@ continua aparecendo atrás dela.
 │  {–} Detergente (não encontrei)   *  │
 │  ────────────────────────────        │
 │  Mercearia                           │
-│  { } Arroz — 5 kg                    │
-│  { } Café — 700 g                 *  │
+│  { } Arroz                           │
+│  { } Café                         *  │
 │                                      │
-│  [   Adicionar selecionados   ]→1    │
+│  [    Adicionar à lista    ]→1       │
 └──────────────────────────────────────┘
 ```
 
@@ -707,31 +712,20 @@ continua aparecendo atrás dela.
   "este entra na lista", e não "já peguei no corredor".
 - **A tela abre com tudo desmarcado**, e o quadro acima mostra o estado **depois**
   de ele marcar o papel higiênico — o mesmo cuidado que o `#3a` tem com as linhas
-  dele. Nada vem pré-selecionado de propósito: a sugestão oferece todo tipo
+  dele. Nada vem pré-selecionado de propósito: a conferência oferece todo tipo
   comprado ao menos uma vez na janela, e abrir com tudo marcado faria
-  `[ Adicionar selecionados ]` despejar a sugestão inteira na lista com um toque
-  — que é o oposto de "quem decide o que é rotina é ele".
+  `[ Adicionar à lista ]` despejar a despensa inteira na lista com um toque —
+  que é o oposto de "quem decide o que é rotina é ele".
 - `*` **A lista é agrupada por categoria**, em ordem alfabética dentro de cada
   uma — a mesma organização da Tela 1, e não "do mais comprado para o menos
-  comprado". Cada tipo tem a sua unidade base, então as quantidades não são
-  comparáveis entre si: `12 un` de papel higiênico não é "mais" que `5 kg` de
-  arroz, e ordenar por elas produziria uma lista sem sentido. Por categoria, ele
-  lê a sugestão na mesma ordem em que vai andar no corredor. Nenhum tipo é
-  escondido por ser compra rara.
-- `*` A janela é a dos **três meses fechados anteriores**, e a sugestão traz
+  comprado". Por categoria, ele lê a conferência na mesma ordem em que vai
+  andar no corredor. Nenhum tipo é escondido por ser compra rara.
+- `*` A janela é a dos **três meses fechados anteriores**, e a conferência traz
   também o tipo que nasceu **no mês em curso** — ele não tem compra na janela,
   mas é justamente quem mais precisa aparecer.
-- `*` Quantidade sugerida é o consumo dos **três meses fechados anteriores**
-  dividido pelos **meses fechados de história que aquele produto tem ali
-  dentro**, no máximo 3 — o mês em curso fica de fora da janela (é a **janela
-  fechada**; ver a Tela 6, onde ela está declarada). O café, que eles já
-  compravam antes, divide por 3 e aparece com 700 g mesmo comprado uma vez só;
-  um produto cuja primeira compra foi em junho divide por 2; e um que estreou no
-  último mês fechado divide por 1. Dentro da vida do produto, mês sem compra
-  continua contando zero. **O produto nascido no mês em curso não divide nada:**
-  ele não tem mês fechado, o total dele dentro da janela é zero, e a média é o
-  que ele comprou neste mês. O ajuste da quantidade é feito depois, na Tela 1,
-  tocando no item.
+- **Nenhuma quantidade é sugerida ou gravada.** O item marcado entra na lista
+  sem número, e sai dela na primeira compra do tipo — o ajuste, quando fizer
+  sentido, é feito depois, na Tela 1, tocando no item.
 - `*` **Todo item que já está na lista aparece aqui travado**, e o quadro é um
   recorte: dos cinco itens da Tela 1, ele mostra dois — o leite, que está lá
   esperando, e o detergente, marcado como "não encontrei". Acém moído, frango e
@@ -739,15 +733,19 @@ continua aparecendo atrás dela.
 - `*` Item já presente na lista aparece travado (`{–}`) — não responde ao
   toque e não pode ser adicionado de novo. Vale inclusive para o item marcado
   como "não encontrei", que continua na lista.
-- A sugestão trabalha só no **tipo de produto** e nunca propõe marca nem
-  embalagem: ela vem do consumo somado dos 3 meses, que junta todas as marcas e
-  todos os tamanhos. Quem quiser uma preferência a acrescenta depois, na Tela 1.
+- A conferência trabalha só no **tipo de produto** e nunca propõe marca nem
+  embalagem. Quem quiser uma preferência a acrescenta depois, na Tela 1.
+- **Toda saída recarrega a Tela 1** — Voltar, o gesto de voltar do iOS, o ícone
+  de casa e depois de adicionar: o ViewModel da Tela 1 não é `autoDispose`, e
+  nada a recarregaria sozinho.
+- Um SnackBar confirma, antes de sair, quantos itens entraram ("1 item
+  adicionado à lista." / "N itens adicionados à lista.").
 
 **Estados:**
-- Carregando: "Calculando o que vocês costumam comprar...".
-- Sem histórico suficiente: "Ainda não há compras suficientes para sugerir
-  nada" (sem botão de ação).
-- Erro: "Não foi possível carregar a sugestão" + `[ Tentar de novo ]↻`.
+- Carregando: "Carregando a despensa...".
+- Sem histórico suficiente: "Ainda não há compras suficientes para conferir a
+  despensa" (sem botão de ação).
+- Erro: "Não foi possível carregar a despensa" + `[ Tentar de novo ]↻`.
 
 ---
 

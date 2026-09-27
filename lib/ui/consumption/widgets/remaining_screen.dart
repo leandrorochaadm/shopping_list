@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/monthly_average.dart';
 import '../../../domain/models/shopping_list.dart';
@@ -10,8 +11,6 @@ import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 import '../../core/formatting.dart';
 import '../../core/online_status.dart';
-import '../../core/widgets/main_bottom_bar.dart';
-import '../../core/widgets/main_menu.dart';
 import '../../core/widgets/message_view.dart';
 import '../../device_user/widgets/who_is_using_dialog.dart';
 import '../../shopping_list/view_model/shopping_list_view_model.dart';
@@ -31,8 +30,9 @@ import '../view_model/monthly_average_view_model.dart';
 /// the dialog when a line is tapped. Whoever takes an item off the list is
 /// still the purchase registered on screen 3.
 ///
-/// No Back button: `/remaining` is one of the three permanent destinations of
-/// the bottom bar, and switching between them is not going back.
+/// Reached from the `≡` since 27/09/2026, when screen 2 took its place in the
+/// bottom bar: it carries the same `canPop() ? Back : house` exit as the other
+/// screens behind the menu.
 class RemainingScreen extends ConsumerStatefulWidget {
   const RemainingScreen({super.key});
 
@@ -54,13 +54,14 @@ class _RemainingScreenState extends ConsumerState<RemainingScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // No BackButton: this is a permanent destination, and a control that
-        // navigates to the screen already on display does nothing.
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          tooltip: 'Menu',
-          onPressed: () => MainMenu.show(context),
-        ),
+        // R11: in a standalone PWA there is no browser Back button.
+        leading: context.canPop()
+            ? const BackButton()
+            : IconButton(
+                icon: const Icon(Icons.home_outlined),
+                tooltip: 'Ir para a lista',
+                onPressed: () => context.go(Routes.shoppingList),
+              ),
         title: const Text('Falta comprar este mês'),
         actions: [
           IconButton(
@@ -104,9 +105,6 @@ class _RemainingScreenState extends ConsumerState<RemainingScreen> {
             ),
           },
         ),
-      ),
-      bottomNavigationBar: const MainBottomBar(
-        current: Routes.remainingThisMonth,
       ),
     );
   }

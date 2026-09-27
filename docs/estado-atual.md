@@ -2,6 +2,23 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 27/09/2026** — **acréscimo fora das 19 histórias**: a Tela 2 (`/suggestions`)
+vira "Conferir despensa" de verdade, fechando o mock aprovado em 25/09/2026
+(`temp/plan/plano-mock-conferir-despensa-2026-09-25.md`), com o comportamento validado ali
+levado para a `SuggestionsScreen` real (`temp/plan/plano-feature-conferir-despensa-2026-09-27.md`).
+Quatro mudanças: **(1)** a tela para de mostrar e de gravar quantidade — `addMany` agora
+grava sempre `quantity: null`, e o item novo sai da despensa "sem número", deixando a lista
+na primeira compra do tipo, a mesma forma que o painel `#1a` já cria; **(2)** os textos
+mudam para o tom "conferir despensa" (título, frase de topo, estados de
+carregando/vazio/erro, rótulo do botão `[ Adicionar N à lista ]`); **(3)** as quatro saídas
+da tela — Voltar, gesto de voltar do iOS, ícone de casa e depois de adicionar — agora
+recarregam a Tela 1 (`PopScope` + `_reloadList`, que limpa a faixa de aviso e chama
+`refresh()` sem esperar); **(4)** um SnackBar confirma quantos itens entraram, antes de
+sair. `MonthlyAverage.suggestedQuantity` e `MonthlyAverage.averageLabel` saíram do
+domínio — nenhum uso restava em produção depois da mudança (1). A fonte dos dados não
+mudou: continua `MonthlyAverageViewModel` → `ConsumptionRepository` → `type_consumption`.
+Nenhuma migration, nenhum repository novo, nenhuma rota nova.
+
 **Atualizado em 19/09/2026** — ajuste pedido pelo usuário: o `[ Lançar compra ]` saiu do
 rodapé da Tela 1 e virou um **botão redondo no centro da barra de baixo** (`Lançar`), nas
 Telas 1, 5 e 6 (decisão **I-d**, que revoga a I-b). É ação, não destino: a Tela 3 segue

@@ -7,7 +7,7 @@ import 'menu_entry.dart';
 /// The three permanent destinations of the wireframe's bottom bar, with the
 /// `Lançar compra` button in the middle of them.
 ///
-/// It lives in `ui/core/` and not in `ui/shopping_list/`: screens 5 and 6 show
+/// It lives in `ui/core/` and not in `ui/shopping_list/`: screens 2 and 5 show
 /// the same bar, and a second copy of it is where two different bars begin.
 ///
 /// The middle button is an ACTION, not a fourth destination (decision I-d):
@@ -30,9 +30,9 @@ class MainBottomBar extends StatelessWidget {
       label: 'Lista',
     ),
     MenuEntry(
-      route: Routes.remainingThisMonth,
-      icon: Icons.event_note,
-      label: 'Falta',
+      route: Routes.suggestions,
+      icon: Icons.fact_check_outlined,
+      label: 'Despensa',
     ),
   ];
 
@@ -167,7 +167,7 @@ class _NewPurchaseButton extends StatelessWidget {
         children: [
           FloatingActionButton(
             key: const ValueKey('new-purchase'),
-            // Screens 1, 5 and 6 each mount this button, and `go` animates
+            // Screens 1, 2 and 5 each mount this button, and `go` animates
             // one into the other: a shared default hero tag would fly it.
             heroTag: null,
             elevation: 2,

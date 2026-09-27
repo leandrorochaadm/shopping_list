@@ -109,6 +109,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | versão do app | `AppVersion` | as três informações que identificam um build: versão, build e commit. Dart puro — não conhece a palavra "Versão" |
 | número do build | `buildNumber` | o contador de execuções do CI (`github.run_number`), **não** o `+N` do `pubspec.yaml`. `null` é o build local |
 | commit do build | `commit` | os 7 primeiros caracteres do hash, sem tradução. `null` é o build local |
+| conferir despensa | `PantryCheck` | a Tela 2 desde 25/09/2026: marcar o que acabou em casa e jogar na lista **sem quantidade**. A rota continua `/suggestions` |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso

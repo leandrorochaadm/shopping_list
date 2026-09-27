@@ -394,7 +394,7 @@ void main() {
     });
 
     test(
-      'addMany writes one item per chosen line, with the suggestion in it',
+      'addMany never writes a quantity, no matter the average (PantryCheck)',
       () async {
         final repository = _SpyRepository(initial: seed);
         final container = containerWith(repository);
@@ -405,42 +405,21 @@ void main() {
             .addMany(
               [
                 _line(typeId: 'type-5', name: 'Café', average: 700),
-                _line(typeId: 'type-4', name: 'Sabão em pó', average: 8000),
-                _line(typeId: 'type-2', name: 'Acém moído', average: 6000),
+                _line(typeId: 'type-4', name: 'Sabão em pó', average: 0),
               ].lock,
               today: DateTime(2026, 8, 28),
             );
 
         expect(error, isNull);
-        expect(repository.addCalls, 3);
+        expect(repository.addCalls, 2);
         expect(
           container.read(shoppingListViewModelProvider).value,
-          hasLength(5),
+          hasLength(4),
         );
-        // The last one written carries its own average, not a shared one.
-        expect(repository.lastAdded!.quantity, 6000);
+        expect(repository.lastAdded!.quantity, isNull);
         expect(repository.lastAdded!.enteredOn, DateTime(2026, 8, 28));
       },
     );
-
-    test('a line with NO average goes in with no quantity (E-j)', () async {
-      // `ShoppingListItem` refuses a quantity of zero, and an item with no
-      // quantity is the right answer: it leaves the list on the first purchase
-      // of the type, exactly what the `#1a` panel creates.
-      final repository = _SpyRepository(initial: seed);
-      final container = containerWith(repository);
-      await container.read(shoppingListViewModelProvider.future);
-
-      final error = await container
-          .read(shoppingListViewModelProvider.notifier)
-          .addMany(
-            [_line(typeId: 'type-7', name: 'Esquecido', average: 0)].lock,
-            today: DateTime(2026, 8, 28),
-          );
-
-      expect(error, isNull);
-      expect(repository.lastAdded!.quantity, isNull);
-    });
 
     test(
       'failing on the second KEEPS the first and returns the sentence',

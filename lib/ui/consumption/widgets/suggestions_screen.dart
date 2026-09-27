@@ -1,31 +1,36 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../domain/models/monthly_average.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../../routing/routes.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
+import '../../core/widgets/main_bottom_bar.dart';
+import '../../core/widgets/main_menu.dart';
 import '../../core/widgets/message_view.dart';
 import '../../shopping_list/view_model/shopping_list_view_model.dart';
 import '../view_model/monthly_average_view_model.dart';
 
-/// Screen 2 — `/suggestions`. What they usually buy, with the quantity already
-/// worked out, so the list does not depend on anybody's memory (H17).
+/// Screen 2 — `/suggestions`, the pantry check: what ran out at home, walked
+/// through before leaving, with nothing to type — no quantity, the same shape
+/// the `#1a` panel already creates. Reimagined 25/09/2026, mock approved the
+/// same day (`temp/plan/plano-mock-conferir-despensa-2026-09-25.md`), feature
+/// landed by `temp/plan/plano-feature-conferir-despensa-2026-09-27.md`.
 ///
-/// It offers **every type bought at least once in the closed window**, plus
-/// the one born in the month in progress — nothing is filtered for being a
-/// rare purchase, because "quem decide o que é rotina é ele, olhando a lista".
+/// It offers every type bought at least once in the closed window, plus the
+/// one born in the month in progress — nothing is filtered for being a rare
+/// purchase, because "quem decide o que é rotina é ele, olhando a lista".
 ///
-/// **It opens with everything unticked**, and that is a written criterion:
-/// `[ Adicionar selecionados ]` over a fully ticked list would tip the whole
-/// suggestion into the list with one tap, which is the opposite of the rule
-/// above.
+/// **It opens with everything unticked** — ticking it all would tip the whole
+/// pantry into the list with one tap.
 ///
-/// It has an exit of its own (`R11`): screen 1 pushes it, so the Back button
-/// pops back to the list — and so does adding.
+/// No Back button: since 27/09/2026 `/suggestions` is one of the three
+/// permanent destinations of the bottom bar, in the slot screen 6 held, and
+/// switching between them is not going back. For the same reason adding does
+/// not leave the screen: the lines just added lock themselves on the next
+/// frame, and `addMany` already wrote them into screen 1's ViewModel.
 class SuggestionsScreen extends ConsumerStatefulWidget {
   const SuggestionsScreen({super.key});
 
@@ -55,7 +60,6 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
 
   Future<void> _add(IList<MonthlyAverage> lines) async {
     final messenger = ScaffoldMessenger.of(context);
-    final navigator = Navigator.of(context);
 
     setState(() => _adding = true);
     // One action, ONE guard: `add` in a loop would be swallowed by the
@@ -73,9 +77,20 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
       messenger.showSnackBar(SnackBar(content: Text(error)));
       return;
     }
-    // `pop`, not `go`: screen 1 pushed this one, and the wireframe sends it
-    // back there.
-    navigator.pop();
+
+    // The ticks go with the write: the lines are locked now, and a tick left
+    // on a locked line would be counted by the next tap.
+    setState(_selected.clear);
+    final count = lines.length;
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          count == 1
+              ? '1 item adicionado à lista.'
+              : '$count itens adicionados à lista.',
+        ),
+      ),
+    );
   }
 
   @override
@@ -84,17 +99,14 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        // R11: in a standalone PWA there is no browser Back button. Arriving
-        // from screen 1 there is a stack to pop; arriving by a pasted link
-        // there is not, and the way out is the house.
-        leading: context.canPop()
-            ? const BackButton()
-            : IconButton(
-                icon: const Icon(Icons.home_outlined),
-                tooltip: 'Ir para a lista',
-                onPressed: () => context.go(Routes.shoppingList),
-              ),
-        title: const Text('Sugestão de itens'),
+        // No BackButton: this is a permanent destination, and a control that
+        // navigates to the screen already on display does nothing.
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          tooltip: 'Menu',
+          onPressed: () => MainMenu.show(context),
+        ),
+        title: const Text('Conferir despensa'),
       ),
       // A Builder so the SnackBar finds a context BELOW the Scaffold.
       body: Builder(
@@ -109,8 +121,8 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
             }
           },
           // Scrollable in EVERY state — that is what MessageView is for; a
-          // plain Center kills the pull to refresh exactly on the error state,
-          // where it is used most.
+          // plain Center kills the pull to refresh exactly on the error
+          // state, where it is used most.
           child: switch (state) {
             AsyncLoading() when !state.hasValue => const _LoadingBody(),
             AsyncError(:final error) when !state.hasValue => _ErrorBody(
@@ -133,6 +145,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
           },
         ),
       ),
+      bottomNavigationBar: const MainBottomBar(current: Routes.suggestions),
     );
   }
 }
@@ -144,7 +157,7 @@ class _LoadingBody extends StatelessWidget {
   Widget build(BuildContext context) => ListView(
     physics: const AlwaysScrollableScrollPhysics(),
     children: const [
-      MessageView('Calculando o que vocês costumam comprar...'),
+      MessageView('Carregando a despensa...'),
       Center(child: CircularProgressIndicator()),
     ],
   );
@@ -161,7 +174,7 @@ class _ErrorBody extends ConsumerWidget {
     children: [
       // The raw exception NEVER reaches the screen — it goes to debugPrint.
       MessageView(
-        translateFailure(AppFailure.from(error), 'carregar a sugestão'),
+        translateFailure(AppFailure.from(error), 'carregar a despensa'),
       ),
       Center(
         child: FilledButton(
@@ -200,7 +213,9 @@ class _Body extends StatelessWidget {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         children: const [
-          MessageView('Ainda não há compras suficientes para sugerir nada.'),
+          MessageView(
+            'Ainda não há compras suficientes para conferir a despensa.',
+          ),
         ],
       );
     }
@@ -214,9 +229,7 @@ class _Body extends StatelessWidget {
       children: [
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'Baseado no que compraram nos três meses fechados anteriores.',
-          ),
+          child: Text('Marque o que acabou em casa.'),
         ),
         // By CATEGORY and alphabetical inside it — the same organization
         // screen 1 uses, so the suggestion is read in the order the aisle is
@@ -248,7 +261,13 @@ class _Body extends StatelessWidget {
             // and does not say why is what the `handoff` forbids, so the
             // button is plainly disabled instead.
             onPressed: chosen.isEmpty || adding ? null : () => onAdd(chosen),
-            child: Text(adding ? 'Adicionando...' : 'Adicionar selecionados'),
+            child: Text(
+              adding
+                  ? 'Adicionando...'
+                  : chosen.isEmpty
+                  ? 'Adicionar à lista'
+                  : 'Adicionar ${chosen.length} à lista',
+            ),
           ),
         ),
         const SizedBox(height: 24),
@@ -281,14 +300,7 @@ class _SuggestionTile extends StatelessWidget {
 
     return CheckboxListTile(
       key: typeId == null ? null : ValueKey('suggestion-$typeId'),
-      // With no average there is no quantity to offer (E-j): the line still
-      // appears — nothing is filtered for being a rare purchase — and goes in
-      // with no quantity, leaving the list on the first purchase of the type.
-      title: Text(
-        line.hasAverage
-            ? '${line.type.name} — ${line.averageLabel}'
-            : line.type.name,
-      ),
+      title: Text(line.type.name),
       subtitle: switch (listItem) {
         // The `{–}` of the wireframe, in its two shapes. The one marked "não
         // encontrei" is still on the list, so it is locked all the same.

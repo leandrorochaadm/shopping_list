@@ -12,11 +12,12 @@ que dizia qual história a entregava, e cada história trocava uma entrada do ro
 tela real. Aquela tela e o `pendingDestinations` ao lado dela foram apagados com as duas
 últimas entradas.
 
-`/suggestions` é a Tela 2 e a Tela 1 a abre com **`push`**: as rotas são planas, e o
-wireframe manda a Tela 2 **voltar** para a lista — tanto pelo Voltar quanto pelo
-`[ Adicionar selecionados ]`. `/remaining` é a Tela 6 e é o **terceiro destino
-permanente** da barra de baixo, alcançado com `go` e sem Voltar nenhum, pelo mesmo motivo
-de `/` e `/reports`.
+`/suggestions` é a Tela 2 e desde 27/09/2026 é o **terceiro destino permanente** da barra
+de baixo (aba "Despensa"), no lugar que era da Tela 6: alcançada com `go`, sem Voltar
+nenhum, pelo mesmo motivo de `/` e `/reports`. Adicionar **não sai da tela** — as linhas
+adicionadas travam, e o `addMany` já gravou no ViewModel da Tela 1. O atalho do AppBar
+da Tela 1 saiu junto. `/remaining` é a Tela 6 e desde a mesma data mora no `≡`, com a
+saída das telas de menu: `canPop() ? Voltar : casa`.
 
 `/` é a Tela 1. `/purchases/new` é a Tela 3, e é declarada **antes** de
 `/purchases/:id/edit`: o `go_router` casa na ordem, e senão `new` viraria um id.

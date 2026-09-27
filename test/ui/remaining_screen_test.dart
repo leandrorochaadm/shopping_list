@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shopping_list/data/repositories/consumption/consumption_repository.dart';
 import 'package:shopping_list/data/repositories/consumption/consumption_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
@@ -107,12 +108,38 @@ void main() {
     ConsumptionRepository? consumption,
     _SpyList? list,
     List<Override> overrides = const [],
+    bool pushed = false,
   }) async {
     // A tall viewport: the two bands plus the button do not fit the default
     // 800×600, and a tile outside the render tree cannot be tapped.
     tester.view.physicalSize = const Size(1200, 4000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
+
+    // A router of its own: `context.canPop()` needs a GoRouter in the tree,
+    // and a minimal one lets both exits be exercised — pushed, and reached
+    // from the `≡` with `go`.
+    final router = GoRouter(
+      initialLocation: pushed ? '/' : '/remaining',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => context.push('/remaining'),
+                child: const Text('a lista'),
+              ),
+            ),
+          ),
+        ),
+        GoRoute(
+          path: '/remaining',
+          builder: (context, state) => const RemainingScreen(),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -132,10 +159,15 @@ void main() {
           ),
           ...overrides,
         ],
-        child: const MaterialApp(home: RemainingScreen()),
+        child: MaterialApp.router(routerConfig: router),
       ),
     );
     await tester.pumpAndSettle();
+
+    if (pushed) {
+      await tester.tap(find.text('a lista'));
+      await tester.pumpAndSettle();
+    }
   }
 
   testWidgets('the month is at the top, because every number is its', (
@@ -436,29 +468,36 @@ void main() {
     expect(find.byKey(const ValueKey('toggle-show-all')), findsNothing);
   });
 
-  testWidgets('it is a permanent destination: no Back button', (tester) async {
-    // "Alternar entre eles não é voltar" — the same rule screen 1 and screen 5
-    // already carry.
+  testWidgets('reached from the ≡ the way out is the house', (tester) async {
+    // Screen 6 left the bottom bar for the `≡` on 27/09/2026, and the menu
+    // navigates with `go`: there is no stack behind it.
     await pumpScreen(tester);
 
     expect(find.byType(BackButton), findsNothing);
-    expect(find.byIcon(Icons.menu), findsOneWidget);
+    expect(find.byTooltip('Menu'), findsNothing);
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
-  });
 
-  testWidgets('the ≡ opens the four doors here too', (tester) async {
-    // The third screen that mounts this menu, and the one where the new door
-    // pays the most: this is where you find out what is missing, which is
-    // when you want to register the purchase (decision I-a). No collision
-    // here — screen 6 does not write "Lançar compra" anywhere of its own.
-    await pumpScreen(tester);
-
-    await tester.tap(find.byTooltip('Menu'));
+    await tester.tap(find.byTooltip('Ir para a lista'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Lançar compra'), findsOneWidget);
-    expect(find.text('Histórico de compras'), findsOneWidget);
-    expect(find.text('Manutenção do cadastro'), findsOneWidget);
-    expect(find.text('Configurações'), findsOneWidget);
+    expect(find.text('a lista'), findsOneWidget);
+  });
+
+  testWidgets('pushed, it carries a Back button', (tester) async {
+    await pumpScreen(tester, pushed: true);
+
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byTooltip('Ir para a lista'), findsNothing);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    expect(find.text('a lista'), findsOneWidget);
+  });
+
+  testWidgets('it no longer carries the bottom bar', (tester) async {
+    await pumpScreen(tester);
+
+    expect(find.byKey(const ValueKey('new-purchase')), findsNothing);
   });
 }

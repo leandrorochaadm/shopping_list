@@ -265,13 +265,11 @@ void main() {
       final missing = averageOf(average: 8000, consumedInMonth: 6000);
       expect(missing.hasShortage, isTrue);
       expect(missing.hasAverage, isTrue);
-      expect(missing.suggestedQuantity, 8000);
       expect(missing.prefillQuantity, 2000);
 
       final satisfied = averageOf(average: 4200, consumedInMonth: 4200);
       expect(satisfied.hasShortage, isFalse);
       expect(satisfied.hasAverage, isTrue);
-      expect(satisfied.suggestedQuantity, 4200);
       // Null, not zero: a prefilled `0` would make saving throw
       // InvalidQuantity.
       expect(satisfied.prefillQuantity, isNull);
@@ -279,9 +277,6 @@ void main() {
       final noAverage = averageOf(average: 0, consumedInMonth: 5000);
       expect(noAverage.hasShortage, isFalse);
       expect(noAverage.hasAverage, isFalse);
-      // Null, not zero: the entity refuses a quantity of zero, and an item
-      // with no quantity leaves the list on the first purchase of the type.
-      expect(noAverage.suggestedQuantity, isNull);
       expect(noAverage.prefillQuantity, isNull);
     });
 
@@ -289,7 +284,6 @@ void main() {
       final coffee = averageOf(average: 700, consumedInMonth: 0);
       // Below the kilo the reading stays in grams: the large unit steps in
       // only once the amount reaches it.
-      expect(coffee.averageLabel, '700 g');
       expect(coffee.remainingLabel, '700 g');
 
       final drink = averageOf(

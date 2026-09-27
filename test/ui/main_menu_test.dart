@@ -28,7 +28,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('lists four doors, and none of them is disabled', (
+  testWidgets('lists five doors, and none of them is disabled', (
     tester,
   ) async {
     await openMenu(tester);
@@ -36,6 +36,7 @@ void main() {
     // The fourth door, and the first of the list: registering a purchase
     // stopped requiring a stop at screen 1 (decision I-a).
     expect(find.text('Lançar compra'), findsOneWidget);
+    expect(find.text('Falta comprar este mês'), findsOneWidget);
     expect(find.text('Histórico de compras'), findsOneWidget);
     expect(find.text('Manutenção do cadastro'), findsOneWidget);
     expect(find.text('Configurações'), findsOneWidget);
@@ -58,6 +59,7 @@ void main() {
 
     expect(labels, [
       'Lançar compra',
+      'Falta comprar este mês',
       'Histórico de compras',
       'Manutenção do cadastro',
       'Configurações',
@@ -142,6 +144,10 @@ void main() {
           builder: (context, state) => destination('o lançamento'),
         ),
         GoRoute(
+          path: Routes.remainingThisMonth,
+          builder: (context, state) => destination('o que falta'),
+        ),
+        GoRoute(
           path: Routes.purchaseHistory,
           builder: (context, state) => destination('o histórico'),
         ),
@@ -159,6 +165,7 @@ void main() {
 
     for (final door in const {
       'Lançar compra': 'o lançamento',
+      'Falta comprar este mês': 'o que falta',
       'Histórico de compras': 'o histórico',
       'Manutenção do cadastro': 'a manutenção',
       'Configurações': 'as configurações',
@@ -176,7 +183,7 @@ void main() {
       reached.add(door.key);
     }
 
-    expect(reached, hasLength(4));
+    expect(reached, hasLength(5));
   });
 
   testWidgets('the footer shows the build, and it is not a fifth door', (
@@ -187,8 +194,8 @@ void main() {
     // Local test run: no --dart-define, so the label takes its local form.
     expect(find.byType(AppVersionLabel), findsOneWidget);
     expect(find.textContaining('Versão'), findsOneWidget);
-    // The four doors are still four: the label must never become a ListTile,
+    // The five doors are still five: the label must never become a ListTile,
     // or the test above would read it as a door.
-    expect(find.byType(ListTile), findsNWidgets(4));
+    expect(find.byType(ListTile), findsNWidgets(5));
   });
 }

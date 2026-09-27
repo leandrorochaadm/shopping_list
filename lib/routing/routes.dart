@@ -10,7 +10,8 @@ abstract final class Routes {
   /// Asks who is using the device. Shown once per device, before anything else.
   static const welcome = '/welcome';
 
-  /// Screen 2 — suggests items from the last months of consumption.
+  /// Screen 2 — the pantry check: what ran out at home, before leaving. The
+  /// path keeps its old name. A permanent destination of the bottom bar.
   static const suggestions = '/suggestions';
 
   /// Screen 3 — registering a purchase.
@@ -29,7 +30,7 @@ abstract final class Routes {
   /// Screen 5 — spending and consumption over a free period.
   static const reports = '/reports';
 
-  /// Screen 6 — what is still missing this month.
+  /// Screen 6, behind the `≡` menu — what is still missing this month.
   static const remainingThisMonth = '/remaining';
 
   /// Behind the `≡` menu: rename, reclassify, deactivate and reactivate.
