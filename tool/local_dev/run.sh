@@ -54,8 +54,16 @@ else
   flutter_args=(-d chrome)
 fi
 
+# A shell alias (`flutter='fvm flutter'`) does not reach a script, so fall back
+# to fvm when no flutter binary is on the PATH.
+if command -v flutter >/dev/null; then
+  flutter_cmd=(flutter)
+else
+  flutter_cmd=(fvm flutter)
+fi
+
 echo "running against $SUPABASE_URL"
-flutter run \
+"${flutter_cmd[@]}" run \
   --dart-define=SUPABASE_URL="$SUPABASE_URL" \
   --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY" \
   "${flutter_args[@]}"
