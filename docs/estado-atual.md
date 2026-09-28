@@ -400,6 +400,26 @@ a exclusão ter o que devolver), uma **baixa parcial** (o "restam 4 litros" da t
 abre vazio. Os dois rastros apontam para `purchase_item` reais da última compra gerada,
 porque uma FK não perdoa e um rastro de outro dia devolveria a quantidade errada.
 
+**Desde 28/09/2026 o catálogo do seed vem de `supabase/seed_catalog.md`**: 20
+categorias, 255 tipos e ~300 cadastros genéricos sem marca, editáveis como lista em
+Markdown. Cada cadastro ganha uma folha — vendido a peso sem embalagem nas grandezas
+Peso, Volume e Tamanho, `1 × 1 un` na Contagem —, porque o arquivo deixa o **Vendido**
+para o app e o banco exige uma. As compras sintéticas usam os tipos desse arquivo; o
+`Papel-alumínio` virou `Papel alumínio`, e os desativados da H10 passaram a ser
+`Bazar` e `Cerveja`, que o catálogo não tem.
+
+**O mesmo catálogo foi aplicado no `prod` em 28/09/2026** por `supabase/catalog_import.sql`,
+gerado por `uv run tool/import_catalog.py`. Diferente do seed, ele **só acrescenta**:
+cada inserção é guardada por um "não existe" sobre o nome normalizado, e rodar de novo
+não muda nada. Os 23 tipos e 14 categorias que o `prod` já tinha foram conciliados um a
+um pelo usuário: 7 categorias renomeadas para o nome do catálogo (`Fruta` → `Frutas`,
+`Merc seca` → `Grãos e massas`…), `açogue` **desativada** depois de os três tipos irem
+para a categoria do bicho, e 7 tipos renomeados ou movidos (`Queijo` → `Mussarela`,
+`Pão` → `Pão francês`, `Carne frango` → `Carne de frango`…). **O `Leite` passou de
+grama para mililitro**, com os inteiros gravados intactos — 1 g passou a ser 1 ml. Resultado:
+24 categorias, 264 tipos, 315 cadastros; compras e lista intocadas. A cópia do catálogo
+anterior está em `temp/backup/prod_catalog_2026-09-28.sql` (fora do git).
+
 **O banco local de desenvolvimento é o `postgresql@17` nativo do sistema, não o stack
 Docker do Supabase** (decisão de 28/08/2026). É escolha, não limitação: o Docker Desktop
 está instalado e funciona. A máquina de então era um Mac Intel i3-8100B de 4 núcleos com
