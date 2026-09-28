@@ -62,6 +62,59 @@ class _FakeTable extends Fake implements SupabaseQueryBuilder {
   PostgrestFilterBuilder<dynamic> update(Map values) => _FakeUpdate(ids);
 }
 
+/// The success path of `add`: an insert, the `.select(_selection)` of the
+/// embed, and a `.single()` that hands back the row the way PostgREST does.
+/// [inserted] keeps what reached `insert`, which is what the database stores —
+/// a final list rather than a field, because the builder is `@immutable`.
+class _FakeInsertTable extends Fake implements SupabaseQueryBuilder {
+  _FakeInsertTable(this.row);
+
+  final PostgrestMap row;
+  final inserted = <Object>[];
+
+  @override
+  PostgrestFilterBuilder<dynamic> insert(
+    Object values, {
+    bool defaultToNull = true,
+  }) {
+    inserted.add(values);
+    return _FakeInsert(row);
+  }
+}
+
+class _FakeInsert extends Fake implements PostgrestFilterBuilder<dynamic> {
+  _FakeInsert(this.row);
+
+  final PostgrestMap row;
+
+  @override
+  PostgrestTransformBuilder<PostgrestList> select([String columns = '*']) =>
+      _FakeInsertedRows(row);
+}
+
+class _FakeInsertedRows extends Fake
+    implements PostgrestTransformBuilder<PostgrestList> {
+  _FakeInsertedRows(this.row);
+
+  final PostgrestMap row;
+
+  @override
+  PostgrestTransformBuilder<PostgrestMap> single() => _FakeSingleRow(row);
+}
+
+class _FakeSingleRow extends Fake
+    implements PostgrestTransformBuilder<PostgrestMap> {
+  _FakeSingleRow(this.row);
+
+  final PostgrestMap row;
+
+  @override
+  Future<R> then<R>(
+    FutureOr<R> Function(PostgrestMap) onValue, {
+    Function? onError,
+  }) => Future.value(row).then(onValue, onError: onError);
+}
+
 PostgresChangePayload _payload(
   PostgresChangeEvent event, {
   String? id = 'item-1',
@@ -159,6 +212,52 @@ void main() {
         () => repository.removeOpenItemsOfType('type-1', DateTime(2026, 8, 28)),
         throwsA(_is409),
       );
+    });
+  });
+
+  group('add — the write the pantry check and the #1a panel share', () {
+    test('inserts the table columns and reads the embedded row back', () async {
+      // The row PostgREST answers with: the same `_selection` embed the fetch
+      // reads, so what comes back is what reopening the app will show.
+      final table = _FakeInsertTable({
+        'id': 'item-1',
+        'quantity': null,
+        'entered_on': '2026-08-28',
+        'picked': false,
+        'not_found': false,
+        'fulfilled_on': null,
+        'removed_on': null,
+        'list_write_off': <Object>[],
+        'product_type': {
+          'id': 'type-1',
+          'name': 'Leite',
+          'category_id': 'cat-1',
+          'base_unit': 'milliliter',
+          'active': true,
+          'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
+        },
+        'preferred_brand': null,
+        'preferred_product': null,
+      });
+      when(() => client.from('shopping_list_item')).thenAnswer((_) => table);
+
+      final created = await repository.add(_item());
+
+      // Only the table's own columns, and the quantity goes as NULL — the
+      // pantry check never asks for one, and the column accepts it.
+      expect(table.inserted.single, {
+        'id': 'item-1',
+        'product_type_id': 'type-1',
+        'preferred_brand_id': null,
+        'preferred_product_id': null,
+        'quantity': null,
+        'entered_on': '2026-08-28',
+        'picked': false,
+        'not_found': false,
+        'fulfilled_on': null,
+        'removed_on': null,
+      });
+      expect(created, _item());
     });
   });
 

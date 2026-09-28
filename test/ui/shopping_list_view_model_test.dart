@@ -482,6 +482,48 @@ void main() {
       expect(results, [null, null]);
     });
 
+    test(
+      'what addMany wrote is on the list the next time the app opens',
+      () async {
+        // One repository standing for the database, two containers standing
+        // for two openings of the app: nothing of the first survives in the
+        // second except what went through the repository.
+        final repository = _SpyRepository(initial: seed);
+        final firstOpening = containerWith(repository);
+        await firstOpening.read(shoppingListViewModelProvider.future);
+
+        final error = await firstOpening
+            .read(shoppingListViewModelProvider.notifier)
+            .addMany(
+              [
+                _line(typeId: 'type-5', name: 'Café'),
+                _line(typeId: 'type-4', name: 'Sabão em pó'),
+              ].lock,
+              today: DateTime(2026, 8, 28),
+            );
+        expect(error, isNull);
+        firstOpening.dispose();
+
+        final secondOpening = containerWith(repository);
+        final reopened = await secondOpening.read(
+          shoppingListViewModelProvider.future,
+        );
+
+        expect(reopened, hasLength(4));
+        expect(
+          reopened.map((item) => item.type.name),
+          containsAll(['Café', 'Sabão em pó']),
+        );
+        expect(
+          reopened
+              .where((item) => item.type.id == 'type-5')
+              .single
+              .quantity,
+          isNull,
+        );
+      },
+    );
+
     test('an empty selection writes nothing and succeeds', () async {
       final repository = _SpyRepository(initial: seed);
       final container = containerWith(repository);
