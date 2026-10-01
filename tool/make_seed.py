@@ -487,29 +487,31 @@ def build(anchor: date) -> str:
     # ── The list, as it would be found in the aisle ──────────────────────
     #
     # The four shapes screen 1 has to draw, so none of them has to be typed by
-    # hand on `dev`: the full line of the wireframe ("Leite Italac 1 L — 6 L"),
-    # an item that only prefers a brand, a plain one, and — the common path of
+    # hand on `dev`: the full line ("Leite Italac integral — 6 L"), another
+    # registration, a plain one, and — the common path of
     # the `#1a` panel — one with NO QUANTITY at all, which is what the base
     # migration was corrected to accept.
     lines.append("-- A shopping list with something already on it")
-    for offset, (type_name, quantity, brand, leaf) in enumerate(
+    # Since M-a the line asks for a REGISTRATION, not a brand and a
+    # packaging: "Leite Italac integral" only leaves with an Italac integral,
+    # and the H9 partial line below is the second, plain "Leite" beside it.
+    for offset, (type_name, quantity, registration) in enumerate(
         [
-            ("Leite", 6000, "Italac", ("leite", 0)),
-            ("Refrigerante", 3000, "Coca-Cola", None),
-            ("Banana", 1500, None, None),
+            ("Leite", 6000, "leite"),
+            ("Refrigerante", 3000, "refri"),
+            ("Banana", 1500, None),
             # No quantity: "acabou o sabão em pó" has none to state, and the
             # item leaves the list on the first purchase of the type.
-            ("Sabão em pó", None, None, None),
+            ("Sabão em pó", None, None),
         ]
     ):
         entered_on = anchor - timedelta(days=offset)
         lines.append(
             "insert into public.shopping_list_item (id, product_type_id, "
-            "preferred_brand_id, preferred_product_id, quantity, entered_on) "
+            "preferred_registration_id, quantity, entered_on) "
             f"values ({sql_text(uid('list', type_name))}, "
             f"{sql_text(uid('type', type_name))}, "
-            f"{sql_optional(uid('brand', brand) if brand else None)}, "
-            f"{sql_optional(uid('product', *leaf) if leaf else None)}, "
+            f"{sql_optional(uid('registration', registration) if registration else None)}, "
             f"{'null' if quantity is None else quantity}, "
             f"{sql_text(entered_on.isoformat())});"
         )

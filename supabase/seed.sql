@@ -988,10 +988,10 @@ insert into public.purchase_item (id, purchase_id, product_id, quantity, quantit
 insert into public.purchase_item (id, purchase_id, product_id, quantity, quantity_in_base_unit, total_paid) values ('d845c6e4-1d48-51c2-b757-8700addb7eff', '37c61955-879a-5979-b5ca-6b5df39b49d6', '7eb2aa73-26a4-5996-aa0a-6245956c6ac4', 1200, 1200, 718);
 
 -- A shopping list with something already on it
-insert into public.shopping_list_item (id, product_type_id, preferred_brand_id, preferred_product_id, quantity, entered_on) values ('41040cbb-8ec3-5517-a546-5521ed714406', '5fb9ef9e-c202-5703-8510-7bdcf4383669', '274f6a3c-0939-5603-85e3-674c156ce530', '80558651-aaf5-587e-9f6b-e9f065a44c02', 6000, '2026-09-28');
-insert into public.shopping_list_item (id, product_type_id, preferred_brand_id, preferred_product_id, quantity, entered_on) values ('576ce940-f0b2-54c0-9f75-d2730aec5cf5', '628708f7-dc4a-5e70-9098-187d8dcb6f67', 'de78b73f-0727-5183-9c6d-dc6c5a5bbc9f', null, 3000, '2026-09-27');
-insert into public.shopping_list_item (id, product_type_id, preferred_brand_id, preferred_product_id, quantity, entered_on) values ('e480a027-6980-5136-a474-b9144531e416', '81aabfaa-bece-5012-bc61-6c84ab57a5c4', null, null, 1500, '2026-09-26');
-insert into public.shopping_list_item (id, product_type_id, preferred_brand_id, preferred_product_id, quantity, entered_on) values ('39d40e0c-1c10-5f50-b63e-d42321c8b0fd', 'c7d0add7-b080-5893-ba08-15193dd50027', null, null, null, '2026-09-25');
+insert into public.shopping_list_item (id, product_type_id, preferred_registration_id, quantity, entered_on) values ('41040cbb-8ec3-5517-a546-5521ed714406', '5fb9ef9e-c202-5703-8510-7bdcf4383669', 'bcd4deb8-4ad1-5932-8f76-3e1d74fe0615', 6000, '2026-09-28');
+insert into public.shopping_list_item (id, product_type_id, preferred_registration_id, quantity, entered_on) values ('576ce940-f0b2-54c0-9f75-d2730aec5cf5', '628708f7-dc4a-5e70-9098-187d8dcb6f67', 'ee29d2d1-278e-5bec-9bd0-3291bc1de3c1', 3000, '2026-09-27');
+insert into public.shopping_list_item (id, product_type_id, preferred_registration_id, quantity, entered_on) values ('e480a027-6980-5136-a474-b9144531e416', '81aabfaa-bece-5012-bc61-6c84ab57a5c4', null, 1500, '2026-09-26');
+insert into public.shopping_list_item (id, product_type_id, preferred_registration_id, quantity, entered_on) values ('39d40e0c-1c10-5f50-b63e-d42321c8b0fd', 'c7d0add7-b080-5893-ba08-15193dd50027', null, null, '2026-09-25');
 
 -- H9: a list item CLOSED by a purchase, with its trail
 insert into public.shopping_list_item (id, product_type_id, quantity, entered_on, fulfilled_on) values ('b2ba94f8-0ecf-5e29-bf0e-037dced1b576', '07a562ca-768a-591f-a251-b510546ec9fe', 1000, '2026-06-01', '2026-09-19');
