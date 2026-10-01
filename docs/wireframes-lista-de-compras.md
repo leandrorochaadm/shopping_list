@@ -535,9 +535,14 @@ continua aparecendo atrás dela.
 - `*` A barra inferior tem **três destinos permanentes**: a lista, `Falta`
   (Tela 6) e os relatórios.
 - `*` **`[ + Adicionar item ]→1a` abre o painel de busca de tipo**, com criação
-  do tipo na hora quando nada bate. O item entra só com o tipo; quantidade,
-  marca e embalagem preferidas ficam para o diálogo de edição, tocando no item
-  depois.
+  do tipo na hora quando nada bate. O item entra só com o tipo; quantidade e
+  produto ficam para o diálogo de edição, tocando no item depois.
+- `*` **O diálogo do item tem um campo "Produto"** (01/10/2026, decisão **M-a**),
+  no lugar de "Marca preferida" e "Embalagem preferida". A primeira opção é
+  "Qualquer um" (*"Sai da lista com qualquer leite."*); escolher um produto muda
+  a frase para *"Só sai da lista com este produto."*. O mesmo tipo pode ter
+  várias linhas, agrupadas juntas e ordenadas pelo que a linha escreve:
+  `Leite`, `Leite Italac integral`, `Leite Piracanjuba desnatado`.
 - `*` "Lançar compra" é quem de fato dá baixa nos itens. Desde 19/09/2026 é o
   **botão redondo no centro da barra** (`Lançar`), e não mais um botão do rodapé
   da lista — e por estar na barra aparece também nas Telas 5 e 6. É uma ação,
@@ -577,7 +582,9 @@ continua aparecendo atrás dela.
 │  Tipo: lei_________________       *  │
 │  ────────────────────────────        │
 │  Laticínios                          │
-│  [–] Leite (já está na lista)     *  │
+│  Leite                            *  │
+│    já está na lista — toque para     │
+│    pedir outro produto               │
 │  Leite condensado                    │
 │  Leite em pó                         │
 │         ↕ rola se tiver mais         │
@@ -619,8 +626,13 @@ continua aparecendo atrás dela.
   embalagem são preferências, e moram no diálogo de edição da Tela 1. A lista
   filtra enquanto ele digita e vem **agrupada por categoria**, a mesma ordem das
   Telas 1, 2 e 6.
-- `*` **Tipo que já está na lista aparece travado** (`[–]`), pelo mesmo motivo
-  do `{–}` da Tela 2: item repetido na lista não ajuda ninguém no corredor.
+- `*` **Tipo que já está na lista não trava mais** (01/10/2026, decisão
+  **M-a**): o toque fecha o painel e abre o **diálogo do item em modo criar**,
+  para escolher o produto da linha nova — "Leite Italac integral" ao lado de
+  "Leite Piracanjuba desnatado". Sem a escolha, a segunda linha nasceria igual à
+  primeira e as duas disputariam a mesma compra. O **produto** repetido é que
+  fica travado, dentro do diálogo: aparece desabilitado com "já está na lista".
+  O `{–}` da Tela 2 continua por tipo.
 - `*` **A busca compara ignorando maiúsculas, espaço sobrando e acento**
   (decisão de 26/08/2026), e é por isso que o `[ + Criar "…" ]` só aparece quando
   nada bate **de verdade**: quem digita "acem moido" encontra "acém moído", e não

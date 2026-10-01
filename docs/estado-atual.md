@@ -2,6 +2,28 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 01/10/2026** — **acréscimo fora das 19 histórias**, decisão **M-a**
+(`temp/plan/plano-varios-produtos-do-mesmo-tipo-na-lista-2026-10-01.md`): a lista aceita
+**várias linhas do mesmo tipo**, cada uma pedindo um **produto** (o cadastro: tipo + marca
++ descrição), e a compra dá baixa **pelo produto** quando a linha tem um. **(1)**
+`ShoppingListItem` trocou `preferredBrand` + `preferredProduct` por
+`preferredRegistration` + `preferredRegistrationBrand`, com `acceptsRegistration`;
+**(2)** `planWriteOffs` faz duas passadas por tipo — primeiro as linhas com produto, só
+nas linhas da compra daquele cadastro, depois as sem produto no que sobrou;
+`PurchasedAmount` e `AvailableAmount` ganharam o id do cadastro; **(3)** o painel `#1a`
+destrava o tipo que já está na lista e abre o diálogo do item em modo criar; **(4)** o
+diálogo tem um campo único **"Produto"**, com o produto já pedido por outra linha aberta
+desabilitado (`takenRegistrationsOfType`), e o modo criar **grava** o produto (a E-k foi
+revogada). A lista ordena dentro da categoria pelo `effectiveLabel`. **Migration nova:**
+`20261001120000_list_preferred_registration.sql` — coluna `preferred_registration_id`,
+preenchida a partir de `preferred_product_id` e, quando a marca tem um só cadastro no
+tipo, de `preferred_brand_id`. Aplicada e conferida no Postgres local, com o embed
+novo testado contra o PostgREST local, e **aplicada no `prod` em 01/10/2026**
+(`supabase db push --linked`, confirmada por `supabase migration list --linked`). **Pendência:** uma migration posterior apaga
+`preferred_brand_id` e `preferred_product_id`, depois que os dois iPhones abrirem a
+versão nova — até lá o app velho continua lendo o embed antigo. O seed grava
+`preferred_registration_id`. Telas 2 e 6 seguem por tipo.
+
 **Atualizado em 27/09/2026** — **acréscimo fora das 19 histórias**: a Tela 2 (`/suggestions`)
 vira "Conferir despensa" de verdade, fechando o mock aprovado em 25/09/2026
 (`temp/plan/plano-mock-conferir-despensa-2026-09-25.md`), com o comportamento validado ali

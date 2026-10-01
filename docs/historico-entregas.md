@@ -4,6 +4,29 @@ Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra.
 
 ---
 
+## Vários produtos do mesmo tipo na lista — M-a (01/10/2026)
+
+**A passada específica vem antes da genérica, e não pela idade.** Com "Leite 2 L"
+(antiga) e "Leite Italac 6 L" na lista, uma compra de 8 L de Italac consumida do mais
+antigo para o mais novo deixaria a linha Italac devendo 2 L. `planWriteOffs` agora guarda
+um saldo **por linha da compra** (uma lista de inteiros), não um cursor único: duas
+passadas comem fatias diferentes das mesmas linhas.
+
+**O `copyWith` do produto leva a marca junto.** `preferredRegistrationBrand ??
+this.preferredRegistrationBrand` deixaria "Italac" no rótulo ao trocar para um cadastro
+sem marca; passar um `preferredRegistration` novo substitui a marca, mesmo por `null`.
+
+**A escolha inicial do diálogo não pode ser decidida no `initState`.** A lista pode
+ainda estar carregando quando o diálogo abre (o teste abriu com ela vazia), e aí "Qualquer
+um" parecia livre. O `_choice` é um getter, perguntado a cada `build`, e só vira fixo
+quando a pessoa toca no campo.
+
+**`dart format` em pasta reformata o projeto inteiro.** O código do repositório não está
+no formato da versão atual do formatter: rodar em `lib/domain` mexeu em doze arquivos
+que ninguém tinha tocado. Formatar só o arquivo editado, ou não formatar.
+
+---
+
 ## O que a Entrega 15 mudou fora das telas dela
 
 **`ScaffoldMessenger.of` NÃO exige um context abaixo do `Scaffold`** — quem exige é
@@ -183,7 +206,8 @@ remover. O `ItemDialog.show(context, item)` continua igual de propósito, para o
 chamadores da Tela 1 não se mexerem. Onze pontos do `State` liam `widget.item`; hoje leem
 `widget.type`/`widget.category`, ou `widget.item!` dentro de um ramo já guardado.
 
-**Decisão E-k, registrada porque é um campo que aceita e não grava:** no modo criar os
+**Decisão E-k — revogada pela M-a em 01/10/2026, o modo criar passou a gravar o
+produto escolhido. Registrada porque era um campo que aceitava e não gravava:** no modo criar os
 dois dropdowns de marca e embalagem **aparecem** — esconder divergiria do "o **mesmo**
 diálogo de item da Tela 1" que o wireframe manda — e o que for escolhido neles é
 **descartado**, porque `ShoppingListViewModel.add` monta o item sem preferências. A volta

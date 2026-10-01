@@ -38,7 +38,11 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | melhor custo | `bestCost` | o menor `costPerBaseUnit`, não o menor preço |
 | mercado | `Store` | supermercado, feira, açougue, hortifrúti |
 | lista de compras | `ShoppingList` / `ShoppingListItem` | o item guarda a **data em que entrou** |
-| preferência da lista | `listPreference` | marca e embalagem desejadas. **Não mandam na baixa** |
+| preferência da lista | `listPreference` | era marca + embalagem. Desde a **M-a** é o **produto** pedido (`preferredRegistration`), e ele **manda na baixa** |
+| produto pedido pela linha | `preferredRegistration` / `preferredRegistrationBrand` | o cadastro (tipo + marca + descrição) que a linha pede, mais a marca dele para o rótulo. **A embalagem não entra** |
+| a linha aceita esta compra? | `acceptsRegistration` | a pergunta que `planWriteOffs` faz à linha. Sem produto efetivo, aceita qualquer cadastro do tipo |
+| rótulo de um cadastro | `labelWith` | `Italac integral`, `Italac`, `integral` ou `Sem marca`. Recebe a `Brand`, que o cadastro só guarda por id |
+| produtos já pedidos de um tipo | `takenRegistrationsOfType` | o que o diálogo desabilita. **`null` no conjunto é "Qualquer um"**, que também ocupa vaga |
 | não encontrei | `notFound` | mora no diálogo do item; volta se a compra for apagada |
 | lançar a compra | `Purchase` / `PurchaseItem` | produto, quantidade e **valor total pago** |
 | dinheiro | `Money` | value object fino sobre `int cents`. **Nunca `double`** (`R15`) |

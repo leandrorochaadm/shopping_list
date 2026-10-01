@@ -265,9 +265,11 @@ lançadas — isso é da natureza delas, não do sistema.
      justamente para preservar o histórico — seria o caminho mais curto para
      rachá-lo: quem der falta do tipo não o encontraria e criaria um novo com o
      mesmo nome.
-   - **O item entra só com o tipo.** Quantidade, marca e embalagem preferidas
-     não são pedidas aqui: elas moram no diálogo de edição, que abre depois ao
-     tocar no item (requisito 13). Item sem quantidade sai da lista na primeira
+   - **O item entra só com o tipo.** Quantidade e produto não são pedidos aqui:
+     moram no diálogo de edição, que abre depois ao tocar no item (requisito 13).
+     **Tipo que já está na lista** não trava mais (01/10/2026, decisão **M-a**):
+     o toque abre o diálogo do item para escolher o produto do segundo item —
+     sem isso os dois nasceriam iguais e disputariam a mesma compra. Item sem quantidade sai da lista na primeira
      compra daquele tipo, que é o comportamento certo para "acabou o
      achocolatado".
    - **Por que o tipo é obrigatório:** a lista agrupa por categoria
@@ -669,14 +671,14 @@ lançadas — isso é da natureza delas, não do sistema.
       — vale para todo o histórico dela, como qualquer correção de cadastro.
     - **Embalagem com compra lançada não pode ser apagada**, só desativada, pelo
       mesmo motivo do produto: o histórico do período não pode mudar sozinho.
-    - **Desativar marca, produto ou embalagem que é preferência de um item da
-      lista não avisa nada: a preferência cai em silêncio** (decisão de
-      26/08/2026), e o item continua na lista só com o tipo. É o oposto do que
-      acontece com o tipo, e de propósito — a preferência é lembrete e **não manda
-      na baixa**: qualquer leite já abatia "leite Italac 1L", então nada se perde
-      quando a Italac é desativada, e cobrar uma confirmação a cada faxina de
-      cadastro por algo que não muda a lista seria atrito sem troca. O que o
-      aviso protege no tipo é a remoção do item; aqui não há remoção nenhuma.
+    - **Desativar a marca ou o produto que um item da lista pede não avisa nada:
+      o pedido cai em silêncio** (decisão de 26/08/2026, mantida na M-a de
+      01/10/2026), e o item continua na lista só com o tipo — passa a sair com
+      qualquer compra do tipo. É o oposto do que acontece com o tipo, e de
+      propósito: um produto desativado não vai mais ser comprado, então manter o
+      item preso a ele o deixaria na lista para sempre, e cobrar uma confirmação
+      a cada faxina de cadastro seria atrito sem troca. O que o aviso protege no
+      tipo é a remoção do item; aqui não há remoção nenhuma.
     - **A troca de tipo só é oferecida entre tipos da mesma unidade base**
       (decisão de 26/08/2026). Mudar um produto medido em litro para um tipo
       medido em quilo converteria o histórico entre grandezas incompatíveis e
@@ -1285,16 +1287,20 @@ Os dois usam a **mesma lista** e podem estar no mercado em momentos diferentes.
   está faltando em casa". Qualquer um dos dois adiciona, marca e lança. O item
   entra quando falta e sai quando é comprado.
 - **A baixa da lista acontece no nível do tipo do produto** — "leite", "sabão em
-  pó" (confirmado por ele em 18/08/2026). Qualquer compra daquele tipo, de
-  qualquer marca e qualquer embalagem, abate o item: quem escreve a lista não
-  decide a marca ainda, isso acontece na prateleira.
-- **Marca e embalagem entram na lista como preferência opcional** ("leite Italac
-  1 L"), revisto em 21/08/2026 — antes a lista não as guardava de jeito nenhum. A
-  preferência serve para lembrar no corredor e para chegar pré-selecionada no
-  lançamento, onde ele confirma ou troca. Ela **não** muda a regra de baixa
-  acima: pediu Italac, levou Piracanjuba, o item sai da lista do mesmo jeito.
-  Preferência que travasse a baixa viraria item fantasma toda vez que ele
-  trocasse de marca no corredor.
+  pó" (confirmado por ele em 18/08/2026) — **quando o item não pede um produto**.
+  Qualquer compra daquele tipo, de qualquer marca e qualquer embalagem, abate o
+  item: quem escreve a lista não decide a marca ainda, isso acontece na
+  prateleira.
+- **O item pode pedir um produto** — "Leite Italac integral" —, revisto em
+  01/10/2026 (decisão **M-a**, escolhida pelo usuário). Antes, marca e embalagem
+  eram só lembrete e não mandavam na baixa. Agora o item que pede um produto
+  **só sai da lista com compra daquele produto**: pediu Italac, levou
+  Piracanjuba, o item Italac fica, e sai à mão pelo "Remover da lista" se for o
+  caso. A **embalagem não conta**: a caixa de 500 ml abate quem pediu a de 1 L.
+  É isso que permite **dois itens do mesmo tipo na lista** — "Leite Italac
+  integral" e "Leite Piracanjuba desnatado" —, cada um saindo com a sua compra.
+  O mesmo produto não entra duas vezes: o diálogo o mostra desabilitado com "já
+  está na lista".
 - **A quantidade da lista continua sempre na unidade base**, mesmo no item que já
   tem embalagem escolhida: "leite Italac 1L — 6 litros", nunca "6 caixas". Duas
   medidas na mesma coluna fariam o saldo da compra parcial parar de fechar.
