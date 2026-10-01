@@ -25,8 +25,14 @@ final class ShoppingListRepositoryRemote implements ShoppingListRepository {
   /// The PostgREST embed (D4), written ONCE — it is used by the fetch, the
   /// insert and the update, and three copies would diverge on the first new
   /// column. `alias:foreign_key ( ... )` resolves the relation through the
-  /// foreign key, which is how `preferred_brand_id` and `product_type_id` can
-  /// point at different tables with no ambiguity.
+  /// foreign key, which is how `preferred_registration_id` and
+  /// `product_type_id` can point at different tables with no ambiguity. The
+  /// registration's brand comes nested inside it — the line's label needs
+  /// its name (M-a).
+  ///
+  /// The old `preferred_brand_id` / `preferred_product_id` columns are no
+  /// longer read: they stay in the table only until both installed PWAs have
+  /// updated, and a later migration drops them.
   static const _selection = '''
 id, quantity, entered_on, picked, not_found, fulfilled_on, removed_on,
 list_write_off ( quantity_written_off ),
@@ -34,10 +40,9 @@ product_type:product_type_id (
   id, name, category_id, base_unit, active,
   category:category_id ( id, name, active )
 ),
-preferred_brand:preferred_brand_id ( id, name, active ),
-preferred_product:preferred_product_id (
-  id, product_registration_id, piece_count, piece_size, piece_size_unit,
-  total_content, active
+preferred_registration:preferred_registration_id (
+  id, product_type_id, brand_id, description, selling_mode, active,
+  brand:brand_id ( id, name, active )
 )
 ''';
 

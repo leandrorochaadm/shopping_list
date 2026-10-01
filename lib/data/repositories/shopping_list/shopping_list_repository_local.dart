@@ -5,9 +5,8 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/category.dart';
-import '../../../domain/models/packaging.dart';
 import '../../../domain/models/pending_changes.dart';
-import '../../../domain/models/product.dart';
+import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import 'shopping_list_repository.dart';
@@ -83,10 +82,12 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
         category: cleaning,
         enteredOn: DateTime(2026, 8, 27),
       ),
-      // Brand AND packaging preferred — the only one that exercises the whole
+      // A registration preferred — the only one that exercises the whole
       // label — and already picked, so both states of the line are visible.
-      // Its type is the one the purchase fake buys, so it is also the case
-      // "compra parcial abate e não zera".
+      // Its type is the one the purchase fake buys, and every leaf that fake
+      // buys is under `reg-1`, so it is also the case "compra parcial abate e
+      // não zera". With `item-5` it is also the type that sits on the list
+      // twice (M-a): one line asks for Coca-Cola, the other for any.
       ShoppingListItem(
         id: 'item-3',
         type: ProductType(
@@ -96,16 +97,14 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
           baseUnit: BaseUnit.milliliter,
         ),
         category: drinks,
-        preferredBrand: Brand(id: 'brand-1', name: 'Coca-Cola'),
-        preferredProduct: Product(
-          id: 'prod-4',
-          productRegistrationId: 'reg-1',
-          packaging: Packaging(
-            pieceCount: 12,
-            pieceSize: 350,
-            baseUnit: BaseUnit.milliliter,
-          ),
+        preferredRegistration: ProductRegistration(
+          id: 'reg-1',
+          productTypeId: 'type-1',
+          brandId: 'brand-1',
+          description: 'original',
+          sellingMode: SellingMode.byPiece,
         ),
+        preferredRegistrationBrand: Brand(id: 'brand-1', name: 'Coca-Cola'),
         quantity: 4200,
         enteredOn: DateTime(2026, 8, 28),
         picked: true,

@@ -1,6 +1,8 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/purchase.dart' show PurchasedAmount;
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/domain/models/write_off_plan.dart';
@@ -16,10 +18,12 @@ void main() {
   PurchasedAmount bought({
     String id = 'pi-1',
     String type = 'type-1',
+    String registration = 'reg-any',
     required int amount,
   }) => PurchasedAmount(
     purchaseItemId: id,
     productTypeId: type,
+    productRegistrationId: registration,
     quantityInBaseUnit: amount,
   );
 
@@ -295,15 +299,280 @@ void main() {
 
   group('AvailableAmount', () {
     test('equality covers every field', () {
-      const amount = AvailableAmount(id: 'pi-1', left: 2000);
-
-      expect(amount, const AvailableAmount(id: 'pi-1', left: 2000));
-      expect(
-        amount.hashCode,
-        const AvailableAmount(id: 'pi-1', left: 2000).hashCode,
+      const amount = AvailableAmount(
+        id: 'pi-1',
+        registrationId: 'reg-1',
+        left: 2000,
       );
-      expect(amount, isNot(const AvailableAmount(id: 'pi-2', left: 2000)));
-      expect(amount, isNot(const AvailableAmount(id: 'pi-1', left: 1999)));
+      AvailableAmount other({
+        String id = 'pi-1',
+        String registrationId = 'reg-1',
+        int left = 2000,
+      }) => AvailableAmount(id: id, registrationId: registrationId, left: left);
+
+      expect(amount, other());
+      expect(amount.hashCode, other().hashCode);
+      expect(amount, isNot(other(id: 'pi-2')));
+      expect(amount, isNot(other(registrationId: 'reg-2')));
+      expect(amount, isNot(other(left: 1999)));
+    });
+  });
+
+  group('the line that asks for a registration — M-a', () {
+    final italac = ProductRegistration(
+      id: 'reg-italac',
+      productTypeId: 'type-1',
+      brandId: 'brand-italac',
+      description: 'integral',
+      sellingMode: SellingMode.byPiece,
+    );
+    final italacBrand = Brand(id: 'brand-italac', name: 'Italac');
+    final piracanjuba = ProductRegistration(
+      id: 'reg-pira',
+      productTypeId: 'type-1',
+      brandId: 'brand-pira',
+      description: 'desnatado',
+      sellingMode: SellingMode.byPiece,
+    );
+
+    ShoppingListItem asking(
+      String id, {
+      ProductRegistration? registration,
+      Brand? brand,
+      int? quantity,
+      DateTime? enteredOn,
+      bool notFound = false,
+    }) => listItem(
+      id: id,
+      registration: registration,
+      registrationBrand: brand,
+      quantity: quantity,
+      enteredOn: enteredOn,
+      notFound: notFound,
+    );
+
+    test('1. is closed by a purchase of its registration', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-italac', amount: 6000)],
+        items: [asking('l1', registration: italac, quantity: 6000)],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 6000,
+          fulfills: true,
+        ),
+      ]);
+    });
+
+    test('2. a purchase of ANOTHER registration does not touch it', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-pira', amount: 6000)],
+        items: [asking('l1', registration: italac, quantity: 6000)],
+      );
+
+      expect(result, isEmpty);
+    });
+
+    test('3. it consumes first, and leaves nothing for the generic line', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-italac', amount: 6000)],
+        items: [
+          asking(
+            'l1',
+            registration: italac,
+            quantity: 6000,
+            enteredOn: DateTime(2026, 8, 1),
+          ),
+          asking('l2', quantity: 2000, enteredOn: DateTime(2026, 8, 2)),
+        ],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 6000,
+          fulfills: true,
+        ),
+      ]);
+    });
+
+    test('4. age does not beat the specific pass', () {
+      // The generic line is OLDER — and it still waits for the Italac line.
+      final result = plan(
+        purchased: [bought(registration: 'reg-italac', amount: 8000)],
+        items: [
+          asking('l1', quantity: 2000, enteredOn: DateTime(2026, 8, 1)),
+          asking(
+            'l2',
+            registration: italac,
+            quantity: 6000,
+            enteredOn: DateTime(2026, 8, 2),
+          ),
+        ],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l2',
+          quantityWrittenOff: 6000,
+          fulfills: true,
+        ),
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 2000,
+          fulfills: true,
+        ),
+      ]);
+    });
+
+    test('5. each line consumes only the purchase line of its own', () {
+      final result = plan(
+        purchased: [
+          bought(id: 'pi-1', registration: 'reg-italac', amount: 6000),
+          bought(id: 'pi-2', registration: 'reg-pira', amount: 2000),
+        ],
+        items: [
+          asking(
+            'l1',
+            registration: piracanjuba,
+            quantity: 2000,
+            enteredOn: DateTime(2026, 8, 1),
+          ),
+          asking(
+            'l2',
+            registration: italac,
+            quantity: 6000,
+            enteredOn: DateTime(2026, 8, 2),
+          ),
+        ],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-2',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 2000,
+          fulfills: true,
+        ),
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l2',
+          quantityWrittenOff: 6000,
+          fulfills: true,
+        ),
+      ]);
+    });
+
+    test('6. with no quantity, another registration leaves it alone', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-pira', amount: 1000)],
+        items: [asking('l1', registration: italac)],
+      );
+
+      expect(result, isEmpty);
+    });
+
+    test('7. with no quantity, the zero row points at ITS purchase line', () {
+      final result = plan(
+        purchased: [
+          bought(id: 'pi-1', registration: 'reg-pira', amount: 1000),
+          bought(id: 'pi-2', registration: 'reg-italac', amount: 1000),
+        ],
+        items: [asking('l1', registration: italac)],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-2',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 0,
+          fulfills: true,
+        ),
+      ]);
+    });
+
+    test('8. a deactivated registration falls, and any purchase clears it', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-pira', amount: 6000)],
+        items: [
+          asking('l1', registration: italac.deactivated(), quantity: 6000),
+        ],
+      );
+
+      expect(result.single.shoppingListItemId, 'l1');
+      expect(result.single.fulfills, isTrue);
+    });
+
+    test('9. a deactivated BRAND takes the registration down with it', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-pira', amount: 6000)],
+        items: [
+          asking(
+            'l1',
+            registration: italac,
+            brand: italacBrand.deactivated(),
+            quantity: 6000,
+          ),
+        ],
+      );
+
+      expect(result.single.fulfills, isTrue);
+    });
+
+    test('10. "não encontrei" falls on a partial purchase it accepts', () {
+      final result = plan(
+        purchased: [bought(registration: 'reg-italac', amount: 2000)],
+        items: [
+          asking('l1', registration: italac, quantity: 6000, notFound: true),
+        ],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 2000,
+          clearedNotFound: true,
+        ),
+      ]);
+    });
+
+    test('11. the generic line takes what the specific one cannot', () {
+      final result = plan(
+        purchased: [
+          bought(id: 'pi-1', registration: 'reg-italac', amount: 3000),
+          bought(id: 'pi-2', registration: 'reg-pira', amount: 2000),
+        ],
+        items: [
+          asking(
+            'l1',
+            registration: italac,
+            quantity: 6000,
+            enteredOn: DateTime(2026, 8, 1),
+          ),
+          asking('l2', quantity: 2000, enteredOn: DateTime(2026, 8, 2)),
+        ],
+      );
+
+      expect(result, [
+        const ListWriteOff(
+          purchaseItemId: 'pi-1',
+          shoppingListItemId: 'l1',
+          quantityWrittenOff: 3000,
+        ),
+        const ListWriteOff(
+          purchaseItemId: 'pi-2',
+          shoppingListItemId: 'l2',
+          quantityWrittenOff: 2000,
+          fulfills: true,
+        ),
+      ]);
     });
   });
 }

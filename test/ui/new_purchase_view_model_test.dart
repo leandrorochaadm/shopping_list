@@ -79,7 +79,14 @@ final class _Offline extends OnlineStatus {
 
 void main() {
   final today = DateTime(2026, 8, 28);
-  final crate = optionByPiece(id: 'prod-4', brand: cokeBrand, pieceCount: 12);
+  // Under `reg-1`, as in the fake catalog: `item-3` of the fake list asks
+  // for that registration, and only a purchase of it writes it off (M-a).
+  final crate = optionByPiece(
+    id: 'prod-4',
+    registrationId: 'reg-1',
+    brand: cokeBrand,
+    pieceCount: 12,
+  );
 
   ProviderContainer containerWith({
     _SpyPurchases? purchases,

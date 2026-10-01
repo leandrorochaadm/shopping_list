@@ -1,7 +1,9 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
@@ -141,6 +143,49 @@ void main() {
       expect(groupByCategory(items).single.items.map((i) => i.id), ['a', 'b']);
     });
 
+    test('the lines of one type sort by what they read (M-a)', () {
+      ShoppingListItem milk(String id, {String? description}) =>
+          ShoppingListItem(
+            id: id,
+            type: ProductType(
+              id: 'type-milk',
+              name: 'Leite',
+              categoryId: 'c1',
+              baseUnit: BaseUnit.milliliter,
+            ),
+            category: Category(id: 'c1', name: 'Laticínios'),
+            preferredRegistration: description == null
+                ? null
+                : ProductRegistration(
+                    id: 'reg-$id',
+                    productTypeId: 'type-milk',
+                    description: description,
+                    sellingMode: SellingMode.byPiece,
+                  ),
+            enteredOn: DateTime(2026, 8, 28),
+          );
+      final cheese = _item(
+        id: 'z',
+        typeName: 'Queijo',
+        categoryId: 'c1',
+        categoryName: 'Laticínios',
+      );
+
+      final items = [
+        cheese,
+        milk('c', description: 'integral'),
+        milk('b'),
+        milk('a', description: 'desnatado'),
+      ].lock;
+
+      expect(groupByCategory(items).single.items.map((i) => i.label), [
+        'Leite',
+        'Leite desnatado',
+        'Leite integral',
+        'Queijo',
+      ]);
+    });
+
     test('an empty list has no groups', () {
       expect(groupByCategory(const IList<ShoppingListItem>.empty()), isEmpty);
     });
@@ -215,9 +260,9 @@ void main() {
     });
 
     test('with more than one open item it takes the OLDEST (E-i)', () {
-      // The `#1a` panel blocks the duplicate, but the other phone and the
-      // history can produce it — and without this the dialog would open on a
-      // different item on every fetch.
+      // Since M-a the `#1a` panel creates more than one line per type on
+      // purpose — and without this the dialog would open on a different item
+      // on every fetch.
       final older = itemOf(id: 'item-2', enteredOn: DateTime(2026, 8, 20));
       final newer = itemOf(id: 'item-1', enteredOn: DateTime(2026, 8, 28));
 
@@ -235,6 +280,115 @@ void main() {
       expect(
         findOpenItemOfType(const IList<ShoppingListItem>.empty(), 'type-1'),
         isNull,
+      );
+    });
+  });
+
+  group('takenRegistrationsOfType — the guard of M-a', () {
+    final milk = ProductType(
+      id: 'type-1',
+      name: 'Leite',
+      categoryId: 'cat-1',
+      baseUnit: BaseUnit.milliliter,
+    );
+    final italac = ProductRegistration(
+      id: 'reg-italac',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      sellingMode: SellingMode.byPiece,
+    );
+
+    ShoppingListItem line({
+      required String id,
+      ProductType? type,
+      ProductRegistration? registration,
+      Brand? brand,
+      DateTime? fulfilledOn,
+      DateTime? removedOn,
+    }) => ShoppingListItem(
+      id: id,
+      type: type ?? milk,
+      category: Category(id: 'cat-1', name: 'Laticínios'),
+      preferredRegistration: registration,
+      preferredRegistrationBrand: brand,
+      enteredOn: DateTime(2026, 8, 28),
+      fulfilledOn: fulfilledOn,
+      removedOn: removedOn,
+    );
+
+    test('an empty list takes nothing', () {
+      expect(
+        takenRegistrationsOfType(
+          const IList<ShoppingListItem>.empty(),
+          'type-1',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a line with no registration takes "Qualquer um" — null', () {
+      expect(takenRegistrationsOfType([line(id: 'l1')].lock, 'type-1'), {null});
+    });
+
+    test('a line with a registration takes it', () {
+      expect(
+        takenRegistrationsOfType(
+          [line(id: 'l1', registration: italac)].lock,
+          'type-1',
+        ),
+        {'reg-italac'},
+      );
+    });
+
+    test('the line being edited never blocks its own option', () {
+      expect(
+        takenRegistrationsOfType(
+          [line(id: 'l1', registration: italac), line(id: 'l2')].lock,
+          'type-1',
+          exceptItemId: 'l1',
+        ),
+        {null},
+      );
+    });
+
+    test('a line bought or removed by hand does not count', () {
+      expect(
+        takenRegistrationsOfType(
+          [
+            line(id: 'l1', fulfilledOn: DateTime(2026, 8, 29)),
+            line(
+              id: 'l2',
+              registration: italac,
+              removedOn: DateTime(2026, 8, 29),
+            ),
+          ].lock,
+          'type-1',
+        ),
+        isEmpty,
+      );
+    });
+
+    test('a line of another type does not count', () {
+      final cheese = ProductType(
+        id: 'type-2',
+        name: 'Queijo',
+        categoryId: 'cat-1',
+        baseUnit: BaseUnit.gram,
+      );
+
+      expect(
+        takenRegistrationsOfType([line(id: 'l1', type: cheese)].lock, 'type-1'),
+        isEmpty,
+      );
+    });
+
+    test('a preference that fell takes "Qualquer um", not the old one', () {
+      expect(
+        takenRegistrationsOfType(
+          [line(id: 'l1', registration: italac.deactivated())].lock,
+          'type-1',
+        ),
+        {null},
       );
     });
   });

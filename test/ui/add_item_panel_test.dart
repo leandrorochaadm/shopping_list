@@ -11,6 +11,7 @@ import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/ui/shopping_list/widgets/add_item_panel.dart';
+import 'package:shopping_list/ui/shopping_list/widgets/item_dialog.dart';
 
 import '../helpers/catalog.dart';
 import '../helpers/shopping_list.dart';
@@ -168,18 +169,39 @@ void main() {
     expect(find.text('Refrigerante'), findsNothing);
   });
 
-  testWidgets('a type already on the list is offered as unavailable', (
+  testWidgets('a type already on the list opens the item dialog (M-a)', (
     tester,
   ) async {
     final list = _SpyList(initial: [_onTheList('type-1', 'Refrigerante')]);
     await pumpPanel(tester, list: list);
 
-    expect(find.text('(já está na lista)'), findsOneWidget);
+    expect(
+      find.text('já está na lista — toque para pedir outro produto'),
+      findsOneWidget,
+    );
 
-    // Tapping it writes nothing: repeating an item helps nobody in an aisle.
+    // The tap writes nothing yet: the panel closes and the item dialog opens
+    // in the creating mode, where the second line gets a product of its own.
     await tester.tap(find.text('Refrigerante'));
     await tester.pumpAndSettle();
     expect(list.added, isEmpty);
+    expect(find.byType(AddItemPanel), findsNothing);
+    expect(find.byType(ItemDialog), findsOneWidget);
+    expect(find.byKey(const ValueKey('field-registration')), findsOneWidget);
+    expect(find.text('Remover da lista'), findsNothing);
+
+    // The line on the list asks for "Qualquer um", so the new one has to
+    // choose a product — and the fake catalog's only one is free.
+    await tester.tap(find.byKey(const ValueKey('field-registration')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Coca-Cola original').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(list.added.single.type.name, 'Refrigerante');
+    expect(list.added.single.preferredRegistration?.id, 'reg-1');
+    expect(find.byType(ItemDialog), findsNothing);
   });
 
   testWidgets('an exact match never offers to create a second type', (

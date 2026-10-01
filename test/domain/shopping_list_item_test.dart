@@ -2,8 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
-import 'package:shopping_list/domain/models/packaging.dart';
-import 'package:shopping_list/domain/models/product.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 
@@ -23,29 +22,24 @@ ProductType _type({
 
 final _brand = Brand(id: 'brand-1', name: 'Italac');
 
-const _leaf = Product(
-  id: 'prod-1',
-  productRegistrationId: 'reg-1',
-  packaging: null,
-);
-
-Product _packagedLeaf() => Product(
-  id: 'prod-1',
-  productRegistrationId: 'reg-1',
-  packaging: Packaging(
-    pieceCount: 1,
-    pieceSize: 1000,
-    // Typed in litres, so the shelf name reads '1 L' and not '1000 ml' —
-    // the packaging keeps the unit it was typed in.
-    baseUnit: BaseUnit.milliliter,
-  ),
+ProductRegistration _registration({
+  String id = 'reg-1',
+  String description = 'integral',
+  bool active = true,
+}) => ProductRegistration(
+  id: id,
+  productTypeId: 'type-1',
+  brandId: 'brand-1',
+  description: description,
+  sellingMode: SellingMode.byPiece,
+  active: active,
 );
 
 ShoppingListItem _item({
   String? id = 'item-1',
   ProductType? type,
+  ProductRegistration? registration,
   Brand? brand,
-  Product? product,
   int? quantity = 6000,
   DateTime? enteredOn,
   bool picked = false,
@@ -58,8 +52,8 @@ ShoppingListItem _item({
   id: id,
   type: type ?? _type(),
   category: _category,
-  preferredBrand: brand,
-  preferredProduct: product,
+  preferredRegistration: registration,
+  preferredRegistrationBrand: brand,
   quantity: quantity,
   enteredOn: enteredOn ?? DateTime(2026, 8, 28),
   picked: picked,
@@ -117,10 +111,7 @@ void main() {
 
   group('what the line reads', () {
     test('writes the quantity in the base unit of the type', () {
-      expect(
-        _item(type: _type(baseUnit: BaseUnit.gram)).quantityLabel,
-        '6 kg',
-      );
+      expect(_item(type: _type(baseUnit: BaseUnit.gram)).quantityLabel, '6 kg');
       expect(_item(quantity: 2500).quantityLabel, '2,5 L');
       expect(
         _item(type: _type(baseUnit: BaseUnit.unit), quantity: 3).quantityLabel,
@@ -136,18 +127,13 @@ void main() {
       expect(_item().hasQuantity, isTrue);
     });
 
-    test('composes type, brand and packaging, in this order', () {
+    test('composes the type and the registration, in this order', () {
       expect(_item().label, 'Leite');
-      expect(_item(brand: _brand).label, 'Leite Italac');
-      expect(_item(product: _packagedLeaf()).label, 'Leite 1 L');
       expect(
-        _item(brand: _brand, product: _packagedLeaf()).label,
-        'Leite Italac 1 L',
+        _item(registration: _registration(), brand: _brand).label,
+        'Leite Italac integral',
       );
-    });
-
-    test('a leaf sold by weight adds nothing to the label', () {
-      expect(_item(product: _leaf).label, 'Leite');
+      expect(_item(registration: _registration()).label, 'Leite integral');
     });
 
     test('names itself in a log line', () {
@@ -175,8 +161,7 @@ void main() {
   group('json', () {
     Map<String, dynamic> embed({
       Object? quantity = 6000,
-      Map<String, dynamic>? brand,
-      Map<String, dynamic>? product,
+      Map<String, dynamic>? registration,
     }) => {
       'id': 'item-1',
       'quantity': quantity,
@@ -191,22 +176,20 @@ void main() {
         'active': true,
         'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
       },
-      'preferred_brand': brand,
-      'preferred_product': product,
+      'preferred_registration': registration,
     };
 
     test('reads the whole embed PostgREST returns', () {
       final item = ShoppingListItem.fromJson(
         embed(
-          brand: {'id': 'brand-1', 'name': 'Italac', 'active': true},
-          product: {
-            'id': 'prod-1',
-            'product_registration_id': 'reg-1',
-            'piece_count': 1,
-            'piece_size': 1000,
-            'piece_size_unit': 'milliliter',
-            'total_content': 1000,
+          registration: {
+            'id': 'reg-1',
+            'product_type_id': 'type-1',
+            'brand_id': 'brand-1',
+            'description': 'integral',
+            'selling_mode': 'by_piece',
             'active': true,
+            'brand': {'id': 'brand-1', 'name': 'Italac', 'active': true},
           },
         ),
       );
@@ -214,8 +197,9 @@ void main() {
       expect(item.id, 'item-1');
       expect(item.type.name, 'Leite');
       expect(item.category.name, 'Bebidas');
-      expect(item.preferredBrand!.name, 'Italac');
-      expect(item.preferredProduct!.packaging!.label, '1 L');
+      expect(item.preferredRegistration, _registration());
+      expect(item.preferredRegistrationBrand, _brand);
+      expect(item.label, 'Leite Italac integral');
       expect(item.quantity, 6000);
       expect(item.enteredOn, DateTime(2026, 8, 28));
       expect(item.picked, isTrue);
@@ -226,19 +210,20 @@ void main() {
       final item = ShoppingListItem.fromJson(embed(quantity: null));
 
       expect(item.quantity, isNull);
-      expect(item.preferredBrand, isNull);
-      expect(item.preferredProduct, isNull);
+      expect(item.preferredRegistration, isNull);
+      expect(item.preferredRegistrationBrand, isNull);
       expect(item.label, 'Leite');
     });
 
     test('writes ONLY the table columns, with the ids extracted', () {
-      final json = _item(brand: _brand, product: _packagedLeaf()).toJson();
+      final json = _item(registration: _registration(), brand: _brand).toJson();
 
       expect(json, {
         'id': 'item-1',
         'product_type_id': 'type-1',
-        'preferred_brand_id': 'brand-1',
-        'preferred_product_id': 'prod-1',
+        // M-a: the registration only. The two old columns are no longer
+        // written, and the brand travels inside the registration.
+        'preferred_registration_id': 'reg-1',
         'quantity': 6000,
         'entered_on': '2026-08-28',
         'picked': false,
@@ -273,8 +258,8 @@ void main() {
           ),
         ),
       );
+      expect(item, isNot(_item(registration: _registration())));
       expect(item, isNot(_item(brand: _brand)));
-      expect(item, isNot(_item(product: _packagedLeaf())));
       expect(item, isNot(_item(quantity: 1000)));
       expect(item, isNot(_item(enteredOn: DateTime(2026, 8, 27))));
       expect(item, isNot(_item(picked: true)));
@@ -283,14 +268,28 @@ void main() {
 
     test('copyWith clears a preference when asked to', () {
       // `copyWith` alone cannot tell "keep it" from "set it to null", and
-      // "Qualquer uma" in the dialog is exactly the second one.
-      final item = _item(brand: _brand, product: _packagedLeaf());
+      // "Qualquer um" in the dialog is exactly the second one.
+      final item = _item(registration: _registration(), brand: _brand);
 
-      expect(item.copyWith(clearBrand: true).preferredBrand, isNull);
-      expect(item.copyWith(clearProduct: true).preferredProduct, isNull);
+      final cleared = item.copyWith(clearRegistration: true);
+      expect(cleared.preferredRegistration, isNull);
+      expect(cleared.preferredRegistrationBrand, isNull);
       expect(item.copyWith(clearQuantity: true).quantity, isNull);
       // And it keeps them when it is not asked to.
-      expect(item.copyWith(picked: true).preferredBrand, _brand);
+      final kept = item.copyWith(picked: true);
+      expect(kept.preferredRegistration, _registration());
+      expect(kept.preferredRegistrationBrand, _brand);
+    });
+
+    test('a new registration brings its own brand, even none', () {
+      final item = _item(registration: _registration(), brand: _brand);
+
+      final switched = item.copyWith(
+        preferredRegistration: _registration(id: 'reg-2', description: 'x'),
+      );
+
+      expect(switched.preferredRegistrationBrand, isNull);
+      expect(switched.label, 'Leite x');
     });
 
     test('rounds the entered day, so a repaint is never free', () {
@@ -375,8 +374,7 @@ void main() {
           'active': true,
           'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
         },
-        'preferred_brand': null,
-        'preferred_product': null,
+        'preferred_registration': null,
         'list_write_off': [
           {'quantity_written_off': 2000},
           {'quantity_written_off': 1000},
@@ -530,8 +528,8 @@ void main() {
 
     test('everything else survives the trip', () {
       final closed = _item(
+        registration: _registration(),
         brand: _brand,
-        product: _packagedLeaf(),
         picked: true,
         notFound: true,
         writtenOffQuantity: 2000,
@@ -540,8 +538,8 @@ void main() {
       );
 
       final back = closed.restoredToList();
-      expect(back.preferredBrand, _brand);
-      expect(back.preferredProduct, _packagedLeaf());
+      expect(back.preferredRegistration, _registration());
+      expect(back.preferredRegistrationBrand, _brand);
       expect(back.picked, isTrue);
       expect(back.notFound, isTrue);
       expect(back.writtenOffQuantity, 2000);
@@ -551,49 +549,72 @@ void main() {
   });
 
   group('the preference falls when the catalog row is deactivated — D7', () {
-    test('an active brand and packaging are the effective ones', () {
-      final item = _item(brand: _brand, product: _packagedLeaf());
+    test('an active registration is the effective one', () {
+      final item = _item(registration: _registration(), brand: _brand);
 
-      expect(item.effectivePreferredBrand, _brand);
-      expect(item.effectivePreferredProduct, _packagedLeaf());
-      expect(item.effectiveLabel, 'Leite Italac 1 L');
+      expect(item.effectivePreferredRegistration, _registration());
+      expect(item.effectiveLabel, 'Leite Italac integral');
     });
 
-    test('a deactivated brand falls SILENTLY, with no write at all', () {
+    test('a deactivated registration falls SILENTLY, with no write at all', () {
       final item = _item(
-        brand: Brand(id: 'brand-1', name: 'Italac', active: false),
-        product: _packagedLeaf(),
+        registration: _registration(active: false),
+        brand: _brand,
       );
 
-      expect(item.effectivePreferredBrand, isNull);
-      // The stored preference is untouched — it comes back the day the brand
-      // is reactivated, which is better than what the requirement asked for.
-      expect(item.preferredBrand, isNotNull);
-      expect(item.effectiveLabel, 'Leite 1 L');
-    });
-
-    test('a deactivated packaging falls the same way', () {
-      final item = _item(brand: _brand, product: _packagedLeaf().deactivated());
-
-      expect(item.effectivePreferredProduct, isNull);
-      expect(item.effectiveLabel, 'Leite Italac');
-    });
-
-    test('with both gone the line is the type, and nothing else', () {
-      final item = _item(
-        brand: Brand(id: 'brand-1', name: 'Italac', active: false),
-        product: _packagedLeaf().deactivated(),
-      );
-
+      expect(item.effectivePreferredRegistration, isNull);
+      // The stored preference is untouched — it comes back the day the
+      // registration is reactivated, which is better than what the
+      // requirement asked for.
+      expect(item.preferredRegistration, isNotNull);
       expect(item.effectiveLabel, 'Leite');
       // The stored label still says everything: only the READ changed.
-      expect(item.label, 'Leite Italac 1 L');
+      expect(item.label, 'Leite Italac integral');
+    });
+
+    test('a deactivated brand takes its registration down with it', () {
+      final item = _item(
+        registration: _registration(),
+        brand: Brand(id: 'brand-1', name: 'Italac', active: false),
+      );
+
+      expect(item.effectivePreferredRegistration, isNull);
+      expect(item.effectiveLabel, 'Leite');
+    });
+
+    test('a registration with no brand stands on its own', () {
+      final item = _item(registration: _registration());
+
+      expect(item.effectivePreferredRegistration, _registration());
+      expect(item.effectiveLabel, 'Leite integral');
     });
 
     test('a line with no preference reads the same either way', () {
       expect(_item().effectiveLabel, 'Leite');
-      expect(_item().effectivePreferredBrand, isNull);
-      expect(_item().effectivePreferredProduct, isNull);
+      expect(_item().effectivePreferredRegistration, isNull);
+    });
+  });
+
+  group('acceptsRegistration — the question planWriteOffs asks (M-a)', () {
+    test('with no preference, any registration of the type', () {
+      expect(_item().acceptsRegistration('reg-1'), isTrue);
+      expect(_item().acceptsRegistration('reg-2'), isTrue);
+    });
+
+    test('with one, only that one', () {
+      final item = _item(registration: _registration(), brand: _brand);
+
+      expect(item.acceptsRegistration('reg-1'), isTrue);
+      expect(item.acceptsRegistration('reg-2'), isFalse);
+    });
+
+    test('a preference that fell accepts anything again', () {
+      final item = _item(
+        registration: _registration(active: false),
+        brand: _brand,
+      );
+
+      expect(item.acceptsRegistration('reg-2'), isTrue);
     });
   });
 

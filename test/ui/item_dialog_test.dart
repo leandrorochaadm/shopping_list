@@ -10,6 +10,7 @@ import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/product.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/ui/shopping_list/widgets/item_dialog.dart';
@@ -63,9 +64,15 @@ class _SpyList extends ShoppingListRepositoryLocal {
 }
 
 /// A catalog whose `fetchLeavesOfType` can be made to fail: the dialog has to
-/// keep working with the two dropdowns stuck on "Qualquer uma".
+/// keep working with the "Produto" field stuck on "Qualquer um".
+///
+/// [withZero] hangs a second registration under `type-1` — "Coca-Cola zero"
+/// beside the fake's "Coca-Cola original" — which is what the guard of M-a
+/// needs to have something left to offer.
 class _SpyCatalog extends CatalogRepositoryLocal {
-  _SpyCatalog() : super(latency: Duration.zero);
+  _SpyCatalog({this.withZero = false}) : super(latency: Duration.zero);
+
+  final bool withZero;
 
   Object? failNextLeaves;
 
@@ -74,9 +81,37 @@ class _SpyCatalog extends CatalogRepositoryLocal {
     final failure = failNextLeaves;
     failNextLeaves = null;
     if (failure != null) throw failure;
-    return super.fetchLeavesOfType(productTypeId);
+    final leaves = await super.fetchLeavesOfType(productTypeId);
+    if (!withZero || productTypeId != 'type-1') return leaves;
+    return leaves.add(
+      TypeLeaf(
+        product: const Product(id: 'prod-zero', productRegistrationId: _zeroId),
+        registration: _zero,
+      ),
+    );
   }
 }
+
+/// The registration every leaf of `type-1` in the fake catalog is under.
+final _original = ProductRegistration(
+  id: 'reg-1',
+  productTypeId: 'type-1',
+  brandId: 'brand-1',
+  description: 'original',
+  sellingMode: SellingMode.byPiece,
+);
+
+const _zeroId = 'reg-zero';
+
+final _zero = ProductRegistration(
+  id: _zeroId,
+  productTypeId: 'type-1',
+  brandId: 'brand-1',
+  description: 'zero',
+  sellingMode: SellingMode.byPiece,
+);
+
+final _coke = Brand(id: 'brand-1', name: 'Coca-Cola');
 
 final _drinks = Category(id: 'cat-1', name: 'Bebidas');
 
@@ -88,17 +123,18 @@ final _softDrink = ProductType(
 );
 
 ShoppingListItem _item({
+  String id = 'item-1',
   int? quantity,
   bool notFound = false,
+  ProductRegistration? registration,
   Brand? brand,
-  Product? product,
 }) => ShoppingListItem(
-  id: 'item-1',
+  id: id,
   type: _softDrink,
   category: _drinks,
   quantity: quantity,
-  preferredBrand: brand,
-  preferredProduct: product,
+  preferredRegistration: registration,
+  preferredRegistrationBrand: brand,
   notFound: notFound,
   enteredOn: DateTime(2026, 8, 20),
 );
@@ -143,6 +179,7 @@ void main() {
     ShoppingListItem? existing,
     int? missing,
     _SpyList? list,
+    CatalogRepository? catalog,
   }) async {
     final repository = list ?? _SpyList(initial: [?existing]);
 
@@ -150,7 +187,7 @@ void main() {
       ProviderScope(
         overrides: [
           shoppingListOverride(repository: repository),
-          catalogOverride(),
+          catalogOverride(repository: catalog),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -207,28 +244,67 @@ void main() {
     );
     // Empty, and NOT '0,000': nothing asked for is not zero asked for.
     expect(field.controller!.text, '');
-    expect(find.text('Vazio: sai na primeira compra do tipo.'), findsOneWidget);
+    expect(find.text('Vazio: sai na primeira compra.'), findsOneWidget);
   });
 
-  testWidgets('offers the brands and the packagings of THIS type', (
+  testWidgets('offers the products of THIS type, and "Qualquer um"', (
     tester,
   ) async {
+    await pumpDialog(tester, catalog: _SpyCatalog(withZero: true));
+
+    // Four leaves of the Coca-Cola original and one of the zero hang under
+    // `type-1`: two registrations, each ONCE — the packaging is not what the
+    // field chooses. "Omo" is in the catalog and must not show up here.
+    await tester.tap(find.byKey(const ValueKey('field-registration')));
+    await tester.pumpAndSettle();
+    expect(find.text('Qualquer um'), findsWidgets);
+    expect(find.text('Coca-Cola original'), findsWidgets);
+    expect(find.text('Coca-Cola zero'), findsWidgets);
+    expect(find.textContaining('Omo'), findsNothing);
+    expect(find.textContaining('350 ml'), findsNothing);
+  });
+
+  testWidgets('the help under the field follows the choice', (tester) async {
     await pumpDialog(tester);
+    expect(find.text('Sai da lista com qualquer refrigerante.'), findsOneWidget);
 
-    // The fake catalog hangs four leaves of one Coca-Cola registration under
-    // `type-1`, so the brand comes from the leaves and not from the whole
-    // brand list — "Omo" is in the catalog and must not show up here.
-    await tester.tap(find.byKey(const ValueKey('field-brand')));
+    await tester.tap(find.byKey(const ValueKey('field-registration')));
     await tester.pumpAndSettle();
-    expect(find.text('Coca-Cola'), findsWidgets);
-    expect(find.text('Omo'), findsNothing);
-
-    await tester.tap(find.text('Coca-Cola').last);
+    await tester.tap(find.text('Coca-Cola original').last);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('field-packaging')));
+    expect(find.text('Só sai da lista com este produto.'), findsOneWidget);
+  });
+
+  testWidgets('saves the product chosen, with its brand', (tester) async {
+    final repository = await pumpDialog(tester);
+
+    await tester.tap(find.byKey(const ValueKey('field-registration')));
     await tester.pumpAndSettle();
-    expect(find.text('12 × 350 ml'), findsWidgets);
+    await tester.tap(find.text('Coca-Cola original').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.written.single.preferredRegistration, _original);
+    expect(repository.written.single.preferredRegistrationBrand, _coke);
+  });
+
+  testWidgets('"Qualquer um" clears the product the line had', (tester) async {
+    final repository = await pumpDialog(
+      tester,
+      item: _item(quantity: 6000, registration: _original, brand: _coke),
+    );
+
+    await tester.tap(find.byKey(const ValueKey('field-registration')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Qualquer um').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.written.single.preferredRegistration, isNull);
+    expect(repository.written.single.preferredRegistrationBrand, isNull);
   });
 
   testWidgets('saves the quantity and the not-found mark', (tester) async {
@@ -393,21 +469,28 @@ void main() {
     expect(repository.written.single.quantity, 4000);
   });
 
-  testWidgets('a preferred brand that is not among the leaves opens as '
-      '"Qualquer uma"', (tester) async {
-    // The leaves did not load, so the stored brand has no item of its own in
-    // the dropdown. Showing a value with no matching item is what trips the
-    // DropdownButton assertion and takes the whole dialog down.
+  testWidgets('a product that is not among the leaves is kept, not cleared', (
+    tester,
+  ) async {
+    // The leaves did not load, so the stored registration has no item of its
+    // own in the dropdown. Showing a value with no matching item is what trips
+    // the DropdownButton assertion and takes the whole dialog down — and
+    // saving must not erase a preference the person never touched.
     final catalog = _SpyCatalog()..failNextLeaves = NetworkException('x');
-    await pumpDialog(
+    final repository = await pumpDialog(
       tester,
       catalog: catalog,
-      item: _item(quantity: 6000, brand: Brand(id: 'brand-9', name: 'Italac')),
+      item: _item(quantity: 6000, registration: _zero, brand: _coke),
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Italac'), findsNothing);
-    expect(find.text('Qualquer uma'), findsWidgets);
+    expect(find.text('Coca-Cola zero'), findsNothing);
+
+    await tester.tap(find.text('Salvar'));
+    await tester.pumpAndSettle();
+
+    expect(repository.written.single.preferredRegistration, _zero);
+    expect(repository.written.single.preferredRegistrationBrand, _coke);
   });
 
   group('the two doors of screen 6 (H18)', () {
@@ -424,8 +507,7 @@ void main() {
       // demands.
       expect(find.text('Refrigerante'), findsOneWidget);
       expect(find.byKey(const ValueKey('field-quantity')), findsOneWidget);
-      expect(find.byKey(const ValueKey('field-brand')), findsOneWidget);
-      expect(find.byKey(const ValueKey('field-packaging')), findsOneWidget);
+      expect(find.byKey(const ValueKey('field-registration')), findsOneWidget);
     });
 
     testWidgets('the editing mode still shows both', (tester) async {
@@ -528,7 +610,7 @@ void main() {
         findsOneWidget,
       );
       // And the usual sentence gives way to it — stacking both would be noise.
-      expect(find.text('Vazio: sai na primeira compra do tipo.'), findsNothing);
+      expect(find.text('Vazio: sai na primeira compra.'), findsNothing);
     });
 
     testWidgets('the warning needs BOTH halves to appear', (tester) async {
@@ -536,7 +618,7 @@ void main() {
       await pumpForType(tester, existing: _item(quantity: 6000), missing: 2000);
       expect(find.textContaining('confirmar passa a pedir'), findsNothing);
       expect(
-        find.text('Vazio: sai na primeira compra do tipo.'),
+        find.text('Vazio: sai na primeira compra.'),
         findsOneWidget,
       );
     });
@@ -550,26 +632,23 @@ void main() {
       expect(find.textContaining('confirmar passa a pedir'), findsNothing);
     });
 
-    testWidgets('a brand chosen in the creating mode is DISCARDED (E-k)', (
+    testWidgets('the creating mode KEEPS the product chosen (M-a)', (
       tester,
     ) async {
-      // A field that accepts and does not store, and it is written down rather
-      // than hidden: hiding the dropdowns would diverge from "o mesmo diálogo
-      // de item da Tela 1". This case fixes today's behaviour so that the day
-      // it changes, it changes on purpose — the way back is two optional named
-      // parameters on `add`.
+      // E-k discarded it; M-a revoked E-k — with the write-off by product, a
+      // second line of milk saved without it would be worth any milk.
       final repository = await pumpForType(tester, missing: 2000);
 
-      await tester.tap(find.byKey(const ValueKey('field-brand')));
+      await tester.tap(find.byKey(const ValueKey('field-registration')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Coca-Cola').last);
+      await tester.tap(find.text('Coca-Cola original').last);
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Salvar'));
       await tester.pumpAndSettle();
 
-      expect(repository.added.single.preferredBrand, isNull);
-      expect(repository.added.single.preferredProduct, isNull);
+      expect(repository.added.single.preferredRegistration, _original);
+      expect(repository.added.single.preferredRegistrationBrand, _coke);
     });
 
     testWidgets('a failing add keeps the dialog open and says why', (
@@ -586,6 +665,105 @@ void main() {
       expect(find.byType(SnackBar), findsOneWidget);
       // The raw exception NEVER reaches the screen.
       expect(find.textContaining('boom'), findsNothing);
+    });
+  });
+
+  group('the same product never sits on the list twice (M-a)', () {
+    testWidgets('an option another line asks for is greyed out, and says so', (
+      tester,
+    ) async {
+      final other = _item(id: 'item-9', registration: _original, brand: _coke);
+      await pumpForType(
+        tester,
+        list: _SpyList(initial: [other]),
+        catalog: _SpyCatalog(withZero: true),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('field-registration')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Coca-Cola original · já está na lista'),
+        findsWidgets,
+      );
+      final option = tester.widget<DropdownMenuItem<String>>(
+        find
+            .ancestor(
+              of: find.text('Coca-Cola original · já está na lista').last,
+              matching: find.byType(DropdownMenuItem<String>),
+            )
+            .first,
+      );
+      expect(option.enabled, isFalse);
+      expect(find.text('Coca-Cola zero'), findsWidgets);
+    });
+
+    testWidgets('the line being edited never blocks its own option', (
+      tester,
+    ) async {
+      final line = _item(
+        quantity: 6000,
+        registration: _original,
+        brand: _coke,
+      );
+      await pumpDialog(tester, item: line);
+
+      await tester.tap(find.byKey(const ValueKey('field-registration')));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('já está na lista'), findsNothing);
+    });
+
+    testWidgets('"Qualquer um" taken: the field opens empty, Salvar waits', (
+      tester,
+    ) async {
+      final other = _item(id: 'item-9');
+      final repository = await pumpForType(
+        tester,
+        list: _SpyList(initial: [other]),
+        catalog: _SpyCatalog(withZero: true),
+      );
+
+      expect(
+        find.text('Escolha um produto que ainda não está na lista.'),
+        findsOneWidget,
+      );
+      final save = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Salvar'),
+      );
+      expect(save.onPressed, isNull);
+
+      await tester.tap(find.byKey(const ValueKey('field-registration')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Coca-Cola zero').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Salvar'));
+      await tester.pumpAndSettle();
+
+      expect(repository.added.single.preferredRegistration, _zero);
+    });
+
+    testWidgets('everything taken: the field says so, and Salvar stays off', (
+      tester,
+    ) async {
+      await pumpForType(
+        tester,
+        list: _SpyList(
+          initial: [
+            _item(id: 'item-8'),
+            _item(id: 'item-9', registration: _original, brand: _coke),
+          ],
+        ),
+      );
+
+      expect(
+        find.text('Todos os produtos deste tipo já estão na lista.'),
+        findsOneWidget,
+      );
+      final save = tester.widget<FilledButton>(
+        find.widgetWithText(FilledButton, 'Salvar'),
+      );
+      expect(save.onPressed, isNull);
     });
   });
 }

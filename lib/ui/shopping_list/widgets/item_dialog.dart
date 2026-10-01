@@ -6,15 +6,21 @@ import 'package:tekton_core/tekton_core.dart';
 import '../../../data/repositories/catalog/catalog_repository.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/category.dart';
-import '../../../domain/models/product.dart';
+import '../../../domain/models/name_normalization.dart';
+import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../catalog/view_model/catalog_view_model.dart';
 import '../../core/unit_specs.dart';
 import '../view_model/shopping_list_view_model.dart';
 
-/// The item dialog of H6: quantity, preferred brand, preferred packaging,
-/// "não encontrei" and remove.
+/// The item dialog of H6: quantity, product, "não encontrei" and remove.
+///
+/// Since M-a the two dropdowns of brand and packaging are ONE field,
+/// "Produto": the registration the line asks for, which is what the
+/// write-off obeys. An option another open line of the type already asks for
+/// is greyed out, so the same product never sits on the list twice.
 ///
 /// **Two doors since H17**, and `wireframes §Tela 6` is what demands it — "o
 /// **mesmo** diálogo de item da Tela 1":
@@ -47,7 +53,8 @@ class ItemDialog extends ConsumerStatefulWidget {
         key: key,
       );
 
-  /// Screen 6 on a type that is NOT on the list yet.
+  /// Screen 6 on a type that is NOT on the list yet, and the `#1a` panel on
+  /// a type that IS (M-a) — a second line, with a product of its own.
   const ItemDialog.creating({
     required ProductType type,
     required Category category,
@@ -123,8 +130,10 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     },
   );
 
-  String? _brandId;
-  String? _productId;
+  /// What the person picked in the "Produto" field: a registration id or
+  /// [_any] for "Qualquer um". Null until they touch it — and then [_choice]
+  /// says what the field starts on.
+  String? _picked;
   late bool _notFound = widget.item?.notFound ?? false;
 
   IList<TypeLeaf> _leaves = const IList.empty();
@@ -137,12 +146,30 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   /// save is an `add` instead of a `save`.
   bool get _isEditing => widget.item != null;
 
+  /// The value of "Qualquer um" in the dropdown. Not null, because null is
+  /// what the field holds when nothing was chosen; and never a real id, since
+  /// ids are uuids.
+  static const _any = '';
+
   @override
   void initState() {
     super.initState();
-    _brandId = widget.item?.preferredBrand?.id;
-    _productId = widget.item?.preferredProduct?.id;
     _loadLeaves();
+  }
+
+  /// The option the field is on: a registration id, [_any], or null for
+  /// NOTHING chosen. Editing starts on the line's own product. Creating
+  /// starts on "Qualquer um" only while no other line of the type is already
+  /// "Qualquer um" — then the person has to choose.
+  ///
+  /// Asked on every build rather than fixed in `initState`, because the list
+  /// may still be loading when the dialog opens.
+  String? get _choice {
+    final picked = _picked;
+    if (picked != null) return picked;
+    final item = widget.item;
+    if (item != null) return item.effectivePreferredRegistration?.id ?? _any;
+    return _isTaken(_any) ? null : _any;
   }
 
   @override
@@ -159,9 +186,9 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     }
 
     // Through the ViewModel, never the repository (rule 4). A failure comes
-    // back as an empty list — a list of packagings that did not load must not
-    // stop the quantity from being adjusted, and the two dropdowns simply keep
-    // "Qualquer uma".
+    // back as an empty list — a list of products that did not load must not
+    // stop the quantity from being adjusted, and the field simply keeps
+    // "Qualquer um".
     final leaves = await ref
         .read(catalogViewModelProvider.notifier)
         .leavesOfType(typeId);
@@ -172,31 +199,70 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     });
   }
 
-  /// The brands that exist FOR THIS TYPE, from the leaves.
-  IList<Brand> get _brands {
-    final brands = ref.read(catalogViewModelProvider).value?.brands;
-    if (brands == null) return const IList.empty();
+  /// The registrations OTHER open lines of the type already ask for — the
+  /// rule is the domain's (rule 11); the dialog only asks it. `null` in the
+  /// set is "Qualquer um".
+  ISet<String?> _takenIn(IList<ShoppingListItem>? items) =>
+      takenRegistrationsOfType(
+        items ?? const IList.empty(),
+        widget.type.id ?? '',
+        exceptItemId: widget.item?.id,
+      );
 
-    final ids = {for (final leaf in _leaves) ?leaf.registration.brandId};
-    return brands.where((brand) => ids.contains(brand.id)).toIList();
+  /// `read`, so it can be asked from `_save` too; `build` watches the list,
+  /// which is what greys out at once an option the other phone just took.
+  ISet<String?> get _taken =>
+      _takenIn(ref.read(shoppingListViewModelProvider).value);
+
+  bool _isTaken(String option) =>
+      _taken.contains(option == _any ? null : option);
+
+  /// The brand of a registration, from the catalog — the registration only
+  /// keeps the id. Falls back to the one the line already carries, so a
+  /// catalog that did not load does not erase the brand of the label.
+  Brand? _brandOf(ProductRegistration registration) {
+    final brandId = registration.brandId;
+    if (brandId == null) return null;
+    final brands = ref.read(catalogViewModelProvider).value?.brands;
+    return brands?.where((brand) => brand.id == brandId).firstOrNull ??
+        (widget.item?.preferredRegistrationBrand?.id == brandId
+            ? widget.item!.preferredRegistrationBrand
+            : null);
   }
 
-  /// The packagings of the type, filtered by the chosen brand when there is
-  /// one — offering the Italac 1 L under "Coca-Cola" helps nobody.
-  IList<Product> get _products => _leaves
-      .where(
-        (leaf) =>
-            leaf.product.packaging != null &&
-            (_brandId == null || leaf.registration.brandId == _brandId),
-      )
-      .map((leaf) => leaf.product)
-      .toIList();
+  /// The ACTIVE registrations of the type, once each, in the order the
+  /// field shows them — by what they read.
+  IList<ProductRegistration> get _registrations {
+    final byId = <String, ProductRegistration>{
+      for (final leaf in _leaves)
+        if (leaf.registration.active && leaf.registration.id != null)
+          leaf.registration.id!: leaf.registration,
+    };
+    return (byId.values.toList()..sort(
+          (a, b) => normalizeName(
+            a.labelWith(_brandOf(a)),
+          ).compareTo(normalizeName(b.labelWith(_brandOf(b)))),
+        ))
+        .toIList();
+  }
+
+  /// The registration behind [_choice]. The line's own stored one is the
+  /// fallback: leaves that failed to load must not clear a preference the
+  /// person never touched.
+  ProductRegistration? get _chosenRegistration {
+    final choice = _choice;
+    if (choice == null || choice == _any) return null;
+    return _registrations.where((r) => r.id == choice).firstOrNull ??
+        (widget.item?.preferredRegistration?.id == choice
+            ? widget.item!.preferredRegistration
+            : null);
+  }
 
   Future<void> _save() async {
     final typed = _quantity.text.trim();
 
     // The EMPTY field stays null, and that is an answer: it is the "sai na
-    // primeira compra do tipo" of the dialog. Only a filled one is read, and
+    // primeira compra" of the dialog. Only a filled one is read, and
     // the mask leaves nothing malformed to refuse — what is left is a field
     // holding zero.
     int? quantity;
@@ -221,26 +287,26 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
 
     final notifier = ref.read(shoppingListViewModelProvider.notifier);
     final item = widget.item;
+    final registration = _chosenRegistration;
+    final brand = registration == null ? null : _brandOf(registration);
     final error = item == null
-        // The creating mode of screen 6. **The two dropdowns above are read
-        // and DISCARDED here** (decision E-k): `add` builds the item with no
-        // preferences, and the way back is two optional named parameters on
-        // it. It is a field that accepts and does not store, and it is written
-        // down rather than hidden — hiding the dropdowns would diverge from
-        // "o mesmo diálogo de item da Tela 1" that the wireframe demands.
-        ? await notifier.add(widget.type, widget.category, quantity: quantity)
+        // The creating mode keeps the product chosen (M-a revoked E-k): with
+        // the write-off by registration, a second line of milk saved without
+        // it would be worth any milk.
+        ? await notifier.add(
+            widget.type,
+            widget.category,
+            quantity: quantity,
+            preferredRegistration: registration,
+            preferredRegistrationBrand: brand,
+          )
         : await notifier.save(
             item.copyWith(
               quantity: quantity,
               clearQuantity: quantity == null,
-              preferredBrand: _brandId == null
-                  ? null
-                  : _brands.where((b) => b.id == _brandId).firstOrNull,
-              clearBrand: _brandId == null,
-              preferredProduct: _productId == null
-                  ? null
-                  : _products.where((p) => p.id == _productId).firstOrNull,
-              clearProduct: _productId == null,
+              preferredRegistration: registration,
+              preferredRegistrationBrand: brand,
+              clearRegistration: registration == null,
               notFound: _notFound,
             ),
           );
@@ -298,8 +364,8 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   ///
   /// Normally it explains what an empty field means. On the item that is on
   /// the list WITH NO QUANTITY and was opened from screen 6, it explains what
-  /// confirming changes: the line stops leaving on the first purchase of the
-  /// type and starts being written off by amount. **The screen does not change
+  /// confirming changes: the line stops leaving on the first purchase and
+  /// starts being written off by amount. **The screen does not change
   /// the rule in silence** (decision of 26/08/2026) — and stacking both
   /// sentences would be noise, since the second one is what ends the first.
   String get _quantityHelper {
@@ -308,13 +374,43 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
       return 'este item está na lista sem quantidade — confirmar passa a '
           'pedir ${widget.type.baseUnit.formatQuantity(prefill)}';
     }
-    return 'Vazio: sai na primeira compra do tipo.';
+    // "do tipo" left with M-a: with a product chosen it is no longer true.
+    return 'Vazio: sai na primeira compra.';
+  }
+
+  /// Under the "Produto" field. It says what the choice means for the
+  /// write-off — or, when there is nothing to choose, why.
+  String get _productHelper {
+    if (_choice == null) {
+      final allTaken =
+          !_loadingLeaves &&
+          _isTaken(_any) &&
+          _registrations.every((r) => _isTaken(r.id!));
+      return allTaken
+          ? 'Todos os produtos deste tipo já estão na lista.'
+          : 'Escolha um produto que ainda não está na lista.';
+    }
+    return _choice == _any
+        ? 'Sai da lista com qualquer ${widget.type.name.toLowerCase()}.'
+        : 'Só sai da lista com este produto.';
+  }
+
+  /// One option of the field. A product another line already asks for stays
+  /// visible but greyed out, and says why.
+  DropdownMenuItem<String> _option(String value, String label) {
+    final taken = _isTaken(value);
+    return DropdownMenuItem(
+      value: value,
+      enabled: !taken,
+      child: Text(taken ? '$label · já está na lista' : label),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final products = _products;
-    final brands = _brands;
+    ref.watch(shoppingListViewModelProvider);
+    final registrations = _registrations;
+    final choice = _choice;
 
     return AlertDialog(
       title: Text(widget.type.name),
@@ -341,49 +437,32 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
               ),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String?>(
-              key: const ValueKey('field-brand'),
-              // The stored brand only becomes an option once the leaves have
-              // loaded — until then `_brands` is empty and a value with no
-              // matching item trips the DropdownButton assertion. Same guard
-              // as the packaging below.
-              initialValue: brands.any((b) => b.id == _brandId)
-                  ? _brandId
+            DropdownButtonFormField<String>(
+              key: const ValueKey('field-registration'),
+              // The stored registration only becomes an option once the
+              // leaves have loaded — until then a value with no matching item
+              // trips the DropdownButton assertion.
+              initialValue:
+                  choice == _any || registrations.any((r) => r.id == choice)
+                  ? choice
                   : null,
-              decoration: const InputDecoration(labelText: 'Marca preferida'),
-              items: [
-                const DropdownMenuItem(child: Text('Qualquer uma')),
-                for (final brand in brands)
-                  DropdownMenuItem(value: brand.id, child: Text(brand.name)),
-              ],
-              onChanged: _saving || _loadingLeaves
-                  ? null
-                  : (id) => setState(() {
-                      _brandId = id;
-                      // The packaging of another brand stops making sense.
-                      _productId = null;
-                    }),
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String?>(
-              key: const ValueKey('field-packaging'),
-              initialValue: products.any((p) => p.id == _productId)
-                  ? _productId
-                  : null,
-              decoration: const InputDecoration(
-                labelText: 'Embalagem preferida',
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Produto',
+                helperText: _productHelper,
+                helperMaxLines: 3,
               ),
               items: [
-                const DropdownMenuItem(child: Text('Qualquer uma')),
-                for (final product in products)
-                  DropdownMenuItem(
-                    value: product.id,
-                    child: Text(product.packaging!.label),
+                _option(_any, 'Qualquer um'),
+                for (final registration in registrations)
+                  _option(
+                    registration.id!,
+                    registration.labelWith(_brandOf(registration)),
                   ),
               ],
               onChanged: _saving || _loadingLeaves
                   ? null
-                  : (id) => setState(() => _productId = id),
+                  : (id) => setState(() => _picked = id),
             ),
             if (_loadingLeaves)
               const Padding(
@@ -427,7 +506,9 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
           child: const Text('Cancelar'),
         ),
         FilledButton(
-          onPressed: _saving ? null : _save,
+          // Nothing chosen: the creating mode of a type whose "Qualquer um"
+          // is already on the list, and the field says what to do.
+          onPressed: _saving || choice == null ? null : _save,
           child: Text(_saving ? 'Salvando...' : 'Salvar'),
         ),
       ],

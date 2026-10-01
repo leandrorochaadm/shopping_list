@@ -208,6 +208,7 @@ void main() {
   }) => PurchasedAmount(
     purchaseItemId: id,
     productTypeId: type,
+    productRegistrationId: 'reg-any',
     quantityInBaseUnit: amount,
   );
 

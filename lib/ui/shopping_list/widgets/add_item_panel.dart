@@ -13,6 +13,7 @@ import '../../catalog/view_model/catalog_view_model.dart';
 import '../../catalog/widgets/new_product_type_dialog.dart';
 import '../../core/widgets/message_view.dart';
 import '../view_model/shopping_list_view_model.dart';
+import 'item_dialog.dart';
 
 /// The `#1a` panel — **the most used path of the app**, more than registering
 /// a purchase. Everything here is measured in taps.
@@ -61,8 +62,8 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
     setState(() => _counts = counts);
   }
 
-  /// Which types are already on the list — repeating an item helps nobody in
-  /// an aisle.
+  /// Which types are already on the list. Since M-a they no longer lock: the
+  /// tap opens the item dialog instead, to ask for ANOTHER product.
   Set<String> get _onTheList {
     final items =
         ref.watch(shoppingListViewModelProvider).value ??
@@ -96,6 +97,36 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
       return;
     }
     navigator.pop();
+  }
+
+  /// The tap on a type that is already on the list (M-a): a second line, and
+  /// it needs a product of its own — born equal to the first ("Leite"), the
+  /// two lines would compete for the same purchase. So the panel closes and
+  /// the item dialog opens in the creating mode, where the product is chosen.
+  ///
+  /// Closing first is the field-on-top rule: the dialog opens alone, with no
+  /// panel behind it fighting the keyboard for the room.
+  Future<void> _addAnother(
+    ProductType type,
+    IList<Category> categories,
+  ) async {
+    final category = categories
+        .where((entry) => entry.id == type.categoryId)
+        .firstOrNull;
+    if (category == null) {
+      await ref.read(catalogViewModelProvider.notifier).refresh();
+      return;
+    }
+
+    // The navigator's own context outlives the panel's: it is what the
+    // dialog opens on once the sheet is gone.
+    final navigator = Navigator.of(context);
+    navigator.pop();
+    await ItemDialog.showForType(
+      navigator.context,
+      type: type,
+      category: category,
+    );
   }
 
   Future<void> _reactivate(ProductType type, IList<Category> categories) async {
@@ -222,10 +253,9 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
   Widget _typeTile(ProductType type, CatalogOptions options, bool onList) {
     if (onList) {
       return ListTile(
-        enabled: false,
         title: Text(type.name),
-        subtitle: const Text('(já está na lista)'),
-        trailing: const Icon(Icons.remove),
+        subtitle: const Text('já está na lista — toque para pedir outro produto'),
+        onTap: _working ? null : () => _addAnother(type, options.categories),
       );
     }
     if (!type.active) {

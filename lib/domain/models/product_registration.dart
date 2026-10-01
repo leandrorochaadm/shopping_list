@@ -1,5 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
+import 'brand.dart';
 import 'name_normalization.dart';
 import 'packaging.dart';
 
@@ -92,6 +93,17 @@ final class ProductRegistration {
   };
 
   bool get isSoldByWeight => sellingMode == SellingMode.byWeight;
+
+  /// What the item dialog and the list line write for this registration:
+  /// 'Italac integral', 'Italac', 'integral' — or 'Sem marca' when there is
+  /// neither, so the option never reads as a blank line.
+  ///
+  /// It takes the [Brand] because the registration only keeps [brandId]: the
+  /// name lives in the catalog (in the dialog) or in the embed (on the line).
+  String labelWith(Brand? brand) {
+    final parts = [?brand?.name, if (description.isNotEmpty) description];
+    return parts.isEmpty ? 'Sem marca' : parts.join(' ');
+  }
 
   /// The identity of decision "cadastro único": type + brand + normalized
   /// description, with a null brand counting as a value.

@@ -69,6 +69,11 @@ final class PurchaseItem {
 
   String get productTypeId => option.type.id!;
 
+  /// The registration the line bought — what a list line that asks for one
+  /// compares against (decision M-a). A purchase line always points at a
+  /// leaf that was written, so the registration has an id.
+  String get productRegistrationId => option.registration.id!;
+
   BaseUnit get baseUnit => option.baseUnit;
 
   /// What the row reads: 'Refrigerante Coca-Cola 12 × 350 ml'.

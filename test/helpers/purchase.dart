@@ -63,8 +63,13 @@ final omoBrand = Brand(id: 'brand-2', name: 'Omo');
 final tixanBrand = Brand(id: 'brand-4', name: 'Tixan');
 
 /// A leaf sold by piece: `pieceCount × pieceSize` of [unit].
+///
+/// [registrationId] defaults to `reg-<id>`, one registration per leaf. Pass
+/// the fake catalog's own (`reg-1`) when the leaf has to be the one a list
+/// line asks for (M-a).
 ProductOption optionByPiece({
   required String id,
+  String? registrationId,
   ProductType? type,
   Brand? brand,
   String description = '',
@@ -80,7 +85,7 @@ ProductOption optionByPiece({
   return ProductOption(
     product: Product(
       id: id,
-      productRegistrationId: 'reg-$id',
+      productRegistrationId: registrationId ?? 'reg-$id',
       packaging: Packaging(
         pieceCount: pieceCount,
         pieceSize: pieceSize,
@@ -88,7 +93,7 @@ ProductOption optionByPiece({
       ),
     ),
     registration: ProductRegistration(
-      id: 'reg-$id',
+      id: registrationId ?? 'reg-$id',
       productTypeId: resolved.id!,
       brandId: brand?.id,
       description: description,
@@ -150,6 +155,8 @@ ShoppingListItem listItem({
   required String id,
   ProductType? type,
   Category? category,
+  ProductRegistration? registration,
+  Brand? registrationBrand,
   int? quantity,
   DateTime? enteredOn,
   bool picked = false,
@@ -162,6 +169,8 @@ ShoppingListItem listItem({
   id: id,
   type: type ?? softDrinkType,
   category: category ?? drinks,
+  preferredRegistration: registration,
+  preferredRegistrationBrand: registrationBrand,
   quantity: quantity,
   enteredOn: enteredOn ?? DateTime(2026, 8, 1),
   picked: picked,

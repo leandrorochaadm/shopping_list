@@ -60,13 +60,14 @@ final class Purchase {
   Money get total =>
       items.fold(Money.zero, (sum, item) => sum + item.paid);
 
-  /// What the write-off planner works over: the type, the amount in the base
-  /// unit, and which line of the purchase it came from.
+  /// What the write-off planner works over: the type, the registration, the
+  /// amount in the base unit, and which line of the purchase it came from.
   IList<PurchasedAmount> get amounts => [
     for (final item in items)
       PurchasedAmount(
         purchaseItemId: item.id,
         productTypeId: item.productTypeId,
+        productRegistrationId: item.productRegistrationId,
         quantityInBaseUnit: item.quantityInBaseUnit,
       ),
   ].toIList();
@@ -130,18 +131,25 @@ final class Purchase {
       '${total.cents})';
 }
 
-/// How much of a type one line of the purchase brought home. It is what
-/// `planWriteOffs` reads: three fields, no rules, no identity — a projection
+/// How much of a type one line of the purchase brought home, and of which
+/// registration. It is what `planWriteOffs` reads: four fields, no rules, no
+/// identity — a projection
 /// of [Purchase], which is why it is a plain class and not an entity.
 final class PurchasedAmount {
   const PurchasedAmount({
     required this.purchaseItemId,
     required this.productTypeId,
+    required this.productRegistrationId,
     required this.quantityInBaseUnit,
   });
 
   final String purchaseItemId;
   final String productTypeId;
+
+  /// What a line of the list that asks for a registration compares against
+  /// (decision M-a). The packaging is deliberately not here.
+  final String productRegistrationId;
+
   final int quantityInBaseUnit;
 
   @override
@@ -150,11 +158,16 @@ final class PurchasedAmount {
       other is PurchasedAmount &&
           other.purchaseItemId == purchaseItemId &&
           other.productTypeId == productTypeId &&
+          other.productRegistrationId == productRegistrationId &&
           other.quantityInBaseUnit == quantityInBaseUnit;
 
   @override
-  int get hashCode =>
-      Object.hash(purchaseItemId, productTypeId, quantityInBaseUnit);
+  int get hashCode => Object.hash(
+    purchaseItemId,
+    productTypeId,
+    productRegistrationId,
+    quantityInBaseUnit,
+  );
 }
 
 /// pt-BR: every message below is read on screen.

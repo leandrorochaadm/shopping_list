@@ -1,18 +1,18 @@
 import 'brand.dart';
 import 'calendar_day.dart';
 import 'category.dart';
-import 'product.dart';
+import 'product_registration.dart';
 import 'product_type.dart';
 
 /// One line of the shopping list — and an AGGREGATE, not a row of ids.
 ///
 /// It carries the whole [ProductType], the whole [Category] and, when they
-/// exist, the whole [Brand] and [Product], because the line on screen needs
-/// the type's name, the category's name (that is what groups it), the base
-/// unit (that is what the quantity is written in), the brand's name and the
-/// packaging's label. The alternative — loading the catalog and crossing it in
-/// memory — would mean fetching EVERY product in the database just to find the
-/// label of one preferred packaging.
+/// exist, the whole [ProductRegistration] and its [Brand], because the line on
+/// screen needs the type's name, the category's name (that is what groups
+/// it), the base unit (that is what the quantity is written in) and the
+/// registration's label. The alternative — loading the catalog and crossing it
+/// in memory — would mean fetching EVERY registration in the database just to
+/// find the label of one line.
 ///
 /// **`fromJson` reads the PostgREST embed, `toJson` writes only the table's
 /// own columns.** The asymmetry is deliberate: it is the real contract of the
@@ -22,8 +22,8 @@ final class ShoppingListItem {
     String? id,
     required ProductType type,
     required Category category,
-    Brand? preferredBrand,
-    Product? preferredProduct,
+    ProductRegistration? preferredRegistration,
+    Brand? preferredRegistrationBrand,
     int? quantity,
     required DateTime enteredOn,
     bool picked = false,
@@ -39,8 +39,8 @@ final class ShoppingListItem {
       id: id,
       type: type,
       category: category,
-      preferredBrand: preferredBrand,
-      preferredProduct: preferredProduct,
+      preferredRegistration: preferredRegistration,
+      preferredRegistrationBrand: preferredRegistrationBrand,
       quantity: quantity,
       // Rule 9: the day is rounded here, so an instant that carries an hour
       // never breaks the `==` of a line that did not change.
@@ -58,8 +58,8 @@ final class ShoppingListItem {
     this.id,
     required this.type,
     required this.category,
-    this.preferredBrand,
-    this.preferredProduct,
+    this.preferredRegistration,
+    this.preferredRegistrationBrand,
     this.quantity,
     required this.enteredOn,
     required this.picked,
@@ -71,18 +71,22 @@ final class ShoppingListItem {
   });
 
   /// Reads the embed of `_selection`: `product_type` comes nested, and the
-  /// category comes nested inside it.
+  /// category comes nested inside it; the registration's brand comes nested
+  /// inside the registration.
   factory ShoppingListItem.fromJson(Map<String, dynamic> json) {
     final type = json['product_type'] as Map<String, dynamic>;
-    final brand = json['preferred_brand'] as Map<String, dynamic>?;
-    final product = json['preferred_product'] as Map<String, dynamic>?;
+    final registration =
+        json['preferred_registration'] as Map<String, dynamic>?;
+    final brand = registration?['brand'] as Map<String, dynamic>?;
 
     return ShoppingListItem(
       id: json['id'] as String?,
       type: ProductType.fromJson(type),
       category: Category.fromJson(type['category'] as Map<String, dynamic>),
-      preferredBrand: brand == null ? null : Brand.fromJson(brand),
-      preferredProduct: product == null ? null : Product.fromJson(product),
+      preferredRegistration: registration == null
+          ? null
+          : ProductRegistration.fromJson(registration),
+      preferredRegistrationBrand: brand == null ? null : Brand.fromJson(brand),
       quantity: (json['quantity'] as num?)?.toInt(),
       enteredOn: decodeCalendarDay(json['entered_on'] as String),
       picked: json['picked'] as bool? ?? false,
@@ -124,14 +128,20 @@ final class ShoppingListItem {
   /// The type's category, always the CURRENT one — it is what groups the list.
   final Category category;
 
-  /// A reminder, and it does NOT command the write-off.
-  final Brand? preferredBrand;
+  /// The registration this line asks for. When it is set (and active), ONLY
+  /// a purchase of it writes the line off (decision M-a). Null is "any of the
+  /// type" — the old behaviour, and still the default. The packaging stays
+  /// out of the rule: buying the 500 ml box clears the line that asked for
+  /// the 1 L one.
+  final ProductRegistration? preferredRegistration;
 
-  /// The wanted packaging; same thing.
-  final Product? preferredProduct;
+  /// The brand of [preferredRegistration], from the same embed. It is here
+  /// only to write the label and to let a deactivated brand take the
+  /// preference down; the write-off never reads its name.
+  final Brand? preferredRegistrationBrand;
 
   /// In the smallest unit of the type's base. **Null is an answer**: an item
-  /// with no quantity leaves the list on the first purchase of the type.
+  /// with no quantity leaves the list on the first purchase it accepts.
   final int? quantity;
 
   /// The calendar day the item entered the list (decision 25).
@@ -173,8 +183,10 @@ final class ShoppingListItem {
   Map<String, dynamic> toJson() => {
     if (id != null) 'id': id,
     'product_type_id': type.id,
-    'preferred_brand_id': preferredBrand?.id,
-    'preferred_product_id': preferredProduct?.id,
+    // The two old columns (`preferred_brand_id`, `preferred_product_id`) are
+    // no longer written: they stay in the table only until both installed
+    // PWAs have updated (M-a), and then a migration drops them.
+    'preferred_registration_id': preferredRegistration?.id,
     'quantity': quantity,
     'entered_on': encodeCalendarDay(enteredOn),
     'picked': picked,
@@ -221,8 +233,8 @@ final class ShoppingListItem {
     id: id,
     type: type,
     category: category,
-    preferredBrand: preferredBrand,
-    preferredProduct: preferredProduct,
+    preferredRegistration: preferredRegistration,
+    preferredRegistrationBrand: preferredRegistrationBrand,
     quantity: quantity,
     enteredOn: enteredOn,
     picked: picked,
@@ -257,28 +269,32 @@ final class ShoppingListItem {
 
   /// The preference falls SILENTLY when its catalog row is deactivated
   /// (requirement 16) — on the READ, with no second write to undo, and it
-  /// comes back on its own the day the brand is reactivated (D7).
-  Brand? get effectivePreferredBrand =>
-      preferredBrand?.active == true ? preferredBrand : null;
-
-  /// The same for the packaging, and it looks at the LEAF's own flag only.
+  /// comes back on its own the day the row is reactivated (D7).
   ///
-  /// `handoff §H10` also says deactivating a registration takes its leaves
-  /// with it, and that half is `Product.isEffectivelyActiveIn` — it needs the
-  /// registration, which this line does not carry and has no reason to: the
-  /// maintenance screen (H10) is where both are in hand, and there the write
-  /// deactivates the leaves along with the registration.
-  Product? get effectivePreferredProduct =>
-      preferredProduct?.active == true ? preferredProduct : null;
+  /// A deactivated brand takes its registrations down with it, as it took
+  /// the brand preference down before M-a.
+  ProductRegistration? get effectivePreferredRegistration {
+    final registration = preferredRegistration;
+    if (registration == null || !registration.active) return null;
+    final brand = preferredRegistrationBrand;
+    if (brand != null && !brand.active) return null;
+    return registration;
+  }
 
-  /// What the line writes once the deactivated preferences have fallen: it is
-  /// [label] asked of the EFFECTIVE preferences, so "Leite Italac 1 L"
-  /// becomes "Leite" the moment the Italac is deactivated.
+  /// Whether a purchase of [registrationId] writes this line off — the
+  /// question `planWriteOffs` asks (rule 11). A line with no EFFECTIVE
+  /// preference accepts any registration of its type.
+  bool acceptsRegistration(String registrationId) {
+    final wanted = effectivePreferredRegistration;
+    return wanted == null || wanted.id == registrationId;
+  }
+
+  /// What the line writes once a deactivated preference has fallen: it is
+  /// [label] asked of the EFFECTIVE registration, so "Leite Italac integral"
+  /// becomes "Leite" the moment the registration is deactivated.
   String get effectiveLabel => [
     type.name,
-    if (effectivePreferredBrand != null) effectivePreferredBrand!.name,
-    if (effectivePreferredProduct?.packaging != null)
-      effectivePreferredProduct!.packaging!.label,
+    ?effectivePreferredRegistration?.labelWith(preferredRegistrationBrand),
   ].join(' ');
 
   /// An item with no quantity leaves on the first purchase of the type; one
@@ -320,23 +336,27 @@ final class ShoppingListItem {
     return notFound ? '$base, "não encontrei"' : base;
   }
 
-  /// What the line writes: 'Leite Italac 1 L', 'Sabão em pó'. Brand and
-  /// packaging come in only when they exist, in this order.
+  /// What the line writes: 'Leite Italac integral', 'Sabão em pó'. The
+  /// registration comes in only when there is one.
   String get label => [
     type.name,
-    if (preferredBrand != null) preferredBrand!.name,
-    if (preferredProduct?.packaging != null) preferredProduct!.packaging!.label,
+    ?preferredRegistration?.labelWith(preferredRegistrationBrand),
   ].join(' ');
 
-  /// `clearBrand`/`clearProduct` exist because `copyWith` cannot tell "keep
-  /// what is there" from "set it back to null" — and the item dialog's
-  /// "Qualquer uma" is precisely the second one.
+  /// `clearRegistration` exists because `copyWith` cannot tell "keep what is
+  /// there" from "set it back to null" — and the item dialog's "Qualquer um"
+  /// is precisely the second one. It clears the brand along with it.
+  ///
+  /// The brand belongs to the registration: passing a new
+  /// [preferredRegistration] replaces the brand too, even with a null one —
+  /// switching from "Italac integral" to a registration with no brand must
+  /// not keep "Italac" on the label.
   ShoppingListItem copyWith({
     String? id,
     ProductType? type,
     Category? category,
-    Brand? preferredBrand,
-    Product? preferredProduct,
+    ProductRegistration? preferredRegistration,
+    Brand? preferredRegistrationBrand,
     int? quantity,
     DateTime? enteredOn,
     bool? picked,
@@ -345,17 +365,20 @@ final class ShoppingListItem {
     int? writeOffCount,
     DateTime? fulfilledOn,
     DateTime? removedOn,
-    bool clearBrand = false,
-    bool clearProduct = false,
+    bool clearRegistration = false,
     bool clearQuantity = false,
   }) => ShoppingListItem(
     id: id ?? this.id,
     type: type ?? this.type,
     category: category ?? this.category,
-    preferredBrand: clearBrand ? null : preferredBrand ?? this.preferredBrand,
-    preferredProduct: clearProduct
+    preferredRegistration: clearRegistration
         ? null
-        : preferredProduct ?? this.preferredProduct,
+        : preferredRegistration ?? this.preferredRegistration,
+    preferredRegistrationBrand: clearRegistration
+        ? null
+        : preferredRegistration != null
+        ? preferredRegistrationBrand
+        : preferredRegistrationBrand ?? this.preferredRegistrationBrand,
     quantity: clearQuantity ? null : quantity ?? this.quantity,
     enteredOn: enteredOn ?? this.enteredOn,
     picked: picked ?? this.picked,
@@ -373,8 +396,8 @@ final class ShoppingListItem {
           other.id == id &&
           other.type == type &&
           other.category == category &&
-          other.preferredBrand == preferredBrand &&
-          other.preferredProduct == preferredProduct &&
+          other.preferredRegistration == preferredRegistration &&
+          other.preferredRegistrationBrand == preferredRegistrationBrand &&
           other.quantity == quantity &&
           other.enteredOn == enteredOn &&
           other.picked == picked &&
@@ -389,8 +412,8 @@ final class ShoppingListItem {
     id,
     type,
     category,
-    preferredBrand,
-    preferredProduct,
+    preferredRegistration,
+    preferredRegistrationBrand,
     quantity,
     enteredOn,
     picked,

@@ -6,8 +6,10 @@ import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repo
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/monthly_average.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/ui/shopping_list/view_model/shopping_list_view_model.dart';
@@ -145,9 +147,39 @@ void main() {
     // Born with no quantity and no preferences — the dialog is what changes
     // that afterwards.
     expect(repository.lastAdded!.quantity, isNull);
-    expect(repository.lastAdded!.preferredBrand, isNull);
-    expect(repository.lastAdded!.preferredProduct, isNull);
+    expect(repository.lastAdded!.preferredRegistration, isNull);
+    expect(repository.lastAdded!.preferredRegistrationBrand, isNull);
     expect(container.read(shoppingListViewModelProvider).value!.length, 3);
+  });
+
+  test('keeps the product the dialog chose for a new line (M-a)', () async {
+    final repository = _SpyRepository(initial: seed);
+    final container = containerWith(repository);
+    await container.read(shoppingListViewModelProvider.future);
+    final italac = ProductRegistration(
+      id: 'reg-italac',
+      productTypeId: _milk.id!,
+      brandId: 'brand-italac',
+      description: 'integral',
+      sellingMode: SellingMode.byPiece,
+    );
+    final brand = Brand(id: 'brand-italac', name: 'Italac');
+
+    final error = await container
+        .read(shoppingListViewModelProvider.notifier)
+        .add(
+          _milk,
+          _drinks,
+          quantity: 6000,
+          preferredRegistration: italac,
+          preferredRegistrationBrand: brand,
+          today: DateTime(2026, 8, 28),
+        );
+
+    expect(error, isNull);
+    expect(repository.lastAdded!.preferredRegistration, italac);
+    expect(repository.lastAdded!.preferredRegistrationBrand, brand);
+    expect(repository.lastAdded!.quantity, 6000);
   });
 
   test('the key is born on the phone, not in the database', () async {

@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
@@ -270,10 +271,30 @@ void main() {
         const Product(id: 'p1', productRegistrationId: 'r1').hashCode,
       );
       expect(leaf, isNot(leaf.deactivated()));
+      expect(leaf, isNot(leaf.copyWith(packaging: bottle('1', BaseUnit.unit))));
+    });
+  });
+
+  group('labelWith — what the item dialog and the list line write (M-a)', () {
+    final coke = Brand(id: 'b1', name: 'Coca-Cola');
+
+    test('brand and description, in this order', () {
+      expect(cocaCola(description: 'zero').labelWith(coke), 'Coca-Cola zero');
+    });
+
+    test('only the brand when there is no description', () {
+      expect(cocaCola().labelWith(coke), 'Coca-Cola');
+    });
+
+    test('only the description when there is no brand', () {
       expect(
-        leaf,
-        isNot(leaf.copyWith(packaging: bottle('1', BaseUnit.unit))),
+        cocaCola(brandId: null, description: 'integral').labelWith(null),
+        'integral',
       );
+    });
+
+    test('"Sem marca" when there is neither, never a blank line', () {
+      expect(cocaCola(brandId: null).labelWith(null), 'Sem marca');
     });
   });
 }

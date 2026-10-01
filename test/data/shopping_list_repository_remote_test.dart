@@ -236,8 +236,7 @@ void main() {
           'active': true,
           'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
         },
-        'preferred_brand': null,
-        'preferred_product': null,
+        'preferred_registration': null,
       });
       when(() => client.from('shopping_list_item')).thenAnswer((_) => table);
 
@@ -248,8 +247,7 @@ void main() {
       expect(table.inserted.single, {
         'id': 'item-1',
         'product_type_id': 'type-1',
-        'preferred_brand_id': null,
-        'preferred_product_id': null,
+        'preferred_registration_id': null,
         'quantity': null,
         'entered_on': '2026-08-28',
         'picked': false,

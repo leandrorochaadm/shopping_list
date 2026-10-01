@@ -231,6 +231,7 @@ void main() {
       expect(amounts.length, 2);
       expect(amounts.first.purchaseItemId, 'i1');
       expect(amounts.first.productTypeId, 'type-1');
+      expect(amounts.first.productRegistrationId, crate.registration.id);
       expect(amounts.first.quantityInBaseUnit, 4200);
       expect(amounts.last.productTypeId, 'type-2');
       expect(amounts.last.quantityInBaseUnit, 1500);
@@ -438,10 +439,12 @@ void main() {
     PurchasedAmount amount({
       String item = 'pi-1',
       String type = 'type-1',
+      String registration = 'reg-1',
       int quantity = 2000,
     }) => PurchasedAmount(
       purchaseItemId: item,
       productTypeId: type,
+      productRegistrationId: registration,
       quantityInBaseUnit: quantity,
     );
 
@@ -450,6 +453,7 @@ void main() {
       expect(amount().hashCode, amount().hashCode);
       expect(amount(), isNot(amount(item: 'pi-2')));
       expect(amount(), isNot(amount(type: 'type-2')));
+      expect(amount(), isNot(amount(registration: 'reg-2')));
       expect(amount(), isNot(amount(quantity: 2001)));
     });
   });

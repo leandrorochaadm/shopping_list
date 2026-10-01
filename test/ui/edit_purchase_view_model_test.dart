@@ -249,6 +249,53 @@ void main() {
       expect(forL1.single.fulfills, isFalse);
     });
 
+    test('a line that asks for a product is NOT written off by another one (M-a)', () async {
+      // The correction replans over the undone list with the rule of today: a
+      // line that asks for the crate's registration stays open when the
+      // corrected purchase brought a different registration of the same type,
+      // and the plain line beside it still leaves with it.
+      final purchases = _SpyPurchases(detail: seedDetail());
+      final lists = _SpyList(
+        initial: [
+          listItem(
+            id: 'l1',
+            registration: crate.registration,
+            registrationBrand: crate.brand,
+            quantity: 6000,
+            writtenOffQuantity: 6000,
+            writeOffCount: 1,
+            fulfilledOn: purchaseDay,
+          ),
+          ...seedList().skip(1),
+        ],
+      );
+      final container = containerWith(purchases, lists);
+      await container.read(editPurchaseViewModelProvider('a1').future);
+
+      final outcome = await container
+          .read(editPurchaseViewModelProvider('a1').notifier)
+          .save(
+            purchaseDate: purchaseDay,
+            storeId: 'store-1',
+            items: [
+              PurchaseItem(
+                id: 'pi-1',
+                option: optionByPiece(id: 'prod-9', pieceCount: 6),
+                quantity: 1,
+                paid: const Money(3000),
+              ),
+            ].lock,
+            today: DateTime(2026, 8, 29),
+          );
+
+      expect(outcome, isA<CorrectionSaved>());
+      final sent = purchases.sentWriteOffs!;
+      expect(sent.where((off) => off.shoppingListItemId == 'l1'), isEmpty);
+      final forL2 = sent.where((off) => off.shoppingListItemId == 'l2');
+      expect(forL2.single.purchaseItemId, 'pi-1');
+      expect(forL2.single.fulfills, isTrue);
+    });
+
     test('removing the last item is refused by the entity, before any I/O', () async {
       final purchases = _SpyPurchases(detail: seedDetail());
       final container = containerWith(purchases, _SpyList(initial: seedList()));

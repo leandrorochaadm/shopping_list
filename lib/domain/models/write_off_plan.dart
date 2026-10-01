@@ -4,28 +4,41 @@ import 'list_write_off.dart';
 import 'purchase.dart' show PurchasedAmount;
 import 'shopping_list_item.dart';
 
-/// How much of ONE line of the purchase is still unspent, as [planWriteOffs]
-/// consumes the lines of a type in the order they were typed.
+/// How much of ONE line of the purchase is still unspent, and of which
+/// registration, as [planWriteOffs] consumes the lines of a type in the order
+/// they were typed.
 ///
 /// It lives and dies inside that function — but rule 16 says "no records
 /// anywhere in the project", and a named type is also what keeps
-/// `available[cursor].id` readable at the call site.
+/// `available[index].id` readable at the call site.
 final class AvailableAmount {
-  const AvailableAmount({required this.id, required this.left});
+  const AvailableAmount({
+    required this.id,
+    required this.registrationId,
+    required this.left,
+  });
 
   /// The purchase item this amount came from — the id H9 gives back to.
   final String id;
 
-  /// What is left of it, in the base unit.
+  /// The registration that line bought. A list line that asks for one only
+  /// consumes from the amounts that carry it (decision M-a).
+  final String registrationId;
+
+  /// What the line brought, in the base unit. The function keeps what is
+  /// still unspent in a list beside it, because two passes consume it.
   final int left;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is AvailableAmount && other.id == id && other.left == left;
+      other is AvailableAmount &&
+          other.id == id &&
+          other.registrationId == registrationId &&
+          other.left == left;
 
   @override
-  int get hashCode => Object.hash(id, left);
+  int get hashCode => Object.hash(id, registrationId, left);
 }
 
 /// **What the purchase does to the shopping list.** Every acceptance
@@ -33,10 +46,10 @@ final class AvailableAmount {
 /// system clock, no I/O, no database. The SQL that follows it only inserts
 /// what it decided.
 ///
-/// [purchased] are the lines of the purchase reduced to type and amount;
-/// [listItems] is the list as it was read a moment before the write; and
-/// [purchaseDate] is the day on the receipt, which is what decision 25
-/// compares against — never today.
+/// [purchased] are the lines of the purchase reduced to type, registration
+/// and amount; [listItems] is the list as it was read a moment before the
+/// write; and [purchaseDate] is the day on the receipt, which is what
+/// decision 25 compares against — never today.
 IList<ListWriteOff> planWriteOffs({
   required IList<PurchasedAmount> purchased,
   required IList<ShoppingListItem> listItems,
@@ -50,9 +63,9 @@ IList<ListWriteOff> planWriteOffs({
       .toList();
   if (eligible.isEmpty || purchased.isEmpty) return const IList.empty();
 
-  // 2. The write-off happens at the level of the TYPE — brand and packaging
-  //    are preferences and filter nothing. Buying Piracanjuba clears the line
-  //    that asked for Italac.
+  // 2. The write-off happens at the level of the TYPE, narrowed by the
+  //    registration only for a line that asks for one (decision M-a). A line
+  //    with no registration is cleared by any purchase of its type.
   final amountsByType = <String, List<PurchasedAmount>>{};
   for (final amount in purchased) {
     (amountsByType[amount.productTypeId] ??= []).add(amount);
@@ -77,78 +90,105 @@ IList<ListWriteOff> planWriteOffs({
       for (final amount in entry.value)
         AvailableAmount(
           id: amount.purchaseItemId,
+          registrationId: amount.productRegistrationId,
           left: amount.quantityInBaseUnit,
         ),
     ];
-    var cursor = 0;
-    var leftOnCursor = available.isEmpty ? 0 : available.first.left;
+    // What is still unspent of each line above. Not a single cursor any
+    // more: the first pass takes slices of some lines and the second pass
+    // takes what it left, from any of them.
+    final left = [for (final amount in available) amount.left];
 
-    // The line that gets a zero write-off: the first of this type, so the
-    // row H9 undoes belongs to a purchase item that really exists.
-    final firstItemId = available.first.id;
+    // 3. The lines that ask for a registration go FIRST, whatever their age.
+    //    Bought 6 L of Italac with "Leite Italac 6 L" and an older "Leite 2 L"
+    //    on the list: if the generic line ate first, the Italac one would be
+    //    left owing 4 L although exactly what it asked for came home.
+    final specific = items.where(
+      (item) => item.effectivePreferredRegistration != null,
+    );
+    final generic = items.where(
+      (item) => item.effectivePreferredRegistration == null,
+    );
 
-    for (final item in items) {
-      final remaining = item.remainingQuantity;
-
-      // 3a. An item with NO quantity does not compete for the amount. It
-      //     never asked for one, so there is nothing to consume: it takes a
-      //     row worth zero and is closed by it — "item sem quantidade sai na
-      //     primeira compra daquele tipo".
-      //
-      //     Giving it "all the amount available" instead would inflate the
-      //     trail and steal from the quantified lines of the same type; giving
-      //     it no row at all would leave it on the list forever, because
-      //     `fulfilled_on` is set from the write-offs.
-      if (remaining == null || remaining == 0) {
-        plan.add(
-          ListWriteOff(
-            purchaseItemId: firstItemId,
-            shoppingListItemId: item.id!,
-            quantityWrittenOff: 0,
-            clearedNotFound: item.notFound,
-            fulfills: true,
-          ),
-        );
-        continue;
-      }
-
-      // 3b. An item WITH a quantity consumes the purchase, line by line.
-      var wanted = remaining;
-      var applied = 0;
-
-      while (wanted > 0 && cursor < available.length) {
-        if (leftOnCursor == 0) {
-          cursor++;
-          if (cursor == available.length) break;
-          leftOnCursor = available[cursor].left;
-          continue;
-        }
-
-        final taken = wanted < leftOnCursor ? wanted : leftOnCursor;
-        plan.add(
-          ListWriteOff(
-            purchaseItemId: available[cursor].id,
-            shoppingListItemId: item.id!,
-            quantityWrittenOff: taken,
-            // "Não encontrei" falls on the first purchase of the type, even a
-            // partial one — so it is set on every row, not only on the
-            // closing one.
-            clearedNotFound: item.notFound,
-            // A partial purchase writes off and does NOT close the line.
-            fulfills: applied + taken == remaining,
-          ),
-        );
-        applied += taken;
-        wanted -= taken;
-        leftOnCursor -= taken;
-      }
-
-      // 4/5. When nothing was left for this line, the loop above wrote no
-      //      row about it at all — which is exactly why it "continua na
-      //      lista", and why an item marked as picked whose type nobody
-      //      bought is never mentioned in the plan.
+    for (final item in [...specific, ...generic]) {
+      _writeOff(item, available, left, plan);
     }
   }
 
   return plan.toIList();
+}
+
+/// What ONE line of the list takes from the amounts of its type. It only
+/// looks at the amounts the line accepts — the question is the entity's
+/// (rule 11), and a line with no registration accepts them all.
+void _writeOff(
+  ShoppingListItem item,
+  List<AvailableAmount> available,
+  List<int> left,
+  List<ListWriteOff> plan,
+) {
+  final remaining = item.remainingQuantity;
+
+  // 3a. An item with NO quantity does not compete for the amount. It never
+  //     asked for one, so there is nothing to consume: it takes a row worth
+  //     zero and is closed by it — "item sem quantidade sai na primeira
+  //     compra" que ele aceita.
+  //
+  //     The row points at the first line of the purchase the item ACCEPTS, so
+  //     the row H9 undoes belongs to a purchase item that really exists and
+  //     really bought what the line asked for. No such line: no row, and the
+  //     item stays on the list.
+  //
+  //     Giving it "all the amount available" instead would inflate the trail
+  //     and steal from the quantified lines of the same type; giving it no row
+  //     at all would leave it on the list forever, because `fulfilled_on` is
+  //     set from the write-offs.
+  if (remaining == null || remaining == 0) {
+    for (final amount in available) {
+      if (!item.acceptsRegistration(amount.registrationId)) continue;
+      plan.add(
+        ListWriteOff(
+          purchaseItemId: amount.id,
+          shoppingListItemId: item.id!,
+          quantityWrittenOff: 0,
+          clearedNotFound: item.notFound,
+          fulfills: true,
+        ),
+      );
+      return;
+    }
+    return;
+  }
+
+  // 3b. An item WITH a quantity consumes the purchase, line by line.
+  var wanted = remaining;
+  var applied = 0;
+
+  for (var index = 0; index < available.length && wanted > 0; index++) {
+    if (left[index] == 0) continue;
+    if (!item.acceptsRegistration(available[index].registrationId)) continue;
+
+    final taken = wanted < left[index] ? wanted : left[index];
+    plan.add(
+      ListWriteOff(
+        purchaseItemId: available[index].id,
+        shoppingListItemId: item.id!,
+        quantityWrittenOff: taken,
+        // "Não encontrei" falls on the first purchase the line accepts, even
+        // a partial one — so it is set on every row, not only on the closing
+        // one.
+        clearedNotFound: item.notFound,
+        // A partial purchase writes off and does NOT close the line.
+        fulfills: applied + taken == remaining,
+      ),
+    );
+    applied += taken;
+    wanted -= taken;
+    left[index] -= taken;
+  }
+
+  // 4/5. When nothing was left for this line, the loop above wrote no row
+  //      about it at all — which is exactly why it "continua na lista", and
+  //      why an item marked as picked whose type nobody bought is never
+  //      mentioned in the plan.
 }

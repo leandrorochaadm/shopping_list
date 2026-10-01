@@ -2,9 +2,11 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
+import '../../../domain/models/brand.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/monthly_average.dart';
+import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../../domain/models/uuid.dart';
@@ -70,8 +72,13 @@ final class ShoppingListViewModel
   /// [quantity] is new in H17, and it is what the `#1a` panel does NOT pass:
   /// there the item is born with **no quantity and no preferences**, and
   /// whoever wants to ask for "6 litros" opens the dialog afterwards. Screen 6
-  /// passes it, because it opened the dialog FROM a number. Preferences have
-  /// no parameter yet — see [addMany] and decision E-k.
+  /// passes it, because it opened the dialog FROM a number.
+  ///
+  /// [preferredRegistration] (and its [preferredRegistrationBrand], for the
+  /// label) arrived with M-a, which revoked E-k: the item dialog in "creating"
+  /// mode now keeps the product chosen, because with the write-off by
+  /// registration discarding it would make the second line of milk worth any
+  /// milk — exactly what the person did not want.
   ///
   /// The key is born here through `newUuidV4()`, not in the database: it is
   /// what lets the repository discard the echo of its own INSERT, and what
@@ -80,6 +87,8 @@ final class ShoppingListViewModel
     ProductType type,
     Category category, {
     int? quantity,
+    ProductRegistration? preferredRegistration,
+    Brand? preferredRegistrationBrand,
     DateTime? today,
   }) async {
     if (_running) return null;
@@ -89,6 +98,8 @@ final class ShoppingListViewModel
         id: newUuidV4(),
         type: type,
         category: category,
+        preferredRegistration: preferredRegistration,
+        preferredRegistrationBrand: preferredRegistrationBrand,
         quantity: quantity,
         enteredOn: dayOf(today ?? DateTime.now()),
       );

@@ -26,8 +26,11 @@ final class ShoppingListGroup {
 }
 
 /// The grouping of requirement 11 and the order decided on 28/08/2026 (`C3`):
-/// categories alphabetically and, inside each one, the items by the type's
-/// name — the same organization screens 2 and 6 use.
+/// categories alphabetically and, inside each one, the items by what the
+/// line reads ([ShoppingListItem.effectiveLabel]). Since M-a a type can sit on
+/// the list more than once — "Leite Italac integral" and "Leite" — and
+/// sorting by the label keeps the lines of one type together, since every
+/// label starts with the type's name.
 ///
 /// It compares by the NORMALIZED name: `'Açougue'.compareTo('Bebidas')` in
 /// Dart compares code units, and the 'ç' would land after the 'z'.
@@ -56,13 +59,13 @@ IList<ShoppingListGroup> groupByCategory(IList<ShoppingListItem> items) {
         category: categories[key]!,
         items:
             (byCategory[key]!..sort(
-                  // The id breaks the tie so the order is STABLE: two types
-                  // with the same name do not exist (the unique index sees to
-                  // that), but two items of the same type on the same list do,
-                  // and without a tiebreak their order changes on every fetch.
+                  // The id breaks the tie so the order is STABLE: two lines
+                  // with the same label can exist (the guard of M-a is the
+                  // screen's, and the other phone can beat it), and without a
+                  // tiebreak their order changes on every fetch.
                   (a, b) => _compare(
-                    a.type.name,
-                    b.type.name,
+                    a.effectiveLabel,
+                    b.effectiveLabel,
                     a.id ?? '',
                     b.id ?? '',
                   ),
@@ -80,9 +83,8 @@ int _compare(String name, String otherName, String tie, String otherTie) {
 /// The OPEN item of [typeId] the screens point at — screen 6 opens the dialog
 /// on it instead of creating a second line for the same type.
 ///
-/// **The oldest one when there is more than one** (decision E-i): the `#1a`
-/// panel blocks the duplicate, but the other phone and the history can produce
-/// it, and without a tiebreak which item the dialog opens would change on
+/// **The oldest one when there is more than one** (decision E-i): since M-a
+/// the `#1a` panel creates more than one line per type on purpose, and without a tiebreak which item the dialog opens would change on
 /// every fetch. `enteredOn` first, the id second — two items can enter on the
 /// same day.
 ShoppingListItem? findOpenItemOfType(
@@ -97,3 +99,21 @@ ShoppingListItem? findOpenItemOfType(
         });
   return candidates.firstOrNull;
 }
+
+/// The registrations OTHER open lines of [typeId] already ask for — what the
+/// item dialog greys out, so the same product never sits on the list twice
+/// (decision M-a). **`null` in the set is an answer**: an open line with no
+/// registration, which takes "Qualquer um" just as a line takes "Italac".
+///
+/// It reads the EFFECTIVE preference: a line whose registration was
+/// deactivated is a "Qualquer um" line now, and it is that one it blocks.
+/// [exceptItemId] is the line being edited — it never blocks its own option.
+ISet<String?> takenRegistrationsOfType(
+  IList<ShoppingListItem> items,
+  String typeId, {
+  String? exceptItemId,
+}) => {
+  for (final item in items)
+    if (item.isOpen && item.type.id == typeId && item.id != exceptItemId)
+      item.effectivePreferredRegistration?.id,
+}.lock;
