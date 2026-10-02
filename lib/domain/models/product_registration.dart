@@ -115,6 +115,16 @@ final class ProductRegistration {
       brandId == other.brandId &&
       normalizeName(description) == normalizeName(other.description);
 
+  /// Whether saving this over [original] writes anything to the identity.
+  ///
+  /// RAW comparison, on purpose — not [hasSameIdentityAs]: "acem" corrected to
+  /// "acém" is the same identity for the duplicate guard and still an edit the
+  /// person wants saved.
+  bool changesIdentityOf(ProductRegistration original) =>
+      productTypeId != original.productTypeId ||
+      brandId != original.brandId ||
+      description != original.description;
+
   /// The duplicate guard for registrations, INCLUDING the deactivated ones
   /// (decision B3): a deactivated "Coca-Cola 2 L" blocks a new one, and the
   /// screen offers to reactivate it.
@@ -191,6 +201,13 @@ final class ProductRegistration {
       'ProductRegistration(type: $productTypeId, brand: $brandId, '
       '"$description", ${sellingMode.toJson()}, active: $active)';
 }
+
+/// The sentence of the registration duplicate guard. Deactivated or not
+/// changes the sentence (decision B3), never whether it blocks.
+String registrationConflictMessage(ProductRegistration conflict) =>
+    conflict.active
+        ? 'Já existe esse produto cadastrado.'
+        : 'Esse produto já existe, mas está desativado.';
 
 /// Sold by piece and no packaging listed.
 final class MissingPackaging implements Exception {

@@ -297,4 +297,74 @@ void main() {
       expect(cocaCola(brandId: null).labelWith(null), 'Sem marca');
     });
   });
+
+  group('changesIdentityOf — raw, not normalized', () {
+    final original = cocaCola(id: 'r1', description: 'acem');
+
+    test('is false when nothing changed', () {
+      expect(
+        cocaCola(id: 'r1', description: 'acem').changesIdentityOf(original),
+        isFalse,
+      );
+    });
+
+    test('is true when only the type changed', () {
+      expect(
+        original.copyWith(productTypeId: 't2').changesIdentityOf(original),
+        isTrue,
+      );
+    });
+
+    test('is true when only the brand changed', () {
+      expect(
+        original.copyWith(brandId: 'b2').changesIdentityOf(original),
+        isTrue,
+      );
+    });
+
+    test('is true when the brand was cleared', () {
+      final cleared = original.copyWith(brandId: '');
+      expect(cleared.brandId, isNull);
+      expect(cleared.changesIdentityOf(original), isTrue);
+    });
+
+    test('is true when only the description changed', () {
+      expect(
+        original.copyWith(description: 'moído').changesIdentityOf(original),
+        isTrue,
+      );
+    });
+
+    test('an accent fixed is an edit, though the same identity', () {
+      final fixed = original.copyWith(description: 'acém');
+      expect(fixed.changesIdentityOf(original), isTrue);
+      expect(fixed.hasSameIdentityAs(original), isTrue);
+    });
+
+    test('ignores active and selling mode — they are not identity', () {
+      expect(original.deactivated().changesIdentityOf(original), isFalse);
+      expect(
+        original
+            .copyWith(sellingMode: SellingMode.byWeight)
+            .changesIdentityOf(original),
+        isFalse,
+      );
+    });
+  });
+
+  group('registrationConflictMessage', () {
+    test('says it exists when the one in the way is active', () {
+      expect(
+        registrationConflictMessage(cocaCola()),
+        'Já existe esse produto cadastrado.',
+      );
+    });
+
+    test('says it is deactivated when it is', () {
+      expect(
+        registrationConflictMessage(cocaCola(active: false)),
+        'Esse produto já existe, mas está desativado.',
+      );
+    });
+  });
 }

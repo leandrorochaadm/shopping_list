@@ -760,18 +760,16 @@ void main() {
     tester,
   ) async {
     // Arriving from the catalog maintenance: the fields come filled and
-    // LOCKED, and the four packagings that exist are on screen. It lands in
-    // the very state H2 wrote for the registration blocked by repetition —
-    // no second path through this screen.
+    // EDITABLE (M-b), and the four packagings that exist are on screen. It
+    // lands in the very state H2 wrote for the registration blocked by
+    // repetition — no second path through this screen.
     await pumpScreen(
       tester,
       request: const NewProductRequest(registrationId: 'reg-1'),
     );
 
-    expect(
-      find.text('Acrescentando embalagem a um produto que já existe.'),
-      findsOneWidget,
-    );
+    expect(find.text('Editar produto'), findsOneWidget);
+    expect(find.text('Editando um produto que já existe.'), findsOneWidget);
     expect(find.text('Já cadastradas neste produto (4)'), findsOneWidget);
   });
 
@@ -785,6 +783,8 @@ void main() {
     );
 
     expect(find.text('Já cadastradas neste produto (4)'), findsOneWidget);
+    // Editing opens with no line: the first one is asked for.
+    await tapOn(tester, find.text('Adicionar embalagem'));
     // Geometric on purpose: nothing here is renamed, only reordered, and
     // order is the only thing an assertion can see.
     expect(
@@ -912,6 +912,260 @@ void main() {
       );
     },
   );
+
+  group('editing from the maintenance pencil — M-b', () {
+    const editing = NewProductRequest(registrationId: 'reg-1');
+
+    testWidgets('opens with no packaging line and the save button off', (
+      tester,
+    ) async {
+      await pumpScreen(tester, request: editing);
+
+      expect(find.byType(PackagingRow), findsNothing);
+      expect(saveButton(tester).onPressed, isNull);
+      expect(find.text('Salvar alterações'), findsOneWidget);
+      expect(
+        find.text('Mude algum campo ou acrescente uma embalagem.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('description, brand and type are editable; category and '
+        'selling mode are not', (tester) async {
+      await pumpScreen(tester, request: editing);
+
+      final description = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('field-description')),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(description.enabled, isNot(false));
+      expect(
+        tester
+            .widget<DropdownButton<String?>>(
+              find.descendant(
+                of: find.byKey(const ValueKey('field-brand')),
+                matching: find.byType(DropdownButton<String?>),
+              ),
+            )
+            .onChanged,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<DropdownButton<String>>(
+              find.descendant(
+                of: find.byKey(const ValueKey('field-type')),
+                matching: find.byType(DropdownButton<String>),
+              ),
+            )
+            .onChanged,
+        isNotNull,
+      );
+      expect(
+        tester
+            .widget<DropdownButton<String>>(
+              find.descendant(
+                of: find.byKey(const ValueKey('field-category')),
+                matching: find.byType(DropdownButton<String>),
+              ),
+            )
+            .onChanged,
+        isNull,
+      );
+      expect(sellingField(tester).onSelectionChanged, isNull);
+      // A new type could measure another magnitude.
+      expect(
+        tester
+            .widget<IconButton>(
+              find.widgetWithIcon(IconButton, Icons.add).at(1),
+            )
+            .onPressed,
+        isNull,
+      );
+      // The category is shown, from the type, even though it is locked.
+      expect(find.text('Bebidas'), findsOneWidget);
+    });
+
+    testWidgets('the type list offers only types of the same base unit', (
+      tester,
+    ) async {
+      await pumpScreen(tester, request: editing);
+
+      await tapOn(tester, find.byKey(const ValueKey('field-type')));
+
+      // Refrigerante is in millilitres; Acém moído is in grams.
+      expect(find.text('Acém moído'), findsNothing);
+      expect(find.text('Refrigerante'), findsWidgets);
+    });
+
+    testWidgets('changing the description enables save and pops on success', (
+      tester,
+    ) async {
+      final repository = _RecordingRepository();
+      await pumpScreen(tester, repository: repository, request: editing);
+
+      await type(tester, const ValueKey('field-description'), 'zero');
+      await leaveField(tester);
+      expect(saveButton(tester).onPressed, isNotNull);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text('Produto salvo.'), findsOneWidget);
+      expect(repository.updated?.description, 'zero');
+      expect(repository.added, isNull);
+    });
+
+    testWidgets('adding a packaging alone saves it', (tester) async {
+      final repository = _RecordingRepository();
+      await pumpScreen(tester, repository: repository, request: editing);
+
+      await tapOn(tester, find.text('Adicionar embalagem'));
+      await type(tester, const ValueKey('size-1'), '600');
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text('Produto salvo.'), findsOneWidget);
+      expect(repository.updated, isNull);
+      expect(repository.added, hasLength(1));
+    });
+
+    testWidgets('an identity another registration holds blocks save without '
+        'the open button', (tester) async {
+      await pumpScreen(
+        tester,
+        repository: _RecordingRepository(holdsZero: true),
+        request: editing,
+      );
+
+      await type(tester, const ValueKey('field-description'), 'zero');
+      await leaveField(tester);
+
+      expect(find.byKey(const ValueKey('edit-conflict')), findsOneWidget);
+      expect(find.text('Já existe esse produto cadastrado.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('open-conflict')), findsNothing);
+      expect(saveButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('a packaging failure after the identity was written keeps the '
+        'screen', (tester) async {
+      final repository = _RecordingRepository(refusesPackagings: true);
+      await pumpScreen(tester, repository: repository, request: editing);
+
+      await type(tester, const ValueKey('field-description'), 'zero');
+      await leaveField(tester);
+      await tapOn(tester, find.text('Adicionar embalagem'));
+      await type(tester, const ValueKey('size-1'), '600');
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(
+        find.text('Sem conexão. Verifique a internet e tente de novo.'),
+        findsOneWidget,
+      );
+      expect(find.text('Produto salvo.'), findsNothing);
+      expect(find.text('Editar produto'), findsOneWidget);
+      expect(repository.updated?.description, 'zero');
+      // The identity written is the new original: what is left to save is
+      // the packaging alone, and the button still offers it.
+      expect(saveButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('editing a product sold by weight saves the identity alone', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        request: const NewProductRequest(registrationId: 'reg-2'),
+      );
+
+      expect(find.text('Embalagens deste produto'), findsNothing);
+      expect(find.text('Mude algum campo.'), findsOneWidget);
+
+      await type(tester, const ValueKey('field-description'), 'fino');
+      await leaveField(tester);
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text('Produto salvo.'), findsOneWidget);
+    });
+
+    testWidgets('the conflict path still locks the identity', (tester) async {
+      await pumpScreen(tester);
+
+      await choose(tester, const ValueKey('field-category'), 'Bebidas');
+      await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+      await choose(tester, const ValueKey('field-brand'), 'Coca-Cola');
+      await type(tester, const ValueKey('field-description'), 'original');
+      await leaveField(tester);
+      await tapOn(tester, find.text('Abrir e acrescentar embalagem'));
+
+      expect(find.text('Novo produto'), findsOneWidget);
+      final description = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('field-description')),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(description.enabled, isFalse);
+    });
+  });
+}
+
+/// Records what the editing path writes, and can stand a registration in
+/// the way of "zero" or refuse the packagings. Recording instead of reading
+/// the fake back: an `await` on the fake's `Future.delayed` outside a pump
+/// deadlocks a widget test.
+class _RecordingRepository extends CatalogRepositoryLocal {
+  _RecordingRepository({this.holdsZero = false, this.refusesPackagings = false})
+    : super(latency: Duration.zero);
+
+  final bool holdsZero;
+  final bool refusesPackagings;
+
+  ProductRegistration? updated;
+  IList<Packaging>? added;
+
+  @override
+  Future<ProductRegistration?> findRegistration({
+    required String productTypeId,
+    String? brandId,
+    required String description,
+  }) async {
+    if (holdsZero && description.trim() == 'zero') {
+      return ProductRegistration(
+        id: 'reg-9',
+        productTypeId: productTypeId,
+        brandId: brandId,
+        description: 'zero',
+        sellingMode: SellingMode.byPiece,
+      );
+    }
+    return super.findRegistration(
+      productTypeId: productTypeId,
+      brandId: brandId,
+      description: description,
+    );
+  }
+
+  @override
+  Future<ProductRegistration> updateRegistration(
+    ProductRegistration registration,
+  ) async {
+    updated = registration;
+    return super.updateRegistration(registration);
+  }
+
+  @override
+  Future<IList<Product>> addPackagings({
+    required String registrationId,
+    required IList<Packaging> packagings,
+  }) async {
+    if (refusesPackagings) throw NetworkException('offline');
+    added = packagings;
+    return super.addPackagings(
+      registrationId: registrationId,
+      packagings: packagings,
+    );
+  }
 }
 
 /// Never finishes the write, so the reentrancy guard stays down for as long as

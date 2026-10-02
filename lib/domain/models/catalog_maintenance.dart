@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import 'base_unit.dart';
+import 'product_registration.dart';
 import 'product_type.dart';
 
 /// **The rules of H10** — the ones that keep the maintenance screen from
@@ -24,6 +25,25 @@ IList<ProductType> typesCompatibleWith(
           type.active && type.baseUnit == baseUnit && type.id != excludingId,
     )
     .toIList();
+
+/// The net under [typesCompatibleWith]: moving [registration] from [from] to
+/// [to] is refused when the two types measure different magnitudes. Both
+/// ViewModels that move a registration ask this, so the rule is written once.
+void checkTypeMove({
+  required ProductRegistration registration,
+  required ProductType from,
+  required ProductType to,
+}) {
+  if (to.baseUnit == from.baseUnit) return;
+  throw IncompatibleBaseUnit(
+    productLabel: registration.description.isEmpty
+        ? from.name
+        : registration.description,
+    typeName: to.name,
+    from: from.baseUnit,
+    to: to.baseUnit,
+  );
+}
 
 /// Changing a TYPE's base unit would convert its whole history between
 /// magnitudes, and it is what the criterion asks to be offered when "a medida

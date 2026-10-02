@@ -2,6 +2,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/catalog_maintenance.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 
 /// The rules of H10 — the ones that keep the maintenance screen from quietly
@@ -54,6 +55,61 @@ void main() {
 
     test('answers with nothing when no type shares the unit', () {
       expect(compatible(BaseUnit.unit), isEmpty);
+    });
+  });
+
+  group('checkTypeMove', () {
+    ProductRegistration registration({String description = ''}) =>
+        ProductRegistration(
+          id: 'reg-1',
+          productTypeId: 'type-1',
+          description: description,
+          sellingMode: SellingMode.byPiece,
+        );
+
+    test('allows moving between types of the same base unit', () {
+      expect(
+        () =>
+            checkTypeMove(registration: registration(), from: milk, to: juice),
+        returnsNormally,
+      );
+    });
+
+    test('refuses moving between base units', () {
+      expect(
+        () => checkTypeMove(registration: registration(), from: milk, to: beef),
+        throwsA(isA<IncompatibleBaseUnit>()),
+      );
+    });
+
+    test('names the product by its description', () {
+      expect(
+        () => checkTypeMove(
+          registration: registration(description: 'integral'),
+          from: milk,
+          to: beef,
+        ),
+        throwsA(
+          isA<IncompatibleBaseUnit>().having(
+            (e) => e.message,
+            'message',
+            contains('"integral"'),
+          ),
+        ),
+      );
+    });
+
+    test('falls back to the type name when the description is blank', () {
+      expect(
+        () => checkTypeMove(registration: registration(), from: milk, to: beef),
+        throwsA(
+          isA<IncompatibleBaseUnit>().having(
+            (e) => e.message,
+            'message',
+            contains('"Leite"'),
+          ),
+        ),
+      );
     });
   });
 

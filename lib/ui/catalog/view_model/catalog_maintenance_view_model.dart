@@ -362,16 +362,7 @@ final class CatalogMaintenanceViewModel
 
       // Moving between base units would make the destination's total add
       // volume to weight, silently and with no way back.
-      if (from != null && to.baseUnit != from.baseUnit) {
-        throw IncompatibleBaseUnit(
-          productLabel: entry.description.isEmpty
-              ? from.name
-              : entry.description,
-          typeName: to.name,
-          from: from.baseUnit,
-          to: to.baseUnit,
-        );
-      }
+      if (from != null) checkTypeMove(registration: entry, from: from, to: to);
 
       final edited = entry.copyWith(
         description: description,
@@ -386,9 +377,7 @@ final class CatalogMaintenanceViewModel
         current.registrations.where((other) => other.id != id),
       );
       if (conflict != null) {
-        return conflict.active
-            ? 'Já existe esse produto cadastrado.'
-            : 'Esse produto já existe, mas está desativado.';
+        return registrationConflictMessage(conflict);
       }
 
       final written = await ref

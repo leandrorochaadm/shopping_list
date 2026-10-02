@@ -5,6 +5,7 @@ import '../../../data/repositories/catalog/catalog_repository.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_entry.dart';
+import '../../../domain/models/catalog_maintenance.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
@@ -93,6 +94,46 @@ final class PackagingsAdded extends AddPackagingsOutcome {
 
 final class AddPackagingsFailed extends AddPackagingsOutcome {
   const AddPackagingsFailed(this.message);
+
+  /// pt-BR, already translated.
+  final String message;
+}
+
+/// How editing an open registration ended — identity and new packagings in
+/// one tap of screen 4. THREE outcomes (rule 16): the identity can be written
+/// and the packagings refused, and the screen has to know the registration
+/// it now stands on, or "Tentar de novo" would compare against the old one.
+sealed class RegistrationEditOutcome {
+  const RegistrationEditOutcome();
+}
+
+final class RegistrationEdited extends RegistrationEditOutcome {
+  const RegistrationEdited({
+    required this.registration,
+    required this.products,
+  });
+
+  final ProductRegistration registration;
+
+  /// Only the leaves written NOW; empty when no packaging was added.
+  final IList<Product> products;
+}
+
+final class RegistrationEditFailed extends RegistrationEditOutcome {
+  const RegistrationEditFailed(this.message);
+
+  /// pt-BR, already translated. Nothing was written.
+  final String message;
+}
+
+final class PackagingsFailedAfterEdit extends RegistrationEditOutcome {
+  const PackagingsFailedAfterEdit({
+    required this.registration,
+    required this.message,
+  });
+
+  /// The identity as it was written — the new original.
+  final ProductRegistration registration;
 
   /// pt-BR, already translated.
   final String message;
@@ -527,10 +568,14 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// COURTESY the screen pays before the save, and the unique index is what
   /// actually holds. Turning a lost connection into a block would keep a
   /// legitimate registration from being written.
+  ///
+  /// [excludingId] is the registration being edited: finding itself is not a
+  /// conflict.
   Future<RegistrationConflict?> checkIdentity({
     required String productTypeId,
     String? brandId,
     required String description,
+    String? excludingId,
   }) async {
     if (_checkingIdentity) return null;
     _checkingIdentity = true;
@@ -542,8 +587,11 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         description: description,
       );
       if (registration?.id == null || !ref.mounted) return null;
+      // Editing: the registration found may be the one being edited — a typo
+      // fixed in its own description is not a conflict with itself.
+      if (registration!.id == excludingId) return null;
 
-      final products = await repository.fetchProductsOf(registration!.id!);
+      final products = await repository.fetchProductsOf(registration.id!);
       if (!ref.mounted) return null;
 
       return RegistrationConflict(
@@ -642,6 +690,115 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       return PackagingsAdded(products);
     } on Object catch (e, st) {
       return AddPackagingsFailed(translateError(e, st, 'salvar a embalagem'));
+    } finally {
+      _writingRegistration = false;
+    }
+  }
+
+  /// Edits an open registration — description, brand and type — and adds the
+  /// new packagings, in one tap of screen 4.
+  ///
+  /// Two writes in sequence, not one transaction: the identity first, the
+  /// leaves after. If the second fails the first STAYS written, and the
+  /// outcome says so, so the screen can retry the packagings alone.
+  ///
+  /// A `null` is the reentrancy guard of rule 14 saying "I did nothing".
+  Future<RegistrationEditOutcome?> editRegistration({
+    required ProductRegistration original,
+    required String typeId,
+    required String? brandId,
+    required String description,
+    required IList<Packaging> packagings,
+  }) async {
+    if (_writingRegistration) return null;
+    _writingRegistration = true;
+    try {
+      final options = state.value;
+      if (options == null) {
+        return const RegistrationEditFailed('Aguarde as listas carregarem.');
+      }
+
+      final edited = original.copyWith(
+        productTypeId: typeId,
+        // An empty string is how copyWith clears the brand ("Sem marca").
+        brandId: brandId ?? '',
+        description: description,
+      );
+      // Sold by weight has no packaging section: one arriving here means the
+      // screen kept state it should have dropped — the net `save` has too.
+      if (original.isSoldByWeight && packagings.isNotEmpty) {
+        throw const UnexpectedPackaging();
+      }
+
+      final identityChanged = edited.changesIdentityOf(original);
+      if (!identityChanged && packagings.isEmpty) {
+        return RegistrationEditFailed(
+          original.isSoldByWeight
+              ? 'Mude algum campo.'
+              : 'Mude algum campo ou acrescente uma embalagem.',
+        );
+      }
+
+      final repository = ref.read(catalogRepositoryProvider);
+      var written = original;
+
+      if (identityChanged) {
+        final from = options.types
+            .where((t) => t.id == original.productTypeId)
+            .firstOrNull;
+        final to = options.types.where((t) => t.id == typeId).firstOrNull;
+        if (to == null) {
+          return const RegistrationEditFailed(
+            'Não encontrei o tipo. Atualize a lista.',
+          );
+        }
+        if (from != null) {
+          checkTypeMove(registration: original, from: from, to: to);
+        }
+
+        // The guard of the triple, asked of the database — this ViewModel
+        // does not hold every registration in memory, as the maintenance one
+        // does.
+        final conflict = await repository.findRegistration(
+          productTypeId: edited.productTypeId,
+          brandId: edited.brandId,
+          description: edited.description,
+        );
+        if (!ref.mounted) return null;
+        if (conflict != null && conflict.id != original.id) {
+          return RegistrationEditFailed(registrationConflictMessage(conflict));
+        }
+
+        written = await repository.updateRegistration(edited);
+        if (!ref.mounted) return null;
+      }
+
+      if (packagings.isEmpty) {
+        return RegistrationEdited(
+          registration: written,
+          products: const IList.empty(),
+        );
+      }
+
+      try {
+        final products = await repository.addPackagings(
+          registrationId: original.id!,
+          packagings: packagings,
+        );
+        return RegistrationEdited(registration: written, products: products);
+      } on Object catch (e, st) {
+        final message = translateError(e, st, 'salvar a embalagem');
+        return identityChanged
+            ? PackagingsFailedAfterEdit(registration: written, message: message)
+            : RegistrationEditFailed(message);
+      }
+    } on IncompatibleBaseUnit catch (e) {
+      // A rule of the domain saying no is not a failure: nothing to log.
+      return RegistrationEditFailed(e.message);
+    } on UnexpectedPackaging catch (e) {
+      return RegistrationEditFailed(e.message);
+    } on Object catch (e, st) {
+      return RegistrationEditFailed(translateError(e, st, 'salvar o produto'));
     } finally {
       _writingRegistration = false;
     }

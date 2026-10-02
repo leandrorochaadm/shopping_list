@@ -593,6 +593,26 @@ void main() {
       expect(_item().effectiveLabel, 'Leite');
       expect(_item().effectivePreferredRegistration, isNull);
     });
+
+    test('the preference falls when the registration moved to another type', () {
+      // M-b: no purchase of THIS line's type can be that registration any
+      // more, and keeping the preference would pin the line to the list.
+      final item = _item(
+        registration: _registration().copyWith(productTypeId: 'type-2'),
+        brand: _brand,
+      );
+
+      expect(item.effectivePreferredRegistration, isNull);
+      expect(item.acceptsRegistration('any-id'), isTrue);
+      expect(item.preferredRegistration, isNotNull);
+    });
+
+    test('the preference holds while the registration stays in the line type', () {
+      final item = _item(registration: _registration(), brand: _brand);
+
+      expect(item.effectivePreferredRegistration, _registration());
+      expect(item.acceptsRegistration('any-id'), isFalse);
+    });
   });
 
   group('acceptsRegistration — the question planWriteOffs asks (M-a)', () {

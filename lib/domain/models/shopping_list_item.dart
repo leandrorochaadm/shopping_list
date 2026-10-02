@@ -272,10 +272,15 @@ final class ShoppingListItem {
   /// comes back on its own the day the row is reactivated (D7).
   ///
   /// A deactivated brand takes its registrations down with it, as it took
-  /// the brand preference down before M-a.
+  /// the brand preference down before M-a. So does a registration MOVED to
+  /// another type (M-b): it comes back if it is moved back.
   ProductRegistration? get effectivePreferredRegistration {
     final registration = preferredRegistration;
     if (registration == null || !registration.active) return null;
+    // Moved to another type (maintenance pencil or screen 4): no purchase of
+    // THIS line's type can be that registration any more, and keeping the
+    // preference would pin the line to the list forever.
+    if (registration.productTypeId != type.id) return null;
     final brand = preferredRegistrationBrand;
     if (brand != null && !brand.active) return null;
     return registration;

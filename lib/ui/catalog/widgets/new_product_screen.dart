@@ -6,6 +6,7 @@ import 'package:tekton_core/tekton_core.dart';
 
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
+import '../../../domain/models/catalog_maintenance.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
@@ -97,8 +98,9 @@ class NewProductScreen extends ConsumerStatefulWidget {
   final bool returnsSelection;
 
   /// Arriving from the catalog maintenance (requirement 16), the screen opens
-  /// with the registration LOADED, the fields above locked and the packagings
-  /// it already has on the list — the "comprou o Omo de 2,3 kg tendo só o de
+  /// with the registration LOADED — description, brand and type editable;
+  /// category and selling mode locked (decision M-b) — and the packagings it
+  /// already has on the list: the "comprou o Omo de 2,3 kg tendo só o de
   /// 500 g" case. Null is the `[+Novo]` door, which opens blank.
   ///
   /// It fills the very `_opened`/`_existing` state H2 already wrote for the
@@ -124,9 +126,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// warning, and the block on saving.
   RegistrationConflict? _conflict;
 
-  /// Set once `[ Abrir e acrescentar embalagem ]` is taken: the fields above
-  /// come filled and LOCKED, and the packagings that already exist are on
-  /// screen. What was being typed comes along — that is the whole point.
+  /// Set once `[ Abrir e acrescentar embalagem ]` is taken — the fields above
+  /// come filled and LOCKED — or by the maintenance pencil, where they come
+  /// filled and EDITABLE ([_editing]). The packagings that already exist are
+  /// on screen either way. What was being typed comes along — that is the
+  /// whole point.
   ProductRegistration? _opened;
   IList<Product> _existing = const IList.empty();
 
@@ -138,8 +142,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     super.initState();
     // The first line is already there: the wireframe's list is never empty
     // for a product sold by piece, so the screen opens with somewhere to
-    // type instead of an empty block and a button.
-    _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++));
+    // type instead of an empty block and a button. Editing is the exception:
+    // the product already has its packagings, and a blank line would hold
+    // the save button off for someone who only came to fix the description.
+    if (!_editing) _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++));
+    _descriptionController.addListener(_onDescriptionTyped);
 
     final registrationId = widget.registrationId;
     if (registrationId != null) {
@@ -177,6 +184,14 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           _typeId = conflict.registration.productTypeId;
           _brandId = conflict.registration.brandId;
           _descriptionController.text = conflict.registration.description;
+          // The category belongs to the TYPE: shown, never edited here.
+          _categoryId = ref
+              .read(catalogViewModelProvider)
+              .value
+              ?.types
+              .where((t) => t.id == conflict.registration.productTypeId)
+              .firstOrNull
+              ?.categoryId;
           _conflict = null;
           // The magnitude of a line is the TYPE's, and here the type arrives
           // after the line does — `initState` opened the first one before
@@ -187,20 +202,68 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           final unit = _baseUnit;
           _drafts = _drafts.map((draft) => draft.withUnit(unit)).toIList();
         });
+        _loadDescriptions();
       case OpenRegistrationFailed(:final message):
         messenger.showSnackBar(SnackBar(content: Text(message)));
     }
   }
 
+  /// The save button depends on whether the description changed, so it has to
+  /// repaint as the person types — only on the editing path, where it matters.
+  void _onDescriptionTyped() {
+    if (_editing && mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _descriptionController.removeListener(_onDescriptionTyped);
     _descriptionController.dispose();
     super.dispose();
   }
 
   bool get _soldByWeight => _sellingMode == SellingMode.byWeight;
 
-  bool get _locked => _opened != null;
+  /// Arrived from the maintenance pencil: the identity is EDITABLE here.
+  /// The conflict path (`_openConflict`) also fills `_opened`, and there it
+  /// stays locked — that is why this reads the widget and not `_opened`.
+  bool get _editing => widget.registrationId != null;
+
+  /// Locked only on the conflict path: the identity typed matched another
+  /// registration and the person chose to add to it.
+  bool get _locked => _opened != null && !_editing;
+
+  /// What `[ Salvar alterações ]` would write over `_opened`, or false before
+  /// it loaded.
+  bool get _identityChanged {
+    final opened = _opened;
+    final typeId = _typeId;
+    if (opened == null || typeId == null) return false;
+    return opened
+        .copyWith(
+          productTypeId: typeId,
+          brandId: _brandId ?? '',
+          description: _descriptionController.text,
+        )
+        .changesIdentityOf(opened);
+  }
+
+  /// Editing: only the types of the SAME base unit, in any category, plus the
+  /// one it is filed under (it may have been deactivated after the fact).
+  IList<ProductType> _typesOffered(CatalogOptions options) {
+    if (!_editing) {
+      return options.types
+          .where(
+            (type) => _categoryId == null || type.categoryId == _categoryId,
+          )
+          .toIList();
+    }
+    final current = _typeOf(options);
+    if (current == null) return options.types;
+    final compatible = typesCompatibleWith(options.types, current.baseUnit);
+    return compatible.any((t) => t.id == current.id)
+        ? compatible
+        : compatible.add(current);
+  }
 
   ProductType? _typeOf(CatalogOptions options) {
     for (final type in options.types) {
@@ -244,6 +307,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// What blocks the save, in the order the screen explains it.
   bool get _canSave {
     if (_saving || _typeId == null) return false;
+    if (_editing) {
+      if (_opened == null || _conflict != null) return false;
+      if (_packagings.length != _drafts.length || _hasDuplicate) return false;
+      return _identityChanged || _packagings.isNotEmpty;
+    }
     // The identity is taken and this is not the "add a packaging" path.
     if (_conflict != null && !_locked) return false;
     if (_soldByWeight) return !_locked;
@@ -256,6 +324,14 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     setState(() {
       _typeId = id;
       _conflict = null;
+      if (_editing) {
+        // The category belongs to the type: it follows the one chosen.
+        final options = ref.read(catalogViewModelProvider).value;
+        _categoryId = options?.types
+            .where((t) => t.id == id)
+            .firstOrNull
+            ?.categoryId;
+      }
       // The grandeza comes from the type, so a type change can leave the
       // saved mode with no word to go by: `Peso` under a type of litres.
       _sellingMode = SellingChoice.of(_sellingMode, _baseUnit).mode;
@@ -299,6 +375,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           productTypeId: typeId,
           brandId: _brandId,
           description: _descriptionController.text,
+          excludingId: _editing ? _opened?.id : null,
         );
     if (!mounted) return;
     setState(() => _conflict = conflict);
@@ -385,6 +462,41 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         case RegistrationSaveFailed(:final message):
           error = message;
           written = const IList<Product>.empty();
+      }
+    } else if (_editing) {
+      registration = opened;
+      final outcome = await notifier.editRegistration(
+        original: opened,
+        typeId: typeId,
+        brandId: _brandId,
+        description: _descriptionController.text,
+        packagings: _packagings,
+      );
+      switch (outcome) {
+        case null:
+          if (!mounted) return;
+          setState(() => _saving = false);
+          return;
+        case RegistrationEdited(registration: final edited, :final products):
+          error = null;
+          registration = edited;
+          written = products;
+        case RegistrationEditFailed(:final message):
+          error = message;
+          written = const IList<Product>.empty();
+        case PackagingsFailedAfterEdit(
+          registration: final saved,
+          :final message,
+        ):
+          if (!mounted) return;
+          // The identity is written: it is the new original, so the retry
+          // sends only the packagings.
+          setState(() {
+            _saving = false;
+            _opened = saved;
+          });
+          messenger.showSnackBar(SnackBar(content: Text(message)));
+          return;
       }
     } else {
       registration = opened;
@@ -494,7 +606,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Novo produto'),
+        title: Text(_editing ? 'Editar produto' : 'Novo produto'),
         // R11: installed on the home screen there is no browser Back button.
         leading: context.canPop()
             ? BackButton(onPressed: context.pop)
@@ -530,7 +642,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         _CategoryField(
           categories: options.categories,
           value: _categoryId,
-          enabled: !_locked && !_saving,
+          enabled: !_locked && !_editing && !_saving,
           onChanged: (id) => setState(() {
             _categoryId = id;
             // The type list is filtered by category, so the chosen type may
@@ -549,13 +661,12 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         ),
         const SizedBox(height: 12),
         _TypeField(
-          types: options.types
-              .where(
-                (type) => _categoryId == null || type.categoryId == _categoryId,
-              )
-              .toIList(),
+          types: _typesOffered(options),
           value: _typeId,
           enabled: !_locked && !_saving,
+          // A new type could measure another magnitude: editing only moves
+          // between the types that already exist.
+          createEnabled: !_editing,
           onChanged: _onTypeChanged,
           onCreate: () async {
             final created = await NewProductTypeDialog.show(context, ref);
@@ -578,7 +689,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         _SellingModeField(
           baseUnit: type?.baseUnit,
           value: SellingChoice.of(_sellingMode, type?.baseUnit),
-          enabled: !_locked && !_saving,
+          // Locked while editing: the leaves already bought were converted
+          // under this mode, and changing it would break that conversion.
+          enabled: !_locked && !_editing && !_saving,
           onChanged: (choice) => setState(() => _sellingMode = choice.mode),
         ),
         const SizedBox(height: 16),
@@ -641,16 +754,30 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         ],
         if (_conflict case final conflict?) ...[
           const SizedBox(height: 16),
-          _ConflictWarning(
-            packagingCount: conflict.products.length,
-            active: conflict.registration.active,
-            onOpen: _saving ? null : _openConflict,
-          ),
+          if (_editing)
+            // Another registration holds this identity. No `[ Abrir… ]` here:
+            // that would swap the product being edited for another one
+            // mid-screen.
+            Text(
+              registrationConflictMessage(conflict.registration),
+              key: const ValueKey('edit-conflict'),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            )
+          else
+            _ConflictWarning(
+              packagingCount: conflict.products.length,
+              active: conflict.registration.active,
+              onOpen: _saving ? null : _openConflict,
+            ),
         ],
-        if (_locked) ...[
+        if (_opened != null) ...[
           const SizedBox(height: 16),
           Text(
-            'Acrescentando embalagem a um produto que já existe.',
+            _editing
+                ? 'Editando um produto que já existe.'
+                : 'Acrescentando embalagem a um produto que já existe.',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ],
@@ -690,7 +817,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               ),
             TextButton.icon(
               icon: const Icon(Icons.add),
-              label: const Text('Adicionar outra embalagem'),
+              label: Text(
+                _drafts.isEmpty
+                    ? 'Adicionar embalagem'
+                    : 'Adicionar outra embalagem',
+              ),
               // It is blocked while the identity is taken: a line built here
               // would be born inside a registration that will not be saved.
               onPressed: _saving || _conflict != null
@@ -765,6 +896,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// broken screen, and what is missing is said by [_blockReason] instead.
   String get _saveLabel {
     if (_saving) return 'Salvando...';
+    if (_editing) return 'Salvar alterações';
     if (_soldByWeight) return 'Salvar produto';
 
     final count = _packagings.length;
@@ -775,7 +907,23 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// only for what this block owns. What is said elsewhere on the screen (no
   /// type chosen, identity taken) is not repeated down here.
   String? get _blockReason {
-    if (_saving || _soldByWeight) return null;
+    if (_saving) return null;
+    if (_editing) {
+      if (_opened == null || _conflict != null || _typeId == null) return null;
+      if (_hasDuplicate) return 'Há duas embalagens iguais na lista.';
+      final incomplete = _drafts.length - _packagings.length;
+      if (incomplete == 1) return 'Falta completar 1 embalagem.';
+      if (incomplete > 1) return 'Faltam completar $incomplete embalagens.';
+      if (!_identityChanged && _packagings.isEmpty) {
+        // Sold by weight the packaging section is not on screen: asking for
+        // one would point at something that does not exist.
+        return _soldByWeight
+            ? 'Mude algum campo.'
+            : 'Mude algum campo ou acrescente uma embalagem.';
+      }
+      return null;
+    }
+    if (_soldByWeight) return null;
     if (_typeId == null || (_conflict != null && !_locked)) return null;
     if (_hasDuplicate) return 'Há duas embalagens iguais na lista.';
 
@@ -845,11 +993,15 @@ class _TypeField extends StatelessWidget {
     required this.enabled,
     required this.onChanged,
     required this.onCreate,
+    this.createEnabled = true,
   });
 
   final IList<ProductType> types;
   final String? value;
   final bool enabled;
+
+  /// `[+Novo]` off while the choice itself stays on — the editing path.
+  final bool createEnabled;
   final ValueChanged<String?> onChanged;
   final VoidCallback onCreate;
 
@@ -879,7 +1031,7 @@ class _TypeField extends StatelessWidget {
       IconButton(
         icon: const Icon(Icons.add),
         tooltip: 'Novo tipo',
-        onPressed: enabled ? onCreate : null,
+        onPressed: enabled && createEnabled ? onCreate : null,
       ),
     ],
   );

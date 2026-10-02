@@ -28,6 +28,14 @@ class _SpyRepository extends CatalogRepositoryLocal {
   int fetchCategoryCalls = 0;
   int updateTypeCalls = 0;
   int countCalls = 0;
+  int updateRegistrationCalls = 0;
+
+  /// Fails ONLY addPackagings — the partial outcome needs the update to pass
+  /// first, and `failNextCall` would be eaten by `findRegistration`.
+  Object? failAddPackagings;
+
+  /// Fails ONLY updateRegistration, for the same reason.
+  Object? failUpdateRegistration;
 
   Object? _take() {
     final failure = failNextCall;
@@ -126,11 +134,27 @@ class _SpyRepository extends CatalogRepositoryLocal {
   }
 
   @override
+  Future<ProductRegistration> updateRegistration(
+    ProductRegistration registration,
+  ) async {
+    updateRegistrationCalls++;
+    final only = failUpdateRegistration;
+    failUpdateRegistration = null;
+    if (only != null) throw only;
+    final failure = _take();
+    if (failure != null) throw failure;
+    return super.updateRegistration(registration);
+  }
+
+  @override
   Future<IList<Product>> addPackagings({
     required String registrationId,
     required IList<Packaging> packagings,
   }) async {
     addPackagingCalls++;
+    final only = failAddPackagings;
+    failAddPackagings = null;
+    if (only != null) throw only;
     final failure = _take();
     if (failure != null) throw failure;
     return super.addPackagings(
@@ -445,6 +469,30 @@ void main() {
       );
     });
 
+    test('ignores the registration being edited', () async {
+      final container = containerWith(_SpyRepository());
+      await container.read(catalogViewModelProvider.future);
+      final notifier = container.read(catalogViewModelProvider.notifier);
+
+      expect(
+        await notifier.checkIdentity(
+          productTypeId: 'type-1',
+          brandId: 'brand-1',
+          description: 'original',
+          excludingId: 'reg-1',
+        ),
+        isNull,
+      );
+      expect(
+        (await notifier.checkIdentity(
+          productTypeId: 'type-1',
+          brandId: 'brand-1',
+          description: 'original',
+        ))?.registration.id,
+        'reg-1',
+      );
+    });
+
     test('suggests the descriptions already used in that type and brand', () async {
       final container = containerWith(_SpyRepository());
       await container.read(catalogViewModelProvider.future);
@@ -644,6 +692,264 @@ void main() {
         'Informe ao menos uma embalagem para este produto.',
       );
       expect(repository.addPackagingCalls, 0);
+    });
+  });
+
+  group('editRegistration', () {
+    final cola = ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      description: 'original',
+      sellingMode: SellingMode.byPiece,
+    );
+    final groundBeef = ProductRegistration(
+      id: 'reg-2',
+      productTypeId: 'type-2',
+      description: '',
+      sellingMode: SellingMode.byWeight,
+    );
+
+    Future<(_SpyRepository, CatalogViewModel)> ready() async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      return (repository, container.read(catalogViewModelProvider.notifier));
+    }
+
+    Future<RegistrationEditOutcome?> edit(
+      CatalogViewModel notifier, {
+      ProductRegistration? original,
+      String? typeId,
+      String? brandId = 'brand-1',
+      String? description,
+      IList<Packaging> packagings = const IList.empty(),
+    }) {
+      final from = original ?? cola;
+      return notifier.editRegistration(
+        original: from,
+        typeId: typeId ?? from.productTypeId,
+        brandId: brandId,
+        description: description ?? from.description,
+        packagings: packagings,
+      );
+    }
+
+    test('writes only the identity when no packaging is added', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await edit(notifier, description: 'zero');
+
+      expect(outcome, isA<RegistrationEdited>());
+      expect((outcome! as RegistrationEdited).registration.description, 'zero');
+      expect(repository.updateRegistrationCalls, 1);
+      expect(repository.addPackagingCalls, 0);
+    });
+
+    test('writes only the packagings when the identity did not change', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await edit(
+        notifier,
+        packagings: [bottle('600', BaseUnit.milliliter)].lock,
+      );
+
+      expect(outcome, isA<RegistrationEdited>());
+      expect((outcome! as RegistrationEdited).products, hasLength(1));
+      expect(repository.updateRegistrationCalls, 0);
+      expect(repository.addPackagingCalls, 1);
+    });
+
+    test('writes both when both changed', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await edit(
+        notifier,
+        description: 'zero',
+        packagings: [bottle('600', BaseUnit.milliliter)].lock,
+      );
+
+      expect(outcome, isA<RegistrationEdited>());
+      expect(repository.updateRegistrationCalls, 1);
+      expect(repository.addPackagingCalls, 1);
+    });
+
+    test('clears the brand with a null brandId', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await edit(notifier, brandId: null);
+
+      expect((outcome! as RegistrationEdited).registration.brandId, isNull);
+    });
+
+    test('moves to another type of the same base unit', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await edit(
+        notifier,
+        original: groundBeef,
+        brandId: null,
+        typeId: 'type-4',
+      );
+
+      expect(
+        (outcome! as RegistrationEdited).registration.productTypeId,
+        'type-4',
+      );
+    });
+
+    test('fixing an accent of its own description is not a conflict', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await edit(notifier, description: 'Original');
+
+      expect(outcome, isA<RegistrationEdited>());
+    });
+
+    test('refuses an identity another registration holds', () async {
+      final (repository, notifier) = await ready();
+      await repository.saveRegistrationWithProducts(
+        registration: ProductRegistration(
+          productTypeId: 'type-1',
+          brandId: 'brand-1',
+          description: 'zero',
+          sellingMode: SellingMode.byPiece,
+        ),
+        packagings: [bottle('350', BaseUnit.milliliter)].lock,
+      );
+
+      final outcome = await edit(notifier, description: 'Zero');
+
+      expect(
+        (outcome! as RegistrationEditFailed).message,
+        'Já existe esse produto cadastrado.',
+      );
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('says when the registration in the way is deactivated', () async {
+      final (repository, notifier) = await ready();
+      final saved = await repository.saveRegistrationWithProducts(
+        registration: ProductRegistration(
+          productTypeId: 'type-1',
+          brandId: 'brand-1',
+          description: 'zero',
+          sellingMode: SellingMode.byPiece,
+        ),
+        packagings: [bottle('350', BaseUnit.milliliter)].lock,
+      );
+      await repository.updateRegistration(saved.registration.deactivated());
+      repository.updateRegistrationCalls = 0;
+
+      final outcome = await edit(notifier, description: 'zero');
+
+      expect(
+        (outcome! as RegistrationEditFailed).message,
+        'Esse produto já existe, mas está desativado.',
+      );
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('refuses a type of another base unit', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await edit(notifier, typeId: 'type-2');
+
+      expect(
+        (outcome! as RegistrationEditFailed).message,
+        startsWith('A medida não bate'),
+      );
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('refuses when nothing changed', () async {
+      final (_, notifier) = await ready();
+
+      expect(
+        ((await edit(notifier))! as RegistrationEditFailed).message,
+        'Mude algum campo ou acrescente uma embalagem.',
+      );
+    });
+
+    test('refuses when nothing changed on a product sold by weight', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await edit(notifier, original: groundBeef, brandId: null);
+
+      expect((outcome! as RegistrationEditFailed).message, 'Mude algum campo.');
+    });
+
+    test('refuses a packaging on a product sold by weight', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await edit(
+        notifier,
+        original: groundBeef,
+        brandId: null,
+        description: 'moído fino',
+        packagings: [bottle('500', BaseUnit.gram)].lock,
+      );
+
+      expect(
+        (outcome! as RegistrationEditFailed).message,
+        const UnexpectedPackaging().message,
+      );
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('reports the identity written when the packagings fail', () async {
+      final (repository, notifier) = await ready();
+      repository.failAddPackagings = NetworkException('offline');
+
+      final outcome = await edit(
+        notifier,
+        description: 'zero',
+        packagings: [bottle('600', BaseUnit.milliliter)].lock,
+      );
+
+      expect(outcome, isA<PackagingsFailedAfterEdit>());
+      final partial = outcome! as PackagingsFailedAfterEdit;
+      expect(partial.registration.description, 'zero');
+      expect(partial.message, isNotEmpty);
+      expect(repository.updateRegistrationCalls, 1);
+    });
+
+    test('a packaging failure with no identity change writes nothing', () async {
+      final (repository, notifier) = await ready();
+      repository.failAddPackagings = NetworkException('offline');
+
+      final outcome = await edit(
+        notifier,
+        packagings: [bottle('600', BaseUnit.milliliter)].lock,
+      );
+
+      expect(outcome, isA<RegistrationEditFailed>());
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('an update failure writes nothing', () async {
+      final (repository, notifier) = await ready();
+      repository.failUpdateRegistration = ApiException(500, 'boom');
+
+      final outcome = await edit(
+        notifier,
+        description: 'zero',
+        packagings: [bottle('600', BaseUnit.milliliter)].lock,
+      );
+
+      expect(outcome, isA<RegistrationEditFailed>());
+      expect(repository.addPackagingCalls, 0);
+    });
+
+    test('guards against double tap', () async {
+      final (repository, notifier) = await ready();
+
+      final first = edit(notifier, description: 'zero');
+      final second = edit(notifier, description: 'zero');
+
+      expect(await second, isNull);
+      expect(await first, isA<RegistrationEdited>());
+      expect(repository.updateRegistrationCalls, 1);
     });
   });
 

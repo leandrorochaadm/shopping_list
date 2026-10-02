@@ -525,7 +525,33 @@ void main() {
 
     // Handing the id back is what puts screen 4 on the stack, from the
     // SCREEN — the dialog no longer travels on its own.
-    expect(find.text('Novo produto'), findsWidgets);
+    expect(find.text('Editar produto'), findsWidgets);
+  });
+
+  testWidgets('the door to screen 4 is off while the dialog has unsaved changes', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Cadastros de produto');
+
+    await tester.tap(find.byTooltip('Editar Coca-Cola original'));
+    await tester.pumpAndSettle();
+
+    TextButton door() =>
+        tester.widget<TextButton>(find.byKey(const ValueKey('add-packaging')));
+    expect(door().onPressed, isNotNull);
+
+    await tester.enterText(dialogField, 'zero');
+    await tester.pump();
+
+    // Leaving now would throw away what was typed, with no warning.
+    expect(door().onPressed, isNull);
+    expect(find.text('Salve ou desfaça as mudanças antes.'), findsOneWidget);
+
+    // Undoing it opens the door again.
+    await tester.enterText(dialogField, 'original');
+    await tester.pump();
+    expect(door().onPressed, isNotNull);
   });
 
   testWidgets('coming back from screen 4 the list is up to date', (
@@ -542,6 +568,12 @@ void main() {
         matching: find.text('Abrir e acrescentar embalagem'),
       ),
     );
+    await tester.pumpAndSettle();
+
+    // Editing opens with no packaging line: the first one is asked for.
+    final addLine = find.text('Adicionar embalagem');
+    await tester.ensureVisible(addLine);
+    await tester.tap(addLine);
     await tester.pumpAndSettle();
 
     final size = find.byKey(const ValueKey('size-1'));

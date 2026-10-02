@@ -66,10 +66,31 @@ class _RegistrationEditDialogState
   bool _saving = false;
 
   @override
+  void initState() {
+    super.initState();
+    // The door to screen 4 depends on whether something was typed, so it has
+    // to repaint as the person types. The controller's own dispose drops it.
+    _descriptionController.addListener(_onTyped);
+  }
+
+  void _onTyped() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _descriptionController.dispose();
     super.dispose();
   }
+
+  /// Typed here and not saved yet: leaving for screen 4 would throw it away.
+  bool get _dirty => widget.registration
+      .copyWith(
+        productTypeId: _typeId,
+        brandId: _brandId ?? '',
+        description: _descriptionController.text,
+      )
+      .changesIdentityOf(widget.registration);
 
   ProductType? get _currentType =>
       widget.types.where((t) => t.id == _typeId).firstOrNull;
@@ -142,10 +163,17 @@ class _RegistrationEditDialogState
             alignment: Alignment.centerLeft,
             child: TextButton(
               key: const ValueKey('add-packaging'),
-              onPressed: _saving ? null : _openPackagings,
+              onPressed: _saving || _dirty ? null : _openPackagings,
               child: const Text('Abrir e acrescentar embalagem'),
             ),
           ),
+          if (_dirty) ...[
+            Text(
+              'Salve ou desfaça as mudanças antes.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             CatalogEntryEditDialog.footnote,
             style: Theme.of(context).textTheme.bodySmall,
