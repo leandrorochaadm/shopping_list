@@ -2,6 +2,26 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 01/10/2026 — M-b** — **acréscimo fora das 19 histórias**
+(`temp/plan/plano-editar-cadastro-na-tela-4-2026-10-01.md`): a Tela 4 aberta pela
+manutenção (lápis → `[ Abrir e acrescentar embalagem ]`) vira **"Editar produto"**, com
+**Descrição, Marca e Tipo editáveis** e um único `[ Salvar alterações ]` que grava a
+identidade e as embalagens novas; Categoria e Vendido seguem travados, o Tipo só oferece
+tipos da mesma unidade base e a lista de embalagens começa vazia. O caminho do cadastro
+barrado por repetição continua travado. **(1)** Domínio: `checkTypeMove` (em
+`catalog_maintenance.dart`), `ProductRegistration.changesIdentityOf` e
+`registrationConflictMessage`, usados pelos dois ViewModels; **(2)**
+`CatalogViewModel.editRegistration` com o `sealed` `RegistrationEditOutcome` (três
+desfechos — o terceiro, `PackagingsFailedAfterEdit`, é a identidade gravada e as
+embalagens recusadas) e `checkIdentity(excludingId:)`; **(3)** a preferência da linha da
+lista **cai na leitura** quando o cadastro muda de tipo (`effectivePreferredRegistration`),
+como o D7; **(4)** no `RegistrationEditDialog`, `[ Abrir e acrescentar embalagem ]` fica
+desabilitado com mudança não salva. **Sem migration, sem repository, sem provider, sem
+rota.** Testes tocados: `test/domain/catalog_maintenance_test.dart`,
+`product_registration_test.dart`, `shopping_list_item_test.dart`,
+`test/ui/catalog_view_model_test.dart`, `new_product_screen_test.dart` e
+`catalog_maintenance_screen_test.dart`.
+
 **Atualizado em 01/10/2026** — **acréscimo fora das 19 histórias**, decisão **M-a**
 (`temp/plan/plano-varios-produtos-do-mesmo-tipo-na-lista-2026-10-01.md`): a lista aceita
 **várias linhas do mesmo tipo**, cada uma pedindo um **produto** (o cadastro: tipo + marca

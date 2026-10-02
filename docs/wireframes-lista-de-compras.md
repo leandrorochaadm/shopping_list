@@ -1298,12 +1298,22 @@ O frango, que é o caso que pede o campo:
 - Erro: "Não foi possível salvar o produto" + `[ Tentar de novo ]↻`.
 
 **Estados adicionais:**
-- **Produto que já existe, ganhando embalagem nova:** os campos de cima vêm
-  preenchidos e travados e a lista de embalagens já mostra as que existem. Ele só
-  acrescenta a linha nova — é o caso "comprou o Omo de 2,3 kg tendo só o de
-  500 g". Esta tela é aberta pela **manutenção do cadastro (requisito 16), atrás
-  do `≡`**, que não faz parte deste rascunho, **e pelo botão do estado abaixo**;
-  a Tela 4 chegando pelo `[+Novo]→4` da Tela 3 abre sempre em branco.
+- **Produto que já existe, aberto pela manutenção do cadastro (requisito 16,
+  atrás do `≡`)** — decisão **M-b**, de 01/10/2026: o título vira **"Editar
+  produto"**, a frase de topo diz **"Editando um produto que já existe."**, e
+  **Descrição, Marca e Tipo vêm preenchidos e editáveis**; **Categoria e Vendido
+  vêm preenchidos e travados**. O Tipo só oferece tipos medidos na mesma unidade,
+  e a Categoria acompanha o tipo escolhido. A lista de embalagens começa **vazia**
+  (`[ + Adicionar embalagem ]` cria a primeira linha) e as que existem aparecem
+  abaixo, recolhidas — é o caso "comprou o Omo de 2,3 kg tendo só o de 500 g". O
+  botão é **`[ Salvar alterações ]`** e só acende quando algo mudou: a identidade,
+  ou uma embalagem nova completa ("Mude algum campo ou acrescente uma embalagem.";
+  no vendido a peso, "Mude algum campo."). Identidade igual à de **outro** cadastro
+  mostra "Já existe esse produto cadastrado." em vermelho, sem botão de abrir.
+- **Produto que já existe, ganhando embalagem nova** — o mesmo cadastro aberto
+  **pelo botão do estado abaixo**: os campos de cima vêm preenchidos e
+  **travados**, e ele só acrescenta a linha nova. A Tela 4 chegando pelo
+  `[+Novo]→4` da Tela 3 abre sempre em branco.
 - **Cadastro repetido, barrado** (decisão de 26/08/2026) — tipo + marca +
   descrição já existem:
 
