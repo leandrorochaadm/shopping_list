@@ -96,6 +96,12 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(monthlyAverageViewModelProvider);
+    // The button floats only over a list with something to tick: loading,
+    // error and the empty pantry have nothing a tap could do.
+    final lines = state.hasValue ? state.value! : null;
+    final chosen = lines
+        ?.where((line) => _selected.contains(line.type.id))
+        .toIList();
 
     return Scaffold(
       appBar: AppBar(
@@ -140,11 +146,13 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
                   _selected.remove(typeId);
                 }
               }),
-              onAdd: _add,
             ),
           },
         ),
       ),
+      floatingActionButton: lines == null || lines.isEmpty
+          ? null
+          : _AddSelectedButton(chosen: chosen!, adding: _adding, onAdd: _add),
       bottomNavigationBar: const MainBottomBar(current: Routes.suggestions),
     );
   }
@@ -195,7 +203,6 @@ class _Body extends StatelessWidget {
     required this.selected,
     required this.adding,
     required this.onToggle,
-    required this.onAdd,
   });
 
   final IList<MonthlyAverage> lines;
@@ -203,7 +210,6 @@ class _Body extends StatelessWidget {
   final Set<String> selected;
   final bool adding;
   final void Function(String typeId, bool chosen) onToggle;
-  final void Function(IList<MonthlyAverage>) onAdd;
 
   @override
   Widget build(BuildContext context) {
@@ -219,10 +225,6 @@ class _Body extends StatelessWidget {
         ],
       );
     }
-
-    final chosen = lines
-        .where((line) => selected.contains(line.type.id))
-        .toIList();
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -253,25 +255,56 @@ class _Body extends StatelessWidget {
               onToggle: onToggle,
             ),
         ],
-        const SizedBox(height: 16),
-        Center(
-          child: FilledButton(
-            key: const ValueKey('add-selected'),
-            // Nothing ticked is nothing to do — and a tap that does nothing
-            // and does not say why is what the `handoff` forbids, so the
-            // button is plainly disabled instead.
-            onPressed: chosen.isEmpty || adding ? null : () => onAdd(chosen),
-            child: Text(
-              adding
-                  ? 'Adicionando...'
-                  : chosen.isEmpty
-                  ? 'Adicionar à lista'
-                  : 'Adicionar ${chosen.length} à lista',
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
+        // Room for the floating button, so it never hides the last row.
+        const SizedBox(height: 88),
       ],
+    );
+  }
+}
+
+/// The add action, floating over the list instead of closing it: with a long
+/// pantry the button at the end of the list was a scroll away.
+class _AddSelectedButton extends StatelessWidget {
+  const _AddSelectedButton({
+    required this.chosen,
+    required this.adding,
+    required this.onAdd,
+  });
+
+  final IList<MonthlyAverage> chosen;
+  final bool adding;
+  final void Function(IList<MonthlyAverage>) onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    // Nothing ticked is nothing to do — and a tap that does nothing and does
+    // not say why is what the `handoff` forbids, so the button is plainly
+    // disabled instead. A FAB has no disabled look of its own: these are the
+    // colors of a disabled FilledButton.
+    final enabled = chosen.isNotEmpty && !adding;
+    final scheme = Theme.of(context).colorScheme;
+
+    return FloatingActionButton.extended(
+      key: const ValueKey('add-selected'),
+      // Screens 1 and 2 each mount a FAB, and `go` animates one into the
+      // other: a shared default hero tag would fly it.
+      heroTag: null,
+      onPressed: enabled ? () => onAdd(chosen) : null,
+      backgroundColor: enabled
+          ? null
+          : scheme.onSurface.withValues(alpha: 0.12),
+      foregroundColor: enabled
+          ? null
+          : scheme.onSurface.withValues(alpha: 0.38),
+      elevation: enabled ? null : 0,
+      icon: const Icon(Icons.playlist_add),
+      label: Text(
+        adding
+            ? 'Adicionando...'
+            : chosen.isEmpty
+            ? 'Adicionar à lista'
+            : 'Adicionar ${chosen.length} à lista',
+      ),
     );
   }
 }

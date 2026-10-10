@@ -156,7 +156,7 @@ void main() {
 
     // And with nothing ticked the button does nothing — plainly disabled
     // rather than a tap that says nothing.
-    final button = tester.widget<FilledButton>(
+    final button = tester.widget<FloatingActionButton>(
       find.byKey(const ValueKey('add-selected')),
     );
     expect(button.onPressed, isNull);
@@ -262,7 +262,7 @@ void main() {
       // a locked line would be added again by the next tap.
       expect(find.byType(SuggestionsScreen), findsOneWidget);
       expect(find.text('(já está na lista)'), findsNWidgets(2));
-      final button = tester.widget<FilledButton>(
+      final button = tester.widget<FloatingActionButton>(
         find.byKey(const ValueKey('add-selected')),
       );
       expect(button.onPressed, isNull);
@@ -283,6 +283,24 @@ void main() {
     expect(find.byType(SnackBar), findsOneWidget);
     // The raw exception NEVER reaches the screen.
     expect(find.textContaining('boom'), findsNothing);
+  });
+
+  testWidgets('the floating button never covers the last line', (
+    tester,
+  ) async {
+    await pumpScreen(tester, list: _SpyList(initial: const []));
+    // The width of the iPhone 12, and short enough that the five lines of the
+    // fake overflow: with a list that fits, nothing would ever sit under the
+    // button and the test would pass without the room at the end.
+    tester.view.physicalSize = const Size(390, 480);
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(ListView), const Offset(0, -2000));
+    await tester.pumpAndSettle();
+
+    final lastLine = tester.getRect(find.byType(CheckboxListTile).last);
+    final button = tester.getRect(find.byKey(const ValueKey('add-selected')));
+    expect(lastLine.bottom, lessThanOrEqualTo(button.top));
   });
 
   testWidgets('with no history it says so, and offers no action', (
