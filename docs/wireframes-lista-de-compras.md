@@ -714,8 +714,7 @@ sair — o item entra na lista **sem número**, do mesmo jeito que o painel `#1a
 │  Mercearia                           │
 │  { } Arroz                           │
 │  { } Café                         *  │
-│                                      │
-│  [    Adicionar à lista    ]→1       │
+│            (+ Adicionar 1 à lista) * │
 └──────────────────────────────────────┘
 ```
 
@@ -750,6 +749,12 @@ sair — o item entra na lista **sem número**, do mesmo jeito que o painel `#1a
 - **Toda saída recarrega a Tela 1** — Voltar, o gesto de voltar do iOS, o ícone
   de casa e depois de adicionar: o ViewModel da Tela 1 não é `autoDispose`, e
   nada a recarregaria sozinho.
+- `*` **O `( + Adicionar N à lista )` é um botão flutuante** (pedido em
+  10/10/2026), no canto de baixo, por cima da lista — e não mais o último item
+  dela, que numa despensa longa ficava a uma rolagem de distância. A lista
+  termina com um **espaço vazio da altura do botão**, para ele nunca cobrir a
+  última linha. Sem nada marcado ele fica cinza e não responde; some no
+  carregando, no vazio e no erro.
 - Um SnackBar confirma, antes de sair, quantos itens entraram ("1 item
   adicionado à lista." / "N itens adicionados à lista.").
 
@@ -1642,6 +1647,366 @@ O frango, que é o caso que pede o campo:
 > total dele dentro da janela é zero, então a média é o que ele comprou no
 > próprio mês em curso, sem divisor.
 ---
+## Proposta — Código de barras, etiqueta de balança e modo caixa  (10/10/2026)
+
+> **Proposta aprovada, ainda não implementada.** As decisões foram tomadas por ele
+> em 10/10/2026, e o plano de execução é `temp/plan/plano-codigo-de-barras-2026-10-10.md`.
+> Quando cada parte for entregue, o desenho dela sobe para a seção da tela e esta
+> seção encolhe. `▥` é o botão que abre a câmera.
+
+**As decisões, em uma linha cada:**
+- cada **embalagem** guarda **zero, um ou vários** códigos de barras, únicos no app;
+- o produto **vendido a peso** guarda **códigos de balança**, cada um **preso a um mercado** (o mesmo número pode ser outra coisa noutro mercado);
+- a etiqueta da balança é entendida **só no formato da tâmara do Irmãos Gonçalves** (peso embutido); outro formato é recusado sem gravar nada;
+- código entra **digitado ou pela câmera**; remover um código o **libera** para outra embalagem;
+- a leitura acha a **embalagem** na Tela 3, o **produto** (sem embalagem) no `#1a` e o **tipo** na Despensa;
+- etiqueta de balança **só vale no lançamento da compra**.
+
+### Tela 4 — embalagens com código de barras
+
+```
+┌──────────────────────────────────────┐
+│ < Voltar   Novo produto              │
+├──────────────────────────────────────┤
+│  Categoria: ▼ Bebidas   [+Novo]      │
+│  Tipo: ▼ refrigerante   [+Novo]      │
+│  Vendido: (•Unidade)(Volume)         │
+│  Marca: ▼ Coca-Cola   [+Novo]        │
+│  Descrição: original                 │
+│  ────────────────────────────        │
+│  Embalagens deste produto            │
+│ ┌──────────────────────────────────┐ │
+│ │ Quantas peças?  Quanto tem cada? │ │
+│ │  [   12   ]  ×  [  350   ] ml    │ │
+│ │  Vai se chamar: 12x350ml[Remover]│ │
+│ │  Código de barras (opcional)  *  │ │
+│ │  [                  ] [▥] [ + ]  │ │
+│ │  • 7894900011517          [ x ]  │ │
+│ │  • 7894900530018          [ x ]  │ │
+│ └──────────────────────────────────┘ │
+│ ┌──────────────────────────────────┐ │
+│ │  [    1   ]  ×  [  350   ] ml    │ │
+│ │  Vai se chamar: 350ml   [Remover]│ │
+│ │  Código de barras (opcional)     │ │
+│ │  [                  ] [▥] [ + ]  │ │
+│ │  Nenhum código.                  │ │
+│ └──────────────────────────────────┘ │
+│  [ + Adicionar outra embalagem ]     │
+│  Esse código já é do Guaraná 2L. *   │
+│  [    Salvar 2 produtos    ]         │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- `*` O bloco de código fica **dentro do cartão**, depois das medidas: é a exceção
+  do campo em linha repetível. A leitura pela câmera **acrescenta direto** à
+  lista do cartão; o `[ + ]` serve só para o código digitado. Vale também para
+  os códigos de balança e para o lápis da manutenção.
+- `*` A trava de repetido avisa **acima do botão**, como as outras travas da tela,
+  com o nome de quem já é dono do código. Código de balança no cartão é recusado:
+  "Esse é um código de balança."
+- Código preso a um produto **desativado** não trava nem pergunta: o salvar o
+  passa para esta embalagem e avisa "Esse código era do Leite Italac 1L, que
+  está desativado. Agora é deste."
+- Embalagem já salva, aberta pela manutenção, mostra os códigos **só para ler**;
+  incluir e remover é no lápis da embalagem (abaixo).
+
+### Tela 4 — produto vendido a peso: códigos de balança
+
+```
+┌──────────────────────────────────────┐
+│ < Voltar   Novo produto              │
+├──────────────────────────────────────┤
+│  Categoria: ▼ Hortifrúti  [+Novo]    │
+│  Tipo: ▼ tâmara          [+Novo]     │
+│  Vendido: (•Peso)(Unidade)           │
+│  Marca: ▼ Sem marca     [+Novo]      │
+│  Descrição: com casca                │
+│  ────────────────────────────        │
+│  Códigos de balança (opcional)  *    │
+│  Cada mercado tem o seu código.      │
+│  Mercado: ▼ Irmãos Gonçalves         │
+│  [                  ] [▥] [ + ]      │
+│  • Irmãos Gonçalves · 2822521 [ x ]  │
+│  • Carrefour · 2004417        [ x ]  │
+│                                      │
+│  [      Salvar produto      ]        │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- `*` O `[▥]` lê a etiqueta inteira, mas **guarda só o código do item**
+  (`2822521`). Peso e validade mudam a cada etiqueta e são descartados.
+- O mesmo código no mesmo mercado é recusado: "Esse código já é da Tâmara com
+  casca neste mercado." Em outro mercado, é aceito.
+- Pelo caminho da manutenção, cada `[ + ]` e `[ x ]` grava na hora.
+
+### Manutenção — lápis de uma embalagem já salva
+
+```
+┌──────────────────────────────────────┐
+│  Editar embalagem           [ X ]    │
+│  [   12   ]  ×  [  350   ] ml        │
+│  ────────────────────────────        │
+│  Código de barras (opcional)         │
+│  [                  ] [▥] [ + ]      │
+│  • 7894900011517            [ x ]    │
+│  Esse código era do Leite Italac     │
+│  1L, que está desativado. Agora é    │
+│  deste.                         *    │
+│                                      │
+│  [ Salvar ]          [ Desativar ]   │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- Os códigos entram e saem **na hora**, sem depender do `[ Salvar ]`.
+- `*` Código preso a um produto **desativado** não trava nem pergunta: passa
+  para esta embalagem na hora, e a frase só avisa de onde ele veio.
+
+### O leitor (abre sobre qualquer tela)
+
+```
+┌──────────────────────────────────────┐
+│  ══   Ler código          [ X ]      │
+│  Não leu? Digite:                *   │
+│  [                     ] [ Usar ]    │
+│ ┌──────────────────────────────────┐ │
+│ │                                  │ │
+│ │      ┌────────────────────┐      │ │
+│ │      │ ▌▌▐▌▌▐▐▌▌▐▌▌▐▐▌▌▐▌ │      │ │
+│ │      └────────────────────┘      │ │
+│ │     Aponte para o código         │ │
+│ └──────────────────────────────────┘ │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- Fecha sozinho na primeira leitura. Sem permissão da câmera, o visor some e
+  aparece "Libere a câmera nos Ajustes do iPhone."
+- `*` **O campo digitado vem acima do visor**, pela regra do campo no topo: o
+  teclado do iPhone 12 cobriria um campo desenhado embaixo da câmera.
+- O campo **não** recebe foco ao abrir: o teclado só sobe se a pessoa tocar
+  nele. Aberto sozinho, ele cobriria a câmera, que é o caso comum.
+
+### Tela 3 — leitura no Produto e a entrada do modo caixa
+
+```
+┌──────────────────────────────────────┐
+│ < Voltar   Lançar compra             │
+├──────────────────────────────────────┤
+│  Data: ▤ 10/10/2026                  │
+│  Mercado: ▼ Carrefour   [+Novo]      │
+│  [ ▥ Passar no caixa ]           *   │
+│  ────────────────────────────        │
+│  Produto: ▼ Coca 12x350ml [▥][+Novo] │
+│  [ Comparar custo ]                  │
+│  Quantidade: 1   Valor: R$ 56,70     │
+│  [    + Adicionar à compra    ]      │
+│  ────────────────────────────        │
+│  Itens desta compra                  │
+│  • Omo 2,3kg   1 R$ 33,00 [ed]       │
+│    preço anterior                *   │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- `[▥]` ao lado de Produto acha a **embalagem** sem abrir a lista. Etiqueta de
+  balança já escolhe o produto, escolhe o mercado se ainda não havia, e preenche
+  a **Quantidade** com o peso, recalculando o valor.
+- `*` `[ ▥ Passar no caixa ]` abre o modo caixa (abaixo).
+- `*` Item que entrou com o preço da última compra mostra **"preço anterior"**
+  até ser conferido: tocar na etiqueta confirma, e editar o valor também.
+
+**Código que ninguém tem:**
+
+```
+┌──────────────────────────────────────┐
+│ ┌──────────────────────────────────┐ │
+│ │ Nenhum produto com o código      │ │
+│ │ 7891234567895.                   │ │
+│ │ [ Cadastrar produto ]  [ Fechar ]│ │
+│ └──────────────────────────────────┘ │
+└──────────────────────────────────────┘
+```
+
+"Cadastrar produto" abre a Tela 4 com o código já no primeiro cartão.
+
+**Etiqueta de balança que ainda não está ligada a nenhum produto:**
+
+```
+┌──────────────────────────────────────┐
+│  ══   Qual produto é este?  [ X ]    │
+│  Etiqueta 2822521 · 0,160 kg         │
+│  Mercado: ▼ Irmãos Gonçalves    *    │
+│  ────────────────────────────        │
+│  Hortifrúti                          │
+│  Tâmara com casca                *   │
+│  Uva passa                           │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- `*` O Mercado vem **pré-preenchido** com o da Tela 3; só pede escolha se lá
+  estiver vazio.
+- `*` Oferece **só produtos vendidos a peso**, e **um toque no produto** liga e
+  usa, sem botão de confirmar. O código fica ligado ao produto **naquele
+  mercado**, e a próxima leitura já acha.
+- Etiqueta que existe em mais de um mercado, lida sem mercado escolhido,
+  pergunta: "Esta etiqueta existe em mais de um mercado. Qual?"
+- Etiqueta começando com `2` num formato desconhecido: "Não conheço esta
+  etiqueta. Escolha o produto pela lista." Nada é gravado.
+
+**Salvar com preço não conferido:**
+
+```
+┌──────────────────────────────────────┐
+│ ┌──────────────────────────────────┐ │
+│ │ 3 preços não conferidos.         │ │
+│ │ Bateu com o cupom?               │ │
+│ │ [ Conferir ]  [ Conferi, salvar ]│ │
+│ └──────────────────────────────────┘ │
+└──────────────────────────────────────┘
+```
+
+Não trava: pergunta. `[ Conferi, salvar ]` confirma **todos** e salva;
+`[ Conferir ]` volta para a lista de itens. Na Tela 3, com algum "preço
+anterior" na lista, um `[ Todos conferidos ]` aparece logo acima de "Itens
+desta compra" e confirma todos de uma vez.
+
+### Diálogo `#3a` — Comparar custo, com leitura e adicionar direto
+
+```
+┌──────────────────────────────────────┐
+│ Lançar compra          (fica atrás)  │
+│░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░│
+├──────────────────────────────────────┤
+│  ══   Comparar custo        [ X ]    │
+│  sabão em pó · custo por kg          │
+│  [ ▥ Ler outro ]                 *   │
+│  ────────────────────────────        │
+│  {x} Omo 500g                        │
+│      [Preço R$10,00]      20,00/kg   │
+│                a melhor economiza 28%│
+│▓ {x} ★ Omo 2,3kg     MELHOR CUSTO  ▓ │
+│▓     [Preço R$33,00]  14,35/kg     ▓ │
+│  { } Tixan 1kg                       │
+│      [Preço R$17,00]                 │
+│  [ Ver todas do tipo ]               │
+├──────────────────────────────────────┤
+│  ★ Omo 2,3kg — 28% mais barato o kg  │
+│  [ Adicionar Omo 2,3kg à compra ] *  │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- `*` `[ ▥ Ler outro ]` acrescenta embalagens à comparação: a linha lida fica
+  **marcada** e o cursor vai para o Preço dela. Embalagem do tipo fora da lista
+  curta entra marcada, com o preço vazio. Embalagem de **outro tipo** é
+  recusada: "Esse é detergente. Aqui só se compara sabão em pó."
+- `*` `[ Adicionar … à compra ]` **substitui o `[ Usar… ]`**: põe o item direto
+  em "Itens desta compra" — 1 embalagem com o preço da linha, ou o "Quanto vem"
+  no vendido a peso — e fecha o painel.
+- O botão já vem no `★`; **tocar no nome de outra linha marcada passa o botão
+  para ela**. Linha escolhida sem preço trava o botão com "Digite o preço do
+  Omo 2,3kg." acima dele.
+- Código desconhecido: "Nenhum produto com esse código." com `[ Cadastrar ]`, e
+  a folha nova volta marcada.
+
+### Modo caixa  (tela cheia sobre a Tela 3)
+
+```
+┌──────────────────────────────────────┐
+│ < Concluir      Caixa                │
+├──────────────────────────────────────┤
+│ ┌──────────────────────────────────┐ │
+│ │                                  │ │
+│ │      ┌────────────────────┐      │ │
+│ │      │ ▌▌▐▌▌▐▐▌▌▐▌▌▐▐▌▌▐▌ │      │ │
+│ │      └────────────────────┘      │ │
+│ │   ✓ Omo 2,3kg  R$ 33,00       *  │ │
+│ └──────────────────────────────────┘ │
+│  ────────────────────────────        │
+│  Omo 2,3kg          2  R$ 66,00 [ed] │
+│    preço anterior                    │
+│  Leite Italac 1L   12  R$ 62,00 [ed] │
+│  Tâmara 0,160kg        R$  5,12 [ed] │
+│  Coca 350ml   1 [Preço R$ ____ ] *   │
+│    sem compra anterior               │
+│  ────────────────────────────        │
+│  4 itens              R$ 133,12      │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- **É como o caixa do supermercado:** a câmera fica aberta, e cada leitura já
+  entra na compra. Não é uma rota nova: abre por cima da Tela 3, e
+  `< Concluir` volta para ela com tudo em "Itens desta compra".
+- `*` A cada leitura o celular **bipa**, a borda da câmera **pisca em verde** e o
+  nome e o preço aparecem sobre ela. Vibrar não serve: o iPhone não vibra por
+  um app aberto pela tela de início.
+- A mesma embalagem só é lida de novo **depois de sair da câmera e voltar**.
+  Duas latas iguais passadas em sequência dão 2; a mesma lata parada na frente
+  da câmera não soma sozinha.
+- **Cada embalagem é uma linha:** ler a mesma embalagem de novo **soma 1**;
+  lata e fardo do mesmo produto são linhas separadas, cada uma com o seu preço.
+  Cada etiqueta de balança é uma linha nova, com o peso dela.
+- O preço é o **da última compra**, marcado "preço anterior" até ser conferido.
+- `*` Embalagem sem compra anterior abre o campo de **Preço na própria linha**, e
+  só entra na compra depois de ter preço. Sair com uma linha assim avisa: "1
+  item sem preço não entrou na compra."
+- Código desconhecido: "Produto não cadastrado" com `[ Cadastrar ]` e
+  `[ Depois ]`. Cadastrar volta para o caixa com a folha nova somada. `[ Depois ]`
+  não para o caixa: o código fica numa linha "Produto não cadastrado ·
+  7891234567895" no fim da lista, que **não** entra na compra, e o `< Concluir`
+  avisa dela como avisa da linha sem preço. Etiqueta não ligada abre o "Qual
+  produto é este?".
+- `[ed]` abre o diálogo do item que já existe. Cada leitura é gravada no
+  rascunho na hora: fechar o app não perde nada.
+- A câmera é fixa em cima; **a lista é que rola**.
+
+### Painel `#1a` e Despensa — leitura
+
+```
+┌──────────────────────────────────────┐
+│  ══   Adicionar item        [ X ]    │
+│  Tipo: ____________________  [▥] *   │
+│  ────────────────────────────        │
+│  Laticínios                          │
+│  Leite                               │
+│  ...                                 │
+└──────────────────────────────────────┘
+```
+
+```
+┌──────────────────────────────────────┐
+│ ≡   Conferir despensa         [▥] *  │
+├──────────────────────────────────────┤
+│  Marque o que acabou em casa.        │
+│  Laticínios                          │
+│  {x} Leite        ← marcado pelo ▥   │
+│  { } Manteiga                        │
+│  ...                                 │
+│            (+ Adicionar 1 à lista)   │
+└──────────────────────────────────────┘
+```
+
+**Notas:**
+- `*` No `#1a`, o código põe na lista o **tipo com aquele produto pedido**, sem a
+  embalagem — como a escolha pelo nome já faz. Produto já pedido na linha do
+  tipo: "Já está na lista." Código desconhecido: "Nenhum produto com esse
+  código." com `[ Cadastrar produto ]`, que abre a Tela 4 com o código no
+  primeiro cartão; na volta, o produto novo entra na lista como se tivesse sido
+  lido.
+- `*` Na Despensa, o código **marca a linha do tipo** e rola até ela. Nada é
+  gravado até o botão flutuante. Tipo ausente: "Esse produto ainda não aparece na
+  despensa." com `[ Pôr na lista ]`, que faz o mesmo que o `#1a` faria com esse
+  código. Código desconhecido: "Nenhum produto com esse código."
+- Nos dois: etiqueta de balança diz "Etiqueta de balança só serve no lançamento
+  da compra."
+
+---
+
 ## Checklist antes de virar PWA
 
 - [x] 6 telas principais desenhadas (não o app inteiro), mais os dois painéis
