@@ -7,8 +7,8 @@
 # whose expected value is written next to it in the SQL. This script only makes
 # them run and keeps the output; reading it is by hand.
 #
-# Five of the six wrap everything in `begin; ... rollback;`, so a run leaves no
-# trace. The sixth, normalize_cases.sql, only selects.
+# Six of the seven wrap everything in `begin; ... rollback;`, so a run leaves no
+# trace. The remaining one, normalize_cases.sql, only selects.
 #
 # The credentials come from .env (see .env.example). Direct connection is
 # IPv6-only on the hosted project; export SUPABASE_DB_HOST, SUPABASE_DB_PORT
@@ -37,7 +37,7 @@ mkdir -p "$out_dir"
 echo "running against $user@$host:$port"
 
 # Migration order, not alphabetical: a file reads what the ones before it built.
-for name in normalize purchase_write purchase_correction period_report spending_cap type_consumption; do
+for name in normalize purchase_write purchase_correction period_report spending_cap type_consumption product_barcode; do
   file="$root/supabase/checks/${name}_cases.sql"
   printf '\n== %s ==\n' "$name"
   if psql -h "$host" -p "$port" -U "$user" -d postgres \
@@ -50,4 +50,4 @@ for name in normalize purchase_write purchase_correction period_report spending_
   fi
 done
 
-printf '\nall six ran. The expected values are written beside each case in the SQL.\n'
+printf '\nall seven ran. The expected values are written beside each case in the SQL.\n'
