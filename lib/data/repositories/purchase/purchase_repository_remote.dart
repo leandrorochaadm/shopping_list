@@ -4,15 +4,22 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/list_write_off.dart';
 import '../../../domain/models/money.dart';
+import '../../../domain/models/product.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/purchase.dart';
 import '../../../domain/models/purchase_item.dart';
 import '../../../domain/models/purchase_summary.dart';
 import '../../../domain/models/same_day_alert.dart';
+import '../../../domain/models/scale_label.dart';
 import '../../../domain/models/spending_cap.dart';
 import '../../../domain/models/write_off_undo.dart';
 import '../../services/supabase_error.dart';
 import 'purchase_repository.dart';
+
+/// The codes of the leaf, embedded WITHOUT `!inner`: a leaf with no code at all
+/// stays in the picker (the same reason as `brand ( * )`).
+const _barcodesEmbed =
+    '${Product.barcodesKey} ( ${ScaleCode.codeKey}, ${ScaleCode.storeIdKey} )';
 
 /// The real thing. The client is PRIVATE: the UI never reaches it.
 ///
@@ -36,7 +43,7 @@ final class PurchaseRepositoryRemote implements PurchaseRepository {
       final rows = await _client
           .from('product')
           .select(
-            '*, product_registration!inner('
+            '*, $_barcodesEmbed, product_registration!inner('
             '*, product_type!inner ( * ), brand ( * ))',
           )
           .eq('active', true)

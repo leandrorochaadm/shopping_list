@@ -73,17 +73,17 @@ final class ScaleCode {
   const ScaleCode({required this.storeId, required this.itemCode});
 
   factory ScaleCode.fromJson(Map<String, dynamic> json) => ScaleCode(
-    storeId: json[_storeIdKey] as String,
-    itemCode: json[_codeKey] as String,
+    storeId: json[storeIdKey] as String,
+    itemCode: json[codeKey] as String,
   );
 
-  static const _storeIdKey = 'store_id';
-  static const _codeKey = 'code';
+  static const storeIdKey = 'store_id';
+  static const codeKey = 'code';
 
   final String storeId;
   final String itemCode;
 
-  Map<String, dynamic> toJson() => {_storeIdKey: storeId, _codeKey: itemCode};
+  Map<String, dynamic> toJson() => {storeIdKey: storeId, codeKey: itemCode};
 
   @override
   bool operator ==(Object other) =>

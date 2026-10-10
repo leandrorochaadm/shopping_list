@@ -1,5 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/money.dart';
@@ -10,6 +11,9 @@ import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
+
+import '../helpers/purchase.dart' as fixtures;
 
 void main() {
   final softDrink = ProductType(
@@ -472,6 +476,130 @@ void main() {
       // Screen 3 puts the name of the TYPE in it; the comparison tab of
       // screen 5 puts the name of the CATEGORY (decision D-u).
       expect(group(header: 'Bebidas').header, 'Bebidas');
+    });
+  });
+
+  group('the codes of the leaf', () {
+    final cokeCode = Barcode.typed('7894900011517');
+    final upcCode = Barcode.typed('012345678905');
+    const store1Code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+    const store2Code = ScaleCode(storeId: 'store-2', itemCode: '2822521');
+
+    final withBarcode = fixtures.optionByPiece(
+      id: 'a',
+      barcodes: [cokeCode].lock,
+    );
+    final withUpc = fixtures.optionByPiece(id: 'b', barcodes: [upcCode].lock);
+    final plain = fixtures.optionByPiece(id: 'c');
+
+    test('findOptionByBarcode finds the right leaf among three', () {
+      final options = [plain, withBarcode, withUpc].lock;
+      expect(findOptionByBarcode(options, cokeCode), withBarcode);
+    });
+
+    test('findOptionByBarcode gives null for an unknown code', () {
+      final options = [plain, withBarcode].lock;
+      expect(findOptionByBarcode(options, upcCode), isNull);
+    });
+
+    test('findOptionByBarcode gives null on an empty list', () {
+      expect(findOptionByBarcode(const IList.empty(), cokeCode), isNull);
+    });
+
+    test('findOptionByBarcode finds the EAN-13 leaf by its UPC-A', () {
+      final ean = fixtures.optionByPiece(
+        id: 'd',
+        barcodes: [Barcode.typed('0012345678905')].lock,
+      );
+      expect(findOptionByBarcode([plain, ean].lock, upcCode), ean);
+    });
+
+    group('findOptionsByScaleCode', () {
+      final inStore1 = fixtures.optionByWeight(
+        id: 'w1',
+        scaleCodes: [store1Code].lock,
+      );
+      final inStore2 = fixtures.optionByWeight(
+        id: 'w2',
+        scaleCodes: [store2Code].lock,
+      );
+
+      test('with a store, only the one of that store', () {
+        final found = findOptionsByScaleCode(
+          [inStore1, inStore2, plain].lock,
+          '2822521',
+          storeId: 'store-2',
+        );
+        expect(found, [inStore2].lock);
+      });
+
+      test('without a store, the ones of every store, in order', () {
+        final found = findOptionsByScaleCode(
+          [inStore2, plain, inStore1].lock,
+          '2822521',
+        );
+        expect(found, [inStore2, inStore1].lock);
+      });
+
+      test('an unknown item code gives an empty list', () {
+        expect(findOptionsByScaleCode([inStore1].lock, '2999999'), isEmpty);
+      });
+
+      test('a code that exists only in another store gives an empty list', () {
+        expect(
+          findOptionsByScaleCode(
+            [inStore1].lock,
+            '2822521',
+            storeId: 'store-2',
+          ),
+          isEmpty,
+        );
+      });
+    });
+
+    test('reads the codes from the PostgREST embed', () {
+      final option = ProductOption.fromJson({
+        'id': 'prod-4',
+        'product_registration_id': 'reg-1',
+        'piece_count': 12,
+        'piece_size': 350,
+        'piece_size_unit': 'milliliter',
+        'total_content': 4200,
+        'active': true,
+        'product_barcode': [
+          {'code': '07894900011517', 'store_id': null},
+        ],
+        'product_registration': {
+          'id': 'reg-1',
+          'product_type_id': 'type-1',
+          'brand_id': null,
+          'description': '',
+          'selling_mode': 'by_piece',
+          'active': true,
+          'product_type': {
+            'id': 'type-1',
+            'name': 'Refrigerante',
+            'category_id': 'cat-1',
+            'base_unit': 'milliliter',
+            'active': true,
+          },
+          'brand': null,
+        },
+      });
+
+      expect(option.product.barcodes, [cokeCode].lock);
+    });
+
+    test('toJson leaves the codes out, like the history', () {
+      final option = fixtures.optionByPiece(
+        id: 'a',
+        barcodes: [cokeCode].lock,
+        scaleCodes: [store1Code].lock,
+      );
+
+      final back = ProductOption.fromJson(option.toJson());
+      expect(back.product.barcodes, isEmpty);
+      expect(back.product.scaleCodes, isEmpty);
     });
   });
 }

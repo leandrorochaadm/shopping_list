@@ -6,9 +6,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_remote.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/domain/models/write_off_undo.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,8 +22,7 @@ class _MockClient extends Mock implements SupabaseClient {}
 /// A query chain that answers a fixed set of rows. Like `rpc`, none of these
 /// builders is a Future — they only IMPLEMENT one — so `thenAnswer` with an
 /// `async` closure does not compile, and `then` is what `await` reaches.
-class _FakeQuery extends Fake
-    implements PostgrestFilterBuilder<PostgrestList> {
+class _FakeQuery extends Fake implements PostgrestFilterBuilder<PostgrestList> {
   _FakeQuery(this.rows);
 
   final PostgrestList rows;
@@ -95,10 +96,8 @@ class _FakeSingle extends Fake
 /// only implements one.
 class _FakeVoidRpc extends Fake implements PostgrestFilterBuilder<void> {
   @override
-  Future<R> then<R>(
-    FutureOr<R> Function(void) onValue, {
-    Function? onError,
-  }) => Future<void>.value().then(onValue, onError: onError);
+  Future<R> then<R>(FutureOr<R> Function(void) onValue, {Function? onError}) =>
+      Future<void>.value().then(onValue, onError: onError);
 }
 
 /// H14's read. Same trap as `_FakeRpc`: `rpc` is not a Future.
@@ -126,8 +125,12 @@ class _FakeTable extends Fake implements SupabaseQueryBuilder {
   /// checklist wants `flutter analyze` clean.
   final queries = <_FakeQuery>[];
 
+  /// The text of each `select`, to assert what is embedded.
+  final columns = <String>[];
+
   @override
   PostgrestFilterBuilder<PostgrestList> select([String columns = '*']) {
+    this.columns.add(columns);
     final query = _FakeQuery(rows);
     queries.add(query);
     return query;
@@ -573,6 +576,57 @@ void main() {
       });
     });
 
+    test('the options carry the leaf\'s codes, without !inner', () async {
+      final table = _FakeTable([
+        {
+          'id': 'prod-4',
+          'product_registration_id': 'reg-1',
+          'active': true,
+          'piece_count': 12,
+          'piece_size': 350,
+          'piece_size_unit': 'milliliter',
+          'total_content': 4200,
+          'product_barcode': [
+            {'code': '07894900011517', 'store_id': null},
+            {'code': '2822521', 'store_id': 'store-1'},
+          ],
+          'product_registration': {
+            'id': 'reg-1',
+            'product_type_id': 'type-1',
+            'brand_id': 'brand-1',
+            'description': '',
+            'selling_mode': 'by_piece',
+            'active': true,
+            'product_type': {
+              'id': 'type-1',
+              'name': 'Refrigerante',
+              'category_id': 'cat-1',
+              'base_unit': 'milliliter',
+              'active': true,
+            },
+            'brand': {'id': 'brand-1', 'name': 'Coca-Cola', 'active': true},
+          },
+        },
+      ]);
+      when(() => client.from('product')).thenAnswer((_) => table);
+
+      final options = await repository.fetchProductOptions();
+
+      expect(
+        table.columns.single,
+        contains('product_barcode ( code, store_id )'),
+      );
+      expect(table.columns.single, isNot(contains('product_barcode!inner')));
+      expect(
+        options.single.product.barcodes,
+        [Barcode.typed('7894900011517')].lock,
+      );
+      expect(
+        options.single.product.scaleCodes,
+        [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
+      );
+    });
+
     test('reads the history with the date from the PARENT table', () async {
       // The filter is on `purchase.purchase_date`, which is what `!inner`
       // makes possible — and there is no `order` in the query, because
@@ -606,35 +660,38 @@ void main() {
       expect(history.single.purchasedOn, DateTime(2026, 8, 18));
     });
 
-    test('fetchPage asks for ONE row more and answers hasMore with it', () async {
-      // `range` in PostgREST is inclusive at both ends, so `range(0, 20)`
-      // brings 21 rows. The extra one is dropped, and its existence IS the
-      // answer — no second query, and no count.
-      when(() => client.from('purchase')).thenAnswer(
-        (_) => _FakeTable([
-          for (var i = 0; i < 21; i++)
-            {
-              'id': 'a\$i',
-              'purchase_date': '2026-08-18',
-              'registered_by': 'Leandro',
-              'store': {'name': 'Carrefour'},
-              'purchase_item': [
-                {'total_paid': 6200},
-                {'total_paid': 100},
-              ],
-            },
-        ]),
-      );
+    test(
+      'fetchPage asks for ONE row more and answers hasMore with it',
+      () async {
+        // `range` in PostgREST is inclusive at both ends, so `range(0, 20)`
+        // brings 21 rows. The extra one is dropped, and its existence IS the
+        // answer — no second query, and no count.
+        when(() => client.from('purchase')).thenAnswer(
+          (_) => _FakeTable([
+            for (var i = 0; i < 21; i++)
+              {
+                'id': 'a\$i',
+                'purchase_date': '2026-08-18',
+                'registered_by': 'Leandro',
+                'store': {'name': 'Carrefour'},
+                'purchase_item': [
+                  {'total_paid': 6200},
+                  {'total_paid': 100},
+                ],
+              },
+          ]),
+        );
 
-      final page = await repository.fetchPage(offset: 0, limit: 20);
+        final page = await repository.fetchPage(offset: 0, limit: 20);
 
-      expect(page.purchases, hasLength(20));
-      expect(page.hasMore, isTrue);
-      // The total is added up in Dart, out of the embed (D9).
-      expect(page.purchases.first.total, const Money(6300));
-      expect(page.purchases.first.itemCount, 2);
-      expect(page.purchases.first.storeName, 'Carrefour');
-    });
+        expect(page.purchases, hasLength(20));
+        expect(page.hasMore, isTrue);
+        // The total is added up in Dart, out of the embed (D9).
+        expect(page.purchases.first.total, const Money(6300));
+        expect(page.purchases.first.itemCount, 2);
+        expect(page.purchases.first.storeName, 'Carrefour');
+      },
+    );
 
     test('fetchPage on the last page answers hasMore false', () async {
       when(() => client.from('purchase')).thenAnswer(
@@ -656,84 +713,87 @@ void main() {
       expect(page.hasMore, isFalse);
     });
 
-    test('fetchDetail is ONE call, with the trail embedded in the item', () async {
-      // Two calls would mean building an `in.(…)` out of the ids the first
-      // one returned — a round trip that depends on another, in the middle of
-      // opening a screen. `list_write_off` has no purchase column, so the
-      // embed is the only way.
-      when(() => client.from('purchase')).thenAnswer(
-        (_) => _FakeTable([
-          {
-            'id': 'a1',
-            'purchase_date': '2026-08-18',
-            'store_id': 'store-1',
-            'registered_by': 'Leandro',
-            'purchase_item': [
-              {
-                'id': 'i1',
-                'product_id': 'prod-4',
-                'quantity': 1,
-                'quantity_in_base_unit': 4200,
-                'total_paid': 6200,
-                'product': {
-                  'id': 'prod-4',
-                  'product_registration_id': 'reg-1',
-                  'piece_count': 12,
-                  'piece_size': 350,
-                  'piece_size_unit': 'milliliter',
-                  'total_content': 4200,
-                  'active': true,
-                  'product_registration': {
-                    'id': 'reg-1',
-                    'product_type_id': 'type-1',
-                    'brand_id': 'brand-1',
-                    'description': '',
-                    'selling_mode': 'by_piece',
+    test(
+      'fetchDetail is ONE call, with the trail embedded in the item',
+      () async {
+        // Two calls would mean building an `in.(…)` out of the ids the first
+        // one returned — a round trip that depends on another, in the middle of
+        // opening a screen. `list_write_off` has no purchase column, so the
+        // embed is the only way.
+        when(() => client.from('purchase')).thenAnswer(
+          (_) => _FakeTable([
+            {
+              'id': 'a1',
+              'purchase_date': '2026-08-18',
+              'store_id': 'store-1',
+              'registered_by': 'Leandro',
+              'purchase_item': [
+                {
+                  'id': 'i1',
+                  'product_id': 'prod-4',
+                  'quantity': 1,
+                  'quantity_in_base_unit': 4200,
+                  'total_paid': 6200,
+                  'product': {
+                    'id': 'prod-4',
+                    'product_registration_id': 'reg-1',
+                    'piece_count': 12,
+                    'piece_size': 350,
+                    'piece_size_unit': 'milliliter',
+                    'total_content': 4200,
                     'active': true,
-                    'product_type': {
-                      'id': 'type-1',
-                      'name': 'Refrigerante',
-                      'category_id': 'cat-1',
-                      'base_unit': 'milliliter',
+                    'product_registration': {
+                      'id': 'reg-1',
+                      'product_type_id': 'type-1',
+                      'brand_id': 'brand-1',
+                      'description': '',
+                      'selling_mode': 'by_piece',
                       'active': true,
-                    },
-                    'brand': {
-                      'id': 'brand-1',
-                      'name': 'Coca-Cola',
-                      'active': true,
+                      'product_type': {
+                        'id': 'type-1',
+                        'name': 'Refrigerante',
+                        'category_id': 'cat-1',
+                        'base_unit': 'milliliter',
+                        'active': true,
+                      },
+                      'brand': {
+                        'id': 'brand-1',
+                        'name': 'Coca-Cola',
+                        'active': true,
+                      },
                     },
                   },
+                  'list_write_off': [
+                    {
+                      'shopping_list_item_id': 'l1',
+                      'quantity_written_off': 4200,
+                      'cleared_not_found': true,
+                    },
+                  ],
                 },
-                'list_write_off': [
-                  {
-                    'shopping_list_item_id': 'l1',
-                    'quantity_written_off': 4200,
-                    'cleared_not_found': true,
-                  },
-                ],
-              },
-            ],
-          },
-        ]),
-      );
+              ],
+            },
+          ]),
+        );
 
-      final detail = await repository.fetchDetail('a1');
+        final detail = await repository.fetchDetail('a1');
 
-      verify(() => client.from('purchase')).called(1);
-      expect(detail.purchase.id, 'a1');
-      expect(detail.purchase.date, DateTime(2026, 8, 18));
-      expect(detail.purchase.registeredBy, 'Leandro');
-      // The line comes back COMPLETE, because the item carries the whole
-      // option — no view around it, and no second query to the catalog.
-      expect(detail.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
-      expect(detail.items.single.paid, const Money(6200));
-      expect(detail.trail.single.shoppingListItemId, 'l1');
-      expect(detail.trail.single.purchaseItemId, 'i1');
-      expect(detail.trail.single.clearedNotFound, isTrue);
-      // `fulfills` is not a column, so it never comes back — the undo
-      // DERIVES it (D6).
-      expect(detail.trail.single.fulfills, isFalse);
-    });
+        verify(() => client.from('purchase')).called(1);
+        expect(detail.purchase.id, 'a1');
+        expect(detail.purchase.date, DateTime(2026, 8, 18));
+        expect(detail.purchase.registeredBy, 'Leandro');
+        // The line comes back COMPLETE, because the item carries the whole
+        // option — no view around it, and no second query to the catalog.
+        expect(detail.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
+        expect(detail.items.single.paid, const Money(6200));
+        expect(detail.trail.single.shoppingListItemId, 'l1');
+        expect(detail.trail.single.purchaseItemId, 'i1');
+        expect(detail.trail.single.clearedNotFound, isTrue);
+        // `fulfills` is not a column, so it never comes back — the undo
+        // DERIVES it (D6).
+        expect(detail.trail.single.fulfills, isFalse);
+      },
+    );
   });
 
   group('the correction', () {
@@ -742,57 +802,63 @@ void main() {
       repository = PurchaseRepositoryRemote(client);
     });
 
-    test('update_purchase sends the four keys, and fulfilled_on PRESENT', () async {
-      // Omitting `fulfilled_on` would reopen nothing, and in silence — which
-      // is the whole reason the key travels with a null VALUE.
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<void>(any(), params: any(named: 'params')),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeVoidRpc();
-      });
+    test(
+      'update_purchase sends the four keys, and fulfilled_on PRESENT',
+      () async {
+        // Omitting `fulfilled_on` would reopen nothing, and in silence — which
+        // is the whole reason the key travels with a null VALUE.
+        Map<String, dynamic>? sent;
+        when(
+          () => client.rpc<void>(any(), params: any(named: 'params')),
+        ).thenAnswer((invocation) {
+          sent = invocation.namedArguments[#params] as Map<String, dynamic>;
+          return _FakeVoidRpc();
+        });
 
-      await repository.correct(
-        purchase: submission.purchase,
-        writeOffs: [
-          const ListWriteOff(
-            purchaseItemId: 'i1',
-            shoppingListItemId: 'l1',
-            quantityWrittenOff: 2000,
-            fulfills: true,
-          ),
-        ].lock,
-        restored: const [
-          RestoredListItem(id: 'l1', fulfilledOn: null, notFound: true),
-        ].lock,
-      );
+        await repository.correct(
+          purchase: submission.purchase,
+          writeOffs: [
+            const ListWriteOff(
+              purchaseItemId: 'i1',
+              shoppingListItemId: 'l1',
+              quantityWrittenOff: 2000,
+              fulfills: true,
+            ),
+          ].lock,
+          restored: const [
+            RestoredListItem(id: 'l1', fulfilledOn: null, notFound: true),
+          ].lock,
+        );
 
-      expect(sent!.keys, containsAll(<String>[
-        'p_purchase',
-        'p_items',
-        'p_write_offs',
-        'p_restored',
-      ]));
-      // Three columns, and `registered_by` is NOT one of them: who
-      // registered a purchase is a historical fact.
-      expect(sent!['p_purchase'], {
-        'id': 'a1',
-        'purchase_date': '2026-08-18',
-        'store_id': 'store-1',
-      });
+        expect(
+          sent!.keys,
+          containsAll(<String>[
+            'p_purchase',
+            'p_items',
+            'p_write_offs',
+            'p_restored',
+          ]),
+        );
+        // Three columns, and `registered_by` is NOT one of them: who
+        // registered a purchase is a historical fact.
+        expect(sent!['p_purchase'], {
+          'id': 'a1',
+          'purchase_date': '2026-08-18',
+          'store_id': 'store-1',
+        });
 
-      final restored = (sent!['p_restored'] as List).single
-          as Map<String, dynamic>;
-      expect(restored.containsKey('fulfilled_on'), isTrue);
-      expect(restored['fulfilled_on'], isNull);
-      expect(restored['not_found'], isTrue);
+        final restored =
+            (sent!['p_restored'] as List).single as Map<String, dynamic>;
+        expect(restored.containsKey('fulfilled_on'), isTrue);
+        expect(restored['fulfilled_on'], isNull);
+        expect(restored['not_found'], isTrue);
 
-      // `fulfills` travels in the same object and is still not a column.
-      final off = (sent!['p_write_offs'] as List).single
-          as Map<String, dynamic>;
-      expect(off['fulfills'], isTrue);
-    });
+        // `fulfills` travels in the same object and is still not a column.
+        final off =
+            (sent!['p_write_offs'] as List).single as Map<String, dynamic>;
+        expect(off['fulfills'], isTrue);
+      },
+    );
 
     test('delete_purchase sends the id and what to give back', () async {
       Map<String, dynamic>? sent;

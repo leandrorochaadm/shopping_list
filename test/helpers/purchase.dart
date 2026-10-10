@@ -5,6 +5,7 @@ import 'package:shopping_list/data/repositories/purchase/purchase_repository_loc
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
@@ -18,6 +19,7 @@ import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 
 import 'catalog.dart';
@@ -80,6 +82,8 @@ ProductOption optionByPiece({
   DateTime? lastPurchasedOn,
   PriceReference? priceReference,
   PriceBaseline? baseline,
+  IList<Barcode> barcodes = const IList.empty(),
+  IList<ScaleCode> scaleCodes = const IList.empty(),
 }) {
   final resolved = type ?? softDrinkType;
   return ProductOption(
@@ -91,6 +95,8 @@ ProductOption optionByPiece({
         pieceSize: pieceSize,
         baseUnit: unit,
       ),
+      barcodes: barcodes,
+      scaleCodes: scaleCodes,
     ),
     registration: ProductRegistration(
       id: registrationId ?? 'reg-$id',
@@ -111,18 +117,26 @@ ProductOption optionByPiece({
 /// A leaf sold by weight: no packaging at all (decision B1).
 ProductOption optionByWeight({
   required String id,
+  String? registrationId,
   ProductType? type,
   Brand? brand,
   int purchaseCount = 0,
   DateTime? lastPurchasedOn,
   PriceReference? priceReference,
   PriceBaseline? baseline,
+  IList<Barcode> barcodes = const IList.empty(),
+  IList<ScaleCode> scaleCodes = const IList.empty(),
 }) {
   final resolved = type ?? beefType;
   return ProductOption(
-    product: Product(id: id, productRegistrationId: 'reg-$id'),
+    product: Product(
+      id: id,
+      productRegistrationId: registrationId ?? 'reg-$id',
+      barcodes: barcodes,
+      scaleCodes: scaleCodes,
+    ),
     registration: ProductRegistration(
-      id: 'reg-$id',
+      id: registrationId ?? 'reg-$id',
       productTypeId: resolved.id!,
       brandId: brand?.id,
       sellingMode: SellingMode.byWeight,

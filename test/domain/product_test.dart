@@ -1,22 +1,28 @@
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 
 /// The leaf. `hasSameContentAs` and the JSON round trip are exercised from
 /// `packaging_test.dart` and `product_registration_test.dart`; what is here is
 /// the leaf's own rules, and the one H10 adds.
 void main() {
-  ProductRegistration registration({bool active = true}) =>
-      ProductRegistration(
-        id: 'reg-1',
-        productTypeId: 'type-1',
-        sellingMode: SellingMode.byPiece,
-        active: active,
-      );
+  ProductRegistration registration({bool active = true}) => ProductRegistration(
+    id: 'reg-1',
+    productTypeId: 'type-1',
+    sellingMode: SellingMode.byPiece,
+    active: active,
+  );
 
-  Product leaf({bool active = true}) => Product(
+  Product leaf({
+    bool active = true,
+    IList<Barcode> barcodes = const IList.empty(),
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) => Product(
     id: 'prod-1',
     productRegistrationId: 'reg-1',
     packaging: Packaging(
@@ -25,6 +31,8 @@ void main() {
       baseUnit: BaseUnit.milliliter,
     ),
     active: active,
+    barcodes: barcodes,
+    scaleCodes: scaleCodes,
   );
 
   group('isEffectivelyActiveIn', () {
@@ -33,7 +41,10 @@ void main() {
     });
 
     test('a deactivated leaf is off it', () {
-      expect(leaf(active: false).isEffectivelyActiveIn(registration()), isFalse);
+      expect(
+        leaf(active: false).isEffectivelyActiveIn(registration()),
+        isFalse,
+      );
     });
 
     test('a deactivated REGISTRATION takes its leaves with it', () {
@@ -98,10 +109,7 @@ void main() {
 
     test('one field at a time breaks it', () {
       expect(leaf(), isNot(leaf().copyWith(id: 'prod-2')));
-      expect(
-        leaf(),
-        isNot(leaf().copyWith(productRegistrationId: 'reg-9')),
-      );
+      expect(leaf(), isNot(leaf().copyWith(productRegistrationId: 'reg-9')));
       expect(
         leaf(),
         isNot(
@@ -115,6 +123,81 @@ void main() {
         ),
       );
       expect(leaf(), isNot(leaf(active: false)));
+      expect(
+        leaf(),
+        isNot(leaf(barcodes: [Barcode.typed('7894900011517')].lock)),
+      );
+      expect(
+        leaf(),
+        isNot(
+          leaf(
+            scaleCodes: [
+              const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+            ].lock,
+          ),
+        ),
+      );
+    });
+  });
+
+  group('the codes', () {
+    final row = {
+      'id': 'prod-1',
+      'product_registration_id': 'reg-1',
+      'active': true,
+    };
+
+    test('fromJson splits the embed rows by store_id', () {
+      final product = Product.fromJson({
+        ...row,
+        Product.barcodesKey: [
+          {'code': '07894900011517', 'store_id': null},
+          {'code': '2822521', 'store_id': 'store-1'},
+        ],
+      });
+
+      expect(product.barcodes, [Barcode.typed('7894900011517')].lock);
+      expect(
+        product.scaleCodes,
+        [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
+      );
+    });
+
+    test('fromJson without the embed gives empty lists', () {
+      expect(Product.fromJson(row).barcodes, isEmpty);
+      expect(Product.fromJson(row).scaleCodes, isEmpty);
+
+      final empty = Product.fromJson({...row, Product.barcodesKey: []});
+      expect(empty.barcodes, isEmpty);
+      expect(empty.scaleCodes, isEmpty);
+    });
+
+    test('toJson leaves the codes out', () {
+      final product = leaf(
+        barcodes: [Barcode.typed('7894900011517')].lock,
+        scaleCodes: [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+        ].lock,
+      );
+
+      expect(product.toJson().containsKey(Product.barcodesKey), isFalse);
+      final back = Product.fromJson(product.toJson());
+      expect(back.barcodes, isEmpty);
+      expect(back.scaleCodes, isEmpty);
+    });
+
+    test('the transitions keep the codes', () {
+      final product = leaf(
+        barcodes: [Barcode.typed('7894900011517')].lock,
+        scaleCodes: [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+        ].lock,
+      );
+
+      for (final moved in [product.deactivated(), product.reactivated()]) {
+        expect(moved.barcodes, product.barcodes);
+        expect(moved.scaleCodes, product.scaleCodes);
+      }
     });
   });
 }
