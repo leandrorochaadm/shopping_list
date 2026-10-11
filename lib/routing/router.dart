@@ -93,7 +93,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.newProduct,
         // The `extra` says what was asked of screen 4: screen 3 asks for
         // the chosen leaf BACK instead of a navigation to the list, and the
-        // catalog maintenance says WHICH registration to open. Whoever
+        // catalog maintenance says WHICH registration to open, and the code read
+        // that goes on the first card. Whoever
         // arrives from the menu passes nothing and falls to the default.
         builder: (context, state) {
           final request =
@@ -101,6 +102,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return NewProductScreen(
             returnsSelection: request.returnsSelection,
             registrationId: request.registrationId,
+            initialBarcode: request.initialBarcode,
           );
         },
       ),

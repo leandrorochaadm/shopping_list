@@ -237,4 +237,39 @@ void main() {
       );
     });
   });
+
+  group('packagingCodesWith', () {
+    test('adds the code to the list', () {
+      const empty = IList<Barcode>.empty();
+      expect(
+        packagingCodesWith(empty, '7894900011517'),
+        [Barcode.typed('7894900011517')].lock,
+      );
+      expect(empty, isEmpty);
+    });
+
+    test('refuses the same code twice, however written', () {
+      final codes = packagingCodesWith(const IList.empty(), '012345678905');
+      expect(
+        () => packagingCodesWith(codes, '0012345678905'),
+        throwsA(isA<BarcodeAlreadyOnPackaging>()),
+      );
+    });
+
+    test('calls a scale label a scale code', () {
+      for (final raw in ['02822521001605261107', '2822521001605']) {
+        expect(
+          () => packagingCodesWith(const IList.empty(), raw),
+          throwsA(isA<InStoreBarcode>()),
+        );
+      }
+    });
+
+    test('refuses an invalid code', () {
+      expect(
+        () => packagingCodesWith(const IList.empty(), '7894900011518'),
+        throwsA(isA<InvalidBarcode>()),
+      );
+    });
+  });
 }

@@ -165,3 +165,18 @@ final class BarcodeAlreadyOnPackaging implements Exception {
   @override
   String toString() => 'BarcodeAlreadyOnPackaging: $message';
 }
+
+/// The codes of ONE packaging after [raw] goes in.
+///
+/// Throws [InStoreBarcode], [InvalidBarcode] or [BarcodeAlreadyOnPackaging];
+/// whoever calls shows `e.message`. It is the rule of the card on screen 4,
+/// where the packaging is not a [Product] yet.
+IList<Barcode> packagingCodesWith(IList<Barcode> codes, String raw) {
+  // The whole scale label (QR or EAN-13) is a scale code, not "invalid":
+  // its 20-digit QR would otherwise fall to the length check.
+  if (ScaleLabel.parse(raw) != null) throw const InStoreBarcode();
+  final code = Barcode.typed(raw);
+  // `Barcode` is normalized: UPC-A and EAN-13 of one number are the same.
+  if (codes.contains(code)) throw const BarcodeAlreadyOnPackaging();
+  return codes.add(code);
+}

@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
 import '../../../data/repositories/catalog/catalog_repository.dart';
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_maintenance.dart';
@@ -65,20 +67,30 @@ final class PickedProduct {
 /// A `final class` and not a record (rule 16): the same shape as
 /// [PickedProduct], which makes the trip back and lives right above.
 final class NewProductRequest {
-  const NewProductRequest({this.returnsSelection = false, this.registrationId});
+  const NewProductRequest({
+    this.returnsSelection = false,
+    this.registrationId,
+    this.initialBarcode,
+  });
 
   final bool returnsSelection;
   final String? registrationId;
+
+  /// The code read by whoever asked for the registration (screen 3, `#1a`,
+  /// `#3a`, box mode): it goes on the FIRST card.
+  final Barcode? initialBarcode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is NewProductRequest &&
           other.returnsSelection == returnsSelection &&
-          other.registrationId == registrationId;
+          other.registrationId == registrationId &&
+          other.initialBarcode == initialBarcode;
 
   @override
-  int get hashCode => Object.hash(returnsSelection, registrationId);
+  int get hashCode =>
+      Object.hash(returnsSelection, registrationId, initialBarcode);
 }
 
 /// Screen 4 — the product registration, in five levels.
@@ -90,8 +102,13 @@ class NewProductScreen extends ConsumerStatefulWidget {
   const NewProductScreen({
     this.returnsSelection = false,
     this.registrationId,
+    this.initialBarcode,
     super.key,
   });
+
+  /// The code that goes on the first card of a NEW registration. Ignored when
+  /// editing: that path opens with no card.
+  final Barcode? initialBarcode;
 
   /// True when screen 3 opened it to register something it is about to buy:
   /// saving then POPS with the chosen leaf instead of navigating to the list.
@@ -138,6 +155,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   IList<String> _descriptions = const IList.empty();
   bool _saving = false;
 
+  /// The sentence of a code held by an active product, above the button. It
+  /// holds the save until a code changes.
+  String? _barcodeConflict;
+
   @override
   void initState() {
     super.initState();
@@ -146,7 +167,14 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     // type instead of an empty block and a button. Editing is the exception:
     // the product already has its packagings, and a blank line would hold
     // the save button off for someone who only came to fix the description.
-    if (!_editing) _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++));
+    if (!_editing) {
+      _drafts = _drafts.add(
+        PackagingDraft(
+          id: _nextDraftId++,
+          barcodes: [?widget.initialBarcode].lock,
+        ),
+      );
+    }
     _descriptionController.addListener(_onDescriptionTyped);
 
     final registrationId = widget.registrationId;
@@ -281,6 +309,22 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             .whereType<Packaging>()
             .toIList();
 
+  /// The same lines with the codes of each card, for the write.
+  IList<PackagingWithBarcodes> get _packagingsWithBarcodes => _soldByWeight
+      ? const IList.empty()
+      : _drafts
+            .where((draft) => draft.packaging != null)
+            .map(
+              (draft) => PackagingWithBarcodes(
+                packaging: draft.packaging!,
+                barcodes: draft.barcodes,
+              ),
+            )
+            .toIList();
+
+  IList<Barcode> get _barcodes =>
+      _packagingsWithBarcodes.expand((p) => p.barcodes).toIList();
+
   /// A line is a duplicate when another line — or a packaging ALREADY SAVED
   /// under this registration — holds the same amount. By content, not by
   /// text: `1 × 0,35 L` matches `350 ml`.
@@ -308,6 +352,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// What blocks the save, in the order the screen explains it.
   bool get _canSave {
     if (_saving || _typeId == null) return false;
+    if (_barcodeConflict != null) return false;
     if (_editing) {
       if (_opened == null || _conflict != null) return false;
       if (_packagings.length != _drafts.length || _hasDuplicate) return false;
@@ -431,10 +476,28 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     setState(() => _saving = true);
     final notifier = ref.read(catalogViewModelProvider.notifier);
     final opened = _opened;
-    // The cards carry no codes yet: every packaging goes with none.
-    final packagings = _packagings
-        .map((p) => PackagingWithBarcodes(packaging: p))
-        .toIList();
+    final check = await notifier.checkBarcodes(_barcodes);
+    if (!mounted) return;
+    final IList<BarcodeOwner> released;
+    switch (check) {
+      // The reentrancy guard fired: nothing was checked nor written.
+      case null:
+        setState(() => _saving = false);
+        return;
+      case BarcodeTaken(:final message):
+        setState(() {
+          _saving = false;
+          _barcodeConflict = message;
+        });
+        return;
+      case BarcodeCheckFailed(:final message):
+        setState(() => _saving = false);
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+        return;
+      case BarcodesFree(:final releasedFrom):
+        released = releasedFrom;
+    }
+    final packagings = _packagingsWithBarcodes;
 
     final String? error;
     ProductRegistration? registration;
@@ -531,7 +594,16 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     }
     // Saving ALWAYS leaves this screen — a registration saved twice is the
     // failure this avoids.
-    messenger.showSnackBar(const SnackBar(content: Text('Produto salvo.')));
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          [
+            'Produto salvo.',
+            for (final owner in released) releasedBarcodeMessage(owner),
+          ].join('\n'),
+        ),
+      ),
+    );
 
     if (!widget.returnsSelection) {
       // Whoever PUSHED this screen gets it back: the catalog maintenance
@@ -697,7 +769,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           // Locked while editing: the leaves already bought were converted
           // under this mode, and changing it would break that conversion.
           enabled: !_locked && !_editing && !_saving,
-          onChanged: (choice) => setState(() => _sellingMode = choice.mode),
+          onChanged: (choice) => setState(() {
+            _sellingMode = choice.mode;
+            // The cards leave with the weight mode, and so do their codes.
+            _barcodeConflict = null;
+          }),
         ),
         const SizedBox(height: 16),
         _BrandField(
@@ -813,10 +889,20 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                 baseUnit: type.baseUnit,
                 duplicate: _isDuplicate(draft),
                 enabled: !_saving && _conflict == null,
+                // By id: the `[▥]` answers after an `await`, when the card
+                // captured here may be stale.
                 onChanged: (updated) => setState(() {
-                  _drafts = _drafts.replace(_drafts.indexOf(draft), updated);
+                  final index = _drafts.indexWhere((d) => d.id == updated.id);
+                  if (index < 0) return;
+                  // Touching a code is the way out of the block; typing a
+                  // measure is not.
+                  if (_drafts[index].barcodes != updated.barcodes) {
+                    _barcodeConflict = null;
+                  }
+                  _drafts = _drafts.replace(index, updated);
                 }),
                 onRemoved: () => setState(() {
+                  _barcodeConflict = null;
                   _drafts = _drafts.remove(draft);
                 }),
               ),
@@ -865,6 +951,16 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                   ListTile(
                     dense: true,
                     title: Text(product.packaging?.label ?? ''),
+                    // Read only: adding and removing a code is the pencil of
+                    // the maintenance.
+                    subtitle: product.barcodes.isEmpty
+                        ? null
+                        : Text(
+                            product.barcodes
+                                .map((code) => code.label)
+                                .join('\n'),
+                            key: ValueKey('existing-barcodes-${product.id}'),
+                          ),
                   ),
               ],
             ),
@@ -878,7 +974,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               // Red only for what IS a mistake. A screen that opens with an
               // empty line and paints "falta completar" in error colour is
               // scolding before anyone typed a character.
-              color: _hasDuplicate
+              color: _hasDuplicate || _barcodeConflict != null
                   ? Theme.of(context).colorScheme.error
                   : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -913,6 +1009,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// type chosen, identity taken) is not repeated down here.
   String? get _blockReason {
     if (_saving) return null;
+    if (_barcodeConflict case final conflict?) return conflict;
     if (_editing) {
       if (_opened == null || _conflict != null || _typeId == null) return null;
       if (_hasDuplicate) return 'Há duas embalagens iguais na lista.';
