@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
+import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_local.dart';
 import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
@@ -13,7 +15,13 @@ import 'package:shopping_list/data/repositories/store/store_repository.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/ui/core/online_status.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
+import 'package:shopping_list/domain/models/unit_price.dart';
+import 'package:shopping_list/ui/core/unit_specs.dart';
+import 'package:tekton_core/tekton_core.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
@@ -38,13 +46,16 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
   Object? failNextCall;
   Object? failNextSave;
   int saveCalls = 0;
+  IList<ProductOption>? options;
+  int fetchOptionsCalls = 0;
 
   @override
   Future<IList<ProductOption>> fetchProductOptions() async {
+    fetchOptionsCalls++;
     final failure = failNextCall;
     failNextCall = null;
     if (failure != null) throw failure;
-    return super.fetchProductOptions();
+    return options ?? await super.fetchProductOptions();
   }
 
   @override
@@ -54,6 +65,28 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
     failNextSave = null;
     if (failure != null) throw failure;
     return super.save(submission);
+  }
+}
+
+/// The catalog fake does not know the leaves of the purchase fake, so linking
+/// a scale code only records what was asked.
+class _SpyCatalog extends CatalogRepositoryLocal {
+  _SpyCatalog() : super(latency: Duration.zero);
+
+  final linked = <ScaleCode>[];
+  final linkedProducts = <String>[];
+  Object? failNextLink;
+
+  @override
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    final failure = failNextLink;
+    failNextLink = null;
+    if (failure != null) throw failure;
+    linkedProducts.add(productId);
+    linked.add(code);
   }
 }
 
@@ -81,6 +114,7 @@ void main() {
     StoreRepository? stores,
     PurchaseDraft? draft,
     SpendingCapRepository? caps,
+    CatalogRepository? catalog,
     List<Override> overrides = const [],
   }) async {
     // A tall viewport: the form is long, and the default 800×600 leaves the
@@ -93,7 +127,7 @@ void main() {
       overrides: [
         deviceUserOverride(),
         spendingCapOverride(repository: caps),
-        catalogOverride(),
+        catalogOverride(repository: catalog),
         shoppingListOverride(),
         purchaseRepositoryProvider.overrideWith(
           (ref) => purchases ?? _SpyPurchases(),
@@ -1032,6 +1066,387 @@ void main() {
 
       expect(find.byKey(const ValueKey('field-date')), findsOneWidget);
       expect(find.byKey(const ValueKey('field-store')), findsOneWidget);
+    });
+  });
+
+  group('reading a code in Produto', () {
+    const crateCode = '7894900011517';
+    const unknownCode = '7891000053508';
+    const label = '2822521001605';
+    const sodaLabel = '2822538001605';
+
+    final crateWithCode = optionByPiece(
+      id: 'prod-4',
+      brand: cokeBrand,
+      pieceCount: 12,
+      barcodes: [Barcode.typed(crateCode)].lock,
+    );
+    ProductOption beefWithLabel({String store = 'store-1'}) => optionByWeight(
+      id: 'prod-5',
+      scaleCodes: [ScaleCode(storeId: store, itemCode: '2822521')].lock,
+    );
+    final sodaByWeight = optionByWeight(
+      id: 'prod-6',
+      type: softDrinkType,
+      scaleCodes: [
+        const ScaleCode(storeId: 'store-1', itemCode: '2822538'),
+      ].lock,
+    );
+    final withStore = PurchaseDraft(
+      purchaseId: 'a1',
+      date: DateTime(2026, 8, 18),
+      registeredBy: 'Leandro',
+      storeId: 'store-1',
+    );
+
+    String fieldText(WidgetTester tester, String key) => tester
+        .widget<TextField>(
+          find.descendant(
+            of: find.byKey(ValueKey(key)),
+            matching: find.byType(TextField),
+          ),
+        )
+        .controller!
+        .text;
+
+    String productText(WidgetTester tester) => tester
+        .widget<TextField>(find.byKey(const ValueKey('field-product')))
+        .controller!
+        .text;
+
+    Future<void> scan(
+      WidgetTester tester,
+      FakeBarcodeCamera camera,
+      String raw,
+    ) async {
+      await tester.tap(find.byKey(const ValueKey('scan-product')));
+      await tester.pumpAndSettle();
+      camera.read(raw);
+      await tester.pumpAndSettle();
+    }
+
+    final grams160 = specOf(BaseUnit.gram).format(160);
+
+    testWidgets('a known code picks the packaging and goes to Quantidade', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..options = [crateWithCode].lock,
+        overrides: [camera.override],
+      );
+
+      await scan(tester, camera, crateCode);
+
+      expect(productText(tester), crateWithCode.selectedLabel);
+      final quantity = tester.widget<TextField>(
+        find.descendant(
+          of: find.byKey(const ValueKey('field-quantity')),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(quantity.focusNode!.hasFocus, isTrue);
+    });
+
+    testWidgets('an unknown code offers to register it', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..options = [crateWithCode].lock,
+        overrides: [camera.override],
+      );
+
+      await scan(tester, camera, unknownCode);
+      expect(
+        find.text('Nenhum produto com o código 7891000053508.'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('unknown-code-register')));
+      await tester.pumpAndSettle();
+      expect(find.text('Novo produto'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('field-type')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Refrigerante').last);
+      await tester.pumpAndSettle();
+      expect(find.text('• 7891000053508'), findsOneWidget);
+    });
+
+    testWidgets('Fechar on an unknown code changes nothing', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..options = [crateWithCode].lock,
+        overrides: [camera.override],
+      );
+
+      await scan(tester, camera, unknownCode);
+      await tester.tap(find.byKey(const ValueKey('unknown-code-close')));
+      await tester.pumpAndSettle();
+
+      expect(productText(tester), isEmpty);
+      expect(find.text('Lançar compra'), findsOneWidget);
+      expect(find.text('Novo produto'), findsNothing);
+    });
+
+    testWidgets('a linked label picks the product and fills 0,160 kg', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      final beef = beefWithLabel();
+      await pumpScreen(
+        tester,
+        draft: withStore,
+        purchases: _SpyPurchases()..options = [beef].lock,
+        overrides: [camera.override],
+      );
+
+      await scan(tester, camera, label);
+
+      expect(productText(tester), beef.selectedLabel);
+      expect(fieldText(tester, 'field-quantity'), grams160);
+    });
+
+    testWidgets('a label after the price per kilo redoes the total', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      final beef = beefWithLabel();
+      await pumpScreen(
+        tester,
+        draft: withStore,
+        purchases: _SpyPurchases()..options = [beef].lock,
+        overrides: [camera.override],
+      );
+
+      await tester.enterText(
+        find.byKey(const ValueKey('field-product')),
+        beef.selectedLabel,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(beef.selectedLabel).last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const ValueKey('field-unit-price')),
+        '3990',
+      );
+      await tester.pumpAndSettle();
+
+      await scan(tester, camera, label);
+
+      final expected = UnitSpec.currency.format(
+        paidAtPricePerLargeUnit(
+          pricePerLargeUnit: const Money(3990),
+          quantityInBaseUnit: 160,
+          unit: BaseUnit.gram,
+        )!.cents,
+      );
+      expect(fieldText(tester, 'field-value'), expected);
+      expect(fieldText(tester, 'field-unit-price'), 'R\$\u{A0}39,90');
+    });
+
+    testWidgets(
+      'with no store a label found in one store picks that store too',
+      (tester) async {
+        final camera = FakeBarcodeCamera();
+        final container = await pumpScreen(
+          tester,
+          purchases: _SpyPurchases()..options = [beefWithLabel()].lock,
+          overrides: [camera.override],
+        );
+
+        await scan(tester, camera, label);
+
+        expect(
+          container.read(purchaseDraftViewModelProvider).storeId,
+          'store-1',
+        );
+        expect(find.textContaining('Carrefour'), findsWidgets);
+      },
+    );
+
+    testWidgets('a label in two stores asks which one', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final other = optionByWeight(
+        id: 'prod-7',
+        scaleCodes: [
+          const ScaleCode(storeId: 'store-2', itemCode: '2822521'),
+        ].lock,
+      );
+      final container = await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..options = [beefWithLabel(), other].lock,
+        overrides: [camera.override],
+      );
+
+      await scan(tester, camera, label);
+      expect(
+        find.text('Esta etiqueta existe em mais de um mercado. Qual?'),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const ValueKey('scale-store-store-2')));
+      await tester.pumpAndSettle();
+
+      expect(productText(tester), other.selectedLabel);
+      expect(container.read(purchaseDraftViewModelProvider).storeId, 'store-2');
+      expect(fieldText(tester, 'field-quantity'), grams160);
+    });
+
+    testWidgets(
+      'an unlinked label asks which product, with the store of the screen',
+      (tester) async {
+        final camera = FakeBarcodeCamera();
+        final catalog = _SpyCatalog();
+        final purchases = _SpyPurchases()
+          ..options = [crateWithCode, optionByWeight(id: 'prod-5')].lock;
+        await pumpScreen(
+          tester,
+          draft: withStore,
+          purchases: purchases,
+          catalog: catalog,
+          overrides: [camera.override],
+        );
+        final before = purchases.fetchOptionsCalls;
+
+        await scan(tester, camera, label);
+
+        expect(find.text('Qual produto é este?'), findsOneWidget);
+        expect(find.byKey(const ValueKey('scale-link-prod-4')), findsNothing);
+        final store = tester.widget<DropdownButtonFormField<String>>(
+          find.byKey(const ValueKey('scale-link-store')),
+        );
+        expect(store.onChanged, isNull);
+        expect(find.text('Carrefour'), findsWidgets);
+
+        await tester.tap(find.byKey(const ValueKey('scale-link-prod-5')));
+        await tester.pumpAndSettle();
+
+        expect(catalog.linked, [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+        ]);
+        expect(catalog.linkedProducts, ['prod-5']);
+        expect(productText(tester), isNotEmpty);
+        expect(fieldText(tester, 'field-quantity'), grams160);
+        expect(purchases.fetchOptionsCalls, before + 1);
+      },
+    );
+
+    testWidgets(
+      'a link refused by the store still uses the product and says why',
+      (tester) async {
+        final camera = FakeBarcodeCamera();
+        final catalog = _SpyCatalog()
+          ..failNextLink = ApiException(409, 'duplicate');
+        final purchases = _SpyPurchases()
+          ..options = [optionByWeight(id: 'prod-5')].lock;
+        await pumpScreen(
+          tester,
+          draft: withStore,
+          purchases: purchases,
+          catalog: catalog,
+          overrides: [camera.override],
+        );
+        final before = purchases.fetchOptionsCalls;
+
+        await scan(tester, camera, label);
+        await tester.tap(find.byKey(const ValueKey('scale-link-prod-5')));
+        await tester.pumpAndSettle();
+
+        expect(find.text(ScaleCode.takenMessage), findsOneWidget);
+        expect(productText(tester), isNotEmpty);
+        expect(fieldText(tester, 'field-quantity'), grams160);
+        expect(purchases.fetchOptionsCalls, before);
+      },
+    );
+
+    testWidgets('a strange label says so and writes nothing', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _SpyCatalog();
+      final container = await pumpScreen(
+        tester,
+        draft: withStore,
+        purchases: _SpyPurchases()..options = [beefWithLabel()].lock,
+        catalog: catalog,
+        overrides: [camera.override],
+      );
+      final draftBefore = container.read(purchaseDraftViewModelProvider);
+
+      await scan(tester, camera, '212345678909');
+
+      expect(
+        find.text('Não conheço esta etiqueta. Escolha o produto pela lista.'),
+        findsOneWidget,
+      );
+      expect(productText(tester), isEmpty);
+      expect(catalog.linked, isEmpty);
+      expect(container.read(purchaseDraftViewModelProvider), draftBefore);
+    });
+
+    testWidgets('garbage says the code is invalid', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..options = [crateWithCode].lock,
+        overrides: [camera.override],
+      );
+
+      await scan(tester, camera, '7894900011518');
+
+      expect(find.text('Código de barras inválido.'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a label of a type not in grams leaves Quantidade empty with no '
+      'sentence',
+      (tester) async {
+        final camera = FakeBarcodeCamera();
+        await pumpScreen(
+          tester,
+          draft: withStore,
+          purchases: _SpyPurchases()..options = [sodaByWeight].lock,
+          overrides: [camera.override],
+        );
+
+        await scan(tester, camera, sodaLabel);
+
+        expect(productText(tester), sodaByWeight.selectedLabel);
+        expect(fieldText(tester, 'field-quantity'), isEmpty);
+        expect(find.byType(SnackBar), findsNothing);
+      },
+    );
+
+    testWidgets('the reader closed with nothing changes nothing', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..options = [crateWithCode].lock,
+        overrides: [camera.override],
+      );
+
+      await tester.tap(find.byKey(const ValueKey('scan-product')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('reader-close')));
+      await tester.pumpAndSettle();
+
+      expect(productText(tester), isEmpty);
+      expect(fieldText(tester, 'field-quantity'), isEmpty);
+      expect(find.text('Lançar compra'), findsOneWidget);
+    });
+
+    testWidgets('the scan button waits for the products', (tester) async {
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..failNextCall = ApiException(503, 'down'),
+      );
+
+      final button = tester.widget<IconButton>(
+        find.byKey(const ValueKey('scan-product')),
+      );
+      expect(button.onPressed, isNull);
     });
   });
 }

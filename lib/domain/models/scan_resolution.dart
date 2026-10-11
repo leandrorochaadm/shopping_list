@@ -37,6 +37,20 @@ final class ScaleMatch extends ScanResolution {
     required this.quantity,
   });
 
+  /// The one place that decides whether the label's weight becomes the
+  /// quantity: only a weight-sold leaf of a gram type takes it.
+  factory ScaleMatch.ofLabel({
+    required ProductOption option,
+    required String storeId,
+    required int weightInGrams,
+  }) => ScaleMatch(
+    option: option,
+    storeId: storeId,
+    quantity: option.isSoldByWeight && option.baseUnit == BaseUnit.gram
+        ? weightInGrams
+        : null,
+  );
+
   final ProductOption option;
   final String storeId;
 
@@ -87,6 +101,15 @@ final class ScaleUnlinked extends ScanResolution {
 
   final String itemCode;
   final int weightInGrams;
+
+  /// The label the person just linked in "Qual produto é este?", read as if
+  /// it had been linked all along.
+  ScaleMatch linkedTo(ProductOption option, String storeId) =>
+      ScaleMatch.ofLabel(
+        option: option,
+        storeId: storeId,
+        weightInGrams: weightInGrams,
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -202,11 +225,22 @@ ScanResolution _resolveScale(
   }
 
   final option = matches.first;
-  return ScaleMatch(
+  return ScaleMatch.ofLabel(
     option: option,
     storeId: stores.single,
-    quantity: option.isSoldByWeight && option.baseUnit == BaseUnit.gram
-        ? label.weightInGrams
-        : null,
+    weightInGrams: label.weightInGrams,
   );
+}
+
+/// The leaves "Qual produto é este?" offers: only the weight-sold ones have a
+/// scale code (`ProductRegistration.checkScaleCodes`), and the list does not
+/// offer what the save would refuse. Picker order, no repeated id.
+IList<ProductOption> scaleLinkCandidatesOf(IList<ProductOption> options) {
+  final seen = <String>{};
+  final kept = [
+    for (final option in options)
+      if (option.id != null && option.isSoldByWeight && seen.add(option.id!))
+        option,
+  ]..sort(compareForPicker);
+  return kept.lock;
 }

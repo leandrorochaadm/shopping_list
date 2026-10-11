@@ -2,6 +2,8 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/product.dart';
+import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/scan_resolution.dart';
 
@@ -152,6 +154,56 @@ void main() {
     test('a wrong check digit is invalid', () {
       expect(resolveScan('2822521001606', options), const InvalidScan());
       expect(resolveScan('7894900011518', options), const InvalidScan());
+    });
+  });
+
+  group('linking a label', () {
+    const unlinked = ScaleUnlinked(itemCode: '2822521', weightInGrams: 160);
+
+    test('linkedTo gives the weight to a leaf sold by weight in grams', () {
+      final date = optionByWeight(id: 'date-1');
+      expect(
+        unlinked.linkedTo(date, 'store-1'),
+        ScaleMatch(option: date, storeId: 'store-1', quantity: 160),
+      );
+    });
+
+    test('linkedTo leaves the quantity empty outside grams', () {
+      final soda = optionByWeight(id: 'soda-1', type: softDrinkType);
+      expect(unlinked.linkedTo(soda, 'store-1').quantity, isNull);
+    });
+
+    test('linkedTo leaves the quantity empty for a leaf sold by piece', () {
+      final bag = optionByPiece(
+        id: 'bag-1',
+        type: powderType,
+        unit: BaseUnit.gram,
+        pieceSize: 1000,
+      );
+      expect(unlinked.linkedTo(bag, 'store-1').quantity, isNull);
+    });
+
+    test('scaleLinkCandidatesOf keeps only leaves sold by weight', () {
+      final result = scaleLinkCandidatesOf(
+        [
+          optionByPiece(id: 'prod-1'),
+          optionByWeight(id: 'beef-1'),
+          optionByWeight(id: 'date-1', purchaseCount: 3),
+        ].lock,
+      );
+      expect(result.map((o) => o.id).toList(), ['date-1', 'beef-1']);
+    });
+
+    test('scaleLinkCandidatesOf drops a repeated id and a leaf with no id', () {
+      final noId = ProductOption(
+        product: Product(productRegistrationId: 'reg-x'),
+        registration: optionByWeight(id: 'x').registration,
+        type: beefType,
+      );
+      final result = scaleLinkCandidatesOf(
+        [optionByWeight(id: 'beef-1'), optionByWeight(id: 'beef-1'), noId].lock,
+      );
+      expect(result.map((o) => o.id).toList(), ['beef-1']);
     });
   });
 

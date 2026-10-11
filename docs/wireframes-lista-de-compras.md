@@ -990,17 +990,18 @@ desta compra" quando algum item entrou com o preço da última compra:
 │  Etiqueta 2822521 · 0,160 kg         │
 │  Mercado: ▼ Irmãos Gonçalves    *    │
 │  ────────────────────────────        │
-│  Hortifrúti                          │
 │  Tâmara com casca                *   │
 │  Uva passa                           │
 └──────────────────────────────────────┘
 ```
 
 - `*` O Mercado vem **pré-preenchido** com o da Tela 3; só pede escolha se lá
-  estiver vazio.
+  estiver vazio. Com o mercado da Tela 3, o campo aparece travado.
 - `*` Oferece **só produtos vendidos a peso**, e **um toque no produto** liga e
   usa, sem botão de confirmar. O código fica ligado ao produto **naquele
   mercado**, e a próxima leitura já acha.
+- `*` A lista vem na ordem do seletor do Produto (o mais comprado primeiro). Sem
+  nenhum produto vendido a peso: "Nenhum produto vendido a peso ainda."
 
 **Etiqueta em mais de um mercado:**
 

@@ -15,9 +15,13 @@ import '../../../domain/models/product_option.dart';
 import '../../../domain/models/proportional_cost.dart';
 import '../../../domain/models/purchase_draft.dart';
 import '../../../domain/models/purchase_item.dart';
+import '../../../domain/models/scale_label.dart';
+import '../../../domain/models/scan_resolution.dart';
 import '../../../domain/models/store.dart';
 import '../../../domain/models/unit_price.dart';
 import '../../../routing/routes.dart';
+import '../../barcode/view_model/barcode_lookup_view_model.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../catalog/widgets/new_product_screen.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -33,6 +37,8 @@ import 'cost_comparison_panel.dart';
 import 'price_increase_warning.dart';
 import 'product_field.dart';
 import 'purchase_item_row.dart';
+import 'scale_link_dialog.dart';
+import 'scale_store_dialog.dart';
 
 /// Screen 3 — registering a purchase, against the two-minute budget of
 /// requirement 3.
@@ -73,7 +79,9 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// Leaves registered on screen 4 during THIS purchase. They are held here
   /// instead of invalidating the picker's provider: invalidating would reload
   /// the whole catalog and blank the form — the same reason the stores are
-  /// watched by the widget and not by the ViewModel.
+  /// watched by the widget and not by the ViewModel. After a successful
+  /// reload (a label linked in "Qual produto é este?") they are emptied: the
+  /// reloaded list already has them, and keeping them would double the row.
   IList<ProductOption> _justRegistered = const IList.empty();
 
   /// Which of the two money fields was typed LAST — and therefore which one
@@ -290,6 +298,10 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     _onProductChosen(option);
   }
 
+  /// The quantity changed — typed, or written by a scale label. Either way the
+  /// money field the person did NOT type is the one that follows.
+  void _onQuantityChanged() => setState(_recomputePrices);
+
   void _onProductChosen(ProductOption option) {
     setState(() {
       _option = option;
@@ -454,9 +466,10 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     return option;
   }
 
-  /// The `[+Novo]→4` of the wireframe.
-  Future<void> _registerProduct() async {
-    final option = await _registerLeaf();
+  /// The `[+Novo]→4` of the wireframe — and, with [initialBarcode], the
+  /// `[ Cadastrar produto ]` of a code nobody has.
+  Future<void> _registerProduct({Barcode? initialBarcode}) async {
+    final option = await _registerLeaf(initialBarcode: initialBarcode);
     if (!mounted || option == null) return;
 
     setState(() {
@@ -470,6 +483,166 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     _valueController.clear();
     _unitPriceController.clear();
     _productController.text = option.selectedLabel;
+  }
+
+  IList<Store> get _stores =>
+      ref.read(storeViewModelProvider).value ?? const IList<Store>.empty();
+
+  /// A product chosen by a read. The SAME leaf already chosen does not clear
+  /// the form, so a price per kilo already typed redoes the total when the
+  /// weight arrives; a different leaf is another line, as in the list.
+  void _chooseScanned(ProductOption option) {
+    if (_option?.id != option.id) {
+      _onProductChanged(option);
+      // After the `setState`, for the reason in `_registerProduct`.
+      _productController.text = option.selectedLabel;
+    }
+    // After the frame: the Quantidade field is still disabled until the
+    // `setState` above rebuilds, and a disabled field takes no focus.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _quantityFocus.requestFocus();
+    });
+  }
+
+  Future<void> _applyScaleMatch(ScaleMatch match) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final adopted = ref
+        .read(purchaseDraftViewModelProvider)
+        .storeAdoptedFrom(match);
+    if (adopted != null) {
+      final error = await ref
+          .read(purchaseDraftViewModelProvider.notifier)
+          .setStore(adopted);
+      if (!mounted) return;
+      if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+    _chooseScanned(match.option);
+    // Null leaves the Quantidade empty, with no sentence.
+    if (match.quantity case final grams?) {
+      _quantityController.text = _quantitySpec.format(grams);
+      _onQuantityChanged();
+    }
+  }
+
+  bool _scanning = false;
+
+  /// The `[▥]` beside the Produto field.
+  Future<void> _scan() async {
+    if (_scanning) return;
+    _scanning = true;
+    try {
+      final raw = await BarcodeReaderSheet.show(context);
+      if (!mounted || raw == null) return;
+      await _applyScan(raw);
+    } finally {
+      _scanning = false;
+    }
+  }
+
+  Future<void> _applyScan(String raw, {String? storeId}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final options = _allOptions(ref.read(newPurchaseViewModelProvider));
+    final store = storeId ?? ref.read(purchaseDraftViewModelProvider).storeId;
+
+    switch (resolveScan(raw, options, storeId: store)) {
+      case PackagingMatch(:final option):
+        _chooseScanned(option);
+      case ScaleMatch() && final match:
+        await _applyScaleMatch(match);
+      case ScaleInManyStores(:final storeIds):
+        final chosen = await ScaleStoreDialog.show(
+          context,
+          storeIds: storeIds,
+          stores: _stores,
+        );
+        if (!mounted || chosen == null) return;
+        await _applyScan(raw, storeId: chosen);
+      case ScaleUnlinked() && final unlinked:
+        await _linkLabel(unlinked, options, store);
+      case UnknownLabel():
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não conheço esta etiqueta. Escolha o produto pela lista.',
+            ),
+          ),
+        );
+      case NoMatch(:final code):
+        final register = await _askToRegister(code);
+        if (!mounted || !register) return;
+        await _registerProduct(initialBarcode: code);
+      case InvalidScan():
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Código de barras inválido.')),
+        );
+    }
+  }
+
+  /// "Qual produto é este?": links the label to the tapped leaf in that store
+  /// and uses it. A failed link does NOT stop the line — the purchase is typed
+  /// in the aisle, and the link only serves the next read.
+  Future<void> _linkLabel(
+    ScaleUnlinked label,
+    IList<ProductOption> options,
+    String? storeId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final link = await ScaleLinkDialog.show(
+      context,
+      label: label,
+      candidates: scaleLinkCandidatesOf(options),
+      stores: _stores,
+      storeId: storeId,
+    );
+    if (!mounted || link == null) return;
+
+    final error = await ref
+        .read(barcodeLookupViewModelProvider.notifier)
+        .linkScaleCode(
+          registration: link.option.registration,
+          productId: link.option.id!,
+          code: ScaleCode(storeId: link.storeId, itemCode: label.itemCode),
+        );
+    if (!mounted) return;
+
+    await _applyScaleMatch(label.linkedTo(link.option, link.storeId));
+    if (!mounted) return;
+
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    final reloadError = await ref
+        .read(newPurchaseViewModelProvider.notifier)
+        .refresh();
+    if (!mounted) return;
+    if (reloadError != null) {
+      messenger.showSnackBar(SnackBar(content: Text(reloadError)));
+      return;
+    }
+    setState(() => _justRegistered = const IList.empty());
+  }
+
+  Future<bool> _askToRegister(Barcode code) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text('Nenhum produto com o código ${code.label}.'),
+        actions: [
+          FilledButton(
+            key: const ValueKey('unknown-code-register'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cadastrar produto'),
+          ),
+          TextButton(
+            key: const ValueKey('unknown-code-close'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 
   Future<void> _save() async {
@@ -588,7 +761,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               onChosen: _onProductChanged,
               onRetry: () =>
                   ref.read(newPurchaseViewModelProvider.notifier).refresh(),
-              onCreate: _registerProduct,
+              onCreate: () => _registerProduct(),
+              onScan: _scan,
             ),
             // The `[ Comparar custo ]→3a`, optional and off the normal path:
             // it only appears when the chosen product's type has TWO options
@@ -632,7 +806,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     decoration: InputDecoration(
                       labelText: _option?.quantityLabel ?? 'Quantidade',
                     ),
-                    onChanged: (_) => setState(_recomputePrices),
+                    onChanged: (_) => _onQuantityChanged(),
                   ),
                 ),
                 // The price of ONE pricing unit — the number on the shelf tag.
@@ -1077,6 +1251,7 @@ class _ProductField extends StatelessWidget {
     required this.onChosen,
     required this.onRetry,
     required this.onCreate,
+    required this.onScan,
   });
 
   final AsyncValue<IList<ProductOption>> state;
@@ -1092,6 +1267,7 @@ class _ProductField extends StatelessWidget {
   final ValueChanged<ProductOption> onChosen;
   final Future<String?> Function() onRetry;
   final VoidCallback onCreate;
+  final VoidCallback onScan;
 
   @override
   Widget build(BuildContext context) {
@@ -1106,7 +1282,7 @@ class _ProductField extends StatelessWidget {
           children: [
             // The picker itself lives in `product_field.dart`, shared with
             // the correction screen: what stays here is the loading/error
-            // hint and the two buttons around it, which are screen 3's.
+            // hint and the three buttons around it, which are screen 3's.
             Expanded(
               child: ProductField(
                 options: options,
@@ -1116,6 +1292,13 @@ class _ProductField extends StatelessWidget {
                 hintText: _hint(options),
                 onSelected: onChosen,
               ),
+            ),
+            IconButton(
+              key: const ValueKey('scan-product'),
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Ler código',
+              // No options loaded, nowhere to look the code up.
+              onPressed: enabled && state.hasValue ? onScan : null,
             ),
             IconButton(
               key: const ValueKey('new-product'),
