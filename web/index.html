@@ -53,6 +53,23 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
+  <!-- The barcode camera on the iPhone. mobile_scanner creates its <video>
+       without `playsinline`, and iOS Safari refuses to paint such a video
+       inside the page: the viewfinder stays black. The attribute has to be
+       there BEFORE play(), which the package calls before Flutter even
+       inserts the video into the document — so play() itself sets it. -->
+  <script>
+    (function () {
+      var play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        if (this instanceof HTMLVideoElement) {
+          this.setAttribute('playsinline', '');
+          this.muted = true;
+        }
+        return play.apply(this, arguments);
+      };
+    })();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

@@ -33,6 +33,11 @@ máscara: `barcode_reader_sheet.dart` não importa `UnitSpec` nem `countSpec`.
 **O `tool/checks.sh` roda contra o projeto hospedado.** Ele falha no arquivo
 `product_barcode_cases.sql` até a migration chegar ao `prod`.
 
+**No Safari do iPhone, o visor da câmera ficava preto.** O `mobile_scanner` 7.4.2 cria o
+`<video>` sem `playsinline`, e o iPhone não desenha esse vídeo dentro da página. No Mac e
+nos testes nada aparece. A correção mora no `web/index.html`: o `play()` dos vídeos põe
+o atributo antes de tocar. Regenerar o `web/` com `flutter create` apaga o script.
+
 ---
 
 ## Vários produtos do mesmo tipo na lista — M-a (01/10/2026)
