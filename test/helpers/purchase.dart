@@ -155,11 +155,13 @@ PurchaseItem purchaseItem({
   required ProductOption option,
   int quantity = 1,
   int cents = 600,
+  PriceOrigin priceOrigin = PriceOrigin.typed,
 }) => PurchaseItem(
   id: id,
   option: option,
   quantity: quantity,
   paid: Money(cents),
+  priceOrigin: priceOrigin,
 );
 
 /// A line of the list. [enteredOn] defaults to well before every purchase

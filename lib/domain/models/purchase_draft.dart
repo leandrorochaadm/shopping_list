@@ -3,6 +3,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'calendar_day.dart';
 import 'money.dart';
 import 'purchase_item.dart';
+import 'scan_resolution.dart';
 import 'uuid.dart';
 
 /// The purchase being typed — H8's whole story.
@@ -108,6 +109,19 @@ final class PurchaseDraft {
 
   PurchaseDraft withoutItem(String itemId) =>
       copyWith(items: items.removeWhere((entry) => entry.id == itemId));
+
+  /// How many lines still carry a price that came from the last purchase.
+  int get unconfirmedPrices =>
+      items.where((item) => item.isPriceUnconfirmed).length;
+
+  /// The `[ Conferi, salvar ]`: every line becomes a typed price, in place.
+  PurchaseDraft allPricesConfirmed() =>
+      copyWith(items: items.map((item) => item.confirmedPrice()).toIList());
+
+  /// The store a read gives to the draft: only a scale label found while no
+  /// store is chosen. A store already chosen is NEVER replaced.
+  String? storeAdoptedFrom(ScanResolution resolution) =>
+      storeId == null && resolution is ScaleMatch ? resolution.storeId : null;
 
   PurchaseDraft markedPending() => copyWith(pendingSubmission: true);
 
