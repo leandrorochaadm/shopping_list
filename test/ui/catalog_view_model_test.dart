@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
@@ -14,6 +16,9 @@ import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
+
+IList<PackagingWithBarcodes> plain(Iterable<Packaging> packagings) =>
+    packagings.map((p) => PackagingWithBarcodes(packaging: p)).toIList();
 
 /// The `_local` fake with a switch that makes the next call fail — no
 /// mocktail, and no second implementation of the repository to keep in sync.
@@ -37,6 +42,46 @@ class _SpyRepository extends CatalogRepositoryLocal {
 
   /// Fails ONLY updateRegistration, for the same reason.
   Object? failUpdateRegistration;
+
+  int findOwnersCalls = 0;
+  int removeBarcodeCalls = 0;
+  int addScaleCodeCalls = 0;
+  String? lastRemovedProductId;
+
+  /// Fails ONLY removeBarcode, so the lookup before it can pass.
+  Object? failRemoveBarcode;
+
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    findOwnersCalls++;
+    final failure = _take();
+    if (failure != null) throw failure;
+    return super.findOwners(codes);
+  }
+
+  @override
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    removeBarcodeCalls++;
+    lastRemovedProductId = productId;
+    final only = failRemoveBarcode;
+    failRemoveBarcode = null;
+    if (only != null) throw only;
+    return super.removeBarcode(productId: productId, code: code);
+  }
+
+  @override
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    addScaleCodeCalls++;
+    final failure = _take();
+    if (failure != null) throw failure;
+    return super.addScaleCode(productId: productId, code: code);
+  }
 
   Object? _take() {
     final failure = failNextCall;
@@ -529,7 +574,7 @@ void main() {
               description: 'zero',
               sellingMode: SellingMode.byPiece,
             ),
-            packagings: [
+            packagings: plain([
               bottle('350', BaseUnit.milliliter),
               bottle('269', BaseUnit.milliliter),
               bottle('2', BaseUnit.milliliter),
@@ -538,7 +583,7 @@ void main() {
                 pieceSize: '350',
                 baseUnit: BaseUnit.milliliter,
               ),
-            ].lock,
+            ]),
           );
 
       final saved = (outcome! as RegistrationSaved).saved;
@@ -611,7 +656,7 @@ void main() {
                 productTypeId: 'type-2',
                 sellingMode: SellingMode.byWeight,
               ),
-              packagings: [bottle('350', BaseUnit.milliliter)].lock,
+              packagings: plain([bottle('350', BaseUnit.milliliter)]),
             )
             .then(_saveMessage),
         'Produto vendido solto não tem embalagem.',
@@ -636,7 +681,7 @@ void main() {
                   productTypeId: 'type-1',
                   sellingMode: SellingMode.byPiece,
                 ),
-                packagings: [bottle('350', BaseUnit.milliliter)].lock,
+                packagings: plain([bottle('350', BaseUnit.milliliter)]),
               )
               .then(_saveMessage),
           'Já existe um cadastro com esses dados.',
@@ -654,7 +699,7 @@ void main() {
         productTypeId: 'type-1',
         sellingMode: SellingMode.byPiece,
       );
-      final packagings = [bottle('350', BaseUnit.milliliter)].lock;
+      final packagings = plain([bottle('350', BaseUnit.milliliter)]);
 
       await Future.wait([
         notifier.save(registration: registration, packagings: packagings),
@@ -675,7 +720,7 @@ void main() {
             .read(catalogViewModelProvider.notifier)
             .addPackagings(
               registrationId: 'reg-1',
-              packagings: [bottle('600', BaseUnit.milliliter)].lock,
+              packagings: plain([bottle('600', BaseUnit.milliliter)]),
             )
             .then((outcome) => (outcome! as PackagingsAdded).products),
         hasLength(1),
@@ -739,7 +784,7 @@ void main() {
         typeId: typeId ?? from.productTypeId,
         brandId: brandId,
         description: description ?? from.description,
-        packagings: packagings,
+        packagings: plain(packagings),
       );
     }
 
@@ -1115,6 +1160,404 @@ void main() {
       expect(conflict().hashCode, conflict().hashCode);
       expect(conflict(), isNot(conflict(regId: 'reg-2')));
       expect(conflict(), isNot(conflict(leafId: 'prod-2')));
+    });
+  });
+
+  group('checkBarcodes', () {
+    final milk = Barcode.typed('7894900011517');
+    final soda = Barcode.typed('7891000100103');
+
+    Future<(_SpyRepository, CatalogViewModel)> ready() async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      return (repository, container.read(catalogViewModelProvider.notifier));
+    }
+
+    Future<Product> leafOf(_SpyRepository repository, String id) async =>
+        (await repository.fetchProducts()).firstWhere((p) => p.id == id);
+
+    test('asks the database once', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.checkBarcodes([milk, soda].lock);
+
+      expect((outcome! as BarcodesFree).releasedFrom, isEmpty);
+      expect(repository.findOwnersCalls, 1);
+    });
+
+    test('does not reach the database with no code', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.checkBarcodes(const IList.empty());
+
+      expect(outcome, isA<BarcodesFree>());
+      expect(repository.findOwnersCalls, 0);
+    });
+
+    test('refuses a code repeated on the screen before the database', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.checkBarcodes(
+        [Barcode.typed('012345678905'), Barcode.typed('0012345678905')].lock,
+      );
+
+      expect(
+        (outcome! as BarcodeTaken).message,
+        'Esse código já está em outra embalagem desta tela.',
+      );
+      expect(repository.findOwnersCalls, 0);
+    });
+
+    test('refuses a code of an active product with its label', () async {
+      final (repository, notifier) = await ready();
+      await repository.addBarcode(productId: 'prod-1', code: milk);
+      final owner = (await repository.findOwners([milk].lock))[milk]!;
+
+      final outcome = await notifier.checkBarcodes([milk].lock);
+
+      expect(
+        (outcome! as BarcodeTaken).message,
+        'Esse código já é do ${owner.label}.',
+      );
+      expect(repository.removeBarcodeCalls, 0);
+    });
+
+    test('releases the code of a deactivated product', () async {
+      final (repository, notifier) = await ready();
+      await repository.addBarcode(productId: 'prod-1', code: milk);
+      await repository.updateProduct(
+        (await leafOf(repository, 'prod-1')).deactivated(),
+      );
+      final owner = (await repository.findOwners([milk].lock))[milk]!;
+
+      final outcome = await notifier.checkBarcodes([milk].lock);
+
+      expect((outcome! as BarcodesFree).releasedFrom, [owner].lock);
+      expect(repository.removeBarcodeCalls, 1);
+      expect(repository.lastRemovedProductId, 'prod-1');
+      expect(await repository.findOwners([milk].lock), isEmpty);
+    });
+
+    test('names a deactivated owner once for two of its codes', () async {
+      final (repository, notifier) = await ready();
+      await repository.addBarcode(productId: 'prod-1', code: milk);
+      await repository.addBarcode(productId: 'prod-1', code: soda);
+      await repository.updateProduct(
+        (await leafOf(repository, 'prod-1')).deactivated(),
+      );
+
+      final outcome = await notifier.checkBarcodes([milk, soda].lock);
+
+      expect((outcome! as BarcodesFree).releasedFrom, hasLength(1));
+      expect(repository.removeBarcodeCalls, 2);
+    });
+
+    test('translates a failure of the lookup', () async {
+      final (repository, notifier) = await ready();
+      repository.failNextCall = ApiException(503, 'down');
+
+      final outcome = await notifier.checkBarcodes([milk].lock);
+
+      final message = (outcome! as BarcodeCheckFailed).message;
+      expect(message, isNot(contains('down')));
+    });
+
+    test('translates a failure of the release', () async {
+      final (repository, notifier) = await ready();
+      await repository.addBarcode(productId: 'prod-1', code: milk);
+      await repository.updateProduct(
+        (await leafOf(repository, 'prod-1')).deactivated(),
+      );
+      repository.failRemoveBarcode = ApiException(503, 'down');
+
+      final outcome = await notifier.checkBarcodes([milk].lock);
+
+      expect(outcome, isA<BarcodeCheckFailed>());
+    });
+
+    test('guards against double tap', () async {
+      final (repository, notifier) = await ready();
+
+      final outcomes = await Future.wait([
+        notifier.checkBarcodes([milk].lock),
+        notifier.checkBarcodes([milk].lock),
+      ]);
+
+      expect(outcomes.where((o) => o == null), hasLength(1));
+      expect(repository.findOwnersCalls, 1);
+    });
+  });
+
+  group('codes on the saves', () {
+    final milk = Barcode.typed('7894900011517');
+    final soda = Barcode.typed('7891000100103');
+    const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+
+    Future<(_SpyRepository, CatalogViewModel)> ready() async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      return (repository, container.read(catalogViewModelProvider.notifier));
+    }
+
+    ProductRegistration byWeight({String description = ''}) =>
+        ProductRegistration(
+          productTypeId: 'type-2',
+          description: description,
+          sellingMode: SellingMode.byWeight,
+        );
+
+    test('save writes the codes of each card', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await notifier.save(
+        registration: ProductRegistration(
+          productTypeId: 'type-1',
+          description: 'novo',
+          sellingMode: SellingMode.byPiece,
+        ),
+        packagings: [
+          PackagingWithBarcodes(
+            packaging: bottle('350', BaseUnit.milliliter),
+            barcodes: [milk].lock,
+          ),
+          PackagingWithBarcodes(
+            packaging: bottle('600', BaseUnit.milliliter),
+            barcodes: [soda].lock,
+          ),
+        ].lock,
+      );
+
+      final saved = (outcome! as RegistrationSaved).saved;
+      expect(saved.products[0].barcodes, [milk].lock);
+      expect(saved.products[1].barcodes, [soda].lock);
+    });
+
+    test('save writes the scale codes of a product sold by weight', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await notifier.save(
+        registration: byWeight(),
+        packagings: const IList.empty(),
+        scaleCodes: [scaleCode].lock,
+      );
+
+      final saved = (outcome! as RegistrationSaved).saved;
+      expect(saved.products.single.scaleCodes, [scaleCode].lock);
+    });
+
+    test('save refuses a scale code on a product sold by piece', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.save(
+        registration: ProductRegistration(
+          productTypeId: 'type-1',
+          sellingMode: SellingMode.byPiece,
+        ),
+        packagings: plain([bottle('350', BaseUnit.milliliter)]),
+        scaleCodes: [scaleCode].lock,
+      );
+
+      expect(
+        _saveMessage(outcome),
+        'Só produto vendido solto tem código de balança.',
+      );
+      expect(repository.saveCalls, 0);
+    });
+
+    test('save says the scale code is taken in this store', () async {
+      final (_, notifier) = await ready();
+      await notifier.save(
+        registration: byWeight(description: 'primeiro'),
+        packagings: const IList.empty(),
+        scaleCodes: [scaleCode].lock,
+      );
+
+      final outcome = await notifier.save(
+        registration: byWeight(description: 'segundo'),
+        packagings: const IList.empty(),
+        scaleCodes: [scaleCode].lock,
+      );
+
+      expect(_saveMessage(outcome), ScaleCode.takenMessage);
+    });
+
+    test(
+      'save keeps the generic sentence for a 409 without scale code',
+      () async {
+        final (repository, notifier) = await ready();
+        repository.failNextCall = ApiException(409, 'duplicate key');
+
+        final outcome = await notifier.save(
+          registration: ProductRegistration(
+            productTypeId: 'type-1',
+            sellingMode: SellingMode.byPiece,
+          ),
+          packagings: plain([bottle('350', BaseUnit.milliliter)]),
+        );
+
+        expect(_saveMessage(outcome), 'Já existe um cadastro com esses dados.');
+      },
+    );
+
+    test('addPackagings writes the codes of each card', () async {
+      final (_, notifier) = await ready();
+
+      final outcome = await notifier.addPackagings(
+        registrationId: 'reg-1',
+        packagings: [
+          PackagingWithBarcodes(
+            packaging: bottle('600', BaseUnit.milliliter),
+            barcodes: [milk].lock,
+          ),
+        ].lock,
+      );
+
+      expect(
+        (outcome! as PackagingsAdded).products.single.barcodes,
+        [milk].lock,
+      );
+    });
+
+    test('editRegistration writes the codes of the new packagings', () async {
+      final (_, notifier) = await ready();
+      final original = ProductRegistration(
+        id: 'reg-1',
+        productTypeId: 'type-1',
+        brandId: 'brand-1',
+        description: 'original',
+        sellingMode: SellingMode.byPiece,
+      );
+
+      final outcome = await notifier.editRegistration(
+        original: original,
+        typeId: 'type-1',
+        brandId: 'brand-1',
+        description: 'original',
+        packagings: [
+          PackagingWithBarcodes(
+            packaging: bottle('600', BaseUnit.milliliter),
+            barcodes: [milk].lock,
+          ),
+        ].lock,
+      );
+
+      expect(
+        (outcome! as RegistrationEdited).products.single.barcodes,
+        [milk].lock,
+      );
+    });
+  });
+
+  group('scale codes', () {
+    const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+
+    final byWeight = ProductRegistration(
+      id: 'reg-2',
+      productTypeId: 'type-2',
+      sellingMode: SellingMode.byWeight,
+    );
+    final byPiece = ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      sellingMode: SellingMode.byPiece,
+    );
+
+    Future<(_SpyRepository, CatalogViewModel)> ready() async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      return (repository, container.read(catalogViewModelProvider.notifier));
+    }
+
+    test('addScaleCode writes and returns null', () async {
+      final (repository, notifier) = await ready();
+
+      final result = await notifier.addScaleCode(
+        registration: byWeight,
+        productId: 'prod-5',
+        code: scaleCode,
+      );
+
+      expect(result, isNull);
+      final leaf = (await repository.fetchProducts()).firstWhere(
+        (p) => p.id == 'prod-5',
+      );
+      expect(leaf.scaleCodes, [scaleCode].lock);
+    });
+
+    test('addScaleCode refuses a product sold by piece', () async {
+      final (repository, notifier) = await ready();
+
+      final result = await notifier.addScaleCode(
+        registration: byPiece,
+        productId: 'prod-1',
+        code: scaleCode,
+      );
+
+      expect(result, 'Só produto vendido solto tem código de balança.');
+      expect(repository.addScaleCodeCalls, 0);
+    });
+
+    test('addScaleCode refuses a code repeated in the same store', () async {
+      final (repository, notifier) = await ready();
+      await repository.addScaleCode(productId: 'prod-1', code: scaleCode);
+
+      final result = await notifier.addScaleCode(
+        registration: byWeight,
+        productId: 'prod-5',
+        code: scaleCode,
+      );
+
+      expect(result, ScaleCode.takenMessage);
+    });
+
+    test('removeScaleCode frees the code for another leaf', () async {
+      final (repository, notifier) = await ready();
+      await repository.addScaleCode(productId: 'prod-1', code: scaleCode);
+
+      final result = await notifier.removeScaleCode(
+        productId: 'prod-1',
+        code: scaleCode,
+      );
+
+      expect(result, isNull);
+      await repository.addScaleCode(productId: 'prod-5', code: scaleCode);
+    });
+
+    test('translates a failure', () async {
+      final (repository, notifier) = await ready();
+      repository.failNextCall = ApiException(503, 'down');
+
+      final result = await notifier.addScaleCode(
+        registration: byWeight,
+        productId: 'prod-5',
+        code: scaleCode,
+      );
+
+      expect(result, isNotNull);
+      expect(result, isNot(contains('down')));
+    });
+
+    test('guards against double tap', () async {
+      final (repository, notifier) = await ready();
+
+      final results = await Future.wait([
+        notifier.addScaleCode(
+          registration: byWeight,
+          productId: 'prod-5',
+          code: scaleCode,
+        ),
+        notifier.addScaleCode(
+          registration: byWeight,
+          productId: 'prod-5',
+          code: scaleCode,
+        ),
+      ]);
+
+      expect(results, [null, null]);
+      expect(repository.addScaleCodeCalls, 1);
     });
   });
 }

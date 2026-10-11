@@ -350,4 +350,30 @@ void main() {
       );
     });
   });
+
+  group('messages', () {
+    test('a code repeated on the screen', () {
+      expect(
+        barcodeConflictMessage(RepeatedOnScreen(milk)),
+        'Esse código já está em outra embalagem desta tela.',
+      );
+    });
+
+    test('a code taken by an active product names it', () {
+      expect(
+        barcodeConflictMessage(
+          TakenByActive(code: milk, owner: owner(brand: italac)),
+        ),
+        'Esse código já é do Leite Italac 1 L.',
+      );
+    });
+
+    test('a released code names the deactivated owner', () {
+      expect(
+        releasedBarcodeMessage(owner(brand: italac, leafActive: false)),
+        'Esse código era do Leite Italac 1 L, que está desativado. '
+        'Agora é deste.',
+      );
+    });
+  });
 }

@@ -699,10 +699,12 @@ void main() {
               sellingMode: SellingMode.byPiece,
             ),
             packagings: [
-              Packaging.typed(
-                pieceCount: '1',
-                pieceSize: '350',
-                baseUnit: BaseUnit.milliliter,
+              PackagingWithBarcodes(
+                packaging: Packaging.typed(
+                  pieceCount: '1',
+                  pieceSize: '350',
+                  baseUnit: BaseUnit.milliliter,
+                ),
               ),
             ].lock,
           ),

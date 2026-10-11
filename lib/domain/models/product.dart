@@ -101,6 +101,15 @@ final class Product {
     return mine.hasSameContentAs(theirs);
   }
 
+  /// The same packaging never keeps the same code twice.
+  Product withBarcode(Barcode code) {
+    if (barcodes.contains(code)) throw const BarcodeAlreadyOnPackaging();
+    return copyWith(barcodes: barcodes.add(code));
+  }
+
+  Product withoutBarcode(Barcode code) =>
+      copyWith(barcodes: barcodes.remove(code));
+
   Product deactivated() => copyWith(active: false);
 
   Product reactivated() => copyWith(active: true);
@@ -145,4 +154,14 @@ final class Product {
   @override
   String toString() =>
       'Product(${packaging?.label ?? 'a peso'}, active: $active)';
+}
+
+/// The packaging already has this code.
+final class BarcodeAlreadyOnPackaging implements Exception {
+  const BarcodeAlreadyOnPackaging();
+
+  String get message => 'Esse código já está nesta embalagem.';
+
+  @override
+  String toString() => 'BarcodeAlreadyOnPackaging: $message';
 }

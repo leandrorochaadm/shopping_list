@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/repositories/catalog/catalog_repository.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../../../data/repositories/store/store_repository.dart';
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/calendar_day.dart';
@@ -124,6 +126,27 @@ final class CatalogMaintenanceState {
   @override
   int get hashCode =>
       Object.hash(categories, types, brands, registrations, products, stores);
+}
+
+/// How adding a code to a packaging ended. Two outcomes, payload on success
+/// (rule 16).
+sealed class BarcodeAddOutcome {
+  const BarcodeAddOutcome();
+}
+
+final class BarcodeAdded extends BarcodeAddOutcome {
+  const BarcodeAdded({this.releasedFrom});
+
+  /// The deactivated owner the code was released from, if any; the screen
+  /// shows `releasedBarcodeMessage`.
+  final BarcodeOwner? releasedFrom;
+}
+
+final class BarcodeAddRefused extends BarcodeAddOutcome {
+  const BarcodeAddRefused(this.message);
+
+  /// pt-BR, already translated.
+  final String message;
 }
 
 /// Screen `/catalog` — H10, the story that tidies up the vocabulary that was
@@ -429,6 +452,98 @@ final class CatalogMaintenanceViewModel
       return null;
     } on Object catch (e, st) {
       return translateError(e, st, 'corrigir a embalagem');
+    } finally {
+      _running = false;
+    }
+  }
+
+  // ── Codes of a packaging ───────────────────────────────────────────────
+
+  /// Adds a code to a saved packaging, written at once. A code held by a
+  /// deactivated leaf is released from it without asking.
+  Future<BarcodeAddOutcome?> addBarcode(String productId, Barcode code) async {
+    if (_running) return null;
+    _running = true;
+    try {
+      final current = state.value;
+      if (current == null) {
+        return const BarcodeAddRefused('Aguarde os cadastros carregarem.');
+      }
+      final leaf = _findProduct(current.products, productId);
+      if (leaf == null) {
+        return BarcodeAddRefused(_missing(CatalogKind.packaging));
+      }
+
+      // The rule is the leaf's: no trip to the database for a repeat.
+      final updated = leaf.withBarcode(code);
+
+      final repository = ref.read(catalogRepositoryProvider);
+      final codes = IList([code]);
+      final owners = await repository.findOwners(codes);
+      if (!ref.mounted) return null;
+
+      final conflict = conflictOf(codes, owners, ownProductId: productId);
+      if (conflict != null) {
+        return BarcodeAddRefused(barcodeConflictMessage(conflict));
+      }
+
+      final holder = inactiveHoldersOf(
+        codes,
+        owners,
+        ownProductId: productId,
+      )[code];
+      if (holder != null) {
+        await repository.removeBarcode(
+          productId: holder.product.id!,
+          code: code,
+        );
+        if (!ref.mounted) return null;
+      }
+
+      await repository.addBarcode(productId: productId, code: code);
+      if (!ref.mounted) return null;
+
+      _replaceProduct(updated);
+      // The list does not show the code on two leaves.
+      if (holder != null) {
+        final holderLeaf = _findProduct(
+          state.value?.products ?? const IList.empty(),
+          holder.product.id!,
+        );
+        if (holderLeaf != null) {
+          _replaceProduct(holderLeaf.withoutBarcode(code));
+        }
+      }
+
+      return BarcodeAdded(releasedFrom: holder);
+    } on BarcodeAlreadyOnPackaging catch (e) {
+      return BarcodeAddRefused(e.message);
+    } on Object catch (e, st) {
+      return BarcodeAddRefused(translateError(e, st, 'salvar o código'));
+    } finally {
+      _running = false;
+    }
+  }
+
+  /// Removes a code of a saved packaging. Null on success, or the sentence.
+  Future<String?> removeBarcode(String productId, Barcode code) async {
+    if (_running) return null;
+    _running = true;
+    try {
+      final current = state.value;
+      if (current == null) return 'Aguarde os cadastros carregarem.';
+      final leaf = _findProduct(current.products, productId);
+      if (leaf == null) return _missing(CatalogKind.packaging);
+
+      await ref
+          .read(catalogRepositoryProvider)
+          .removeBarcode(productId: productId, code: code);
+      if (!ref.mounted) return null;
+
+      _replaceProduct(leaf.withoutBarcode(code));
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'remover o código');
     } finally {
       _running = false;
     }

@@ -200,4 +200,41 @@ void main() {
       }
     });
   });
+
+  group('barcodes of a leaf', () {
+    final milk = Barcode.typed('7894900011517');
+    final soda = Barcode.typed('7891000100103');
+
+    test('withBarcode adds the code', () {
+      expect(leaf().withBarcode(milk).barcodes, [milk].lock);
+    });
+
+    test('withBarcode refuses a code the leaf already has', () {
+      expect(
+        () => leaf(barcodes: [milk].lock).withBarcode(milk),
+        throwsA(isA<BarcodeAlreadyOnPackaging>()),
+      );
+    });
+
+    test('withBarcode sees the same number in UPC-A and EAN-13', () {
+      final upc = Barcode.typed('012345678905');
+      final ean = Barcode.typed('0012345678905');
+      expect(
+        () => leaf(barcodes: [upc].lock).withBarcode(ean),
+        throwsA(isA<BarcodeAlreadyOnPackaging>()),
+      );
+    });
+
+    test('withoutBarcode removes only that code', () {
+      final product = leaf(barcodes: [milk, soda].lock);
+      expect(product.withoutBarcode(milk).barcodes, [soda].lock);
+    });
+
+    test('the exception carries its sentence', () {
+      expect(
+        const BarcodeAlreadyOnPackaging().toString(),
+        contains('Esse código já está nesta embalagem.'),
+      );
+    });
+  });
 }

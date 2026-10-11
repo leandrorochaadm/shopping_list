@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../../data/repositories/catalog/catalog_repository.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_maintenance.dart';
@@ -430,6 +431,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     setState(() => _saving = true);
     final notifier = ref.read(catalogViewModelProvider.notifier);
     final opened = _opened;
+    // The cards carry no codes yet: every packaging goes with none.
+    final packagings = _packagings
+        .map((p) => PackagingWithBarcodes(packaging: p))
+        .toIList();
 
     final String? error;
     ProductRegistration? registration;
@@ -444,7 +449,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       );
       final outcome = await notifier.save(
         registration: registration,
-        packagings: _packagings,
+        packagings: packagings,
       );
       switch (outcome) {
         // The reentrancy guard fired: nothing was written, so nothing is
@@ -470,7 +475,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         typeId: typeId,
         brandId: _brandId,
         description: _descriptionController.text,
-        packagings: _packagings,
+        packagings: packagings,
       );
       switch (outcome) {
         case null:
@@ -502,7 +507,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       registration = opened;
       final outcome = await notifier.addPackagings(
         registrationId: opened.id!,
-        packagings: _packagings,
+        packagings: packagings,
       );
       switch (outcome) {
         case null:

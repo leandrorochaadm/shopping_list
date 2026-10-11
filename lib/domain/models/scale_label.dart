@@ -80,6 +80,11 @@ final class ScaleCode {
   static const storeIdKey = 'store_id';
   static const codeKey = 'code';
 
+  /// The translation of the 409 of a scale code, WITHOUT the owner's name
+  /// (decision of 10/10/2026: there is no `findScaleCodeOwner`).
+  static const takenMessage =
+      'Esse código já é de outro produto neste mercado.';
+
   final String storeId;
   final String itemCode;
 

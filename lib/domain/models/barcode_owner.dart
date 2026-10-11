@@ -148,3 +148,14 @@ IMap<Barcode, BarcodeOwner> inactiveHoldersOf(
         when !owner.isActive && owner.product.id != ownProductId)
       code: owner,
 }.lock;
+
+/// The sentence for a [conflict]. Lives here, with the rule that finds it:
+/// three ViewModels and four screens show it.
+String barcodeConflictMessage(BarcodeConflict conflict) => switch (conflict) {
+  RepeatedOnScreen() => 'Esse código já está em outra embalagem desta tela.',
+  TakenByActive(:final owner) => 'Esse código já é do ${owner.label}.',
+};
+
+/// What the user reads after a code was released from a deactivated [owner].
+String releasedBarcodeMessage(BarcodeOwner owner) =>
+    'Esse código era do ${owner.label}, que está desativado. Agora é deste.';

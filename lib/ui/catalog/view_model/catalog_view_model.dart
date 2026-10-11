@@ -2,15 +2,18 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/repositories/catalog/catalog_repository.dart';
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_entry.dart';
 import '../../../domain/models/catalog_maintenance.dart';
 import '../../../domain/models/category.dart';
-import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/scale_label.dart';
+import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 
 /// The three lists screen 4 selects from. They load together because the
@@ -139,6 +142,36 @@ final class PackagingsFailedAfterEdit extends RegistrationEditOutcome {
   final String message;
 }
 
+/// How checking the codes of screen 4 before the save ended. THREE outcomes
+/// (rule 16): free (maybe after releasing codes of deactivated leaves), taken,
+/// or the check itself failed.
+sealed class BarcodeCheckOutcome {
+  const BarcodeCheckOutcome();
+}
+
+final class BarcodesFree extends BarcodeCheckOutcome {
+  const BarcodesFree(this.releasedFrom);
+
+  /// The deactivated owners the codes were ALREADY released from, without
+  /// repeats, in the order of the codes. The screen shows
+  /// `releasedBarcodeMessage` for each in the success SnackBar.
+  final IList<BarcodeOwner> releasedFrom;
+}
+
+final class BarcodeTaken extends BarcodeCheckOutcome {
+  const BarcodeTaken(this.message);
+
+  /// pt-BR; shown above the save button.
+  final String message;
+}
+
+final class BarcodeCheckFailed extends BarcodeCheckOutcome {
+  const BarcodeCheckFailed(this.message);
+
+  /// pt-BR, already translated.
+  final String message;
+}
+
 /// How opening a registration by id ended — the `≡` door into screen 4, and
 /// the maintenance screen's `[ Abrir e acrescentar embalagem ]`.
 ///
@@ -213,6 +246,10 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// same action of screen 4.
   bool _writingRegistration = false;
   bool _checkingIdentity = false;
+
+  /// Guards `addScaleCode`/`removeScaleCode`. It does not share
+  /// `_writingRegistration`: see the cost of splitting that guard above.
+  bool _writingCode = false;
   bool _loadingDescriptions = false;
   bool _loadingCounts = false;
   bool _loadingLeaves = false;
@@ -625,6 +662,59 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     }
   }
 
+  /// Checks the codes typed on screen 4 before any of the three saves, and
+  /// releases the ones held by deactivated leaves. The screen calls this first
+  /// and only goes on with [BarcodesFree].
+  ///
+  /// Shares `_writingRegistration`: it is the first half of the save and it
+  /// writes (releases codes), so a double tap has to stop here.
+  ///
+  /// If the save fails after the release the code stays loose — harmless, its
+  /// owner is deactivated.
+  Future<BarcodeCheckOutcome?> checkBarcodes(IList<Barcode> codes) async {
+    if (_writingRegistration) return null;
+    _writingRegistration = true;
+    try {
+      if (codes.isEmpty) return const BarcodesFree(IList.empty());
+
+      // A code repeated on the screen is found before the database is asked.
+      final repeated = conflictOf(codes, const IMap.empty());
+      if (repeated != null) {
+        return BarcodeTaken(barcodeConflictMessage(repeated));
+      }
+
+      final repository = ref.read(catalogRepositoryProvider);
+      final owners = await repository.findOwners(codes);
+      if (!ref.mounted) return null;
+
+      // No `ownProductId`: the packagings of screen 4 do not exist yet.
+      final conflict = conflictOf(codes, owners);
+      if (conflict != null) {
+        return BarcodeTaken(barcodeConflictMessage(conflict));
+      }
+
+      final holders = inactiveHoldersOf(codes, owners);
+      for (final entry in holders.entries) {
+        await repository.removeBarcode(
+          productId: entry.value.product.id!,
+          code: entry.key,
+        );
+        if (!ref.mounted) return null;
+      }
+
+      final released = <BarcodeOwner>[];
+      for (final code in codes) {
+        final owner = holders[code];
+        if (owner != null && !released.contains(owner)) released.add(owner);
+      }
+      return BarcodesFree(released.lock);
+    } on Object catch (e, st) {
+      return BarcodeCheckFailed(translateError(e, st, 'conferir os códigos'));
+    } finally {
+      _writingRegistration = false;
+    }
+  }
+
   /// Saves the registration and its packagings in ONE transaction.
   ///
   /// Returns the rows that were written, or the sentence for the SnackBar.
@@ -638,28 +728,42 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// exists (decision B1), it simply has no packaging.
   Future<RegistrationSaveOutcome?> save({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
     try {
-      // The two rules of the selling mode, asked before any I/O: by piece
+      // The rules of the selling mode, asked before any I/O: by piece
       // with no packaging cannot convert a purchase, and by weight with one
-      // means the screen kept state it should have dropped.
-      registration.checkPackagings(packagings);
+      // means the screen kept state it should have dropped. A scale code
+      // belongs to a product sold loose only.
+      registration.checkPackagings(
+        packagings.map((p) => p.packaging).toIList(),
+      );
+      registration.checkScaleCodes(scaleCodes);
 
       final saved = await ref
           .read(catalogRepositoryProvider)
           .saveRegistrationWithProducts(
             registration: registration,
-            packagings: _withoutBarcodes(packagings),
+            packagings: packagings,
+            scaleCodes: scaleCodes,
           );
       return RegistrationSaved(saved);
     } on MissingPackaging catch (e) {
       return RegistrationSaveFailed(e.message);
     } on UnexpectedPackaging catch (e) {
       return RegistrationSaveFailed(e.message);
+    } on UnexpectedScaleCode catch (e) {
+      return RegistrationSaveFailed(e.message);
     } on Object catch (e, st) {
+      // The 409 of the identity was already stopped by the `checkIdentity` the
+      // screen calls first; with a scale code in the request, the 409 that is
+      // left is the scale code's.
+      if (scaleCodes.isNotEmpty && AppFailure.from(e) is DuplicateRecord) {
+        return const RegistrationSaveFailed(ScaleCode.takenMessage);
+      }
       return RegistrationSaveFailed(translateError(e, st, 'salvar o produto'));
     } finally {
       _writingRegistration = false;
@@ -670,7 +774,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// of `[ Abrir e acrescentar embalagem ]`.
   Future<AddPackagingsOutcome?> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
@@ -683,7 +787,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
           .read(catalogRepositoryProvider)
           .addPackagings(
             registrationId: registrationId,
-            packagings: _withoutBarcodes(packagings),
+            packagings: packagings,
           );
       return PackagingsAdded(products);
     } on Object catch (e, st) {
@@ -706,7 +810,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     required String typeId,
     required String? brandId,
     required String description,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
@@ -781,7 +885,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       try {
         final products = await repository.addPackagings(
           registrationId: original.id!,
-          packagings: _withoutBarcodes(packagings),
+          packagings: packagings,
         );
         return RegistrationEdited(registration: written, products: products);
       } on Object catch (e, st) {
@@ -801,11 +905,57 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       _writingRegistration = false;
     }
   }
-}
 
-/// A bridge until the cards carry their codes: every packaging goes with none.
-IList<PackagingWithBarcodes> _withoutBarcodes(IList<Packaging> packagings) =>
-    packagings.map((p) => PackagingWithBarcodes(packaging: p)).toIList();
+  /// Writes a scale code of a registration already saved. Null on success, or
+  /// the sentence for the screen. [registration] is the one open on screen 4.
+  Future<String?> addScaleCode({
+    required ProductRegistration registration,
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    if (_writingCode) return null;
+    _writingCode = true;
+    try {
+      // The screen only showing the section for weight-sold products does not
+      // replace asking the domain, as `save` already does.
+      registration.checkScaleCodes(IList([code]));
+
+      await ref
+          .read(catalogRepositoryProvider)
+          .addScaleCode(productId: productId, code: code);
+      if (!ref.mounted) return null;
+      return null;
+    } on UnexpectedScaleCode catch (e) {
+      return e.message;
+    } on Object catch (e, st) {
+      // The unique index refusing is not a failure to log.
+      if (AppFailure.from(e) is DuplicateRecord) return ScaleCode.takenMessage;
+      return translateError(e, st, 'salvar o código');
+    } finally {
+      _writingCode = false;
+    }
+  }
+
+  /// Releases a scale code. Null on success, or the sentence for the screen.
+  Future<String?> removeScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    if (_writingCode) return null;
+    _writingCode = true;
+    try {
+      await ref
+          .read(catalogRepositoryProvider)
+          .removeScaleCode(productId: productId, code: code);
+      if (!ref.mounted) return null;
+      return null;
+    } on Object catch (e, st) {
+      return translateError(e, st, 'remover o código');
+    } finally {
+      _writingCode = false;
+    }
+  }
+}
 
 /// `retry: null` on purpose: Riverpod 3 retries a failing provider ten times
 /// with a growing backoff, and on a screen the error has to be visible now.
