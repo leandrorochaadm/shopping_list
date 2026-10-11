@@ -297,6 +297,77 @@ void main() {
     });
   });
 
+  group('categoryOf', () {
+    ProductType typeIn(String categoryId) => ProductType(
+      id: 'type-x',
+      name: 'Pão',
+      categoryId: categoryId,
+      baseUnit: BaseUnit.unit,
+    );
+
+    test('answers from the loaded options without a round trip', () async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      final options = await container.read(catalogViewModelProvider.future);
+      final known = options.categories.first;
+      final calls = repository.fetchCategoryCalls;
+
+      final found = await container
+          .read(catalogViewModelProvider.notifier)
+          .categoryOf(typeIn(known.id!));
+
+      expect(found, known);
+      expect(repository.fetchCategoryCalls, calls);
+    });
+
+    test('reloads once for a category it does not know yet', () async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      final created = await repository.createCategory(
+        Category(name: 'Padaria'),
+      );
+      final calls = repository.fetchCategoryCalls;
+
+      final found = await container
+          .read(catalogViewModelProvider.notifier)
+          .categoryOf(typeIn(created.id!));
+
+      expect(found?.name, 'Padaria');
+      expect(repository.fetchCategoryCalls, calls + 1);
+    });
+
+    test('answers null when the reload fails', () async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      final created = await repository.createCategory(
+        Category(name: 'Padaria'),
+      );
+      repository.failNextCall = NetworkException('down');
+
+      final found = await container
+          .read(catalogViewModelProvider.notifier)
+          .categoryOf(typeIn(created.id!));
+
+      expect(found, isNull);
+    });
+
+    test('answers null for a category that does not exist', () async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      final calls = repository.fetchCategoryCalls;
+
+      final found = await container
+          .read(catalogViewModelProvider.notifier)
+          .categoryOf(typeIn('cat-404'));
+
+      expect(found, isNull);
+      expect(repository.fetchCategoryCalls, calls + 1);
+    });
+  });
+
   group('creating a catalog entry on the spot', () {
     test('puts the new category in the list the screen watches', () async {
       final repository = _SpyRepository();

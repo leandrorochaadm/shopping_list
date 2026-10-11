@@ -808,7 +808,10 @@ sair — o item entra na lista **sem número**, do mesmo jeito que o painel `#1a
   código. Código desconhecido: "Nenhum produto com esse código." — **sem**
   cadastrar: a despensa só marca o que já existe. Etiqueta de balança:
   "Etiqueta de balança só serve no lançamento da compra."; falha ao procurar:
-  SnackBar.
+  SnackBar. **As frases aparecem no topo da tela, acima da lista**, e somem ao
+  marcar uma linha ou ler outro código. Tipo que **já está na lista**: a linha
+  travada rola até a vista e o aviso diz "Já está na lista."; o
+  `[ Pôr na lista ]↻` que deu certo confirma com "1 item adicionado à lista."
 - Um SnackBar confirma, antes de sair, quantos itens entraram ("1 item
   adicionado à lista." / "N itens adicionados à lista.").
 

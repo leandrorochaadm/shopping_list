@@ -8,6 +8,7 @@ import '../../../domain/models/category.dart';
 import '../../../domain/models/monthly_average.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../../domain/models/uuid.dart';
 import '../../core/error_translation.dart';
@@ -117,6 +118,29 @@ final class ShoppingListViewModel
     } finally {
       _running = false;
     }
+  }
+
+  /// The `[▥]` of the `#1a` panel and the `[ Pôr na lista ]` of screen 2: the
+  /// type with the product read, no packaging. The guard against a product
+  /// already asked for is `isRegistrationTaken`, the same one the item dialog
+  /// applies (M-a). `null` = it worked.
+  Future<String?> addWithRegistration(
+    ProductType type,
+    Category category, {
+    required ProductRegistration registration,
+    Brand? brand,
+    DateTime? today,
+  }) async {
+    if (_running) return null;
+    final items = state.value ?? const IList<ShoppingListItem>.empty();
+    if (isRegistrationTaken(items, registration)) return 'Já está na lista.';
+    return add(
+      type,
+      category,
+      preferredRegistration: registration,
+      preferredRegistrationBrand: brand,
+      today: today,
+    );
   }
 
   /// `[ Adicionar à lista ]` da Tela 2 (conferir despensa) — several items,

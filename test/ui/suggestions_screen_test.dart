@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/repositories/consumption/consumption_repository.dart';
 import 'package:shopping_list/data/repositories/consumption/consumption_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
@@ -16,6 +19,9 @@ import 'package:shopping_list/domain/models/type_consumption.dart';
 import 'package:shopping_list/ui/consumption/view_model/monthly_average_view_model.dart';
 import 'package:shopping_list/ui/consumption/widgets/suggestions_screen.dart';
 
+import '../helpers/barcode_camera.dart';
+import '../helpers/barcode_owners.dart';
+import '../helpers/catalog.dart';
 import '../helpers/consumption.dart';
 import '../helpers/device_user.dart';
 import '../helpers/shopping_list.dart';
@@ -57,6 +63,25 @@ class _SpyList extends ShoppingListRepositoryLocal {
   }
 }
 
+/// The catalog fake that knows the codes the test gives it: the fake itself
+/// starts with none.
+class _ScanCatalog extends CatalogRepositoryLocal {
+  _ScanCatalog() : super(latency: Duration.zero);
+
+  final owners = <Barcode, BarcodeOwner>{};
+  int findOwnersCalls = 0;
+  Object? failFindOwners;
+
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    findOwnersCalls++;
+    await super.findOwners(codes);
+    final failure = failFindOwners;
+    if (failure != null) throw failure;
+    return {for (final code in codes) code: ?owners[code]}.lock;
+  }
+}
+
 final _drinks = Category(id: 'cat-1', name: 'Bebidas');
 
 ShoppingListItem _listItem({
@@ -83,6 +108,8 @@ void main() {
     WidgetTester tester, {
     ConsumptionRepository? consumption,
     _SpyList? list,
+    _ScanCatalog? catalog,
+    FakeBarcodeCamera? camera,
   }) async {
     // A tall viewport: five suggestion lines plus the button do not fit the
     // default 800×600, and a button outside the render tree cannot be tapped.
@@ -96,6 +123,8 @@ void main() {
           deviceUserOverride(),
           consumptionOverride(repository: consumption ?? _SpyConsumption()),
           shoppingListOverride(repository: list ?? _SpyList(initial: const [])),
+          catalogOverride(repository: catalog ?? _ScanCatalog()),
+          (camera ?? FakeBarcodeCamera()).override,
           // The clock is pinned: the closed window is 01/05 → 31/07/2026 and
           // the month is August. Without it these cases pass in August and
           // fail in September, on a CI nobody touched.
@@ -106,6 +135,21 @@ void main() {
         child: const MaterialApp(home: SuggestionsScreen()),
       ),
     );
+    await tester.pumpAndSettle();
+  }
+
+  /// Opens the reader and hands it [raw]. The fake clock only advances on a
+  /// `pump` WITH a duration.
+  Future<void> scan(
+    WidgetTester tester,
+    FakeBarcodeCamera camera,
+    String raw,
+  ) async {
+    await tester.tap(find.byKey(const ValueKey('scan-pantry')));
+    await tester.pumpAndSettle();
+    camera.read(raw);
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
   }
 
@@ -285,9 +329,7 @@ void main() {
     expect(find.textContaining('boom'), findsNothing);
   });
 
-  testWidgets('the floating button never covers the last line', (
-    tester,
-  ) async {
+  testWidgets('the floating button never covers the last line', (tester) async {
     await pumpScreen(tester, list: _SpyList(initial: const []));
     // The width of the iPhone 12, and short enough that the five lines of the
     // fake overflow: with a list that fits, nothing would ever sit under the
@@ -295,7 +337,10 @@ void main() {
     tester.view.physicalSize = const Size(390, 480);
     await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(ListView), const Offset(0, -2000));
+    await tester.drag(
+      find.byKey(const ValueKey('pantry-lines')),
+      const Offset(0, -2000),
+    );
     await tester.pumpAndSettle();
 
     final lastLine = tester.getRect(find.byType(CheckboxListTile).last);
@@ -359,5 +404,206 @@ void main() {
     expect(find.text('Lançar compra'), findsOneWidget);
     expect(find.text('Falta comprar este mês'), findsOneWidget);
     expect(find.text('Configurações'), findsOneWidget);
+  });
+
+  group('the [▥] reads a code', () {
+    testWidgets('a read code ticks its line and writes nothing', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()
+        ..owners[Barcode.typed(colaCode)] = colaOwner;
+      final list = _SpyList(initial: const []);
+      await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
+
+      await scan(tester, camera, colaCode);
+
+      final tile = tester.widget<CheckboxListTile>(
+        find.byKey(const ValueKey('suggestion-type-1')),
+      );
+      expect(tile.value, isTrue);
+      expect(list.added, isEmpty);
+      expect(find.text('Adicionar 1 à lista'), findsOneWidget);
+    });
+
+    testWidgets('the ticked line scrolls into view', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()
+        ..owners[Barcode.typed(coffeeCode)] = coffeeOwner;
+      await pumpScreen(tester, catalog: catalog, camera: camera);
+      tester.view.physicalSize = const Size(390, 480);
+      await tester.pumpAndSettle();
+
+      final line = find.byKey(const ValueKey('suggestion-type-5'));
+      expect(line.hitTestable(), findsNothing);
+
+      await scan(tester, camera, coffeeCode);
+
+      expect(line.hitTestable(), findsOneWidget);
+      expect(tester.widget<CheckboxListTile>(line).value, isTrue);
+    });
+
+    testWidgets('a type already on the list is not ticked and says so', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()
+        ..owners[Barcode.typed(colaCode)] = colaOwner;
+      final list = _SpyList(
+        initial: [_listItem(typeId: 'type-1', name: 'Refrigerante')],
+      );
+      await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
+
+      await scan(tester, camera, colaCode);
+
+      expect(find.text('Já está na lista.'), findsOneWidget);
+      final tile = tester.widget<CheckboxListTile>(
+        find.byKey(const ValueKey('suggestion-type-1')),
+      );
+      expect(tile.value, isFalse);
+      expect(tile.onChanged, isNull);
+    });
+
+    testWidgets('a type the pantry lacks offers to put it on the list', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()
+        ..owners[Barcode.typed(foilCode)] = foilOwner;
+      final list = _SpyList(initial: const []);
+      await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
+
+      await scan(tester, camera, foilCode);
+
+      expect(
+        find.text('Esse produto ainda não aparece na despensa.'),
+        findsOneWidget,
+      );
+      final action = find.byKey(const ValueKey('scan-notice-action'));
+      expect(
+        find.descendant(of: action, matching: find.text('Pôr na lista')),
+        findsOneWidget,
+      );
+
+      await tester.tap(action);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+
+      expect(find.text('1 item adicionado à lista.'), findsOneWidget);
+      await tester.pumpAndSettle();
+
+      final added = list.added.single;
+      expect(added.type.id, 'type-6');
+      expect(added.preferredRegistration?.id, 'reg-3');
+      expect(added.quantity, isNull);
+      expect(added.category.name, 'Limpeza');
+      expect(find.byKey(const ValueKey('scan-notice')), findsNothing);
+    });
+
+    testWidgets('putting the absent type on the list can fail and says why', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()
+        ..owners[Barcode.typed(foilCode)] = foilOwner;
+      final list = _SpyList(initial: const [])
+        ..failNextWrite = ApiException(500, 'boom');
+      await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
+
+      await scan(tester, camera, foilCode);
+      await tester.tap(find.byKey(const ValueKey('scan-notice-action')));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.textContaining('boom'), findsNothing);
+      expect(find.byKey(const ValueKey('scan-notice')), findsOneWidget);
+      expect(find.byKey(const ValueKey('scan-notice-action')), findsOneWidget);
+    });
+
+    testWidgets('an unknown code says so, with no way to register', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+
+      await scan(tester, camera, foilCode);
+
+      expect(find.text('Nenhum produto com esse código.'), findsOneWidget);
+      expect(find.text('Cadastrar produto'), findsNothing);
+    });
+
+    testWidgets('a scale label is refused', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog();
+      await pumpScreen(tester, catalog: catalog, camera: camera);
+
+      await scan(tester, camera, '02822521001605261107');
+
+      expect(
+        find.text('Etiqueta de balança só serve no lançamento da compra.'),
+        findsOneWidget,
+      );
+      expect(catalog.findOwnersCalls, 0);
+    });
+
+    testWidgets('a failing lookup shows the SnackBar', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()..failFindOwners = NetworkException('down');
+      await pumpScreen(tester, catalog: catalog, camera: camera);
+
+      await scan(tester, camera, colaCode);
+
+      expect(find.byType(SnackBar), findsOneWidget);
+      expect(find.textContaining('down'), findsNothing);
+    });
+
+    testWidgets('ticking a line clears the notice', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await scan(tester, camera, foilCode);
+      expect(find.byKey(const ValueKey('scan-notice')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('suggestion-type-5')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('scan-notice')), findsNothing);
+    });
+
+    testWidgets('the scan button is off when the pantry failed to load', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        consumption: _SpyConsumption()
+          ..failNextCall = ApiException(500, 'boom'),
+      );
+
+      final button = tester.widget<IconButton>(
+        find.byKey(const ValueKey('scan-pantry')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('the scan button works on an empty pantry', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final catalog = _ScanCatalog()
+        ..owners[Barcode.typed(foilCode)] = foilOwner;
+      await pumpScreen(
+        tester,
+        consumption: _SpyConsumption(lines: const []),
+        catalog: catalog,
+        camera: camera,
+      );
+
+      await scan(tester, camera, foilCode);
+
+      expect(
+        find.text('Esse produto ainda não aparece na despensa.'),
+        findsOneWidget,
+      );
+      expect(find.text('Pôr na lista'), findsOneWidget);
+    });
   });
 }

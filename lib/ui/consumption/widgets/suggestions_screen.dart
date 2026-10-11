@@ -2,9 +2,15 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/monthly_average.dart';
+import '../../../domain/models/pantry_scan.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../../routing/routes.dart';
+import '../../barcode/view_model/barcode_lookup_view_model.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
+import '../../barcode/widgets/scan_notice.dart';
+import '../../catalog/view_model/catalog_view_model.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
 import '../../core/widgets/main_bottom_bar.dart';
@@ -31,6 +37,9 @@ import '../view_model/monthly_average_view_model.dart';
 /// switching between them is not going back. For the same reason adding does
 /// not leave the screen: the lines just added lock themselves on the next
 /// frame, and `addMany` already wrote them into screen 1's ViewModel.
+///
+/// It also reads a barcode (`[▥]`), and the read only TICKS the line of the
+/// type and scrolls to it: nothing is written until the floating button.
 class SuggestionsScreen extends ConsumerStatefulWidget {
   const SuggestionsScreen({super.key});
 
@@ -44,6 +53,25 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
   final _selected = <String>{};
 
   bool _adding = false;
+
+  /// The sentence of the last read, above the list. Outside the area that
+  /// scrolls, so it is visible wherever the list is.
+  String? _notice;
+
+  /// The owner of a code whose type the pantry does not show: with it the
+  /// sentence gets `[ Pôr na lista ]`.
+  BarcodeOwner? _absent;
+
+  /// One key per line, so a read can scroll to the line it ticked.
+  final _lineKeys = <String, GlobalKey>{};
+
+  GlobalKey _lineKeyOf(String typeId) =>
+      _lineKeys.putIfAbsent(typeId, GlobalKey.new);
+
+  void _say(String message, {BarcodeOwner? absent}) => setState(() {
+    _notice = message;
+    _absent = absent;
+  });
 
   /// Which types are already on the list — repeating an item helps nobody in
   /// an aisle, and it is the `{–}` of the wireframe. It includes the one
@@ -93,6 +121,114 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     );
   }
 
+  Future<void> _scan() async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    final raw = await BarcodeReaderSheet.show(context);
+    if (!mounted || raw == null) return;
+
+    final outcome = await ref
+        .read(barcodeLookupViewModelProvider.notifier)
+        .lookUp(raw);
+    if (!mounted) return;
+
+    switch (outcome) {
+      case null:
+        return;
+      case BarcodeFound(:final owner):
+        _mark(owner);
+      // The pantry only ticks what exists: no `[ Cadastrar produto ]` here.
+      case BarcodeUnknown():
+        _say('Nenhum produto com esse código.');
+      case ScaleLabelRejected(:final message):
+        _say(message);
+      case BarcodeLookupFailed(:final message):
+        messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  /// The decision is the domain's (`pantryScanOf`); the screen only obeys.
+  /// `ref.read`, never `_onTheList()`: that one watches, and a handler is not
+  /// `build`.
+  void _mark(BarcodeOwner owner) {
+    final lines =
+        ref.read(monthlyAverageViewModelProvider).value ??
+        const IList<MonthlyAverage>.empty();
+    final items =
+        ref.read(shoppingListViewModelProvider).value ??
+        const IList<ShoppingListItem>.empty();
+
+    switch (pantryScanOf(lines, items, owner.type)) {
+      case TypeNotInPantry():
+        _say('Esse produto ainda não aparece na despensa.', absent: owner);
+      case LineAlreadyOnList(:final typeId):
+        _say('Já está na lista.');
+        _reveal(typeId);
+      case TickLine(:final typeId):
+        setState(() {
+          _selected.add(typeId);
+          _notice = null;
+          _absent = null;
+        });
+        _reveal(typeId);
+    }
+  }
+
+  /// Scrolls the line to the middle, away from the floating button.
+  void _reveal(String typeId) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final target = _lineKeys[typeId]?.currentContext;
+      if (target == null || !target.mounted) return;
+      Scrollable.ensureVisible(
+        target,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 300),
+      );
+    });
+  }
+
+  Future<void> _putAbsentOnList() async {
+    final owner = _absent;
+    if (owner == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() => _adding = true);
+    final category = await ref
+        .read(catalogViewModelProvider.notifier)
+        .categoryOf(owner.type);
+    if (!mounted) return;
+    if (category == null) {
+      setState(() => _adding = false);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível pôr na lista. Tente de novo.'),
+        ),
+      );
+      return;
+    }
+
+    final error = await ref
+        .read(shoppingListViewModelProvider.notifier)
+        .addWithRegistration(
+          owner.type,
+          category,
+          registration: owner.registration,
+          brand: owner.brand,
+        );
+    if (!mounted) return;
+
+    setState(() {
+      _adding = false;
+      if (error == null) {
+        _notice = null;
+        _absent = null;
+      }
+    });
+    messenger.showSnackBar(
+      SnackBar(content: Text(error ?? '1 item adicionado à lista.')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(monthlyAverageViewModelProvider);
@@ -113,41 +249,69 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
           onPressed: () => MainMenu.show(context),
         ),
         title: const Text('Conferir despensa'),
+        actions: [
+          // Off while loading and on error; on for the empty pantry, where
+          // an absent type can still go to the list.
+          IconButton(
+            key: const ValueKey('scan-pantry'),
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Ler código',
+            onPressed: lines == null || _adding ? null : _scan,
+          ),
+        ],
       ),
       // A Builder so the SnackBar finds a context BELOW the Scaffold.
       body: Builder(
-        builder: (context) => RefreshIndicator(
-          onRefresh: () async {
-            final messenger = ScaffoldMessenger.of(context);
-            final error = await ref
-                .read(monthlyAverageViewModelProvider.notifier)
-                .refresh();
-            if (error != null) {
-              messenger.showSnackBar(SnackBar(content: Text(error)));
-            }
-          },
-          // Scrollable in EVERY state — that is what MessageView is for; a
-          // plain Center kills the pull to refresh exactly on the error
-          // state, where it is used most.
-          child: switch (state) {
-            AsyncLoading() when !state.hasValue => const _LoadingBody(),
-            AsyncError(:final error) when !state.hasValue => _ErrorBody(
-              error: error,
+        builder: (context) => Column(
+          children: [
+            if (_notice case final notice?)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ScanNotice(
+                  message: notice,
+                  actionLabel: _absent == null ? null : 'Pôr na lista',
+                  onAction: _adding ? null : _putAbsentOnList,
+                ),
+              ),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final error = await ref
+                      .read(monthlyAverageViewModelProvider.notifier)
+                      .refresh();
+                  if (error != null) {
+                    messenger.showSnackBar(SnackBar(content: Text(error)));
+                  }
+                },
+                // Scrollable in EVERY state — that is what MessageView is
+                // for; a plain Center kills the pull to refresh exactly on
+                // the error state, where it is used most.
+                child: switch (state) {
+                  AsyncLoading() when !state.hasValue => const _LoadingBody(),
+                  AsyncError(:final error) when !state.hasValue => _ErrorBody(
+                    error: error,
+                  ),
+                  _ => _Body(
+                    lines: state.value!,
+                    onTheList: _onTheList(),
+                    selected: _selected,
+                    adding: _adding,
+                    lineKeyOf: _lineKeyOf,
+                    onToggle: (typeId, chosen) => setState(() {
+                      _notice = null;
+                      _absent = null;
+                      if (chosen) {
+                        _selected.add(typeId);
+                      } else {
+                        _selected.remove(typeId);
+                      }
+                    }),
+                  ),
+                },
+              ),
             ),
-            _ => _Body(
-              lines: state.value!,
-              onTheList: _onTheList(),
-              selected: _selected,
-              adding: _adding,
-              onToggle: (typeId, chosen) => setState(() {
-                if (chosen) {
-                  _selected.add(typeId);
-                } else {
-                  _selected.remove(typeId);
-                }
-              }),
-            ),
-          },
+          ],
         ),
       ),
       floatingActionButton: lines == null || lines.isEmpty
@@ -202,6 +366,7 @@ class _Body extends StatelessWidget {
     required this.onTheList,
     required this.selected,
     required this.adding,
+    required this.lineKeyOf,
     required this.onToggle,
   });
 
@@ -209,6 +374,7 @@ class _Body extends StatelessWidget {
   final IMap<String, ShoppingListItem> onTheList;
   final Set<String> selected;
   final bool adding;
+  final GlobalKey Function(String typeId) lineKeyOf;
   final void Function(String typeId, bool chosen) onToggle;
 
   @override
@@ -226,39 +392,53 @@ class _Body extends StatelessWidget {
       );
     }
 
-    return ListView(
+    // Not a ListView: it only builds the rows near the viewport, and
+    // `Scrollable.ensureVisible` needs the context of the row that was read.
+    // The pantry is short (the types bought in three months).
+    return SingleChildScrollView(
+      key: const ValueKey('pantry-lines'),
       physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text('Marque o que acabou em casa.'),
-        ),
-        // By CATEGORY and alphabetical inside it — the same organization
-        // screen 1 uses, so the suggestion is read in the order the aisle is
-        // walked. Never "do mais comprado para o menos comprado": 12 unidades
-        // de papel higiênico não são "mais" que 5 kg de arroz.
-        for (final group in groupAveragesByCategory(lines)) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              group.category.name,
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text('Marque o que acabou em casa.'),
           ),
-          for (final line in group.lines)
-            _SuggestionTile(
-              line: line,
-              // `?[]` because a type with no id has not been written yet.
-              listItem: line.type.id == null ? null : onTheList[line.type.id!],
-              selected: selected.contains(line.type.id),
-              enabled: !adding,
-              onToggle: onToggle,
+          // By CATEGORY and alphabetical inside it — the same organization
+          // screen 1 uses, so the suggestion is read in the order the aisle is
+          // walked. Never "do mais comprado para o menos comprado": 12 unidades
+          // de papel higiênico não são "mais" que 5 kg de arroz.
+          for (final group in groupAveragesByCategory(lines)) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                group.category.name,
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
             ),
+            for (final line in group.lines) _tile(line),
+          ],
+          // Room for the floating button, so it never hides the last row.
+          const SizedBox(height: 88),
         ],
-        // Room for the floating button, so it never hides the last row.
-        const SizedBox(height: 88),
-      ],
+      ),
     );
+  }
+
+  Widget _tile(MonthlyAverage line) {
+    final typeId = line.type.id;
+    final tile = _SuggestionTile(
+      line: line,
+      // Null because a type with no id has not been written yet.
+      listItem: typeId == null ? null : onTheList[typeId],
+      selected: selected.contains(typeId),
+      enabled: !adding,
+      onToggle: onToggle,
+    );
+    return typeId == null
+        ? tile
+        : KeyedSubtree(key: lineKeyOf(typeId), child: tile);
   }
 }
 

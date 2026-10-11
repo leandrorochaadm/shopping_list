@@ -392,4 +392,122 @@ void main() {
       );
     });
   });
+
+  group('isRegistrationTaken', () {
+    final milk = ProductType(
+      id: 'type-1',
+      name: 'Leite',
+      categoryId: 'cat-1',
+      baseUnit: BaseUnit.milliliter,
+    );
+    final italac = ProductRegistration(
+      id: 'reg-italac',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      sellingMode: SellingMode.byPiece,
+    );
+
+    ShoppingListItem line({
+      required String id,
+      ProductRegistration? registration,
+      DateTime? fulfilledOn,
+      DateTime? removedOn,
+    }) => ShoppingListItem(
+      id: id,
+      type: milk,
+      category: Category(id: 'cat-1', name: 'Laticínios'),
+      preferredRegistration: registration,
+      enteredOn: DateTime(2026, 8, 28),
+      fulfilledOn: fulfilledOn,
+      removedOn: removedOn,
+    );
+
+    test('an open line asking for the product takes it', () {
+      expect(
+        isRegistrationTaken(
+          [line(id: 'l1', registration: italac)].lock,
+          italac,
+        ),
+        isTrue,
+      );
+    });
+
+    test('a "Qualquer um" line does not block a product', () {
+      expect(isRegistrationTaken([line(id: 'l1')].lock, italac), isFalse);
+    });
+
+    test('a line already bought does not block', () {
+      expect(
+        isRegistrationTaken(
+          [
+            line(
+              id: 'l1',
+              registration: italac,
+              fulfilledOn: DateTime(2026, 8, 29),
+            ),
+          ].lock,
+          italac,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a line removed by hand does not block', () {
+      expect(
+        isRegistrationTaken(
+          [
+            line(
+              id: 'l1',
+              registration: italac,
+              removedOn: DateTime(2026, 8, 29),
+            ),
+          ].lock,
+          italac,
+        ),
+        isFalse,
+      );
+    });
+
+    test('a line whose registration was deactivated does not block it', () {
+      final deactivated = ProductRegistration(
+        id: 'reg-italac',
+        productTypeId: 'type-1',
+        brandId: 'brand-1',
+        sellingMode: SellingMode.byPiece,
+        active: false,
+      );
+
+      expect(
+        isRegistrationTaken(
+          [line(id: 'l1', registration: deactivated)].lock,
+          italac,
+        ),
+        isFalse,
+      );
+    });
+
+    test('another product of the same type does not block', () {
+      final other = ProductRegistration(
+        id: 'reg-other',
+        productTypeId: 'type-1',
+        sellingMode: SellingMode.byPiece,
+      );
+
+      expect(
+        isRegistrationTaken([line(id: 'l1', registration: other)].lock, italac),
+        isFalse,
+      );
+    });
+
+    test('a registration with no id is never taken', () {
+      final unsaved = ProductRegistration(
+        productTypeId: 'type-1',
+        sellingMode: SellingMode.byPiece,
+      );
+
+      // The "Qualquer um" line puts a null in the set: without the id check
+      // the unsaved registration would match it.
+      expect(isRegistrationTaken([line(id: 'l1')].lock, unsaved), isFalse);
+    });
+  });
 }

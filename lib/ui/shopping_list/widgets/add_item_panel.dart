@@ -1,15 +1,24 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/brand.dart';
 import '../../../domain/models/catalog_entry.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/name_normalization.dart';
+import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/product_type_group.dart';
 import '../../../domain/models/shopping_list_item.dart';
+import '../../../routing/routes.dart';
+import '../../barcode/view_model/barcode_lookup_view_model.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
+import '../../barcode/widgets/scan_notice.dart';
 import '../../catalog/view_model/catalog_view_model.dart';
+import '../../catalog/widgets/new_product_screen.dart';
 import '../../catalog/widgets/new_product_type_dialog.dart';
 import '../../core/widgets/message_view.dart';
 import '../view_model/shopping_list_view_model.dart';
@@ -41,6 +50,13 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
   IMap<String, int> _counts = const IMap.empty();
 
   bool _working = false;
+
+  /// The sentence of the last code read, shown under the field — the panel is
+  /// modal and covers the SnackBar of screen 1, so it has to live here.
+  String? _notice;
+
+  /// The code nobody holds: with it the sentence gets `[ Cadastrar produto ]`.
+  Barcode? _unknownCode;
 
   @override
   void initState() {
@@ -99,6 +115,89 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
     navigator.pop();
   }
 
+  void _say(String message, {Barcode? unknown}) => setState(() {
+    _notice = message;
+    _unknownCode = unknown;
+  });
+
+  /// The `[▥]`: reads a code and puts the type with that product on the list.
+  Future<void> _scan() async {
+    final raw = await BarcodeReaderSheet.show(context);
+    if (!mounted || raw == null) return;
+
+    setState(() => _working = true);
+    final outcome = await ref
+        .read(barcodeLookupViewModelProvider.notifier)
+        .lookUp(raw);
+    if (!mounted) return;
+    setState(() => _working = false);
+
+    switch (outcome) {
+      case null:
+        return;
+      case BarcodeFound(:final owner):
+        await _addScanned(owner.type, owner.registration, owner.brand);
+      case BarcodeUnknown(:final code):
+        _say('Nenhum produto com esse código.', unknown: code);
+      case ScaleLabelRejected(:final message):
+        _say(message);
+      case BarcodeLookupFailed(:final message):
+        _say(message);
+    }
+  }
+
+  Future<void> _addScanned(
+    ProductType type,
+    ProductRegistration registration,
+    Brand? brand,
+  ) async {
+    final navigator = Navigator.of(context);
+
+    setState(() => _working = true);
+    final category = await ref
+        .read(catalogViewModelProvider.notifier)
+        .categoryOf(type);
+    if (!mounted) return;
+    if (category == null) {
+      setState(() => _working = false);
+      _say('Não foi possível pôr na lista. Tente de novo.');
+      return;
+    }
+
+    final error = await ref
+        .read(shoppingListViewModelProvider.notifier)
+        .addWithRegistration(
+          type,
+          category,
+          registration: registration,
+          brand: brand,
+        );
+    if (!mounted) return;
+
+    setState(() => _working = false);
+    if (error != null) {
+      _say(error);
+      return;
+    }
+    navigator.pop();
+  }
+
+  Future<void> _registerScanned() async {
+    final code = _unknownCode;
+    if (code == null) return;
+
+    // `push`, never `go` (routes.md): the panel stays underneath and gets the
+    // product back. The category of a type created on screen 4 is already in
+    // the CatalogViewModel, and `categoryOf` finds it.
+    final picked = await context.push<PickedProduct>(
+      Routes.newProduct,
+      extra: NewProductRequest(returnsSelection: true, initialBarcode: code),
+    );
+    if (!mounted || picked == null) return;
+
+    await _addScanned(picked.type, picked.registration, picked.brand);
+  }
+
   /// The tap on a type that is already on the list (M-a): a second line, and
   /// it needs a product of its own — born equal to the first ("Leite"), the
   /// two lines would compete for the same purchase. So the panel closes and
@@ -106,10 +205,7 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
   ///
   /// Closing first is the field-on-top rule: the dialog opens alone, with no
   /// panel behind it fighting the keyboard for the room.
-  Future<void> _addAnother(
-    ProductType type,
-    IList<Category> categories,
-  ) async {
+  Future<void> _addAnother(ProductType type, IList<Category> categories) async {
     final category = categories
         .where((entry) => entry.id == type.categoryId)
         .firstOrNull;
@@ -170,28 +266,49 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
 
     return Padding(
       // What lifts the sheet above the keyboard.
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.viewInsetsOf(context).bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: AppTextField(
-                controller: _controller,
-                autofocus: true,
-                enabled: !_working,
-                decoration: const InputDecoration(
-                  labelText: 'Tipo',
-                  prefixIcon: Icon(Icons.search),
-                ),
-                // The `_` drops the `String?`: the filter reads the
-                // controller, which the clear button has already emptied.
-                onChanged: (_) => setState(() {}),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: AppTextField(
+                      controller: _controller,
+                      autofocus: true,
+                      enabled: !_working,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo',
+                        prefixIcon: Icon(Icons.search),
+                      ),
+                      // The `_` drops the `String?`: the filter reads the
+                      // controller, which the clear button has already
+                      // emptied. Typing is going back to the search by name,
+                      // so the sentence of the last read goes away.
+                      onChanged: (_) => setState(() {
+                        _notice = null;
+                        _unknownCode = null;
+                      }),
+                    ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('scan-type'),
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'Ler código',
+                    onPressed: _working ? null : _scan,
+                  ),
+                ],
               ),
             ),
+            if (_notice case final notice?)
+              ScanNotice(
+                message: notice,
+                actionLabel: _unknownCode == null ? null : 'Cadastrar produto',
+                onAction: _working ? null : _registerScanned,
+              ),
             Flexible(
               child: switch (options) {
                 AsyncLoading() when !options.hasValue => const Padding(
@@ -226,18 +343,17 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
         for (final group in groupTypesByCategory(
           matches,
           options.categories,
-        ))
-          ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                group.name,
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
+        )) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              group.name,
+              style: Theme.of(context).textTheme.labelLarge,
             ),
-            for (final type in group.types)
-              _typeTile(type, options, onTheList.contains(type.id)),
-          ],
+          ),
+          for (final type in group.types)
+            _typeTile(type, options, onTheList.contains(type.id)),
+        ],
         // Nothing matched — and the search is what names the new type.
         if (typed.isNotEmpty && !_hasExactMatch(matches, typed))
           ListTile(
@@ -254,7 +370,9 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
     if (onList) {
       return ListTile(
         title: Text(type.name),
-        subtitle: const Text('já está na lista — toque para pedir outro produto'),
+        subtitle: const Text(
+          'já está na lista — toque para pedir outro produto',
+        ),
         onTap: _working ? null : () => _addAnother(type, options.categories),
       );
     }
@@ -315,7 +433,6 @@ class _AddItemPanelState extends ConsumerState<AddItemPanel> {
 
   static bool _hasExactMatch(IList<ProductType> matches, String typed) =>
       findNameConflict(matches, typed) != null;
-
 }
 
 class _RetryMessage extends StatelessWidget {

@@ -2,6 +2,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import 'category.dart';
 import 'name_normalization.dart';
+import 'product_registration.dart';
 import 'shopping_list_item.dart';
 
 /// One category and its items, already in the order the screen draws them.
@@ -117,3 +118,20 @@ ISet<String?> takenRegistrationsOfType(
     if (item.isOpen && item.type.id == typeId && item.id != exceptItemId)
       item.effectivePreferredRegistration?.id,
 }.lock;
+
+/// Whether another OPEN line of the registration's type already asks for this
+/// product — what keeps the same product from entering the list twice
+/// (decision M-a), now also for the code read by `[▥]`.
+///
+/// It reads the EFFECTIVE preference through [takenRegistrationsOfType]: a
+/// "Qualquer um" line does not block a product, and a registration with no id
+/// (not written yet) is never taken.
+bool isRegistrationTaken(
+  IList<ShoppingListItem> items,
+  ProductRegistration registration,
+) {
+  final id = registration.id;
+  // A null id would match the `null` a "Qualquer um" line puts in the set.
+  return id != null &&
+      takenRegistrationsOfType(items, registration.productTypeId).contains(id);
+}

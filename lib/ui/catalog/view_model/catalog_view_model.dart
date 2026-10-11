@@ -271,6 +271,21 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     );
   }
 
+  /// The category of [type], for the `#1a` panel and screen 2, which hold only
+  /// its id. Answers from the loaded state; without it (options not loaded, or
+  /// a category created on the other phone) it reloads ONCE and looks again.
+  /// `null` = not found or the reload failed.
+  Future<Category?> categoryOf(ProductType type) async {
+    Category? find() => state.value?.categories
+        .where((entry) => entry.id == type.categoryId)
+        .firstOrNull;
+    final loaded = find();
+    if (loaded != null) return loaded;
+    final error = await refresh();
+    if (!ref.mounted || error != null) return null;
+    return find();
+  }
+
   /// Reloads the three lists. Returns null on success, or the sentence for
   /// the SnackBar.
   Future<String?> refresh() async {
