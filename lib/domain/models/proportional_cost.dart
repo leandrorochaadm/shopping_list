@@ -117,6 +117,26 @@ final class CostCandidates {
   /// to reveal.
   bool get hasMore => shown.length < all.length;
 
+  /// The leaf a read (or `[ Cadastrar ]`) brought in joins the short list.
+  /// The caller already asked `admitScan`; the type is not checked again.
+  ///
+  /// Compares **by id**, like `admitScan`: the read option may differ in
+  /// history. A leaf with no id changes nothing (the panel keeps one
+  /// controller per id, the same reason as the filter of `costCandidatesOf`).
+  CostCandidates withShown(ProductOption option) {
+    final id = option.id;
+    if (id == null || shown.any((shownOption) => shownOption.id == id)) {
+      return this;
+    }
+    return CostCandidates(
+      // A leaf registered just now is not in `all` yet.
+      all: all.any((candidate) => candidate.id == id)
+          ? all
+          : all.add(option).sort(compareForPicker),
+      shown: shown.add(option).sort(compareForPicker),
+    );
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

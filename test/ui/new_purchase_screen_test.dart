@@ -19,9 +19,11 @@ import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
+import 'package:shopping_list/ui/purchase/view_model/purchase_draft_view_model.dart';
 import 'package:shopping_list/ui/purchase/widgets/product_field.dart';
 import 'package:shopping_list/ui/purchase/widgets/purchase_item_row.dart';
 
+import '../helpers/barcode_camera.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -294,10 +296,7 @@ void main() {
     WidgetTester tester, {
     String quantity = '500',
   }) async {
-    await tester.enterText(
-      find.byKey(const ValueKey('field-product')),
-      'Acém',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-product')), 'Acém');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Acém moído (peso)').last);
     await tester.pumpAndSettle();
@@ -430,10 +429,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(textOf(tester, 'field-value'), isNotEmpty);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('field-product')),
-      'Coca',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-product')), 'Coca');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Coca-Cola original 12 × 350 ml').last);
     await tester.pumpAndSettle();
@@ -515,7 +511,9 @@ void main() {
   ) async {
     await pumpScreen(tester, draft: draftWithItem());
 
-    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola 12 × 350 ml'));
+    await tester.tap(
+      find.byTooltip('Corrigir Refrigerante Coca-Cola 12 × 350 ml'),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Salvar alteração'), findsOneWidget);
@@ -540,7 +538,9 @@ void main() {
   ) async {
     await pumpScreen(tester, draft: draftWithItem());
 
-    await tester.tap(find.byTooltip('Remover Refrigerante Coca-Cola 12 × 350 ml'));
+    await tester.tap(
+      find.byTooltip('Remover Refrigerante Coca-Cola 12 × 350 ml'),
+    );
     await tester.pumpAndSettle();
 
     expect(find.byType(PurchaseItemRow), findsNothing);
@@ -831,10 +831,9 @@ void main() {
       expect(find.byKey(const ValueKey('compare-cost')), findsNothing);
     });
 
-    testWidgets('opens the panel and comes back with the product swapped', (
-      tester,
-    ) async {
-      await pumpScreen(tester);
+    testWidgets('the panel puts the item in "Itens desta compra" and clears '
+        'the form', (tester) async {
+      final container = await pumpScreen(tester);
       await fillItem(tester);
 
       await tester.tap(find.byKey(const ValueKey('compare-cost')));
@@ -843,44 +842,85 @@ void main() {
       // The 2 L bottle is the best cost with the seed of §7.5.
       await tester.tap(find.byKey(const ValueKey('cost-check-prod-3')));
       await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('cost-use')));
+      await tester.tap(find.byKey(const ValueKey('cost-add')));
       await tester.pumpAndSettle();
 
-      // The product was swapped...
+      final items = container.read(purchaseDraftViewModelProvider).items;
+      expect(items, hasLength(1));
+      expect(items.first.option.id, 'prod-3');
+      expect(items.first.quantity, 1);
+      expect(items.first.paid, Money(1000));
+      expect(find.text('Itens desta compra'), findsOneWidget);
       expect(
-        tester
-            .widget<TextField>(find.byKey(const ValueKey('field-product')))
-            .controller!
-            .text,
-        'Refrigerante Coca-Cola original 2 L',
+        find.descendant(
+          of: find.byKey(ValueKey('purchase-item-${items.first.id}')),
+          matching: find.text('Refrigerante Coca-Cola original 2 L'),
+        ),
+        findsOneWidget,
       );
-      // ...and the suggested value was redone against ITS history: R$ 10,00
-      // for 2000 ml, one bottle -> R$ 10,00.
-      expect(
-        tester
-            .widget<TextField>(
-              find.descendant(
-                of: find.byKey(const ValueKey('field-value')),
-                matching: find.byType(TextField),
-              ),
-            )
-            .controller!
-            .text,
-        'R\$\u{A0}10,00',
+
+      String textOf(String key) => tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.byKey(ValueKey(key)),
+              matching: find.byType(TextField),
+            ),
+          )
+          .controller!
+          .text;
+      final product = tester.widget<TextField>(
+        find.byKey(const ValueKey('field-product')),
       );
-      // The cursor is on the quantity, which is what requirement 17 asks for.
-      expect(
-        tester
-            .widget<TextField>(
-              find.descendant(
-                of: find.byKey(const ValueKey('field-quantity')),
-                matching: find.byType(TextField),
-              ),
-            )
-            .focusNode!
-            .hasFocus,
-        isTrue,
+      expect(product.controller!.text, isEmpty);
+      expect(textOf('field-quantity'), isEmpty);
+      expect(textOf('field-value'), isEmpty);
+      expect(product.focusNode!.hasFocus, isTrue);
+    });
+
+    testWidgets('an item put by the panel while editing replaces that line', (
+      tester,
+    ) async {
+      final container = await pumpScreen(tester, draft: draftWithItem());
+
+      await tester.tap(
+        find.byTooltip('Corrigir Refrigerante Coca-Cola 12 × 350 ml'),
       );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('compare-cost')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('cost-check-prod-3')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('cost-add')));
+      await tester.pumpAndSettle();
+
+      final items = container.read(purchaseDraftViewModelProvider).items;
+      expect(items, hasLength(1));
+      expect(items.first.id, 'i1');
+      expect(items.first.option.id, 'prod-3');
+    });
+
+    testWidgets('Cadastrar in the panel opens screen 4 with the code on the '
+        'first card', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, overrides: [camera.override]);
+      await fillItem(tester);
+
+      await tester.tap(find.byKey(const ValueKey('compare-cost')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('cost-scan')));
+      await tester.pumpAndSettle();
+      camera.read('7891000053508');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('cost-register')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Novo produto'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('field-type')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Refrigerante').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('• 7891000053508'), findsOneWidget);
     });
 
     testWidgets('closing with [ X ] writes nothing and changes nothing', (
@@ -927,47 +967,46 @@ void main() {
     });
   });
 
-  testWidgets(
-    'keeps the typing fields above the keyboard on an iPhone 12',
-    (tester) async {
-      // Four items already launched: it is the growth of this list that used
-      // to push Produto, Quantidade and Valor down.
-      var draft = PurchaseDraft(
-        purchaseId: 'a1',
-        date: DateTime(2026, 8, 18),
-        registeredBy: 'Leandro',
-        storeId: 'store-1',
+  testWidgets('keeps the typing fields above the keyboard on an iPhone 12', (
+    tester,
+  ) async {
+    // Four items already launched: it is the growth of this list that used
+    // to push Produto, Quantidade and Valor down.
+    var draft = PurchaseDraft(
+      purchaseId: 'a1',
+      date: DateTime(2026, 8, 18),
+      registeredBy: 'Leandro',
+      storeId: 'store-1',
+    );
+    for (var i = 1; i <= 4; i++) {
+      draft = draft.withItem(
+        purchaseItem(id: 'i$i', option: crate, cents: 6200),
       );
-      for (var i = 1; i <= 4; i++) {
-        draft = draft.withItem(
-          purchaseItem(id: 'i$i', option: crate, cents: 6200),
-        );
-      }
+    }
 
-      expect(draft.items, hasLength(4));
+    expect(draft.items, hasLength(4));
 
-      await pumpScreen(tester, draft: draft);
-      // AFTER the pump helper, which forces a tall viewport of its own.
-      useIPhone12WithKeyboard(tester);
-      await tester.pumpAndSettle();
+    await pumpScreen(tester, draft: draft);
+    // AFTER the pump helper, which forces a tall viewport of its own.
+    useIPhone12WithKeyboard(tester);
+    await tester.pumpAndSettle();
 
-      // Quantidade is the deepest field of the normal path, and it opens
-      // above the keyboard fold. Valor, right below it, is reached by the
-      // scroll Flutter itself does when a field takes focus.
-      expect(
-        tester.getTopLeft(find.byKey(const ValueKey('field-quantity'))).dy,
-        lessThan(iPhone12KeyboardFold),
-        reason: 'field-quantity is under the keyboard',
-      );
-      // And so is the button the loop of twenty items comes back to. It is
-      // what the folded header and the shared line of fields bought.
-      expect(
-        tester.getBottomLeft(find.byKey(const ValueKey('add-item'))).dy,
-        lessThan(iPhone12KeyboardFold),
-        reason: '[ + Adicionar à compra ] is under the keyboard',
-      );
-    },
-  );
+    // Quantidade is the deepest field of the normal path, and it opens
+    // above the keyboard fold. Valor, right below it, is reached by the
+    // scroll Flutter itself does when a field takes focus.
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('field-quantity'))).dy,
+      lessThan(iPhone12KeyboardFold),
+      reason: 'field-quantity is under the keyboard',
+    );
+    // And so is the button the loop of twenty items comes back to. It is
+    // what the folded header and the shared line of fields bought.
+    expect(
+      tester.getBottomLeft(find.byKey(const ValueKey('add-item'))).dy,
+      lessThan(iPhone12KeyboardFold),
+      reason: '[ + Adicionar à compra ] is under the keyboard',
+    );
+  });
 
   group('the Data/Mercado header', () {
     testWidgets('opens by itself while the purchase has no store', (

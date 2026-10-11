@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
 import '../../core/online_status.dart';
+import '../../../domain/models/barcode.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/price_increase.dart';
@@ -64,10 +65,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   final _productController = TextEditingController();
   final _productFocus = FocusNode();
 
-  /// Where the cursor goes when the `#3a` panel hands an option back — it is
-  /// the "volta ao lançamento com o produto já trocado, o cursor na
-  /// quantidade" of requirement 17. `[ + Adicionar ]` keeps sending the
-  /// focus back to Produto.
+  /// The focus of the Quantidade field.
   final _quantityFocus = FocusNode();
 
   ProductOption? _option;
@@ -285,11 +283,6 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// A product picked in the **Produto field** — and a different product is a
   /// different purchase line: the amount, the total paid and the price per
   /// pricing unit are all cleared before it takes over.
-  ///
-  /// It is NOT what the `#3a` panel comes back through: there the product
-  /// changes INSIDE the same type, with the amount already typed, and
-  /// requirement 17 says the way back lands on the amount — clearing it would
-  /// throw away exactly what the comparison was made for.
   void _onProductChanged(ProductOption option) {
     _quantityController.clear();
     _valueController.clear();
@@ -362,6 +355,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       return;
     }
 
+    await _putItem(option, quantity, paid);
+  }
+
+  /// Puts the line in the draft and clears the form for the next item. Shared
+  /// by `[ + Adicionar ]` and by the `#3a` panel, which puts its item straight
+  /// in the purchase as if it had been typed in the form.
+  Future<void> _putItem(ProductOption option, int quantity, Money paid) async {
+    final messenger = ScaffoldMessenger.of(context);
     final error = await ref
         .read(purchaseDraftViewModelProvider.notifier)
         .putItem(
@@ -397,15 +398,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
   /// The `[ Comparar custo ]→3a` of the wireframe.
   ///
-  /// The way back is treated as ANY product choice — `_onProductChosen`
-  /// already clears `_valueTouched`, and the `_onQuantityChanged` right after
-  /// it redoes the suggested value against the new option's history. The ⚠ of
-  /// H15 redoes itself, because it is a getter over `_option`.
-  Future<void> _compareCost(IList<ProductOption> options) async {
+  /// The panel puts the item **straight** in the purchase, as if it had been
+  /// typed in the form, and the screen comes back clean for the next item.
+  Future<void> _compareCost(
+    IList<ProductOption> options,
+    String? storeId,
+  ) async {
     final option = _option;
     if (option == null) return;
 
-    final picked = await CostComparisonPanel.show(
+    final pick = await CostComparisonPanel.show(
       context,
       candidates: costCandidatesOf(
         options: options,
@@ -415,28 +417,30 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
         launching: option,
       ),
       launching: option,
+      options: options,
+      storeId: storeId,
+      onRegister: (code) => _registerLeaf(initialBarcode: code),
     );
     // Closed choosing nothing: the item stays exactly as it was.
-    if (!mounted || picked == null) return;
+    if (!mounted || pick == null) return;
 
-    // **The `setState` first and the controller after**, in the order of
-    // `_registerProduct`: writing into the Autocomplete's controller outside
-    // a `setState` reopens the options overlay over the field just filled in.
-    _onProductChosen(picked);
-    _productController.text = picked.selectedLabel;
-    _quantityFocus.requestFocus();
+    await _putItem(pick.option, pick.quantity, pick.paid);
   }
 
-  /// The `[+Novo]→4` of the wireframe. `push`, never `go`: `go` replaces the
-  /// route and would take this screen — with the purchase on it — away.
-  Future<void> _registerProduct() async {
+  /// Opens screen 4 and returns the leaf it registered, already in
+  /// `_justRegistered`. `push`, never `go`: `go` replaces the route and would
+  /// take this screen — with the purchase on it — away.
+  Future<ProductOption?> _registerLeaf({Barcode? initialBarcode}) async {
     final picked = await context.push<PickedProduct>(
       Routes.newProduct,
       // What tells screen 4 to hand the leaf back instead of navigating to
       // the list.
-      extra: const NewProductRequest(returnsSelection: true),
+      extra: NewProductRequest(
+        returnsSelection: true,
+        initialBarcode: initialBarcode,
+      ),
     );
-    if (!mounted || picked == null) return;
+    if (!mounted || picked == null) return null;
 
     final option = ProductOption(
       product: picked.product,
@@ -446,8 +450,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       // No reference: a product registered a moment ago has never been
       // bought, which is the wireframe's "sem base de comparação".
     );
+    setState(() => _justRegistered = _justRegistered.add(option));
+    return option;
+  }
+
+  /// The `[+Novo]→4` of the wireframe.
+  Future<void> _registerProduct() async {
+    final option = await _registerLeaf();
+    if (!mounted || option == null) return;
+
     setState(() {
-      _justRegistered = _justRegistered.add(option);
       _option = option;
       _priceSource = _PriceSource.none;
     });
@@ -594,7 +606,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     key: const ValueKey('compare-cost'),
                     onPressed: _saving
                         ? null
-                        : () => _compareCost(_allOptions(options)),
+                        : () =>
+                              _compareCost(_allOptions(options), draft.storeId),
                     child: const Text('Comparar custo'),
                   ),
                 ),

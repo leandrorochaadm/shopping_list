@@ -865,6 +865,67 @@ void main() {
     });
   });
 
+  group('CostCandidates.withShown', () {
+    final base = costCandidatesOf(
+      options: optionsOfSoftDrinkType(
+        can: reference(cents: 400, quantityInBaseUnit: 350),
+        bottle: reference(cents: 1000, quantityInBaseUnit: 2000),
+        crate: reference(cents: 4200, quantityInBaseUnit: 4200),
+      ),
+      typeId: 'type-1',
+      launching: null,
+    );
+    final tiny = base.all.firstWhere((option) => option.id == 'prod-2');
+
+    test('a leaf of all outside shown joins shown and all stays', () {
+      expect(base.shown.any((option) => option.id == 'prod-2'), isFalse);
+
+      final result = base.withShown(tiny);
+
+      expect(
+        result.shown.map((option) => option.id),
+        [...base.shown, tiny].lock.sort(compareForPicker).map((o) => o.id),
+      );
+      expect(result.all, base.all);
+    });
+
+    test('a leaf registered now joins both lists', () {
+      final fresh = optionByPiece(
+        id: 'prod-9',
+        brand: cokeBrand,
+        description: 'original',
+        pieceSize: 600,
+        unit: BaseUnit.milliliter,
+      );
+
+      final result = base.withShown(fresh);
+
+      expect(result.all.any((option) => option.id == 'prod-9'), isTrue);
+      expect(result.shown.any((option) => option.id == 'prod-9'), isTrue);
+    });
+
+    test('a leaf already shown changes nothing', () {
+      expect(base.withShown(base.shown.first), base);
+    });
+
+    test('the same id with another history changes nothing', () {
+      final first = base.shown.first;
+      final reread = optionByPiece(
+        id: first.id!,
+        type: first.type,
+        brand: first.brand,
+        description: first.registration.description,
+        purchaseCount: 99,
+      );
+      expect(reread, isNot(first));
+      expect(base.withShown(reread), base);
+    });
+
+    test('a leaf with no id changes nothing', () {
+      expect(base.withShown(_withoutId(tiny)), base);
+    });
+  });
+
   group('admitScan', () {
     final can = optionByPiece(id: 'can');
     final crate = optionByPiece(id: 'crate', pieceCount: 12);
