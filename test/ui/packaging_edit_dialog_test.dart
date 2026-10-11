@@ -6,13 +6,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
+import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_maintenance_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/catalog_entry_edit_dialog.dart';
 import 'package:shopping_list/ui/catalog/widgets/packaging_edit_dialog.dart';
 
+import '../helpers/barcode_camera.dart';
 import '../helpers/catalog.dart';
 
 /// The shared fake plus the two leaves this dialog needs and it has no room
@@ -48,6 +54,42 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   /// Held open, the write never finishes: it is what keeps the dialog in its
   /// saving state long enough to be read.
   Completer<void>? gate;
+
+  /// What the code writes record, by product id. No `Record`: one list each.
+  final owners = <Barcode, BarcodeOwner>{};
+  final added = <String>[];
+  final removed = <String>[];
+  Object? failNextCodeWrite;
+  Completer<void>? codeGate;
+
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async =>
+      {for (final code in codes) code: ?owners[code]}.lock;
+
+  @override
+  Future<void> addBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    final failure = failNextCodeWrite;
+    failNextCodeWrite = null;
+    if (failure != null) throw failure;
+    await codeGate?.future;
+    added.add(productId);
+    return super.addBarcode(productId: productId, code: code);
+  }
+
+  @override
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    final failure = failNextCodeWrite;
+    failNextCodeWrite = null;
+    if (failure != null) throw failure;
+    removed.add(productId);
+    return super.removeBarcode(productId: productId, code: code);
+  }
 
   @override
   Future<IList<Product>> fetchProducts() async =>
@@ -99,6 +141,51 @@ void main() {
   final sizeField = find.byKey(const ValueKey('field-piece-size'));
   final saveButton = find.byKey(const ValueKey('save-packaging'));
   final toggleButton = find.byKey(const ValueKey('toggle-active'));
+  final barcodeField = find.byKey(const ValueKey('barcode'));
+  final barcodeAdd = find.byKey(const ValueKey('barcode-add'));
+
+  const cola = '7894900011517';
+  final colaCode = Barcode.typed(cola);
+
+  BarcodeOwner ownerOf({bool active = true}) => BarcodeOwner(
+    product: Product(
+      id: 'prod-3',
+      productRegistrationId: 'reg-1',
+      packaging: Packaging(
+        pieceCount: 1,
+        pieceSize: 2000,
+        baseUnit: BaseUnit.milliliter,
+      ),
+      active: active,
+    ),
+    registration: ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      description: 'original',
+      sellingMode: SellingMode.byPiece,
+    ),
+    type: ProductType(
+      id: 'type-1',
+      name: 'Refrigerante',
+      categoryId: 'cat-1',
+      baseUnit: BaseUnit.milliliter,
+    ),
+    brand: Brand(id: 'brand-1', name: 'Coca-Cola'),
+  );
+
+  Future<void> include(WidgetTester tester, String raw) async {
+    await tester.enterText(
+      find.descendant(of: barcodeField, matching: find.byType(TextField)),
+      raw,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(barcodeAdd);
+    await tester.pumpAndSettle();
+  }
+
+  String errorText(WidgetTester tester) =>
+      tester.widget<Text>(find.byKey(const ValueKey('barcode-error'))).data!;
 
   /// The `TextField` an `AppTextField` builds: the key is on the wrapper.
   Finder fieldIn(Finder field) =>
@@ -111,11 +198,14 @@ void main() {
     WidgetTester tester, {
     required Product leaf,
     required BaseUnit baseUnit,
+    FakeBarcodeCamera? camera,
+    Product? other,
   }) async {
     final container = ProviderContainer.test(
       overrides: [
         catalogOverride(repository: catalog),
         storeOverride(),
+        ?camera?.override,
       ],
     );
 
@@ -132,13 +222,26 @@ void main() {
               builder: (context, ref, _) {
                 final state = ref.watch(catalogMaintenanceViewModelProvider);
                 if (!state.hasValue) return const SizedBox.shrink();
-                return TextButton(
-                  onPressed: () => PackagingEditDialog.show(
-                    context,
-                    leaf: leaf,
-                    baseUnit: baseUnit,
-                  ),
-                  child: const Text('abrir'),
+                return Column(
+                  children: [
+                    TextButton(
+                      onPressed: () => PackagingEditDialog.show(
+                        context,
+                        leaf: leaf,
+                        baseUnit: baseUnit,
+                      ),
+                      child: const Text('abrir'),
+                    ),
+                    if (other != null)
+                      TextButton(
+                        onPressed: () => PackagingEditDialog.show(
+                          context,
+                          leaf: other,
+                          baseUnit: baseUnit,
+                        ),
+                        child: const Text('abrir outra'),
+                      ),
+                  ],
                 );
               },
             ),
@@ -381,6 +484,7 @@ void main() {
     expect(find.text('Salvando...'), findsOneWidget);
     expect(tester.widget<TextField>(fieldIn(countField)).enabled, isFalse);
     expect(tester.widget<TextField>(fieldIn(sizeField)).enabled, isFalse);
+    expect(tester.widget<TextField>(fieldIn(barcodeField)).enabled, isFalse);
     expect(tester.widget<FilledButton>(saveButton).onPressed, isNull);
     expect(tester.widget<TextButton>(toggleButton).onPressed, isNull);
 
@@ -392,5 +496,215 @@ void main() {
 
     expect(catalog.writes, hasLength(1));
     expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  group('codes', () {
+    Future<void> removeCola(WidgetTester tester) async {
+      await tester.tap(find.byKey(ValueKey('barcode-remove-${colaCode.code}')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a leaf with no code says so', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      expect(find.text('Código de barras (opcional)'), findsOneWidget);
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('a typed code goes in with + right away, without Salvar', (
+      tester,
+    ) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      await include(tester, cola);
+
+      expect(catalog.added, ['prod-2']);
+      expect(find.text('• ${colaCode.label}'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(fieldIn(barcodeField)).controller!.text,
+        isEmpty,
+      );
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(catalog.writes, isEmpty);
+    });
+
+    testWidgets('a camera read goes straight in', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpDialog(
+        tester,
+        leaf: leaf269,
+        baseUnit: BaseUnit.milliliter,
+        camera: camera,
+      );
+
+      await tester.tap(find.byKey(const ValueKey('barcode-scan')));
+      await tester.pumpAndSettle();
+      camera.read(cola);
+      await tester.pumpAndSettle();
+
+      expect(catalog.added, ['prod-2']);
+      expect(find.text('• ${colaCode.label}'), findsOneWidget);
+    });
+
+    testWidgets('x removes the code at once', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+      await include(tester, cola);
+
+      await removeCola(tester);
+
+      expect(catalog.removed, ['prod-2']);
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('the removed code can go into another leaf', (tester) async {
+      final leaf350 = leafOf(
+        'prod-1',
+        pieceCount: 1,
+        pieceSize: 350,
+        unit: BaseUnit.milliliter,
+      );
+      await pumpDialog(
+        tester,
+        leaf: leaf269,
+        baseUnit: BaseUnit.milliliter,
+        other: leaf350,
+      );
+      await include(tester, cola);
+      await removeCola(tester);
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('abrir outra'));
+      await tester.pumpAndSettle();
+      await include(tester, cola);
+
+      expect(catalog.added, ['prod-2', 'prod-1']);
+      expect(find.byKey(const ValueKey('barcode-error')), findsNothing);
+    });
+
+    testWidgets('a code of an active leaf is refused under the field', (
+      tester,
+    ) async {
+      final active = ownerOf();
+      catalog.owners[colaCode] = active;
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      await include(tester, cola);
+
+      expect(errorText(tester), 'Esse código já é do ${active.label}.');
+      expect(catalog.added, isEmpty);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('the same code twice on the leaf is refused', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+      await include(tester, cola);
+
+      await include(tester, cola);
+
+      expect(errorText(tester), 'Esse código já está nesta embalagem.');
+      expect(catalog.added, ['prod-2']);
+    });
+
+    testWidgets('a scale label is refused', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      await include(tester, '2822521001605');
+
+      expect(errorText(tester), 'Esse é um código de balança.');
+      expect(catalog.added, isEmpty);
+    });
+
+    testWidgets('an invalid code is refused', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      await include(tester, '7894900011518');
+
+      expect(errorText(tester), 'Código de barras inválido.');
+      expect(catalog.added, isEmpty);
+    });
+
+    testWidgets('a code of a deactivated leaf moves here and says where it '
+        'came from', (tester) async {
+      final inactive = ownerOf(active: false);
+      catalog.owners[colaCode] = inactive;
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      await include(tester, cola);
+
+      expect(catalog.removed, ['prod-3']);
+      expect(catalog.added, ['prod-2']);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('barcode-notice'))).data,
+        releasedBarcodeMessage(inactive),
+      );
+    });
+
+    testWidgets('a failed write goes to a SnackBar and the dialog stays', (
+      tester,
+    ) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      catalog.failNextCodeWrite = ApiException(500, 'boom');
+      await include(tester, cola);
+
+      expect(
+        find.text('O servidor está indisponível. Tente de novo em instantes.'),
+        findsOneWidget,
+      );
+      expect(find.byType(AlertDialog), findsOneWidget);
+      expect(
+        tester.widget<TextField>(fieldIn(barcodeField)).controller!.text,
+        cola,
+      );
+      expect(find.textContaining('ApiException'), findsNothing);
+    });
+
+    testWidgets('a failed removal goes to a SnackBar', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+      await include(tester, cola);
+
+      catalog.failNextCodeWrite = ApiException(500, 'boom');
+      await removeCola(tester);
+
+      expect(
+        find.text('O servidor está indisponível. Tente de novo em instantes.'),
+        findsOneWidget,
+      );
+      expect(find.text('• ${colaCode.label}'), findsOneWidget);
+    });
+
+    testWidgets('a loose leaf has no code block', (tester) async {
+      await pumpDialog(
+        tester,
+        leaf: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
+        baseUnit: BaseUnit.gram,
+      );
+
+      expect(find.text('Código de barras (opcional)'), findsNothing);
+    });
+
+    testWidgets('everything goes dead while a code is written', (tester) async {
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
+
+      catalog.codeGate = Completer<void>();
+      await tester.enterText(fieldIn(barcodeField), cola);
+      await tester.pumpAndSettle();
+      await tester.tap(barcodeAdd);
+      await tester.pump();
+
+      expect(tester.widget<TextField>(fieldIn(barcodeField)).enabled, isFalse);
+      expect(tester.widget<IconButton>(barcodeAdd).onPressed, isNull);
+      expect(tester.widget<FilledButton>(saveButton).onPressed, isNull);
+      expect(tester.widget<TextButton>(toggleButton).onPressed, isNull);
+
+      await tester.tap(barcodeAdd, warnIfMissed: false);
+      await tester.pump();
+
+      catalog.codeGate!.complete();
+      await tester.pumpAndSettle();
+
+      expect(catalog.added, hasLength(1));
+    });
   });
 }

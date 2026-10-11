@@ -939,7 +939,7 @@ void main() {
 
       final outcome = await notifierOf(c).addBarcode('prod-1', milk);
 
-      expect((outcome! as BarcodeAddRefused).message, isNot(contains('down')));
+      expect((outcome! as BarcodeAddFailed).message, isNot(contains('down')));
     });
 
     test('addBarcode guards against double tap', () async {

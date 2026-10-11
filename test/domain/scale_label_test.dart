@@ -1,3 +1,4 @@
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 
@@ -92,6 +93,63 @@ void main() {
       final json = {'store_id': 'store-1', 'code': '2822521'};
       expect(ScaleCode.fromJson(json), code);
       expect(code.toJson(), json);
+    });
+  });
+
+  group('ScaleCode.fromLabel', () {
+    test('reads the item code of the QR in the given store', () {
+      expect(
+        ScaleCode.fromLabel('02822521001605261107', storeId: 'store-1'),
+        const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+      );
+    });
+
+    test('reads the plain EAN-13 the same way', () {
+      expect(
+        ScaleCode.fromLabel('2822521001605', storeId: 'store-1'),
+        const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+      );
+    });
+
+    test('refuses what is not a scale label', () {
+      for (final raw in ['7894900011517', '2822521']) {
+        expect(
+          () => ScaleCode.fromLabel(raw, storeId: 'store-1'),
+          throwsA(isA<UnknownScaleLabel>()),
+        );
+      }
+    });
+
+    test('UnknownScaleLabel names itself', () {
+      const e = UnknownScaleLabel();
+      expect(e.toString(), contains(e.message));
+    });
+  });
+
+  group('scaleCodesWith', () {
+    const code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+
+    test('adds the code', () {
+      const empty = IList<ScaleCode>.empty();
+      expect(scaleCodesWith(empty, code), [code].lock);
+      expect(empty, isEmpty);
+    });
+
+    test('refuses the same code in the same store', () {
+      expect(
+        () => scaleCodesWith([code].lock, code),
+        throwsA(isA<ScaleCodeAlreadyOnProduct>()),
+      );
+    });
+
+    test('takes the same item code in another store', () {
+      const other = ScaleCode(storeId: 'store-2', itemCode: '2822521');
+      expect(scaleCodesWith([code].lock, other), [code, other].lock);
+    });
+
+    test('ScaleCodeAlreadyOnProduct names itself', () {
+      const e = ScaleCodeAlreadyOnProduct();
+      expect(e.toString(), contains(e.message));
     });
   });
 

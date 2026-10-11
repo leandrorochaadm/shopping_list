@@ -78,6 +78,11 @@ final class Product {
 
   bool get isSoldByWeight => packaging == null;
 
+  /// Only a leaf WITH a packaging takes barcodes; the loose (by weight) leaf
+  /// keeps scale codes, edited on screen 4. It is what the pencil of the
+  /// maintenance asks before showing the code block.
+  bool get acceptsBarcodes => packaging != null;
+
   /// Is the leaf on the shelf? `handoff §H10` is explicit: "desativar o
   /// produto desativa o cadastro e, com ele, todas as folhas". A leaf is
   /// inactive when IT or its registration is — a `&&` on the READ (D7), and
@@ -166,16 +171,22 @@ final class BarcodeAlreadyOnPackaging implements Exception {
   String toString() => 'BarcodeAlreadyOnPackaging: $message';
 }
 
+/// The packaging code that [raw] gives; a whole scale label throws
+/// [InStoreBarcode], the rest goes through [Barcode.typed].
+Barcode packagingCodeOf(String raw) {
+  // The whole scale label (QR or EAN-13) is a scale code, not "invalid":
+  // its 20-digit QR would otherwise fall to the length check.
+  if (ScaleLabel.parse(raw) != null) throw const InStoreBarcode();
+  return Barcode.typed(raw);
+}
+
 /// The codes of ONE packaging after [raw] goes in.
 ///
 /// Throws [InStoreBarcode], [InvalidBarcode] or [BarcodeAlreadyOnPackaging];
 /// whoever calls shows `e.message`. It is the rule of the card on screen 4,
 /// where the packaging is not a [Product] yet.
 IList<Barcode> packagingCodesWith(IList<Barcode> codes, String raw) {
-  // The whole scale label (QR or EAN-13) is a scale code, not "invalid":
-  // its 20-digit QR would otherwise fall to the length check.
-  if (ScaleLabel.parse(raw) != null) throw const InStoreBarcode();
-  final code = Barcode.typed(raw);
+  final code = packagingCodeOf(raw);
   // `Barcode` is normalized: UPC-A and EAN-13 of one number are the same.
   if (codes.contains(code)) throw const BarcodeAlreadyOnPackaging();
   return codes.add(code);

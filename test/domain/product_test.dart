@@ -272,4 +272,39 @@ void main() {
       );
     });
   });
+
+  group('packagingCodeOf', () {
+    test('reads a packaging code', () {
+      expect(packagingCodeOf('7894900011517'), Barcode.typed('7894900011517'));
+    });
+
+    test('calls a scale label a scale code', () {
+      for (final raw in ['02822521001605261107', '2822521001605']) {
+        expect(() => packagingCodeOf(raw), throwsA(isA<InStoreBarcode>()));
+      }
+    });
+
+    test('refuses an invalid code', () {
+      expect(
+        () => packagingCodeOf('7894900011518'),
+        throwsA(isA<InvalidBarcode>()),
+      );
+    });
+  });
+
+  group('acceptsBarcodes', () {
+    test('a leaf with a packaging takes barcodes', () {
+      expect(leaf().acceptsBarcodes, isTrue);
+    });
+
+    test('a loose leaf takes none', () {
+      expect(
+        const Product(
+          id: 'prod-5',
+          productRegistrationId: 'reg-2',
+        ).acceptsBarcodes,
+        isFalse,
+      );
+    });
+  });
 }

@@ -142,10 +142,18 @@ final class BarcodeAdded extends BarcodeAddOutcome {
   final BarcodeOwner? releasedFrom;
 }
 
+/// A rule refusal, shown next to the field.
 final class BarcodeAddRefused extends BarcodeAddOutcome {
   const BarcodeAddRefused(this.message);
 
   /// pt-BR, already translated.
+  final String message;
+}
+
+/// A technical failure, already translated.
+final class BarcodeAddFailed extends BarcodeAddOutcome {
+  const BarcodeAddFailed(this.message);
+
   final String message;
 }
 
@@ -519,7 +527,7 @@ final class CatalogMaintenanceViewModel
     } on BarcodeAlreadyOnPackaging catch (e) {
       return BarcodeAddRefused(e.message);
     } on Object catch (e, st) {
-      return BarcodeAddRefused(translateError(e, st, 'salvar o código'));
+      return BarcodeAddFailed(translateError(e, st, 'salvar o código'));
     } finally {
       _running = false;
     }

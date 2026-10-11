@@ -1,3 +1,5 @@
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
+
 import 'barcode.dart';
 
 /// What a store scale prints on its label: the item code and the weight.
@@ -77,6 +79,16 @@ final class ScaleCode {
     itemCode: json[codeKey] as String,
   );
 
+  /// The scale code that a read or typed label gives in THIS store.
+  ///
+  /// Only the `itemCode` is kept; weight and expiry are dropped. Throws
+  /// [UnknownScaleLabel] when [raw] is not a scale label.
+  factory ScaleCode.fromLabel(String raw, {required String storeId}) {
+    final label = ScaleLabel.parse(raw);
+    if (label == null) throw const UnknownScaleLabel();
+    return ScaleCode(storeId: storeId, itemCode: label.itemCode);
+  }
+
   static const storeIdKey = 'store_id';
   static const codeKey = 'code';
 
@@ -102,4 +114,32 @@ final class ScaleCode {
 
   @override
   String toString() => 'ScaleCode($storeId, $itemCode)';
+}
+
+/// [raw] is not a scale label the app knows.
+final class UnknownScaleLabel implements Exception {
+  const UnknownScaleLabel();
+
+  String get message => 'Não conheço esta etiqueta.';
+
+  @override
+  String toString() => 'UnknownScaleLabel: $message';
+}
+
+/// The scale codes of ONE product after [code] goes in.
+///
+/// Throws [ScaleCodeAlreadyOnProduct]. The same item code in ANOTHER store is
+/// another [ScaleCode] and goes in.
+IList<ScaleCode> scaleCodesWith(IList<ScaleCode> codes, ScaleCode code) {
+  if (codes.contains(code)) throw const ScaleCodeAlreadyOnProduct();
+  return codes.add(code);
+}
+
+final class ScaleCodeAlreadyOnProduct implements Exception {
+  const ScaleCodeAlreadyOnProduct();
+
+  String get message => 'Esse código já está neste produto.';
+
+  @override
+  String toString() => 'ScaleCodeAlreadyOnProduct: $message';
 }

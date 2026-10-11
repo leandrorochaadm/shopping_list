@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
+import 'package:shopping_list/data/repositories/store/store_repository.dart';
+import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/barcode_owner.dart';
@@ -18,6 +20,7 @@ import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/selling_choice.dart';
+import 'package:shopping_list/domain/models/store.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
 import 'package:shopping_list/ui/catalog/widgets/packaging_row.dart';
@@ -76,6 +79,7 @@ void main() {
     CatalogRepository? repository,
     NewProductRequest? request,
     FakeBarcodeCamera? camera,
+    StoreRepository? stores,
   }) async {
     // A tall viewport: screen 4 is a long form, and the default 800×600 puts
     // the second packaging row outside the render tree, where a tap misses.
@@ -87,6 +91,7 @@ void main() {
       overrides: [
         deviceUserOverride(),
         catalogOverride(repository: repository),
+        storeOverride(repository: stores),
         ?camera?.override,
         // The router starts on `/`, which is the real screen 1 since H4.
         shoppingListOverride(),
@@ -1499,6 +1504,358 @@ void main() {
       expect(description.enabled, isFalse);
     });
   });
+  group('scale codes', () {
+    const tamara = '2822521001605';
+    const tamaraQr = '02822521001605261107';
+    const other = '2004417001603';
+    const storeKey = ValueKey('scale-store');
+
+    Future<void> toWeight(WidgetTester tester) async {
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await tapOn(tester, find.text('Peso'));
+      // Without a description the identity matches `reg-2` and the screen locks.
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> includeScale(
+      WidgetTester tester,
+      String store,
+      String raw,
+    ) async {
+      await choose(tester, storeKey, store);
+      await type(tester, const ValueKey('scale-code'), raw);
+      await tapOn(tester, find.byKey(const ValueKey('scale-add')));
+    }
+
+    bool buttonOn(WidgetTester tester, Key key) =>
+        tester.widget<IconButton>(find.byKey(key)).onPressed != null;
+
+    TextField fieldOf(WidgetTester tester) => tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const ValueKey('scale-code')),
+        matching: find.byType(TextField),
+      ),
+    );
+
+    testWidgets('sold by piece has no scale code section', (tester) async {
+      await pumpScreen(tester);
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      expect(find.byKey(const ValueKey('scale-codes')), findsNothing);
+
+      await toWeight(tester);
+      expect(find.byKey(const ValueKey('scale-codes')), findsOneWidget);
+    });
+
+    testWidgets('a typed label goes in with its store and the field empties', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await includeScale(tester, 'Carrefour', tamara);
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(find.text('Nenhum código.'), findsNothing);
+      expect(fieldOf(tester).controller?.text, isEmpty);
+    });
+
+    testWidgets('+, ▥ and the field are off until a store is chosen', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      expect(fieldOf(tester).enabled, isFalse);
+      expect(buttonOn(tester, const ValueKey('scale-scan')), isFalse);
+      expect(buttonOn(tester, const ValueKey('scale-add')), isFalse);
+
+      await choose(tester, storeKey, 'Carrefour');
+      expect(fieldOf(tester).enabled, isTrue);
+      expect(buttonOn(tester, const ValueKey('scale-scan')), isTrue);
+    });
+
+    testWidgets('a failed store load offers to try again', (tester) async {
+      final stores = _FlakyStores();
+      await pumpScreen(tester, stores: stores);
+      await toWeight(tester);
+
+      expect(
+        find.text('Não foi possível carregar os mercados.'),
+        findsOneWidget,
+      );
+
+      await tapOn(tester, find.text('Tentar de novo'));
+
+      expect(find.byKey(storeKey), findsOneWidget);
+      expect(find.text('Não foi possível carregar os mercados.'), findsNothing);
+    });
+
+    testWidgets('the inactive store is not offered', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await tapOn(tester, find.byKey(storeKey));
+
+      expect(find.text('Feira do Bairro'), findsWidgets);
+      expect(find.text('Mercearia do Zé'), findsNothing);
+    });
+
+    testWidgets('a camera read keeps only the item code', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toWeight(tester);
+      await choose(tester, storeKey, 'Carrefour');
+
+      await tapOn(tester, find.byKey(const ValueKey('scale-scan')));
+      camera.read(tamaraQr);
+      await tester.pumpAndSettle();
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('the same code twice in the same store is refused under the '
+        'field', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+
+      await type(tester, const ValueKey('scale-code'), tamaraQr);
+      await tapOn(tester, find.byKey(const ValueKey('scale-add')));
+
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('scale-error'))).data,
+        'Esse código já está neste produto.',
+      );
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('the same code in another store is taken', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await includeScale(tester, 'Carrefour', tamara);
+      await includeScale(tester, 'Feira do Bairro', tamara);
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(find.text('• Feira do Bairro · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('what is not a scale label is refused', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await includeScale(tester, 'Carrefour', '7894900011517');
+      expect(find.text('Não conheço esta etiqueta.'), findsOneWidget);
+
+      await type(tester, const ValueKey('scale-code'), '78949');
+      expect(find.text('Não conheço esta etiqueta.'), findsNothing);
+    });
+
+    testWidgets('x removes the code before saving', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+
+      await tapOn(
+        tester,
+        find.byKey(const ValueKey('scale-remove-store-1-2822521')),
+      );
+
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('saving sends the scale codes', (tester) async {
+      final repository = _ScaleSpy();
+      await pumpScreen(tester, repository: repository);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+      await includeScale(tester, 'Feira do Bairro', other);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(
+        repository.savedScaleCodes,
+        [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+          const ScaleCode(storeId: 'store-2', itemCode: '2004417'),
+        ].lock,
+      );
+    });
+
+    testWidgets('selling by piece again sends no scale code', (tester) async {
+      final repository = _ScaleSpy();
+      await pumpScreen(tester, repository: repository);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+      await tapOn(tester, find.text('Unidade'));
+      await type(tester, const ValueKey('count-1'), '1');
+      await type(tester, const ValueKey('size-1'), '500');
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(repository.saveCalls, 1);
+      expect(repository.savedScaleCodes, isEmpty);
+    });
+
+    testWidgets('a code taken in this store by another product is refused on '
+        'save', (tester) async {
+      await pumpScreen(tester, repository: _ScaleTakenOnSave());
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text(ScaleCode.takenMessage), findsOneWidget);
+      expect(find.byKey(const ValueKey('scale-codes')), findsOneWidget);
+    });
+
+    group('on a saved product', () {
+      const request = NewProductRequest(registrationId: 'reg-2');
+
+      testWidgets('each + writes at once', (tester) async {
+        final repository = _WithScaleCodes();
+        await pumpScreen(tester, repository: repository, request: request);
+
+        expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+
+        await includeScale(tester, 'Feira do Bairro', other);
+
+        expect(repository.added, [
+          const ScaleCode(storeId: 'store-2', itemCode: '2004417'),
+        ]);
+        expect(find.text('• Feira do Bairro · 2004417'), findsOneWidget);
+        expect(saveButton(tester).onPressed, isNull);
+      });
+
+      testWidgets('x removes at once', (tester) async {
+        final repository = _WithScaleCodes();
+        await pumpScreen(tester, repository: repository, request: request);
+
+        await tapOn(
+          tester,
+          find.byKey(const ValueKey('scale-remove-store-1-2822521')),
+        );
+
+        expect(repository.removed, [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+        ]);
+        expect(find.text('Nenhum código.'), findsOneWidget);
+      });
+
+      testWidgets('a failed write stays under the field', (tester) async {
+        final repository = _WithScaleCodes()
+          ..failAdd = ApiException(500, 'boom');
+        await pumpScreen(tester, repository: repository, request: request);
+
+        await includeScale(tester, 'Feira do Bairro', other);
+
+        expect(
+          tester.widget<Text>(find.byKey(const ValueKey('scale-error'))).data,
+          'O servidor está indisponível. Tente de novo em instantes.',
+        );
+        expect(find.text('• Feira do Bairro · 2004417'), findsNothing);
+        expect(find.textContaining('ApiException'), findsNothing);
+      });
+    });
+  });
+}
+
+/// Records the scale codes that reach the save.
+class _ScaleSpy extends CatalogRepositoryLocal {
+  _ScaleSpy() : super(latency: Duration.zero);
+
+  IList<ScaleCode> savedScaleCodes = const IList.empty();
+  int saveCalls = 0;
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    saveCalls++;
+    savedScaleCodes = scaleCodes;
+    return super.saveRegistrationWithProducts(
+      registration: registration,
+      packagings: packagings,
+      scaleCodes: scaleCodes,
+    );
+  }
+}
+
+/// The database refuses the scale code on save: it belongs to another product.
+class _ScaleTakenOnSave extends CatalogRepositoryLocal {
+  _ScaleTakenOnSave() : super(latency: Duration.zero);
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    if (scaleCodes.isNotEmpty) {
+      throw ApiException(
+        409,
+        'duplicate key value violates unique constraint '
+        '"product_barcode_code_key"',
+      );
+    }
+    return super.saveRegistrationWithProducts(
+      registration: registration,
+      packagings: packagings,
+      scaleCodes: scaleCodes,
+    );
+  }
+}
+
+/// `prod-5` (Acém moído, loose) comes back with a scale code already on it.
+class _WithScaleCodes extends CatalogRepositoryLocal {
+  _WithScaleCodes() : super(latency: Duration.zero);
+
+  final added = <ScaleCode>[];
+  final removed = <ScaleCode>[];
+  Object? failAdd;
+
+  @override
+  Future<IList<Product>> fetchProductsOf(String registrationId) async =>
+      (await super.fetchProductsOf(registrationId))
+          .map(
+            (leaf) => leaf.id == 'prod-5'
+                ? leaf.copyWith(
+                    scaleCodes: [
+                      const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+                    ].lock,
+                  )
+                : leaf,
+          )
+          .toIList();
+
+  @override
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) {
+    final failure = failAdd;
+    if (failure != null) {
+      failAdd = null;
+      throw failure;
+    }
+    added.add(code);
+    return super.addScaleCode(productId: productId, code: code);
+  }
+
+  @override
+  Future<void> removeScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) {
+    removed.add(code);
+    return super.removeScaleCode(productId: productId, code: code);
+  }
 }
 
 /// Records what the editing path writes, and can stand a registration in
@@ -1712,4 +2069,20 @@ class _WithSavedCodes extends CatalogRepositoryLocal {
                 : leaf,
           )
           .toIList();
+}
+
+/// The first read of the stores fails; the next one works.
+class _FlakyStores extends StoreRepositoryLocal {
+  _FlakyStores() : super(latency: Duration.zero);
+
+  bool _failed = false;
+
+  @override
+  Future<IList<Store>> fetchAll() {
+    if (!_failed) {
+      _failed = true;
+      throw NetworkException('offline');
+    }
+    return super.fetchAll();
+  }
 }

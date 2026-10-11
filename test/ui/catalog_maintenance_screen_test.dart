@@ -119,6 +119,35 @@ void main() {
     expect(find.text('12 × 350 ml'), findsOneWidget);
   });
 
+  testWidgets('the pencil of a packaging writes its codes at once', (
+    tester,
+  ) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Embalagens');
+
+    await tester.tap(find.byTooltip('Editar 350 ml'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(
+        of: find.byKey(const ValueKey('barcode')),
+        matching: find.byType(TextField),
+      ),
+      '7894900011517',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('barcode-add')));
+    await tester.pumpAndSettle();
+    expect(find.text('• 7894900011517'), findsOneWidget);
+
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Editar 350 ml'));
+    await tester.pumpAndSettle();
+
+    // The code came from the `state`, not from the leaf the row was built with.
+    expect(find.text('• 7894900011517'), findsOneWidget);
+  });
+
   testWidgets('the loose leaf is named after the grandeza of its type', (
     tester,
   ) async {
@@ -528,31 +557,33 @@ void main() {
     expect(find.text('Editar produto'), findsWidgets);
   });
 
-  testWidgets('the door to screen 4 is off while the dialog has unsaved changes', (
-    tester,
-  ) async {
-    await pumpCatalog(tester);
-    await selectKind(tester, 'Cadastros de produto');
+  testWidgets(
+    'the door to screen 4 is off while the dialog has unsaved changes',
+    (tester) async {
+      await pumpCatalog(tester);
+      await selectKind(tester, 'Cadastros de produto');
 
-    await tester.tap(find.byTooltip('Editar Coca-Cola original'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Editar Coca-Cola original'));
+      await tester.pumpAndSettle();
 
-    TextButton door() =>
-        tester.widget<TextButton>(find.byKey(const ValueKey('add-packaging')));
-    expect(door().onPressed, isNotNull);
+      TextButton door() => tester.widget<TextButton>(
+        find.byKey(const ValueKey('add-packaging')),
+      );
+      expect(door().onPressed, isNotNull);
 
-    await tester.enterText(dialogField, 'zero');
-    await tester.pump();
+      await tester.enterText(dialogField, 'zero');
+      await tester.pump();
 
-    // Leaving now would throw away what was typed, with no warning.
-    expect(door().onPressed, isNull);
-    expect(find.text('Salve ou desfaça as mudanças antes.'), findsOneWidget);
+      // Leaving now would throw away what was typed, with no warning.
+      expect(door().onPressed, isNull);
+      expect(find.text('Salve ou desfaça as mudanças antes.'), findsOneWidget);
 
-    // Undoing it opens the door again.
-    await tester.enterText(dialogField, 'original');
-    await tester.pump();
-    expect(door().onPressed, isNotNull);
-  });
+      // Undoing it opens the door again.
+      await tester.enterText(dialogField, 'original');
+      await tester.pump();
+      expect(door().onPressed, isNotNull);
+    },
+  );
 
   testWidgets('coming back from screen 4 the list is up to date', (
     tester,

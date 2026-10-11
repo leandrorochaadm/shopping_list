@@ -15,6 +15,7 @@ import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/scale_label.dart';
 import '../../../domain/models/selling_choice.dart';
 import '../../../routing/routes.dart';
 import '../../core/widgets/message_view.dart';
@@ -23,6 +24,7 @@ import 'new_brand_dialog.dart';
 import 'new_category_dialog.dart';
 import 'new_product_type_dialog.dart';
 import 'packaging_row.dart';
+import 'scale_codes_section.dart';
 
 /// What screen 4 hands back to screen 3: everything a `ProductOption` needs.
 ///
@@ -155,6 +157,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   IList<String> _descriptions = const IList.empty();
   bool _saving = false;
 
+  /// The scale codes of a NEW registration; they go with the save.
+  IList<ScaleCode> _scaleCodes = const IList.empty();
+  bool _writingScaleCode = false;
+
   /// The sentence of a code held by an active product, above the button. It
   /// holds the save until a code changes.
   String? _barcodeConflict;
@@ -251,6 +257,69 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   }
 
   bool get _soldByWeight => _sellingMode == SellingMode.byWeight;
+
+  /// The leaf of a product sold by weight that is already saved (the
+  /// maintenance, or the registration opened by `[ Abrir e acrescentar
+  /// embalagem ]`). With it, each scale code is written at once.
+  Product? get _savedLooseLeaf =>
+      _soldByWeight && _opened != null ? _existing.firstOrNull : null;
+
+  IList<ScaleCode> get _shownScaleCodes =>
+      _savedLooseLeaf?.scaleCodes ?? _scaleCodes;
+
+  /// `null` means it went in; otherwise the refusal, for under the field.
+  Future<String?> _addScaleCode(ScaleCode code) async {
+    final IList<ScaleCode> updated;
+    try {
+      updated = scaleCodesWith(_shownScaleCodes, code);
+    } on ScaleCodeAlreadyOnProduct catch (e) {
+      return e.message;
+    }
+
+    final leaf = _savedLooseLeaf;
+    if (leaf == null) {
+      setState(() => _scaleCodes = updated);
+      return null;
+    }
+
+    setState(() => _writingScaleCode = true);
+    final error = await ref
+        .read(catalogViewModelProvider.notifier)
+        .addScaleCode(registration: _opened!, productId: leaf.id!, code: code);
+    if (!mounted) return null;
+    setState(() {
+      _writingScaleCode = false;
+      if (error == null) {
+        _existing = _existing.replace(0, leaf.copyWith(scaleCodes: updated));
+      }
+    });
+    return error;
+  }
+
+  Future<void> _removeScaleCode(ScaleCode code) async {
+    final leaf = _savedLooseLeaf;
+    if (leaf == null) {
+      setState(() => _scaleCodes = _scaleCodes.remove(code));
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _writingScaleCode = true);
+    final error = await ref
+        .read(catalogViewModelProvider.notifier)
+        .removeScaleCode(productId: leaf.id!, code: code);
+    if (!mounted) return;
+    setState(() {
+      _writingScaleCode = false;
+      if (error == null) {
+        _existing = _existing.replace(
+          0,
+          leaf.copyWith(scaleCodes: leaf.scaleCodes.remove(code)),
+        );
+      }
+    });
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
 
   /// Arrived from the maintenance pencil: the identity is EDITABLE here.
   /// The conflict path (`_openConflict`) also fills `_opened`, and there it
@@ -513,6 +582,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       final outcome = await notifier.save(
         registration: registration,
         packagings: packagings,
+        scaleCodes: _soldByWeight ? _scaleCodes : const IList.empty(),
       );
       switch (outcome) {
         // The reentrancy guard fired: nothing was written, so nothing is
@@ -965,6 +1035,19 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               ],
             ),
           ],
+        ],
+        if (_soldByWeight && type != null) ...[
+          const Divider(height: 32),
+          ScaleCodesSection(
+            key: const ValueKey('scale-codes'),
+            codes: _shownScaleCodes,
+            enabled:
+                !_saving &&
+                !_writingScaleCode &&
+                (_conflict == null || _locked),
+            onAdd: _addScaleCode,
+            onRemove: _removeScaleCode,
+          ),
         ],
         const SizedBox(height: 24),
         if (_blockReason case final reason?) ...[

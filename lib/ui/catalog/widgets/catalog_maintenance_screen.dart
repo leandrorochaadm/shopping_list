@@ -325,8 +325,9 @@ class _CatalogMaintenanceScreenState
   /// the third does not: on this screen `storeViewModelProvider` may never
   /// have been read, and a store deactivated HERE would still read as active
   /// there, so the duplicate guard would say "já existe" where it owes a
-  /// `[ Reativar ]` (decision B3). Screen 4 does not read the stores at all,
-  /// so there is nothing to keep in step for it.
+  /// `[ Reativar ]` (decision B3). Screen 4 reads the stores through the same
+  /// `storeViewModelProvider` (the scale codes section), so this refresh
+  /// already keeps it in step.
   ///
   /// The two notes at the end of [_reloadCatalog] hold unchanged: a failed
   /// reload is a hard stop, and a null answer is not proof of success.
