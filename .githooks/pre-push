@@ -16,8 +16,14 @@ resolved the old commit, and only the next push carries the amended one.
 
 Then it runs the same gates as `deploy.yml` (analyze, tests, coverage floor),
 so a push that CI would reject is stopped here instead.
+
+Last, with the gates green, it applies the pending migrations to the linked
+Supabase project. Every branch deploys, and every preview points at `prod`
+while there is no `dev` project (see the header of `deploy.yml`), so the
+schema has to be there before the build that `git push` is about to trigger.
 """
 
+import json
 import os
 import re
 import shutil
@@ -126,6 +132,34 @@ def checks():
     return 0
 
 
+def migrate():
+    """Applies the pending migrations to the linked project. 0 when up to date."""
+    if shutil.which('supabase') is None:
+        print('pre-push: supabase is not on the PATH, migrations NOT applied', file=sys.stderr)
+        return 0
+
+    # `--agent no` keeps the prompts and the format the same from an IDE.
+    flags = ('--linked', '--agent', 'no', '--output-format', 'json')
+    print('pre-push: checking pending migrations...')
+    dry = subprocess.run(('supabase', 'db', 'push', '--dry-run', *flags),
+                         capture_output=True, text=True)
+    if dry.returncode != 0:
+        print(dry.stderr or dry.stdout, file=sys.stderr)
+        print('pre-push: could not reach the linked project.', file=sys.stderr)
+        return 1
+    report = json.loads(dry.stdout)
+    if report.get('upToDate'):
+        print('pre-push: database is up to date')
+        return 0
+
+    for name in report.get('migrations', []):
+        print(f'pre-push: applying {name}')
+    if not gate('supabase db push', 'supabase', 'db', 'push', '--yes', *flags):
+        print('pre-push: supabase db push failed; the push is stopped.', file=sys.stderr)
+        return 1
+    return 0
+
+
 def main():
     if deletes_only():
         return 0
@@ -136,8 +170,7 @@ def main():
         print('pre-push: flutter is not on the PATH, skipping the checks', file=sys.stderr)
         return 0
 
-    code = sync_lock()
-    return code if code else checks()
+    return sync_lock() or checks() or migrate()
 
 
 if __name__ == '__main__':
