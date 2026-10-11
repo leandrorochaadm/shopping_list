@@ -103,6 +103,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
   bool _saving = false;
 
+  /// The price question is open, the confirmation is being written, or a
+  /// second tap arrived in the same frame: without this, a double tap opens
+  /// two questions.
+  bool _askingPrices = false;
+
+  /// The "Itens desta compra" title, where `[ Conferir ]` scrolls back to.
+  final _itemsKey = GlobalKey();
+
   /// Whether the Data/Mercado header is open — `null` while nobody has
   /// touched it, which is what lets it answer for itself: open while there is
   /// no store on the draft, closed the moment there is one.
@@ -672,7 +680,79 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     return result ?? false;
   }
 
+  Future<void> _confirmItemPrice(String itemId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(purchaseDraftViewModelProvider.notifier)
+        .confirmPrice(itemId);
+    if (!mounted) return;
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
+
+  Future<void> _confirmAllPrices() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(purchaseDraftViewModelProvider.notifier)
+        .confirmAllPrices();
+    if (!mounted) return;
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
+
+  Future<bool?> _askPricesChecked(int count) => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(unconfirmedPricesMessage(count)),
+      content: const Text('Bateu com o cupom?'),
+      actions: [
+        TextButton(
+          key: const ValueKey('check-prices'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Conferir'),
+        ),
+        FilledButton(
+          key: const ValueKey('prices-checked-save'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Conferi, salvar'),
+        ),
+      ],
+    ),
+  );
+
+  void _showItems() {
+    final target = _itemsKey.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
   Future<void> _save() async {
+    if (_askingPrices) return;
+    final draft = ref.read(purchaseDraftViewModelProvider);
+    if (draft.hasUnconfirmedPrices) {
+      _askingPrices = true;
+      try {
+        final checked = await _askPricesChecked(draft.unconfirmedPrices);
+        if (!mounted) return;
+        if (checked != true) {
+          // [ Conferir ] or a tap outside: back to the list, nothing saved.
+          _showItems();
+          return;
+        }
+        // Released only after the confirmation is written, so a tap on
+        // `[ Salvar compra ]` during the wait cannot open a second question.
+        await _confirmAllPrices();
+        if (!mounted) return;
+      } finally {
+        _askingPrices = false;
+      }
+    }
+    await _submit();
+  }
+
+  Future<void> _submit() async {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
 
@@ -931,8 +1011,18 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
             // the keyboard on a twenty-item purchase.
             if (draft.items.isNotEmpty) ...[
               const Divider(height: 32),
+              if (draft.hasUnconfirmedPrices)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    key: const ValueKey('confirm-all-prices'),
+                    onPressed: _saving ? null : _confirmAllPrices,
+                    child: const Text('Todos conferidos'),
+                  ),
+                ),
               Text(
                 'Itens desta compra',
+                key: _itemsKey,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               for (final item in draft.items)
@@ -940,6 +1030,9 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                   item: item,
                   editing: item.id == _editingItemId,
                   onEdit: () => _edit(item),
+                  onConfirmPrice: _saving
+                      ? null
+                      : () => _confirmItemPrice(item.id),
                   onRemove: () async {
                     if (item.id == _editingItemId) _clearForm();
                     await ref
@@ -1383,3 +1476,9 @@ class _ProductField extends StatelessWidget {
 /// `none`, the form nobody has touched, is what lets the last purchase
 /// pre-fill both.
 enum _PriceSource { none, total, unitPrice }
+
+/// The title of the "bateu com o cupom?" question: Portuguese plural, not the
+/// `count` one.
+@visibleForTesting
+String unconfirmedPricesMessage(int count) =>
+    count == 1 ? '1 preço não conferido.' : '$count preços não conferidos.';

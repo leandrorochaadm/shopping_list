@@ -228,6 +228,25 @@ void main() {
     expect(items.first.priceOrigin, PriceOrigin.lastPurchase);
   });
 
+  testWidgets('tapping "preço anterior" in the checkout confirms the line', (
+    tester,
+  ) async {
+    final container = await openCheckout(tester, options: [crate].lock);
+
+    await read(tester, crateCode);
+    final id = itemsOf(container).single.id;
+    final label = find.byKey(ValueKey('price-unconfirmed-$id'));
+    expect(label, findsOneWidget);
+
+    await tester.tap(label);
+    await tester.pumpAndSettle();
+
+    expect(label, findsNothing);
+    final item = itemsOf(container).single;
+    expect(item.priceOrigin, PriceOrigin.typed);
+    expect(item.quantity, 1);
+  });
+
   testWidgets('three reads in a burst make one line with 3', (tester) async {
     final drafts = _GatedDrafts(initial: withStore);
     final container = await openCheckout(

@@ -24,10 +24,13 @@ import 'package:shopping_list/ui/core/unit_specs.dart';
 import 'package:tekton_core/tekton_core.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
+import 'package:shopping_list/domain/models/purchase_item.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/purchase/view_model/purchase_draft_view_model.dart';
+import 'package:shopping_list/ui/purchase/widgets/new_purchase_screen.dart'
+    show unconfirmedPricesMessage;
 import 'package:shopping_list/ui/purchase/widgets/product_field.dart';
 import 'package:shopping_list/ui/purchase/widgets/purchase_item_row.dart';
 
@@ -108,6 +111,24 @@ void main() {
     registeredBy: 'Leandro',
     storeId: 'store-1',
   ).withItem(purchaseItem(id: 'i1', option: crate, cents: 6200));
+
+  PurchaseDraft draftWithUnconfirmed() => draftWithItem()
+      .withItem(
+        purchaseItem(
+          id: 'i2',
+          option: optionByPiece(id: 'prod-1', brand: cokeBrand),
+          cents: 350,
+          priceOrigin: PriceOrigin.lastPurchase,
+        ),
+      )
+      .withItem(
+        purchaseItem(
+          id: 'i3',
+          option: optionByPiece(id: 'prod-2', brand: cokeBrand, pieceCount: 6),
+          cents: 400,
+          priceOrigin: PriceOrigin.lastPurchase,
+        ),
+      );
 
   Future<ProviderContainer> pumpScreen(
     WidgetTester tester, {
@@ -752,6 +773,177 @@ void main() {
     // The wireframe: the cap above, the repeat below, ONE button.
     expect(cap.dy, lessThan(repeat.dy));
     expect(find.text('Entendi'), findsOneWidget);
+  });
+
+  group('unconfirmed prices (M-f)', () {
+    PurchaseItem line(ProviderContainer c, String id) => c
+        .read(purchaseDraftViewModelProvider)
+        .items
+        .firstWhere((item) => item.id == id);
+
+    Finder label(String id) => find.byKey(ValueKey('price-unconfirmed-$id'));
+
+    testWidgets('a line at the last purchase price shows the label and a tap '
+        'confirms it', (tester) async {
+      final container = await pumpScreen(tester, draft: draftWithUnconfirmed());
+
+      expect(label('i2'), findsOneWidget);
+      expect(label('i3'), findsOneWidget);
+      expect(label('i1'), findsNothing);
+
+      await tester.tap(label('i2'));
+      await tester.pumpAndSettle();
+
+      expect(label('i2'), findsNothing);
+      expect(line(container, 'i2').priceOrigin, PriceOrigin.typed);
+      expect(line(container, 'i3').priceOrigin, PriceOrigin.lastPurchase);
+    });
+
+    testWidgets('a draft with every price typed shows no label and no button', (
+      tester,
+    ) async {
+      await pumpScreen(tester, draft: draftWithItem());
+
+      expect(find.text('preço anterior'), findsNothing);
+      expect(find.byKey(const ValueKey('confirm-all-prices')), findsNothing);
+    });
+
+    testWidgets('correcting the line in [ed] confirms its price', (
+      tester,
+    ) async {
+      final container = await pumpScreen(tester, draft: draftWithUnconfirmed());
+
+      await tester.tap(
+        find.byTooltip('Corrigir Refrigerante Coca-Cola 350 ml'),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const ValueKey('field-value')), '390');
+      await tester.pump();
+      await tester.tap(find.byKey(const ValueKey('add-item')));
+      await tester.pumpAndSettle();
+
+      expect(label('i2'), findsNothing);
+      expect(line(container, 'i2').priceOrigin, PriceOrigin.typed);
+      expect(line(container, 'i2').paid, const Money(390));
+    });
+
+    testWidgets('[ Todos conferidos ] sits above the items and confirms them '
+        'all', (tester) async {
+      final container = await pumpScreen(tester, draft: draftWithUnconfirmed());
+
+      final button = tester.getTopLeft(
+        find.byKey(const ValueKey('confirm-all-prices')),
+      );
+      final title = tester.getTopLeft(find.text('Itens desta compra'));
+      expect(button.dy, lessThan(title.dy));
+
+      await tester.tap(find.byKey(const ValueKey('confirm-all-prices')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('preço anterior'), findsNothing);
+      expect(find.byKey(const ValueKey('confirm-all-prices')), findsNothing);
+      expect(
+        container.read(purchaseDraftViewModelProvider).unconfirmedPrices,
+        0,
+      );
+      expect(line(container, 'i1').paid, const Money(6200));
+    });
+
+    testWidgets('saving with unconfirmed prices asks first', (tester) async {
+      final purchases = _SpyPurchases();
+      await pumpScreen(
+        tester,
+        purchases: purchases,
+        draft: draftWithUnconfirmed(),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('save')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('2 preços não conferidos.'), findsOneWidget);
+      expect(find.text('Bateu com o cupom?'), findsOneWidget);
+      expect(purchases.saveCalls, 0);
+    });
+
+    testWidgets('[ Conferir ] saves nothing and keeps the labels', (
+      tester,
+    ) async {
+      final purchases = _SpyPurchases();
+      await pumpScreen(
+        tester,
+        purchases: purchases,
+        draft: draftWithUnconfirmed(),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('save')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('check-prices')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(purchases.saveCalls, 0);
+      expect(find.text('preço anterior'), findsNWidgets(2));
+      expect(find.text('Lançar compra'), findsWidgets);
+    });
+
+    testWidgets('[ Conferi, salvar ] confirms them all and saves', (
+      tester,
+    ) async {
+      final purchases = _SpyPurchases();
+      await pumpScreen(
+        tester,
+        purchases: purchases,
+        draft: draftWithUnconfirmed(),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('save')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('prices-checked-save')));
+      await tester.pumpAndSettle();
+
+      expect(purchases.saveCalls, 1);
+      expect(find.text('Lista de compras'), findsWidgets);
+    });
+
+    testWidgets('[ Conferi, salvar ] with a failed save keeps the prices '
+        'confirmed', (tester) async {
+      final purchases = _SpyPurchases()
+        ..failNextSave = ApiException(500, 'boom');
+      final container = await pumpScreen(
+        tester,
+        purchases: purchases,
+        draft: draftWithUnconfirmed(),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('save')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('prices-checked-save')));
+      await tester.pumpAndSettle();
+
+      expect(purchases.saveCalls, 1);
+      expect(find.text('preço anterior'), findsNothing);
+      expect(
+        container.read(purchaseDraftViewModelProvider).unconfirmedPrices,
+        0,
+      );
+    });
+
+    testWidgets('a double tap on save opens one question', (tester) async {
+      // This test has to FAIL if the `_askingPrices` guard is removed.
+      await pumpScreen(tester, draft: draftWithUnconfirmed());
+
+      final save = find.byKey(const ValueKey('save'));
+      await tester.tap(save);
+      await tester.tap(save, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    test('unconfirmedPricesMessage uses the Portuguese plural', () {
+      expect(unconfirmedPricesMessage(1), '1 preço não conferido.');
+      expect(unconfirmedPricesMessage(2), '2 preços não conferidos.');
+    });
   });
 
   testWidgets('a double tap on save writes once', (tester) async {

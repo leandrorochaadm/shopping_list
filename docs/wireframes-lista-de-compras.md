@@ -1036,6 +1036,8 @@ Não trava: pergunta. `[ Conferi, salvar ]→1` confirma **todos** e salva;
 `[ Conferir ]↻` volta para a lista de itens. Na Tela 3, com algum "preço
 anterior" na lista, o `[ Todos conferidos ]↻` aparece logo acima de "Itens desta
 compra".
+Com um preço só, a frase é "1 preço não conferido." (singular). Fechar a
+pergunta tocando fora é o mesmo que `[ Conferir ]`: nada é salvo.
 
 **Outros estados:**
 - **Sem conexão, com itens digitados:** faixa fixa no topo — "Sem conexão. Esta

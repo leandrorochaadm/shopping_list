@@ -50,6 +50,60 @@ void main() {
     expect(after.items[1], before.items[1]);
   });
 
+  group('hasUnconfirmedPrices', () {
+    test('true with exactly one line at the last purchase price', () {
+      final one = draft.copyWith(
+        items: [
+          purchaseItem(
+            id: 'a',
+            option: leaf,
+            priceOrigin: PriceOrigin.lastPurchase,
+          ),
+          purchaseItem(id: 'b', option: leaf, cents: 700),
+        ].lock,
+      );
+      expect(one.hasUnconfirmedPrices, isTrue);
+    });
+
+    test('false when every price is typed', () {
+      final typed = draft.copyWith(
+        items: [purchaseItem(id: 'b', option: leaf, cents: 700)].lock,
+      );
+      expect(typed.hasUnconfirmedPrices, isFalse);
+      expect(draft.hasUnconfirmedPrices, isFalse);
+    });
+
+    test('false after allPricesConfirmed', () {
+      final confirmed = withItems(draft).allPricesConfirmed();
+      expect(confirmed.hasUnconfirmedPrices, isFalse);
+    });
+  });
+
+  group('withPriceConfirmed', () {
+    test('confirms only the line with that id', () {
+      final before = withItems(draft);
+      final after = before.withPriceConfirmed('a');
+      expect(after.items[0].priceOrigin, PriceOrigin.typed);
+      expect(after.items[2].priceOrigin, PriceOrigin.lastPurchase);
+      expect(before.unconfirmedPrices, 2);
+      expect(after.unconfirmedPrices, 1);
+    });
+
+    test('keeps the order, the ids and what was paid', () {
+      final before = withItems(draft);
+      final after = before.withPriceConfirmed('a');
+      expect(after.items.map((item) => item.id).toList(), ['a', 'b', 'c']);
+      expect(after.items.map((item) => item.paid).toList(), [
+        for (final item in before.items) item.paid,
+      ]);
+    });
+
+    test('an unknown id changes nothing', () {
+      final before = withItems(draft);
+      expect(before.withPriceConfirmed('zzz'), before);
+    });
+  });
+
   test('the origin of every line survives toJson/fromJson', () {
     final before = withItems(draft);
     final back = PurchaseDraft.fromJson(before.toJson());

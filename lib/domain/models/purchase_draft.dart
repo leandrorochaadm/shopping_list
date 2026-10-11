@@ -114,6 +114,21 @@ final class PurchaseDraft {
   int get unconfirmedPrices =>
       items.where((item) => item.isPriceUnconfirmed).length;
 
+  /// The question the `[ Salvar compra ]` (ask before saving?) and the
+  /// `[ Todos conferidos ]` (does it show?) both put: the screen asks, it
+  /// does not compare the count with zero on its own.
+  bool get hasUnconfirmedPrices => unconfirmedPrices > 0;
+
+  /// The tap on the "preço anterior" label. It takes the id, not the item, to
+  /// confirm the line as it is NOW in the draft: at checkout the same line may
+  /// have gained +1 between the draw and the tap, and rewriting the old item
+  /// would erase that sum. An id that does not exist changes nothing.
+  PurchaseDraft withPriceConfirmed(String itemId) => copyWith(
+    items: items
+        .map((item) => item.id == itemId ? item.confirmedPrice() : item)
+        .toIList(),
+  );
+
   /// The `[ Conferi, salvar ]`: every line becomes a typed price, in place.
   PurchaseDraft allPricesConfirmed() =>
       copyWith(items: items.map((item) => item.confirmedPrice()).toIList());

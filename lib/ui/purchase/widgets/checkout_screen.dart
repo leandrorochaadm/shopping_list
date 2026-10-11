@@ -414,6 +414,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     _enqueue(() => _put(edited));
   }
 
+  Future<void> _confirmItemPrice(String itemId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(purchaseDraftViewModelProvider.notifier)
+        .confirmPrice(itemId);
+    if (!mounted) return;
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
+
   Future<void> _conclude() async {
     if (_concluding) return;
     _concluding = true;
@@ -540,7 +549,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
                     for (final item in draft.items)
-                      PurchaseItemRow(item: item, onEdit: () => _edit(item)),
+                      PurchaseItemRow(
+                        item: item,
+                        onEdit: () => _edit(item),
+                        onConfirmPrice: () =>
+                            _enqueue(() => _confirmItemPrice(item.id)),
+                      ),
                     for (final line in _pending)
                       _PendingPriceRow(
                         key: ValueKey('checkout-pending-${line.key}'),

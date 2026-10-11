@@ -97,6 +97,13 @@ final class PurchaseDraftViewModel extends Notifier<PurchaseDraft> {
   Future<String?> removeItem(String itemId) =>
       _mutate(state.withoutItem(itemId), 'remover o item da compra');
 
+  Future<String?> confirmPrice(String itemId) =>
+      _mutate(state.withPriceConfirmed(itemId), 'guardar o preço conferido');
+
+  /// The `[ Todos conferidos ]` and the `[ Conferi, salvar ]`.
+  Future<String?> confirmAllPrices() =>
+      _mutate(state.allPricesConfirmed(), 'guardar os preços conferidos');
+
   /// Saved with no signal: it will go up when the connection comes back with
   /// the app open, or on the next opening.
   Future<String?> markPending() =>

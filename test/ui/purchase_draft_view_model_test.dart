@@ -6,6 +6,7 @@ import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_re
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
+import 'package:shopping_list/domain/models/purchase_item.dart';
 import 'package:shopping_list/ui/purchase/view_model/purchase_draft_view_model.dart';
 
 import '../helpers/device_user.dart';
@@ -115,6 +116,78 @@ void main() {
       expect(repository.saveCalls, 1);
       expect(repository.readNow()!.storeId, 'store-1');
       expect(container.read(purchaseDraftViewModelProvider).storeId, 'store-1');
+    });
+
+    PurchaseDraft storedUnconfirmed() => stored()
+        .withItem(
+          purchaseItem(
+            id: 'i2',
+            option: crate,
+            cents: 3500,
+            priceOrigin: PriceOrigin.lastPurchase,
+          ),
+        )
+        .withItem(
+          purchaseItem(
+            id: 'i3',
+            option: crate,
+            cents: 4000,
+            priceOrigin: PriceOrigin.lastPurchase,
+          ),
+        );
+
+    test('confirmPrice confirms one line and persists it', () async {
+      final repository = _SpyRepository(initial: storedUnconfirmed());
+      final container = containerWith(repository);
+
+      final error = await container
+          .read(purchaseDraftViewModelProvider.notifier)
+          .confirmPrice('i2');
+
+      expect(error, isNull);
+      for (final draft in [
+        repository.readNow()!,
+        container.read(purchaseDraftViewModelProvider),
+      ]) {
+        expect(draft.items.map((item) => item.priceOrigin).toList(), [
+          PriceOrigin.typed,
+          PriceOrigin.typed,
+          PriceOrigin.lastPurchase,
+        ]);
+      }
+    });
+
+    test('confirmAllPrices confirms every line and persists it', () async {
+      final repository = _SpyRepository(initial: storedUnconfirmed());
+      final container = containerWith(repository);
+
+      final error = await container
+          .read(purchaseDraftViewModelProvider.notifier)
+          .confirmAllPrices();
+
+      expect(error, isNull);
+      expect(
+        container.read(purchaseDraftViewModelProvider).unconfirmedPrices,
+        0,
+      );
+      expect(repository.readNow()!.unconfirmedPrices, 0);
+    });
+
+    test('a refused confirmation keeps the lines and says so', () async {
+      final repository = _SpyRepository(initial: storedUnconfirmed())
+        ..failNextCall = NetworkException('storage denied');
+      final container = containerWith(repository);
+
+      final error = await container
+          .read(purchaseDraftViewModelProvider.notifier)
+          .confirmAllPrices();
+
+      expect(error, isNotNull);
+      expect(error, isNot(contains('NetworkException')));
+      expect(
+        container.read(purchaseDraftViewModelProvider).unconfirmedPrices,
+        0,
+      );
     });
 
     test('a refused write keeps the purchase on screen and says so', () async {
