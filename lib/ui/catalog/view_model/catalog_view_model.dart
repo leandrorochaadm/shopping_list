@@ -511,9 +511,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         RegistrationConflict(registration: registration, products: products),
       );
     } on Object catch (e, st) {
-      return OpenRegistrationFailed(
-        translateError(e, st, 'abrir o produto'),
-      );
+      return OpenRegistrationFailed(translateError(e, st, 'abrir o produto'));
     } finally {
       _checkingIdentity = false;
     }
@@ -654,7 +652,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
           .read(catalogRepositoryProvider)
           .saveRegistrationWithProducts(
             registration: registration,
-            packagings: packagings,
+            packagings: _withoutBarcodes(packagings),
           );
       return RegistrationSaved(saved);
     } on MissingPackaging catch (e) {
@@ -685,7 +683,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
           .read(catalogRepositoryProvider)
           .addPackagings(
             registrationId: registrationId,
-            packagings: packagings,
+            packagings: _withoutBarcodes(packagings),
           );
       return PackagingsAdded(products);
     } on Object catch (e, st) {
@@ -783,7 +781,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       try {
         final products = await repository.addPackagings(
           registrationId: original.id!,
-          packagings: packagings,
+          packagings: _withoutBarcodes(packagings),
         );
         return RegistrationEdited(registration: written, products: products);
       } on Object catch (e, st) {
@@ -804,6 +802,10 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     }
   }
 }
+
+/// A bridge until the cards carry their codes: every packaging goes with none.
+IList<PackagingWithBarcodes> _withoutBarcodes(IList<Packaging> packagings) =>
+    packagings.map((p) => PackagingWithBarcodes(packaging: p)).toIList();
 
 /// `retry: null` on purpose: Riverpod 3 retries a failing provider ten times
 /// with a growing backoff, and on a screen the error has to be visible now.

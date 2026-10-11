@@ -1,22 +1,49 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/name_normalization.dart';
-import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/scale_label.dart';
 import '../../services/supabase_error.dart';
 import 'catalog_repository.dart';
+
+const _productTable = 'product';
+const _barcodeTable = Product.barcodesKey;
+const _productIdColumn = 'product_id';
+const _codeColumn = ScaleCode.codeKey;
+const _storeIdColumn = ScaleCode.storeIdKey;
+
+const _createRegistrationRpc = 'create_product_registration';
+const _addPackagingsRpc = 'add_packagings';
+const _registrationIdParam = 'p_registration_id';
+const _packagingsParam = 'p_packagings';
+
+// The keys of each element of `p_packagings`.
+const _barcodesField = 'barcodes';
+const _scaleCodesField = 'scale_codes';
+
+// No `!inner`: a leaf with no code still has to come back.
+const _productColumns = '*, $_barcodeTable ( $_codeColumn, $_storeIdColumn )';
+
+const _productOwnerEmbed = 'product';
+const _ownerColumns =
+    '$_codeColumn, $_productOwnerEmbed!inner ( *, '
+    '${BarcodeOwner.registrationKey}!inner ( *, '
+    '${BarcodeOwner.typeKey}!inner ( * ), ${BarcodeOwner.brandKey} ( * ) ) )';
 
 /// The real thing. The client is PRIVATE: the UI never reaches it.
 ///
 /// **Every method closes on `rethrowAsKnownFailure`.** Without it the SQLSTATE
 /// 23505 of the duplicate guard arrives as "status 23505", falls into the
 /// >= 500 arm of AppFailure and tells the user the server is down when the
-/// product simply already exists.
+/// product simply already exists. The same goes for a repeated code: the 23505
+/// of `product_barcode_code_key` becomes a 409 (`DuplicateRecord`) here too.
 final class CatalogRepositoryRemote implements CatalogRepository {
   CatalogRepositoryRemote(this._client);
 
@@ -132,8 +159,13 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   );
 
   @override
-  Future<Product> updateProduct(Product product) async =>
-      _update('product', product.id!, product.toJson(), Product.fromJson);
+  Future<Product> updateProduct(Product product) async => _update(
+    _productTable,
+    product.id!,
+    product.toJson(),
+    Product.fromJson,
+    columns: _productColumns,
+  );
 
   /// The five updates differ in their table and their `fromJson`, and in
   /// nothing else. The id leaves the payload because it is already in the
@@ -143,14 +175,15 @@ final class CatalogRepositoryRemote implements CatalogRepository {
     String table,
     String id,
     Map<String, dynamic> payload,
-    T Function(Map<String, dynamic> json) fromJson,
-  ) async {
+    T Function(Map<String, dynamic> json) fromJson, {
+    String columns = '*',
+  }) async {
     try {
       final row = await _client
           .from(table)
           .update(payload..remove('id'))
           .eq('id', id)
-          .select()
+          .select(columns)
           .single();
       return fromJson(row);
     } on Object catch (e, st) {
@@ -178,8 +211,8 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<IList<Product>> fetchProducts() async {
     try {
       final rows = await _client
-          .from('product')
-          .select()
+          .from(_productTable)
+          .select(_productColumns)
           .order('total_content');
       return rows.map(Product.fromJson).toIList();
     } on Object catch (e, st) {
@@ -206,13 +239,11 @@ final class CatalogRepositoryRemote implements CatalogRepository {
     try {
       // A view that only sums and groups — no now(), no window, no threshold
       // (decisions 7 and 13). What to do with the count is Dart's business.
-      final rows = await _client
-          .from('product_type_purchase_count')
-          .select();
+      final rows = await _client.from('product_type_purchase_count').select();
       return {
         for (final row in rows)
-          row['product_type_id'] as String:
-              (row['purchase_count'] as num).toInt(),
+          row['product_type_id'] as String: (row['purchase_count'] as num)
+              .toInt(),
       }.lock;
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -290,10 +321,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
           : query.eq('brand_id', brandId);
 
       final rows = await query.order('description');
-      return rows
-          .map((row) => row['description'] as String)
-          .toSet()
-          .toIList();
+      return rows.map((row) => row['description'] as String).toSet().toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
@@ -303,8 +331,8 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<IList<Product>> fetchProductsOf(String registrationId) async {
     try {
       final rows = await _client
-          .from('product')
-          .select()
+          .from(_productTable)
+          .select(_productColumns)
           .eq('product_registration_id', registrationId)
           .order('total_content');
       return rows.map(Product.fromJson).toIList();
@@ -316,20 +344,21 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     try {
       // The transactional function of the base migration, never two loose
       // inserts: a registration with four packagings is five rows in two
       // tables, and PostgREST cannot write that atomically.
       final response = await _client.rpc<Map<String, dynamic>>(
-        'create_product_registration',
+        _createRegistrationRpc,
         params: {
           'p_product_type_id': registration.productTypeId,
           'p_brand_id': registration.brandId,
           'p_description': registration.description,
           'p_selling_mode': registration.sellingMode.toJson(),
-          'p_packagings': _packagingsPayload(packagings),
+          _packagingsParam: _packagingsPayload(packagings, scaleCodes),
         },
       );
 
@@ -352,33 +381,138 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   @override
   Future<IList<Product>> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     try {
-      // One table, so a plain insert is transactional on its own — the
-      // function exists for the two-table case.
-      final rows = await _client
-          .from('product')
-          .insert([
-            for (final packaging in packagings)
-              {
-                'product_registration_id': registrationId,
-                ...packaging.toJson(),
-              },
-          ])
-          .select();
-      return rows.map(Product.fromJson).toIList();
+      // A function now because it is two tables (leaf + code). It does NOT go
+      // through `_packagingsPayload`: there an empty list becomes `[{}]`, and
+      // that would create a by-weight leaf in a by-piece registration.
+      final response = await _client.rpc<List<dynamic>>(
+        _addPackagingsRpc,
+        params: {
+          _registrationIdParam: registrationId,
+          _packagingsParam: [for (final p in packagings) _packagingElement(p)],
+        },
+      );
+      return response
+          .cast<Map<String, dynamic>>()
+          .map(Product.fromJson)
+          .toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
   }
 
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    if (codes.isEmpty) return const IMap.empty();
+    try {
+      // `isFilter` is what leaves the scale codes out. A 7-digit item code is
+      // never equal to a GTIN-14, but the filter does not depend on that.
+      final rows = await _client
+          .from(_barcodeTable)
+          .select(_ownerColumns)
+          .inFilter(_codeColumn, [for (final c in codes) c.toJson()])
+          .isFilter(_storeIdColumn, null);
+      return {
+        for (final row in rows)
+          Barcode.fromJson(row[_codeColumn] as String): BarcodeOwner.fromJson(
+            row[_productOwnerEmbed] as Map<String, dynamic>,
+          ),
+      }.lock;
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> addBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    try {
+      // No `store_id`: a packaging code.
+      await _client.from(_barcodeTable).insert({
+        _productIdColumn: productId,
+        _codeColumn: code.toJson(),
+      });
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    try {
+      await _client
+          .from(_barcodeTable)
+          .delete()
+          .eq(_productIdColumn, productId)
+          .eq(_codeColumn, code.toJson())
+          .isFilter(_storeIdColumn, null);
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    try {
+      await _client.from(_barcodeTable).insert({
+        _productIdColumn: productId,
+        ...code.toJson(),
+      });
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  @override
+  Future<void> removeScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    try {
+      await _client
+          .from(_barcodeTable)
+          .delete()
+          .eq(_productIdColumn, productId)
+          .eq(_codeColumn, code.itemCode)
+          .eq(_storeIdColumn, code.storeId);
+    } on Object catch (e, st) {
+      rethrowAsKnownFailure(e, st);
+    }
+  }
+
+  /// The card's leaf plus its codes. The key always goes, empty or not (the
+  /// function accepts `[]`).
+  static Map<String, dynamic> _packagingElement(PackagingWithBarcodes p) => {
+    ...p.packaging.toJson(),
+    _barcodesField: [for (final b in p.barcodes) b.toJson()],
+  };
+
   /// One JSON element per leaf. A product sold by weight arrives with no
   /// packaging and still gets ONE leaf (decision B1), which the empty object
-  /// is: the function inserts a row whose packaging columns stay null.
+  /// is: the function inserts a row whose packaging columns stay null. The
+  /// scale codes ride in that element.
+  ///
+  /// No check on [scaleCodes] here: "packagings + scale code" was already
+  /// refused by `checkScaleCodes` in the domain.
   static List<Map<String, dynamic>> _packagingsPayload(
-    IList<Packaging> packagings,
+    IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes,
   ) => packagings.isEmpty
-      ? [const <String, dynamic>{}]
-      : [for (final packaging in packagings) packaging.toJson()];
+      ? [
+          {
+            if (scaleCodes.isNotEmpty)
+              _scaleCodesField: [for (final c in scaleCodes) c.toJson()],
+          },
+        ]
+      : [for (final p in packagings) _packagingElement(p)];
 }

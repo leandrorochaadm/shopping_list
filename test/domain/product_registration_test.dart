@@ -5,6 +5,7 @@ import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 
 void main() {
   ProductRegistration cocaCola({
@@ -119,6 +120,42 @@ void main() {
         ).checkPackagings(const IListConst([])),
         returnsNormally,
       );
+    });
+
+    group('checkScaleCodes', () {
+      final codes = [
+        const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+      ].lock;
+
+      test('refuses a scale code on a by-piece registration', () {
+        expect(
+          () => cocaCola().checkScaleCodes(codes),
+          throwsA(isA<UnexpectedScaleCode>()),
+        );
+      });
+
+      test('accepts a scale code on a by-weight registration', () {
+        expect(
+          () => cocaCola(
+            sellingMode: SellingMode.byWeight,
+          ).checkScaleCodes(codes),
+          returnsNormally,
+        );
+      });
+
+      test('accepts no scale code on a by-piece registration', () {
+        expect(
+          () => cocaCola().checkScaleCodes(const IList.empty()),
+          returnsNormally,
+        );
+      });
+
+      test('says what is wrong, in pt-BR', () {
+        expect(
+          const UnexpectedScaleCode().toString(),
+          contains(const UnexpectedScaleCode().message),
+        );
+      });
     });
 
     test('says what to do, in pt-BR', () {

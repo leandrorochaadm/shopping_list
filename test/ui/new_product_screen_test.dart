@@ -14,6 +14,7 @@ import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/selling_choice.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
@@ -1122,7 +1123,7 @@ class _RecordingRepository extends CatalogRepositoryLocal {
   final bool refusesPackagings;
 
   ProductRegistration? updated;
-  IList<Packaging>? added;
+  IList<PackagingWithBarcodes>? added;
 
   @override
   Future<ProductRegistration?> findRegistration({
@@ -1157,7 +1158,7 @@ class _RecordingRepository extends CatalogRepositoryLocal {
   @override
   Future<IList<Product>> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     if (refusesPackagings) throw NetworkException('offline');
     added = packagings;
@@ -1190,7 +1191,8 @@ class _StuckRepository extends CatalogRepositoryLocal {
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) => _held.future;
 }
 
@@ -1216,7 +1218,8 @@ class _RefusingRepository extends CatalogRepositoryLocal {
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async => throw NetworkException('offline');
 }
 

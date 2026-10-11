@@ -1,12 +1,15 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/category.dart';
 import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/scale_label.dart';
 
 /// A registration and the leaves it was saved with — what one transaction
 /// produced. It is not a DTO: both halves are the entities themselves, and
@@ -46,6 +49,32 @@ final class TypeLeaf {
 
   @override
   int get hashCode => Object.hash(product, registration);
+}
+
+/// A packaging and the codes printed on it — what one transaction writes as a
+/// leaf plus its `product_barcode` rows. It is not a DTO: both halves are the
+/// domain's own types, and they travel together because the write is single.
+final class PackagingWithBarcodes {
+  const PackagingWithBarcodes({
+    required this.packaging,
+    this.barcodes = const IList.empty(),
+  });
+
+  final Packaging packaging;
+  final IList<Barcode> barcodes;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PackagingWithBarcodes &&
+          other.packaging == packaging &&
+          other.barcodes == barcodes;
+
+  @override
+  int get hashCode => Object.hash(packaging, barcodes);
+
+  @override
+  String toString() => 'PackagingWithBarcodes(${packaging.label}, $barcodes)';
 }
 
 /// The five levels of the product catalog. I/O only: every conversion, every
@@ -99,6 +128,7 @@ abstract class CatalogRepository {
   /// The maintenance lists both levels whole, across every type.
   Future<IList<ProductRegistration>> fetchRegistrations();
 
+  /// Every leaf, WITH its codes.
   Future<IList<Product>> fetchProducts();
 
   /// One registration by id — the `≡` door into screen 4 (H10).
@@ -142,7 +172,8 @@ abstract class CatalogRepository {
   });
 
   /// The leaves a registration already has — what `[ Abrir e acrescentar
-  /// embalagem ]` loads when a blocked registration is reopened.
+  /// embalagem ]` loads when a blocked registration is reopened. They come
+  /// WITH their codes.
   Future<IList<Product>> fetchProductsOf(String registrationId);
 
   /// Registration + N leaves in ONE transaction, through the Postgres
@@ -152,17 +183,51 @@ abstract class CatalogRepository {
   ///
   /// [packagings] is empty for a product sold by weight: the leaf still
   /// exists (decision B1), with no packaging on it.
+  ///
+  /// [scaleCodes] only exist for a product sold by weight ([packagings]
+  /// empty) and go to its single leaf. Whether the registration accepts them
+  /// is `registration.checkScaleCodes`, asked by the caller before this call:
+  /// the repository does not decide (rule 3).
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   });
 
   /// Adds leaves to a registration that already exists — the second half of
   /// `[ Abrir e acrescentar embalagem ]`, and the "comprou o Omo de 2,3 kg
   /// tendo só o de 500 g" case of the wireframe.
+  ///
+  /// It is the `add_packagings` function: leaves and codes in one transaction.
+  /// Only for a registration sold by piece — a scale code of a product that
+  /// already exists goes in through [addScaleCode].
   Future<IList<Product>> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+  });
+
+  /// Who holds each of [codes], in ONE round trip. Packaging codes only
+  /// (never a scale code); active owners AND deactivated ones; a code with no
+  /// owner is left out of the map. Deciding what that means is the domain's
+  /// (`conflictOf`), not the repository's.
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes);
+
+  Future<void> addBarcode({required String productId, required Barcode code});
+
+  /// A real `DELETE` (decision of 10/10/2026).
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  });
+
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  });
+
+  Future<void> removeScaleCode({
+    required String productId,
+    required ScaleCode code,
   });
 }
 

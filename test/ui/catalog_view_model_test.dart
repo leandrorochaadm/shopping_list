@@ -12,6 +12,7 @@ import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 
 /// The `_local` fake with a switch that makes the next call fail — no
@@ -122,7 +123,8 @@ class _SpyRepository extends CatalogRepositoryLocal {
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     saveCalls++;
     final failure = _take();
@@ -130,6 +132,7 @@ class _SpyRepository extends CatalogRepositoryLocal {
     return super.saveRegistrationWithProducts(
       registration: registration,
       packagings: packagings,
+      scaleCodes: scaleCodes,
     );
   }
 
@@ -149,7 +152,7 @@ class _SpyRepository extends CatalogRepositoryLocal {
   @override
   Future<IList<Product>> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     addPackagingCalls++;
     final only = failAddPackagings;
@@ -179,9 +182,7 @@ void main() {
     test('brings categories, types and brands together', () async {
       final container = containerWith(_SpyRepository());
 
-      final options = await container.read(
-        catalogViewModelProvider.future,
-      );
+      final options = await container.read(catalogViewModelProvider.future);
 
       expect(options.categories, isNotEmpty);
       expect(options.types, isNotEmpty);
@@ -193,9 +194,7 @@ void main() {
       // Antarctica" be born the day the first one is deactivated.
       final container = containerWith(_SpyRepository());
 
-      final options = await container.read(
-        catalogViewModelProvider.future,
-      );
+      final options = await container.read(catalogViewModelProvider.future);
 
       expect(options.brands.any((brand) => !brand.active), isTrue);
     });
@@ -399,24 +398,27 @@ void main() {
   });
 
   group('the identity guard', () {
-    test('finds the registration that already holds it, with its leaves', () async {
-      final container = containerWith(_SpyRepository());
-      await container.read(catalogViewModelProvider.future);
+    test(
+      'finds the registration that already holds it, with its leaves',
+      () async {
+        final container = containerWith(_SpyRepository());
+        await container.read(catalogViewModelProvider.future);
 
-      final conflict = await container
-          .read(catalogViewModelProvider.notifier)
-          .checkIdentity(
-            productTypeId: 'type-1',
-            brandId: 'brand-1',
-            // Same identity, typed differently: the comparison is normalized.
-            description: '  ORIGINAL ',
-          );
+        final conflict = await container
+            .read(catalogViewModelProvider.notifier)
+            .checkIdentity(
+              productTypeId: 'type-1',
+              brandId: 'brand-1',
+              // Same identity, typed differently: the comparison is normalized.
+              description: '  ORIGINAL ',
+            );
 
-      expect(conflict, isNotNull);
-      expect(conflict!.registration.id, 'reg-1');
-      // The four packagings of the wireframe, so the screen can say how many.
-      expect(conflict.products, hasLength(4));
-    });
+        expect(conflict, isNotNull);
+        expect(conflict!.registration.id, 'reg-1');
+        // The four packagings of the wireframe, so the screen can say how many.
+        expect(conflict.products, hasLength(4));
+      },
+    );
 
     test('counts a blank description as a value', () async {
       // Two ground beefs with no description under the same type ARE the same
@@ -447,27 +449,30 @@ void main() {
       );
     });
 
-    test('does not block the registration when the check itself fails', () async {
-      // The check is a COURTESY the screen pays before saving; the unique
-      // index is what actually holds. Turning a lost connection into a block
-      // would keep a legitimate registration from ever being written.
-      final repository = _SpyRepository();
-      final container = containerWith(repository);
-      await container.read(catalogViewModelProvider.future);
+    test(
+      'does not block the registration when the check itself fails',
+      () async {
+        // The check is a COURTESY the screen pays before saving; the unique
+        // index is what actually holds. Turning a lost connection into a block
+        // would keep a legitimate registration from ever being written.
+        final repository = _SpyRepository();
+        final container = containerWith(repository);
+        await container.read(catalogViewModelProvider.future);
 
-      repository.failNextCall = NetworkException('offline');
+        repository.failNextCall = NetworkException('offline');
 
-      expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .checkIdentity(
-              productTypeId: 'type-1',
-              brandId: 'brand-1',
-              description: 'original',
-            ),
-        isNull,
-      );
-    });
+        expect(
+          await container
+              .read(catalogViewModelProvider.notifier)
+              .checkIdentity(
+                productTypeId: 'type-1',
+                brandId: 'brand-1',
+                description: 'original',
+              ),
+          isNull,
+        );
+      },
+    );
 
     test('ignores the registration being edited', () async {
       final container = containerWith(_SpyRepository());
@@ -493,17 +498,20 @@ void main() {
       );
     });
 
-    test('suggests the descriptions already used in that type and brand', () async {
-      final container = containerWith(_SpyRepository());
-      await container.read(catalogViewModelProvider.future);
+    test(
+      'suggests the descriptions already used in that type and brand',
+      () async {
+        final container = containerWith(_SpyRepository());
+        await container.read(catalogViewModelProvider.future);
 
-      expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .descriptionsFor(productTypeId: 'type-1', brandId: 'brand-1'),
-        contains('original'),
-      );
-    });
+        expect(
+          await container
+              .read(catalogViewModelProvider.notifier)
+              .descriptionsFor(productTypeId: 'type-1', brandId: 'brand-1'),
+          contains('original'),
+        );
+      },
+    );
   });
 
   group('saving', () {
@@ -536,10 +544,7 @@ void main() {
       final saved = (outcome! as RegistrationSaved).saved;
       // ONE call: registration and leaves travel in a single transaction.
       expect(repository.saveCalls, 1);
-      expect(
-        await repository.fetchProductsOf('reg-100'),
-        hasLength(4),
-      );
+      expect(await repository.fetchProductsOf('reg-100'), hasLength(4));
       // And the rows come BACK, with the ids the database gave them —
       // without that, screen 3 could not select what was just registered
       // without reloading the whole catalog.
@@ -614,27 +619,30 @@ void main() {
       expect(repository.saveCalls, 0);
     });
 
-    test('turns the duplicate the index caught into its own sentence', () async {
-      final repository = _SpyRepository();
-      final container = containerWith(repository);
-      await container.read(catalogViewModelProvider.future);
+    test(
+      'turns the duplicate the index caught into its own sentence',
+      () async {
+        final repository = _SpyRepository();
+        final container = containerWith(repository);
+        await container.read(catalogViewModelProvider.future);
 
-      repository.failNextCall = ApiException(409, 'duplicate key');
+        repository.failNextCall = ApiException(409, 'duplicate key');
 
-      expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .save(
-              registration: ProductRegistration(
-                productTypeId: 'type-1',
-                sellingMode: SellingMode.byPiece,
-              ),
-              packagings: [bottle('350', BaseUnit.milliliter)].lock,
-            )
-            .then(_saveMessage),
-        'Já existe um cadastro com esses dados.',
-      );
-    });
+        expect(
+          await container
+              .read(catalogViewModelProvider.notifier)
+              .save(
+                registration: ProductRegistration(
+                  productTypeId: 'type-1',
+                  sellingMode: SellingMode.byPiece,
+                ),
+                packagings: [bottle('350', BaseUnit.milliliter)].lock,
+              )
+              .then(_saveMessage),
+          'Já existe um cadastro com esses dados.',
+        );
+      },
+    );
 
     test('saves once on a double tap', () async {
       final repository = _SpyRepository();
@@ -746,19 +754,22 @@ void main() {
       expect(repository.addPackagingCalls, 0);
     });
 
-    test('writes only the packagings when the identity did not change', () async {
-      final (repository, notifier) = await ready();
+    test(
+      'writes only the packagings when the identity did not change',
+      () async {
+        final (repository, notifier) = await ready();
 
-      final outcome = await edit(
-        notifier,
-        packagings: [bottle('600', BaseUnit.milliliter)].lock,
-      );
+        final outcome = await edit(
+          notifier,
+          packagings: [bottle('600', BaseUnit.milliliter)].lock,
+        );
 
-      expect(outcome, isA<RegistrationEdited>());
-      expect((outcome! as RegistrationEdited).products, hasLength(1));
-      expect(repository.updateRegistrationCalls, 0);
-      expect(repository.addPackagingCalls, 1);
-    });
+        expect(outcome, isA<RegistrationEdited>());
+        expect((outcome! as RegistrationEdited).products, hasLength(1));
+        expect(repository.updateRegistrationCalls, 0);
+        expect(repository.addPackagingCalls, 1);
+      },
+    );
 
     test('writes both when both changed', () async {
       final (repository, notifier) = await ready();
@@ -815,7 +826,9 @@ void main() {
           description: 'zero',
           sellingMode: SellingMode.byPiece,
         ),
-        packagings: [bottle('350', BaseUnit.milliliter)].lock,
+        packagings: [
+          PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter)),
+        ].lock,
       );
 
       final outcome = await edit(notifier, description: 'Zero');
@@ -836,7 +849,9 @@ void main() {
           description: 'zero',
           sellingMode: SellingMode.byPiece,
         ),
-        packagings: [bottle('350', BaseUnit.milliliter)].lock,
+        packagings: [
+          PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter)),
+        ].lock,
       );
       await repository.updateRegistration(saved.registration.deactivated());
       repository.updateRegistrationCalls = 0;
@@ -914,18 +929,21 @@ void main() {
       expect(repository.updateRegistrationCalls, 1);
     });
 
-    test('a packaging failure with no identity change writes nothing', () async {
-      final (repository, notifier) = await ready();
-      repository.failAddPackagings = NetworkException('offline');
+    test(
+      'a packaging failure with no identity change writes nothing',
+      () async {
+        final (repository, notifier) = await ready();
+        repository.failAddPackagings = NetworkException('offline');
 
-      final outcome = await edit(
-        notifier,
-        packagings: [bottle('600', BaseUnit.milliliter)].lock,
-      );
+        final outcome = await edit(
+          notifier,
+          packagings: [bottle('600', BaseUnit.milliliter)].lock,
+        );
 
-      expect(outcome, isA<RegistrationEditFailed>());
-      expect(repository.updateRegistrationCalls, 0);
-    });
+        expect(outcome, isA<RegistrationEditFailed>());
+        expect(repository.updateRegistrationCalls, 0);
+      },
+    );
 
     test('an update failure writes nothing', () async {
       final (repository, notifier) = await ready();
@@ -954,53 +972,59 @@ void main() {
   });
 
   group('the two paths the `#1a` panel needs', () {
-    test('reactivates the deactivated type instead of creating a second', () async {
-      // Decision B3: a second "Sabão em pó" would split in two the history the
-      // soft delete exists to preserve.
-      final repository = _SpyRepository();
-      final container = containerWith(repository);
-      await container.read(catalogViewModelProvider.future);
+    test(
+      'reactivates the deactivated type instead of creating a second',
+      () async {
+        // Decision B3: a second "Sabão em pó" would split in two the history the
+        // soft delete exists to preserve.
+        final repository = _SpyRepository();
+        final container = containerWith(repository);
+        await container.read(catalogViewModelProvider.future);
 
-      final deactivated = container
-          .read(catalogViewModelProvider)
-          .value!
-          .types
-          .first
-          .deactivated();
-      await repository.updateType(deactivated);
-
-      final error = await container
-          .read(catalogViewModelProvider.notifier)
-          .reactivateType(deactivated);
-
-      expect(error, isNull);
-      expect(
-        container
+        final deactivated = container
             .read(catalogViewModelProvider)
             .value!
             .types
-            .firstWhere((t) => t.id == deactivated.id)
-            .active,
-        isTrue,
-      );
-    });
+            .first
+            .deactivated();
+        await repository.updateType(deactivated);
 
-    test('a failed reactivation answers a sentence and moves nothing', () async {
-      final repository = _SpyRepository();
-      final container = containerWith(repository);
-      await container.read(catalogViewModelProvider.future);
-
-      final before = container.read(catalogViewModelProvider).value!.types;
-      repository.failNextCall = NetworkException('offline');
-
-      expect(
-        await container
+        final error = await container
             .read(catalogViewModelProvider.notifier)
-            .reactivateType(before.first.deactivated()),
-        'Sem conexão. Verifique a internet e tente de novo.',
-      );
-      expect(container.read(catalogViewModelProvider).value!.types, before);
-    });
+            .reactivateType(deactivated);
+
+        expect(error, isNull);
+        expect(
+          container
+              .read(catalogViewModelProvider)
+              .value!
+              .types
+              .firstWhere((t) => t.id == deactivated.id)
+              .active,
+          isTrue,
+        );
+      },
+    );
+
+    test(
+      'a failed reactivation answers a sentence and moves nothing',
+      () async {
+        final repository = _SpyRepository();
+        final container = containerWith(repository);
+        await container.read(catalogViewModelProvider.future);
+
+        final before = container.read(catalogViewModelProvider).value!.types;
+        repository.failNextCall = NetworkException('offline');
+
+        expect(
+          await container
+              .read(catalogViewModelProvider.notifier)
+              .reactivateType(before.first.deactivated()),
+          'Sem conexão. Verifique a internet e tente de novo.',
+        );
+        expect(container.read(catalogViewModelProvider).value!.types, before);
+      },
+    );
 
     test('brings the count that orders the panel', () async {
       final repository = _SpyRepository();
@@ -1084,9 +1108,7 @@ void main() {
           productTypeId: 'type-1',
           sellingMode: SellingMode.byPiece,
         ),
-        products: [
-          Product(id: leafId, productRegistrationId: 'reg-1'),
-        ].lock,
+        products: [Product(id: leafId, productRegistrationId: 'reg-1')].lock,
       );
 
       expect(conflict(), conflict());

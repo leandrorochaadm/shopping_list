@@ -3,6 +3,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'brand.dart';
 import 'name_normalization.dart';
 import 'packaging.dart';
+import 'scale_label.dart';
 
 /// How the product is bought — and it is a property of the REGISTRATION, not
 /// of the type (decision B4).
@@ -151,6 +152,15 @@ final class ProductRegistration {
     }
   }
 
+  /// The third rule of the selling mode: only the product sold loose has a
+  /// scale code. Whoever passes `scaleCodes` to `saveRegistrationWithProducts`
+  /// asks this first, as `save` already asks [checkPackagings].
+  void checkScaleCodes(IList<ScaleCode> scaleCodes) {
+    if (!isSoldByWeight && scaleCodes.isNotEmpty) {
+      throw const UnexpectedScaleCode();
+    }
+  }
+
   ProductRegistration deactivated() => copyWith(active: false);
 
   ProductRegistration reactivated() => copyWith(active: true);
@@ -187,14 +197,8 @@ final class ProductRegistration {
           other.active == active);
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    productTypeId,
-    brandId,
-    description,
-    sellingMode,
-    active,
-  );
+  int get hashCode =>
+      Object.hash(id, productTypeId, brandId, description, sellingMode, active);
 
   @override
   String toString() =>
@@ -206,8 +210,8 @@ final class ProductRegistration {
 /// changes the sentence (decision B3), never whether it blocks.
 String registrationConflictMessage(ProductRegistration conflict) =>
     conflict.active
-        ? 'Já existe esse produto cadastrado.'
-        : 'Esse produto já existe, mas está desativado.';
+    ? 'Já existe esse produto cadastrado.'
+    : 'Esse produto já existe, mas está desativado.';
 
 /// Sold by piece and no packaging listed.
 final class MissingPackaging implements Exception {
@@ -230,4 +234,14 @@ final class UnexpectedPackaging implements Exception {
 
   @override
   String toString() => 'UnexpectedPackaging: $message';
+}
+
+/// A scale code came with a product that is not sold loose.
+final class UnexpectedScaleCode implements Exception {
+  const UnexpectedScaleCode();
+
+  String get message => 'Só produto vendido solto tem código de balança.';
+
+  @override
+  String toString() => 'UnexpectedScaleCode: $message';
 }

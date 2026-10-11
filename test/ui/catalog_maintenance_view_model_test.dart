@@ -469,7 +469,7 @@ void main() {
         description: 'zero',
         sellingMode: SellingMode.byPiece,
       ),
-      packagings: const IList<Packaging>.empty(),
+      packagings: const IList<PackagingWithBarcodes>.empty(),
     );
     await notifierOf(c).refresh();
 
