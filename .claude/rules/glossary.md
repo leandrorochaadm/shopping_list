@@ -68,7 +68,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | linha do histórico | `PurchaseSummary` | data, mercado, quem lançou e o total já somado. **Não é uma `Purchase`** — não carrega item nenhum |
 | a compra aberta para correção | `PurchaseDetail` | compra + itens + **rastro**. Os dois lados do desfazer |
 | um dos seis cadastros | `CatalogKind` | o seletor da tela de manutenção. Carrega o rótulo e o artigo da frase de conflito |
-| o que se pede à Tela 4 | `NewProductRequest` | `returnsSelection` (Tela 3) e `registrationId` (manutenção). Era um `bool` até a H10 |
+| o que se pede à Tela 4 | `NewProductRequest` | `returnsSelection` (Tela 3), `registrationId` (manutenção) e `initialBarcode` (código lido que ninguém tem). Era um `bool` até a H10 |
 | período do relatório | `ReportPeriod` | dois dias de calendário. Carrega o mês em curso, o deslocamento de mês e o teto do `›` |
 | relatório do período | `PeriodReport` | as **três** agregações do mesmo intervalo, planas, como a função devolve |
 | gasto por categoria | `CategorySpending` | **só dinheiro** — categoria não tem quantidade (divergência D-c) |
@@ -100,9 +100,9 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | o item aberto de um tipo | `findOpenItemOfType` | o mais antigo quando há mais de um. É onde "editando o item que já existe, nunca criando um segundo" é decidido |
 | calculadora de custo proporcional | `proportional_cost.dart` | o painel `#3a`. **Não** `CostCalculator`: o que existe é a regra, e ela não é um objeto que calcula |
 | linha da calculadora | `CostLine` | folha + marcada + preço + custo + diferença + `★`. **Não confundir com `ComparisonLine`**, que é a linha de MERCADO da H16 |
-| as duas listas do painel | `CostCandidates` | o recorte da janela **mais a folha em lançamento** (`shown`) e o tipo inteiro (`all`). `canCompare` é a regra do botão da Tela 3 |
-| a folha que está sendo lançada | `launching` | o parâmetro de `costCandidatesOf` e do painel. É a **única que abre marcada**, e a única que entra em `shown` sem preço (F-j) |
-| resposta da calculadora | `CostRanking` | as linhas ordenadas, o `★`, para onde o `[ Usar… ]` aponta e a frase do rodapé |
+| as duas listas do painel | `CostCandidates` | o recorte da janela **mais a folha em lançamento e as folhas lidas** (`shown`) e o tipo inteiro (`all`). `canCompare` é a regra do botão da Tela 3 |
+| a folha que está sendo lançada | `launching` | o parâmetro de `costCandidatesOf` e do painel. Abre marcada e entra em `shown` sem preço (F-j) — e, desde a M-e, a folha **lida** pelo `[ ▥ Ler outro ]` também (`CostCandidates.withShown`) |
+| resposta da calculadora | `CostRanking` | as linhas ordenadas, o `★`, para onde o `[ Adicionar … à compra ]` aponta (M-e: a linha tocada, `pickedId`, quando ela concorre; senão o `★`) e a frase do rodapé |
 | empate técnico | `costTieThreshold` | 1%. `const` no domínio, e **o único lugar onde o número existe** |
 | conteúdo que um preço compra | `contentPricedOf` | o `totalContent` da embalagem, ou **uma unidade de preço** (1000 g, 100 cm) no vendido a peso |
 | conteúdo digitado na comparação | `typedContent` | o conteúdo que o `#3a` deixa digitar **só na folha sem embalagem** (`acceptsTypedContentOf`). No mapa que chega a `rankCosts`, `null` é "campo apagado" e a **ausência** da chave é outra coisa: ninguém digitou |
@@ -117,6 +117,51 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | editar o cadastro na Tela 4 | `editRegistration` / `RegistrationEditOutcome` | identidade + embalagens novas num toque (**M-b**). Três desfechos: `RegistrationEdited`, `RegistrationEditFailed`, `PackagingsFailedAfterEdit` |
 | a identidade mudou? | `changesIdentityOf` | comparação **crua**; não confundir com `hasSameIdentityAs`, que normaliza. "acem" → "acém" muda, mas não é outro cadastro |
 | mover o cadastro de tipo | `checkTypeMove` | a rede embaixo de `typesCompatibleWith`: lança `IncompatibleBaseUnit`. Usada pelos dois ViewModels que movem cadastro |
+| código de barras | `Barcode` | sempre em GTIN-14; `label` é o número da tela (EAN-13 ou EAN-8). Uma embalagem tem **zero, um ou vários**, e um código é de **uma embalagem só** no app. Recusas: `InvalidBarcode` e `InStoreBarcode` |
+| dono do código | `BarcodeOwner` | folha + cadastro + tipo + marca. `label` é **tipo + marca + descrição + embalagem** (não `labelWith`), e `isActive` olha a folha e o cadastro |
+| procurar pelo código | `BarcodeLookupViewModel` / `BarcodeLookupOutcome` | usado pelo `#1a` e pela Despensa. Também mora aqui o `linkScaleCode` |
+| etiqueta de balança | `ScaleLabel` | `parse` devolve `itemCode` + `weightInGrams`. Só o formato da foto da tâmara (M-d). A validade e o peso **nunca** são gravados |
+| código de balança | `ScaleCode` | `storeId` + `itemCode`. **Preso ao mercado**, ao contrário do `Barcode` |
+| o que a leitura significa | `resolveScan` / `ScanResolution` | sete casos, e a tela só faz o `switch` |
+| item montado pela calculadora | `CostPick` / `costPickOf` | o que o `[ Adicionar … à compra ]` põe. Por peça, 1 embalagem; a peso, o "Quanto vem" |
+| leitura no painel | `admitScan` / `ScanAdmission` | `AlreadyShown`, `AddedToShown` ou `OtherType` |
+| modo caixa | `checkoutScan` / `CheckoutStep` | a tela é `CheckoutScreen`, identificada `#3b` no wireframe, e **sem rota** |
+| preço anterior | `PriceOrigin.lastPurchase` | vai **só** para o rascunho. `fromApi` sem o campo dá `typed`, e um valor desconhecido dá `values.first` (exceção à regra global do `unknown`, ver **M-f**) |
+| conferir o preço | `confirmedPrice` | a transição `lastPurchase → typed` (regra 7) |
+| conflito de código | `BarcodeConflict` / `conflictOf` | `RepeatedOnScreen` ou `TakenByActive`. Dono desativado **não** é conflito |
+| código preso a produto desativado | `inactiveHoldersOf` | o salvar libera **sem perguntar** |
+| embalagem com seus códigos | `PackagingWithBarcodes` | o que a Tela 4 manda ao repository |
+| conferir os códigos antes de salvar | `checkBarcodes` / `BarcodeCheckOutcome` | **uma** ida a `findOwners` |
+| incluir código na manutenção | `BarcodeAddOutcome` | inclui o `BarcodeAddFailed` |
+| código já nesta embalagem | `Product.withBarcode` / `withoutBarcode` / `BarcodeAlreadyOnPackaging` | na manutenção; no cartão da Tela 4 são `PackagingDraft.withBarcode` / `withoutBarcode` |
+| quem tem estes códigos | `findOwners` | **uma** ida, só código de embalagem, dono ativo e desativado. Quem decide é `conflictOf` |
+| a embalagem aceita código? | `Product.acceptsBarcodes` | a folha a peso não aceita |
+| código no cartão da Tela 4 | `packagingCodesWith` / `packagingCodeOf` | |
+| código que abre a Tela 4 | `initialBarcode` | campo do `NewProductRequest` |
+| código de balança no cadastro | `checkScaleCodes` / `UnexpectedScaleCode` | só no vendido a peso |
+| código de balança repetido no produto | `scaleCodesWith` / `ScaleCodeAlreadyOnProduct` | |
+| código de balança tirado da etiqueta | `ScaleCode.fromLabel` | a etiqueta **inteira** vira `storeId` + `itemCode` |
+| seção dos códigos de balança | `ScaleCodesSection` | Mercado + campo + `[▥]` + `[+]` + lista, na Tela 4 a peso |
+| etiqueta fora do formato | `UnknownScaleLabel` | |
+| etiqueta lida com o produto já ligado | `ScaleMatch.ofLabel` / `ScaleUnlinked.linkedTo` | o peso só vira Quantidade quando o tipo é em grama |
+| produtos que "Qual produto é este?" oferece | `scaleLinkCandidatesOf` | só os vendidos a peso, sem repetir |
+| leitor de código | `BarcodeReaderSheet` | é um **painel** e devolve o texto **cru**. Nunca chamar de "folha", palavra que é do produto |
+| visor da câmera | `BarcodeCameraView` / `codeGoneGap` | lê sem parar. O mesmo código só vale de novo **depois de sair do visor** |
+| frase da leitura | `ScanNotice` | |
+| produto já pedido na lista | `isRegistrationTaken` | "Já está na lista." |
+| pôr na lista o produto lido | `addWithRegistration` / `categoryOf` | tipo + produto pedido, **sem embalagem**, e a categoria do tipo |
+| leitura na despensa | `PantryScan` / `pantryScanOf` | |
+| folha lida entra no painel | `CostCandidates.withShown` | |
+| linha escolhida no painel | `pickedId` | não confundir com `ShoppingListItem.picked` |
+| qual produto é esta etiqueta | `ScaleLinkDialog` / `ScaleLink` | |
+| de qual mercado é a etiqueta | `ScaleStoreDialog` | |
+| linha sem preço do caixa | `NeedsPrice` / `pricedAt` / `joining` | fica **fora** do rascunho. O preço digitado é o de **uma** embalagem |
+| o que passou agora no caixa | `QuantityIncreased.addedPaid` | |
+| mercado que vem da etiqueta | `PurchaseDraft.storeAdoptedFrom` | |
+| bipe | `Beep` / `beepProvider` | pacote `web`, atrás de *conditional import* |
+| há preço a conferir? | `hasUnconfirmedPrices` / `unconfirmedPrices` / `PurchaseItem.isPriceUnconfirmed` | |
+| conferir um preço ou todos | `withPriceConfirmed` / `allPricesConfirmed` / `confirmPrice` / `confirmAllPrices` | os dois primeiros no rascunho, os dois últimos no ViewModel |
+| linha escolhida sem preço | `CostRanking.missingPriceOf` | "Digite o preço do {label}." acima do botão travado |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso

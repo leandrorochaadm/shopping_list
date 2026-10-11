@@ -24,6 +24,16 @@ modo caixa (decisões M-c a M-f, plano
 - O leitor e o modo caixa são diálogos **sem rota nova**.
 - Tela 2: o `( + Adicionar N à lista )` virou botão flutuante (já descrito na
   nota da tela).
+- Acertos da implementação (10/10/2026):
+  - Tela 4, lápis da manutenção: título "Corrigir a embalagem", ações em duas
+    linhas (`[ Desativar ]↻` e `[ Cancelar ]↻  [ Salvar ]↻`), sem o `[ X ]`.
+  - Tela 4, códigos de balança: os 7 dígitos sozinhos dão "Não conheço esta
+    etiqueta.", o Mercado começa vazio e as recusas ficam embaixo do campo.
+  - Tela 4, cartão: nota do código digitado sem `[ + ]`, do dono ativo e do
+    "Produto salvo.".
+  - `#3a`: etiqueta não ligada, botão travado sem rótulo e "Quanto vem" apagado.
+  - Modo caixa: peso de tipo sem grama, `[ Cadastrar ]→4` a peso e leitura com
+    pergunta aberta.
 
 **O que mudou na 2.1** (sobre a 2.0) — o arquivo passou a declarar **o tamanho
 da tela em que ele é lido**, e uma das ordens desenhadas contrariava isso:
@@ -714,7 +724,7 @@ são congeladas); `< Concluir` volta para a Tela 3.
   código." com `[ Cadastrar produto ]→4`, que abre a Tela 4 com o código no
   primeiro cartão; na volta, o produto novo entra na lista como se tivesse sido
   lido. Etiqueta de balança: "Etiqueta de balança só serve no lançamento da
-  compra."
+  compra." Falha ao pôr na lista: "Não foi possível pôr na lista. Tente de novo."
 - `*` **As frases da leitura aparecem no próprio painel,
   logo abaixo do campo Tipo** — inclusive a falha ao procurar o código e
   "Código de barras inválido." —, somem ao digitar, e o painel continua aberto.
@@ -808,7 +818,7 @@ sair — o item entra na lista **sem número**, do mesmo jeito que o painel `#1a
   código. Código desconhecido: "Nenhum produto com esse código." — **sem**
   cadastrar: a despensa só marca o que já existe. Etiqueta de balança:
   "Etiqueta de balança só serve no lançamento da compra."; falha ao procurar:
-  SnackBar. **As frases aparecem no topo da tela, acima da lista**, e somem ao
+  SnackBar; falha ao pôr na lista: "Não foi possível pôr na lista. Tente de novo." **As frases aparecem no topo da tela, acima da lista**, e somem ao
   marcar uma linha ou ler outro código. Tipo que **já está na lista**: a linha
   travada rola até a vista e o aviso diz "Já está na lista."; o
   `[ Pôr na lista ]↻` que deu certo confirma com "1 item adicionado à lista."
@@ -1284,6 +1294,11 @@ O frango, que é o caso que pede o campo:
 - `*` O botão já vem no `★`; **tocar no nome de outra linha marcada passa o botão
   para ela**. Linha escolhida sem preço trava o botão com "Digite o preço do
   Omo 2,3kg." acima dele.
+- `*` Etiqueta **não ligada**, ou que existe em mais de um mercado, mostra "Não
+  conheço esta etiqueta. Escolha o produto pela lista." — o painel não pergunta
+  qual produto é, isso é da Tela 3. Travado, o botão diz `Adicionar à compra`,
+  sem rótulo. Linha escolhida com o "Quanto vem" apagado trava o botão **sem
+  frase**.
 
 **Estados:**
 - **Carregando:** a faixa do meio mostra "Buscando os preços que vocês
@@ -1383,6 +1398,12 @@ O frango, que é o caso que pede o campo:
   meio → "1 item não entrou na compra." / "{N} itens não entraram na compra."
 - A linha "Produto não cadastrado · {código}" não tem botão: o cadastro é no
   `[ Cadastrar ]` da pergunta.
+- Etiqueta de produto a peso cujo tipo **não é em grama** mostra a frase da
+  etiqueta desconhecida: não há peso para somar.
+- `[ Cadastrar ]→4` de um produto **vendido a peso** não soma nada e deixa a
+  linha "Produto não cadastrado": o código lido é de embalagem, e a folha a peso
+  não aceita código de embalagem.
+- Uma leitura que chega com uma pergunta aberta é ignorada.
 
 **Produto não cadastrado:**
 
@@ -1588,7 +1609,12 @@ O frango, que é o caso que pede o campo:
   nome de quem é o dono (quadro em Estados adicionais).
 - `*` **Código preso a um produto desativado não trava nem pergunta:** o salvar o
   passa para esta embalagem e avisa "Esse código era do Leite Italac 1L, que está
-  desativado. Agora é deste." no aviso de sucesso.
+  desativado. Agora é deste." no aviso de sucesso, junto do "Produto salvo.".
+- `*` **Código digitado e não incluído não é salvo**, e a tela não avisa: só o que
+  está na lista do cartão vale. A frase de dono ativo trava o botão até algum
+  código mudar.
+- **Cadastro desativado com a mesma identidade:** "Esse produto já existe, mas
+  está desativado."
 - O "Cadastrar produto" da Tela 3, do `#1a`, do `#3a` e do modo caixa abre esta
   tela com o código **já no primeiro cartão**.
 
@@ -1718,14 +1744,20 @@ O frango, que é o caso que pede o campo:
   - O mesmo código repetido no mesmo mercado nesta tela: "Esse código já está
     neste produto." Já gravado em outro produto do mesmo mercado: "Esse código
     já é de outro produto neste mercado." (sem o nome do dono). Em outro
-    mercado, é aceito.
-  - Pelo caminho da manutenção, cada `[ + ]↻` e `[ x ]↻` grava na hora.
+    mercado, é aceito. Os 7 dígitos digitados sozinhos dão "Não conheço esta
+    etiqueta.": o campo ("Código da etiqueta") quer a etiqueta inteira.
+  - O Mercado começa vazio, e o campo, o `[▥]↻` e o `[ + ]↻` ficam desligados
+    até escolher um. Sem lista de mercados: "Não foi possível carregar os
+    mercados." com `[ Tentar de novo ]↻`.
+  - Pelo caminho da manutenção, cada `[ + ]↻` e `[ x ]↻` grava na hora. A recusa e
+    a falha do código gravado na hora aparecem **embaixo do campo**; a remoção
+    usa SnackBar.
 - **Lápis de uma embalagem já salva (manutenção)** — abre sobre a Tela 4, pelo
   lápis da embalagem:
 
 ```
 ┌──────────────────────────────────────┐
-│  Editar embalagem           [ X ]↻   │
+│  Corrigir a embalagem                │
 │  [   12   ]  ×  [  350   ] ml        │
 │  ────────────────────────────        │
 │  Código de barras (opcional)         │
@@ -1735,12 +1767,16 @@ O frango, que é o caso que pede o campo:
 │  1L, que está desativado. Agora é    │
 │  deste.                         *    │
 │                                      │
-│  [ Salvar ]↻         [ Desativar ]↻  │
+│  [ Desativar ]↻                      │
+│  [ Cancelar ]↻  [ Salvar ]↻          │
 └──────────────────────────────────────┘
 ```
 
   - Os códigos entram e saem **na hora**, sem depender do `[ Salvar ]↻`; o código
-    removido fica livre para outra embalagem.
+    removido fica livre para outra embalagem. Por isso o `[ Cancelar ]↻` só
+    descarta a medida digitada, nunca um código já gravado.
+  - A folha vendida a peso **não tem** este bloco de código: o código de balança
+    dela é o da seção "Códigos de balança" da Tela 4.
   - `*` Código preso a um produto **desativado** não trava nem pergunta: passa
     para esta embalagem na hora, e a frase só avisa de onde ele veio.
   - Dono ativo: "Esse código já é do Guaraná 2L." Erro ao gravar: SnackBar.

@@ -1,6 +1,6 @@
 # Requisitos — Lista de compras de supermercado
 
-_Levantado em 15/08/2026 · Última atualização em 27/08/2026_
+_Levantado em 15/08/2026 · Última atualização em 10/10/2026_
 _Entrevistado: Leandro Rocha (dono do processo de compras)_
 
 ## Problema e objetivos
@@ -868,6 +868,51 @@ lançadas — isso é da natureza delas, não do sistema.
       "faltam 8 litros" (o que costumam consumir), com a lista mostrada logo
       abaixo do número para os dois nunca serem lidos como o mesmo.
 
+19. **Ler o código de barras da embalagem e a etiqueta da balança**, pela câmera
+    do celular ou digitando o número, para achar o produto sem procurar na lista.
+    _Acrescentado em 10/10/2026, fora dos 18 originais (decisões M-c a M-f)._
+    - **Cada embalagem guarda nenhum, um ou vários códigos**, e o mesmo código não
+      fica em duas embalagens. Código digitado errado é recusado. Código de
+      produto desativado passa para o produto novo sem perguntar.
+    - **Onde a leitura serve.** No **lançamento**, acha a embalagem. Na **lista**,
+      põe o produto, sem a embalagem. Na **despensa**, marca a linha do tipo. Na
+      **calculadora**, traz a embalagem para comparar e põe o item na compra.
+      Código que ninguém tem oferece cadastrar, com o código já preenchido.
+    - **Etiqueta da balança:** o código do produto pesado é **de cada mercado**.
+      Lida no lançamento, escolhe o produto e preenche o peso. Na primeira vez,
+      pergunta qual produto é. Na lista e na despensa ela é recusada. Por ora, só
+      o formato da etiqueta fotografada em 10/10/2026 (a tâmara do Irmãos
+      Gonçalves).
+    - **Modo caixa:** passar os produtos na câmera um atrás do outro, como no
+      caixa do supermercado. Cada embalagem vira uma linha, e a mesma embalagem
+      soma 1. O preço vem da última compra, marcado "preço anterior". Produto
+      nunca comprado pede o preço ali mesmo.
+    - **Salvar com preço não conferido** pergunta "Bateu com o cupom?" e **não
+      impede** de salvar.
+    - _Pronto quando:_ uma embalagem pode ser salva com nenhum, um ou três
+      códigos; um código que já é de um produto em uso é recusado com o nome dele,
+      e um que era de produto desativado passa para a embalagem nova sem
+      perguntar.
+    - _Pronto quando:_ na tela de correção do cadastro, o lápis da embalagem
+      inclui e tira código, e o código tirado pode ir para outra embalagem.
+    - _Pronto quando:_ no lançamento, ler o código escolhe a embalagem certa, e um
+      código desconhecido oferece cadastrar com o código já preenchido.
+    - _Pronto quando:_ no lançamento, ler a etiqueta da tâmara do Irmãos Gonçalves
+      escolhe o produto e preenche 0,160 quilo, com o total recalculado. Na
+      primeira vez, o aplicativo pergunta qual produto é.
+    - _Pronto quando:_ na lista, ler o código põe o tipo com aquele produto
+      pedido, sem a embalagem; na despensa, ler o código marca a linha do tipo; e
+      nas duas a etiqueta da balança é recusada com uma frase.
+    - _Pronto quando:_ no celular instalado na tela de início, a câmera lê um
+      código de barras de verdade e a etiqueta da balança.
+    - _Pronto quando:_ na calculadora, ler duas embalagens e digitar os preços
+      mostra a mais barata; um toque em "Adicionar à compra" põe o item em "Itens
+      desta compra" e fecha o painel.
+    - _Pronto quando:_ no modo caixa, passar 2 vezes o sabão em pó de 2,3 quilos e
+      1 vez o leite de 1 litro dá duas linhas (2 e 1) com os últimos preços;
+      "Concluir" mostra as duas em "Itens desta compra", e o salvar avisa dos
+      preços não conferidos.
+
 **Ordem sugerida de construção.** Tudo continua na 1ª versão — o que segue é só a
 sequência, porque ela não é livre: a base compartilhada e a marcação de quem está
 usando são a fundação de tudo, quase todo requisito depende do cadastro de
@@ -878,6 +923,9 @@ lançadas.
 
 Assim os dois já estão usando o sistema para valer bem antes do fim da 1ª versão,
 e é isso que faz o hábito de lançar pegar — o maior risco do projeto.
+
+O **código de barras (19)** veio depois da 1ª versão e depende do cadastro (1), do
+lançamento (3) e da calculadora (17).
 
 O **acompanhamento do mês (18)** vem logo depois da sugestão (8) porque os dois
 leem o mesmo número — a média de 3 meses por tipo de produto — e não faz sentido
@@ -919,6 +967,9 @@ ela abriria com todos os campos vazios e daria mais trabalho do que resposta.
   feira" de "gasto de supermercado".
 - **Ordem de corredor configurada por mercado** — a lista agrupa por categoria, e
   isso já basta.
+- **Etiqueta de balança em outro formato** (com o preço embutido, de outro
+  mercado) — até haver a foto de uma etiqueta de verdade.
+- **Vibrar ao ler um código** — o iPhone não deixa o aplicativo vibrar.
 
 ## Quando dá errado
 
@@ -1536,6 +1587,12 @@ aquela parte for construída.
       precisa saber a que horas o dia vira aí. Sem isso, uma compra feita às nove da
       noite pode acabar contada como se fosse do dia seguinte — e aí o aviso de
       "vocês dois compraram leite hoje" e o gasto do mês saem errados.
+- [ ] **Código de barras de uso interno da loja, sem o número de conferência.**
+      Hoje o aplicativo o recusa como código digitado errado. Se aparecer um no uso
+      de verdade, aceitá-lo é decisão dele.
+- [ ] **Etiqueta de balança de outro mercado.** Só se entende o formato da
+      etiqueta fotografada em 10/10/2026. Para aceitar outro, é preciso a foto de
+      uma etiqueta de verdade do outro mercado.
 
 Antes delas não havia pergunta nenhuma. As **sete últimas** vieram da revisão em três
 passadas de 26/08/2026 — a que varreu os dois documentos depois de eles se
@@ -1766,6 +1823,16 @@ lançamento e não custa digitação nenhuma nos 2 minutos.
   litros ou unidades (ex.: "6 kg de acém moído no mês"). É a outra metade de todo
   relatório: gasto responde "quanto custou", consumo responde "quanto entrou em
   casa".
+- **Código de barras**: o número impresso na embalagem, que o aplicativo lê pela
+  câmera ou aceita digitado. Cada embalagem pode ter vários, e o mesmo número
+  nunca fica em duas embalagens.
+- **Etiqueta da balança / código de balança**: a etiqueta que a balança do
+  mercado imprime no produto pesado. O código dela vale **só dentro daquele
+  mercado**, e a etiqueta traz o peso, que o aplicativo preenche sozinho.
+- **Modo caixa**: a tela que lê um produto atrás do outro, no ritmo do caixa, e
+  monta a compra sem digitar.
+- **Preço anterior**: o preço da última compra que o modo caixa (ou a calculadora)
+  preenche sozinho. Fica marcado até a pessoa conferir com o cupom.
 
 ## Cobertura da entrevista
 
@@ -2315,3 +2382,15 @@ lançamento e não custa digitação nenhuma nos 2 minutos.
   marca aparece na divisão por marca do relatório, a ordem dos itens dentro de cada
   categoria da lista, e a cidade onde eles moram (que é o que define a hora em que o
   dia vira). Nenhuma delas muda estrutura nem atrapalha o começo do trabalho.
+
+- 10/10/2026 — Sem entrevista. Nasceu o **requisito 19, ler o código de barras**,
+  fora dos 18 originais. Decisões dele: o aplicativo usa a câmera do celular; o
+  número é conferido, e código digitado errado é recusado; tirar um código de uma
+  embalagem o libera para outra; o código da balança vale só dentro de cada
+  mercado; só se entende o formato da etiqueta fotografada em 10/10/2026 (a tâmara
+  do Irmãos Gonçalves); a balança só é lida no lançamento (cadastra-se na tela do
+  produto e na do lançamento); na lista, ler o código põe o produto, sem a
+  embalagem; código de produto desativado passa para o novo sem perguntar; na
+  calculadora, o botão agora põe o item direto na compra; e o modo caixa lê um
+  produto atrás do outro, com o preço da última compra marcado "preço anterior" —
+  o salvar pergunta "Bateu com o cupom?", sem impedir.

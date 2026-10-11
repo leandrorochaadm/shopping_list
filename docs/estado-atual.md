@@ -2,6 +2,72 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 10/10/2026 — M-c, M-d, M-e e M-f** — **acréscimo fora das 19 histórias**
+(`temp/plan/plano-codigo-de-barras-2026-10-10.md`, executado em 16 passos de
+`temp/plan/plano-codigo-de-barras-2026-10-10/`): o casal lê o **código de barras** da
+embalagem e a **etiqueta da balança** pela câmera (ou digitando), e acha o produto sem
+rolar o seletor. **M-c**: código por embalagem, único no app. **M-d**: etiqueta de
+balança presa ao mercado, só no formato da tâmara. **M-e**: o `#3a` lê códigos e
+`[ Adicionar … à compra ]` põe o item direto na compra. **M-f**: o modo caixa `#3b` lê
+sem parar, com o preço da última compra marcado "preço anterior".
+
+- **(1) Banco.** `supabase/migrations/20261010120000_product_barcode.sql`: tabela
+  `product_barcode`, índice único `product_barcode_code_key`, os dois `check`, RLS +
+  grants, `create_product_registration` aceitando `barcodes`/`scale_codes` e a RPC
+  nova `add_packagings`. Asserções em `supabase/checks/product_barcode_cases.sql`
+  (entrou na lista do `tool/checks.sh`). Aplicada e conferida no `postgresql@17` local.
+- **(2) Domínio** (`lib/domain/models/`). Novos: `barcode.dart` (`Barcode`),
+  `scale_label.dart` (`ScaleLabel`, `ScaleCode`), `scan_resolution.dart`
+  (`resolveScan`), `barcode_owner.dart` (`BarcodeOwner`, `conflictOf`,
+  `inactiveHoldersOf`), `checkout.dart` (`checkoutScan`), `pantry_scan.dart`
+  (`PantryScan`). Alterados: `product.dart` (`barcodes`, `scaleCodes`,
+  `acceptsBarcodes`), `product_option.dart` (busca por código),
+  `product_registration.dart` (`checkScaleCodes`), `proportional_cost.dart`
+  (`pickedId`, `CostPick`, `admitScan`), `purchase_item.dart` (`PriceOrigin`),
+  `purchase_draft.dart` (preços a conferir), `shopping_list.dart`
+  (`isRegistrationTaken`).
+- **(3) Repository e serviços.** `catalog_repository.dart`, `_local` e `_remote`:
+  `findOwners`, `addBarcode`/`removeBarcode`, `addScaleCode`/`removeScaleCode`,
+  `PackagingWithBarcodes`. `purchase_repository_remote.dart`: o embed dos códigos
+  em `fetchProductOptions`. `data/services/beep/` (`beep_platform`, `beep_stub`,
+  `beep_web`) e `lib/ui/core/beep.dart`: o bipe do modo caixa.
+- **(4) Telas.** `lib/ui/barcode/` (`BarcodeLookupViewModel`, `BarcodeCameraView`,
+  `BarcodeReaderSheet`, `ScanNotice`). Tela 4: `packaging_row.dart`,
+  `new_product_screen.dart`, `scale_codes_section.dart`, `catalog_view_model.dart`.
+  Lápis da manutenção: `packaging_edit_dialog.dart`,
+  `catalog_maintenance_view_model.dart`. `#1a`: `add_item_panel.dart`,
+  `shopping_list_view_model.dart`. Tela 2: `suggestions_screen.dart`. Tela 3:
+  `new_purchase_screen.dart`, `purchase_item_row.dart`, `scale_link_dialog.dart`,
+  `scale_store_dialog.dart`, `purchase_draft_view_model.dart`. `#3a`:
+  `cost_comparison_panel.dart`. Modo caixa: `checkout_screen.dart`.
+- **(5) Pacote.** `mobile_scanner` `7.4.2` (versão exata, `pubspec.yaml`).
+- **Sem rota nova**: o leitor e o modo caixa são diálogos.
+- **Pendências:**
+  - **aplicar a migration no `prod`** (`supabase db push --linked`, conferir com
+    `supabase migration list --linked`) **antes** de publicar o app pela `main`. Sem
+    ela, o salvar da Tela 4 chama `add_packagings`, que não existe, e
+    `fetchProductOptions` pede um embed que não existe;
+  - **`tool/checks.sh` falha no arquivo novo** até essa aplicação;
+  - **as policies RLS da tabela nova não foram testadas pela chave anon**;
+  - **conferir no PWA instalado** que a câmera lê um EAN-13 real e o QR da balança, e
+    o que acontece sem rede (o zxing-wasm vem do jsDelivr na primeira leitura).
+- **Testes tocados** (`test/`): `data/catalog_repository_local_test`,
+  `catalog_repository_remote_test`, `catalog_types_test`,
+  `purchase_repository_remote_test`; `domain/barcode_owner_test`, `barcode_test`,
+  `checkout_test`, `pantry_scan_test`, `product_option_test`,
+  `product_registration_test`, `product_test`, `proportional_cost_test`,
+  `purchase_draft_test`, `purchase_item_test`, `scale_label_test`,
+  `scan_resolution_test`, `shopping_list_grouping_test`; `helpers/barcode_camera`,
+  `barcode_owners`, `beep`, `purchase`; `ui/add_item_panel_test`,
+  `barcode_camera_view_test`, `barcode_lookup_view_model_test`,
+  `barcode_reader_sheet_test`, `catalog_maintenance_screen_test`,
+  `catalog_maintenance_view_model_test`, `catalog_view_model_test`,
+  `checkout_screen_test`, `cost_comparison_panel_test`, `new_product_screen_test`,
+  `new_purchase_screen_test`, `packaging_edit_dialog_test`,
+  `purchase_draft_view_model_test`, `scale_link_dialog_test`,
+  `scale_store_dialog_test`, `shopping_list_view_model_test`,
+  `suggestions_screen_test`.
+
 **Atualizado em 01/10/2026 — M-b** — **acréscimo fora das 19 histórias**
 (`temp/plan/plano-editar-cadastro-na-tela-4-2026-10-01.md`): a Tela 4 aberta pela
 manutenção (lápis → `[ Abrir e acrescentar embalagem ]`) vira **"Editar produto"**, com
