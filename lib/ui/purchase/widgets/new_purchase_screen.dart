@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../core/beep.dart';
 import '../../core/online_status.dart';
 import '../../../domain/models/barcode.dart';
 import '../../../domain/models/calendar_day.dart';
@@ -33,6 +34,7 @@ import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
 import '../view_model/new_purchase_view_model.dart';
 import '../view_model/purchase_draft_view_model.dart';
+import 'checkout_screen.dart';
 import 'cost_comparison_panel.dart';
 import 'price_increase_warning.dart';
 import 'product_field.dart';
@@ -612,15 +614,40 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       messenger.showSnackBar(SnackBar(content: Text(error)));
       return;
     }
-    final reloadError = await ref
-        .read(newPurchaseViewModelProvider.notifier)
-        .refresh();
+    final reloadError = await _reloadOptions();
     if (!mounted) return;
     if (reloadError != null) {
       messenger.showSnackBar(SnackBar(content: Text(reloadError)));
-      return;
     }
-    setState(() => _justRegistered = const IList.empty());
+  }
+
+  /// Reloads the options; once they are in, the leaves registered on screen
+  /// are in them too, and keeping `_justRegistered` would show each twice in
+  /// the picker.
+  Future<String?> _reloadOptions() async {
+    final error = await ref
+        .read(newPurchaseViewModelProvider.notifier)
+        .refresh();
+    if (!mounted) return error;
+    if (error == null) setState(() => _justRegistered = const IList.empty());
+    return error;
+  }
+
+  /// The `[ ▥ Passar no caixa ]→3b`. The items are already in the draft when
+  /// checkout mode closes; this screen only redraws.
+  Future<void> _openCheckout() async {
+    // First line, before any `await`: iOS only plays sound after a gesture,
+    // and this tap is the gesture.
+    ref.read(beepProvider).unlock();
+    // The line being corrected may change at the till, and `Salvar alteração`
+    // would write the old version over it.
+    if (_editingItemId != null) _clearForm();
+    await CheckoutScreen.show(
+      context,
+      options: () => _allOptions(ref.read(newPurchaseViewModelProvider)),
+      onRegister: (code) => _registerLeaf(initialBarcode: code),
+      reloadOptions: _reloadOptions,
+    );
   }
 
   Future<bool> _askToRegister(Barcode code) async {
@@ -749,6 +776,21 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     .read(purchaseDraftViewModelProvider.notifier)
                     .setStore(created!.id!);
               },
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                key: const ValueKey('checkout-open'),
+                // Compact: with the keyboard up, `[ + Adicionar à compra ]`
+                // has to stay above the fold of an iPhone 12.
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Passar no caixa'),
+                onPressed: _saving || !options.hasValue ? null : _openCheckout,
+              ),
             ),
             const Divider(height: 32),
             _ProductField(

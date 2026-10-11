@@ -13,14 +13,17 @@ class PurchaseItemRow extends StatelessWidget {
   const PurchaseItemRow({
     required this.item,
     required this.onEdit,
-    required this.onRemove,
+    this.onRemove,
     this.editing = false,
     super.key,
   });
 
   final PurchaseItem item;
   final VoidCallback onEdit;
-  final VoidCallback onRemove;
+
+  /// Null hides the trash can: checkout mode draws only the `[ed]`, and the
+  /// removal is the "Remover item" of its dialog.
+  final VoidCallback? onRemove;
 
   /// True while this very line is loaded in the form below — the form is the
   /// only place it can be corrected, and without a mark on the row there is
@@ -48,11 +51,12 @@ class PurchaseItemRow extends StatelessWidget {
             tooltip: 'Corrigir ${item.label}',
             onPressed: onEdit,
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Remover ${item.label}',
-            onPressed: onRemove,
-          ),
+          if (onRemove != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Remover ${item.label}',
+              onPressed: onRemove,
+            ),
         ],
       ),
     );

@@ -32,6 +32,7 @@ import 'package:shopping_list/ui/purchase/widgets/product_field.dart';
 import 'package:shopping_list/ui/purchase/widgets/purchase_item_row.dart';
 
 import '../helpers/barcode_camera.dart';
+import '../helpers/beep.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -1448,6 +1449,144 @@ void main() {
       );
       expect(button.onPressed, isNull);
     });
+  });
+
+  group('checkout', () {
+    const crateCode = '7894900011517';
+    const unknownCode = '7891000053508';
+
+    final crateWithCode = optionByPiece(
+      id: 'prod-4',
+      brand: cokeBrand,
+      pieceCount: 12,
+      barcodes: [Barcode.typed(crateCode)].lock,
+      priceReference: reference(cents: 6200, quantityInBaseUnit: 4200),
+    );
+    final withStore = PurchaseDraft(
+      purchaseId: 'a1',
+      date: DateTime(2026, 8, 18),
+      registeredBy: 'Leandro',
+      storeId: 'store-1',
+    );
+
+    testWidgets(
+      'Passar no caixa opens the checkout and Concluir shows the items on screen 3',
+      (tester) async {
+        final camera = FakeBarcodeCamera();
+        final beep = SpyBeep();
+        await pumpScreen(
+          tester,
+          draft: withStore,
+          purchases: _SpyPurchases()..options = [crateWithCode].lock,
+          overrides: [camera.override, beep.override],
+        );
+
+        await tester.tap(find.byKey(const ValueKey('checkout-open')));
+        await tester.pumpAndSettle();
+        expect(find.text('Caixa'), findsOneWidget);
+        expect(beep.unlocks, 1);
+
+        camera.read(crateCode);
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('checkout-done')));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Itens desta compra'), findsOneWidget);
+        expect(
+          find.byTooltip('Corrigir ${crateWithCode.selectedLabel}'),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets('the checkout button waits for the products', (tester) async {
+      await pumpScreen(
+        tester,
+        purchases: _SpyPurchases()..failNextCall = ApiException(503, 'down'),
+      );
+
+      final button = tester.widget<FilledButton>(
+        find.byKey(const ValueKey('checkout-open')),
+      );
+      expect(button.onPressed, isNull);
+    });
+
+    testWidgets('opening the checkout drops a correction in progress', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(
+        tester,
+        draft: draftWithItem(),
+        overrides: [camera.override, SpyBeep().override],
+      );
+
+      await tester.tap(
+        find.byTooltip('Corrigir Refrigerante Coca-Cola 12 × 350 ml'),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Salvar alteração'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('checkout-open')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('checkout-done')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Salvar alteração'), findsNothing);
+      expect(find.text('+ Adicionar à compra'), findsOneWidget);
+    });
+
+    testWidgets(
+      'a product registered in the checkout shows once in the picker',
+      (tester) async {
+        final camera = FakeBarcodeCamera();
+        await pumpScreen(
+          tester,
+          draft: withStore,
+          purchases: _SpyPurchases()..options = [crateWithCode].lock,
+          overrides: [camera.override, SpyBeep().override],
+        );
+
+        await tester.tap(find.byKey(const ValueKey('checkout-open')));
+        await tester.pumpAndSettle();
+        camera.read(unknownCode);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('checkout-unknown-register')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Novo produto'), findsOneWidget);
+
+        await tester.tap(find.byKey(const ValueKey('field-type')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Refrigerante').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const ValueKey('field-description')),
+          'limão',
+        );
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        await tester.enterText(find.byKey(const ValueKey('size-1')), '600');
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('save')));
+        await tester.pumpAndSettle();
+
+        // Back in the checkout: the new leaf waits for its price.
+        expect(find.byKey(const ValueKey('checkout-price-0')), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('checkout-done')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('checkout-exit-anyway')));
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const ValueKey('field-product')),
+          'limão',
+        );
+        await tester.pumpAndSettle();
+        expect(find.textContaining('limão'), findsNWidgets(2));
+      },
+    );
   });
 }
 

@@ -42,6 +42,14 @@ final class QuantityIncreased extends CheckoutStep {
   @override
   int get hashCode => item.hashCode;
 
+  /// What passed now at the checkout, which the overlay shows (`✓ Omo 2,3kg
+  /// R$ 33,00` with the line at `2  R$ 66,00`). [before] are the items
+  /// [checkoutScan] received.
+  Money addedPaid(IList<PurchaseItem> before) {
+    final line = before.where((line) => line.id == item.id).firstOrNull;
+    return line == null ? item.paid : item.paid - line.paid;
+  }
+
   @override
   String toString() => 'QuantityIncreased($item)';
 }
@@ -63,6 +71,26 @@ final class NeedsPrice extends CheckoutStep {
 
   @override
   int get hashCode => Object.hash(option, quantity);
+
+  /// The second read of a packaging that still waits for a price sums on the
+  /// waiting line, as [QuantityIncreased] does with the one that entered. Other
+  /// leaf, or a scale label (each weight is a line): `null`.
+  NeedsPrice? joining(NeedsPrice next) {
+    if (option.id != next.option.id || option.isSoldByWeight) return null;
+    return NeedsPrice(option: option, quantity: quantity + next.quantity);
+  }
+
+  /// The `[OK]` of the waiting line. The [PurchaseItem] always keeps the TOTAL
+  /// paid: by piece the typed price is that of ONE package; a scale label's
+  /// price is already the line's. Zero or less: `null`.
+  PurchaseItem? pricedAt(Money price) {
+    if (price.cents <= 0) return null;
+    return PurchaseItem(
+      option: option,
+      quantity: quantity,
+      paid: option.isSoldByWeight ? price : Money(price.cents * quantity),
+    );
+  }
 
   @override
   String toString() => 'NeedsPrice(${option.label}, $quantity)';

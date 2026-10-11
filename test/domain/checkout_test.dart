@@ -274,4 +274,77 @@ void main() {
       }
     });
   });
+
+  group('NeedsPrice.joining', () {
+    test('the same leaf sold by piece sums', () {
+      final joined = NeedsPrice(
+        option: neverBought,
+        quantity: 1,
+      ).joining(NeedsPrice(option: neverBought, quantity: 1));
+      expect(joined, NeedsPrice(option: neverBought, quantity: 2));
+    });
+
+    test('another leaf does not join', () {
+      expect(
+        NeedsPrice(
+          option: neverBought,
+          quantity: 1,
+        ).joining(NeedsPrice(option: can, quantity: 1)),
+        isNull,
+      );
+    });
+
+    test('a label never joins', () {
+      expect(
+        NeedsPrice(
+          option: unpriced,
+          quantity: 160,
+        ).joining(NeedsPrice(option: unpriced, quantity: 160)),
+        isNull,
+      );
+    });
+  });
+
+  group('NeedsPrice.pricedAt', () {
+    test('a packaging line pays the price of each one', () {
+      final item = NeedsPrice(
+        option: neverBought,
+        quantity: 2,
+      ).pricedAt(const Money(350))!;
+      expect(item.quantity, 2);
+      expect(item.paid, const Money(700));
+      expect(item.priceOrigin, PriceOrigin.typed);
+    });
+
+    test('a label pays the price as typed', () {
+      final item = NeedsPrice(
+        option: unpriced,
+        quantity: 160,
+      ).pricedAt(const Money(512))!;
+      expect(item.paid, const Money(512));
+    });
+
+    test('zero is refused', () {
+      final need = NeedsPrice(option: neverBought, quantity: 1);
+      expect(need.pricedAt(Money.zero), isNull);
+      expect(need.pricedAt(const Money(1)), isNotNull);
+    });
+  });
+
+  group('QuantityIncreased.addedPaid', () {
+    test('gives what the last read added', () {
+      final line = purchaseItem(id: 'line', option: pack, cents: 6200);
+      final step = scan(PackagingMatch(option: pack), [line]);
+      expect(
+        (step as QuantityIncreased).addedPaid([line].lock),
+        const Money(6200),
+      );
+    });
+
+    test('without the line in before it is the whole line', () {
+      final line = purchaseItem(id: 'line', option: pack, cents: 6200);
+      final step = QuantityIncreased(item: line);
+      expect(step.addedPaid(const IList<PurchaseItem>.empty()), line.paid);
+    });
+  });
 }

@@ -1323,7 +1323,7 @@ O frango, que é o caso que pede o campo:
 │    preço anterior                    │
 │  Leite Italac 1L  12  R$ 62,00 [ed]↻ │
 │  Tâmara 0,160kg       R$  5,12 [ed]↻ │
-│  Coca 350ml   1 [Preço R$ ____ ] *   │
+│  Coca 350ml 1 [Preço R$ ___][OK]↻ *  │
 │    sem compra anterior               │
 │  ────────────────────────────        │
 │  3 itens              R$ 133,12      │
@@ -1363,6 +1363,37 @@ O frango, que é o caso que pede o campo:
 - `[ed]↻` abre o diálogo do item que já existe. Cada leitura é gravada no
   rascunho na hora: fechar o app não perde nada.
 - A câmera é fixa em cima; **a lista é que rola**.
+- `[OK]↻` põe a linha na compra com o preço digitado; vazio ou zero: "Informe um
+  valor válido." embaixo do campo. O preço é o de **uma** embalagem: com `2` na
+  linha, entram 2 × o preço. Na etiqueta de balança, é o valor da etiqueta.
+- Ler de novo a mesma embalagem **ainda sem preço** soma 1 na própria linha
+  pendente; etiqueta é sempre linha nova.
+- O rodapé conta só o que **entrou** na compra: a linha sem preço fica fora.
+- "Código de barras inválido." e "Não conheço esta etiqueta. Escolha o produto
+  pela lista." aparecem **sobre a câmera**, no lugar do último lido, sem bipe.
+- Enquanto uma pergunta está aberta ("Produto não cadastrado", "Qual produto é
+  este?", a escolha de mercado), a câmera não conta leitura; enquanto a Tela 4
+  está aberta, a câmera desliga.
+- Se o aparelho recusar guardar, a frase do erro aparece embaixo e a linha
+  continua na tela.
+- Saída: só linhas sem preço → "1 item sem preço não entrou na compra." / "2
+  itens sem preço não entraram na compra."; com "Produto não cadastrado" no
+  meio → "1 item não entrou na compra." / "{N} itens não entraram na compra."
+- A linha "Produto não cadastrado · {código}" não tem botão: o cadastro é no
+  `[ Cadastrar ]` da pergunta.
+
+**Produto não cadastrado:**
+
+```
+┌──────────────────────────────────────┐
+│ ┌──────────────────────────────────┐ │
+│ │ Produto não cadastrado           │ │
+│ │ 7891234567895                    │ │
+│ │ [ Cadastrar ]→4                  │ │
+│ │ [ Depois ]↻                      │ │
+│ └──────────────────────────────────┘ │
+└──────────────────────────────────────┘
+```
 
 **Sair com item fora da compra:**
 

@@ -25,7 +25,7 @@ com `IList<T>`, não `List<T>`.
 | `fast_immutable_collections` | `IList` — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` |
 | `http` | só pelo `ClientException`: o `postgrest` fala por ele e é assim que falha de transporte chega |
 | `flutter_localizations` | os delegates pt-BR do Material. Vem do SDK — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` |
-| `web` | só os eventos `online`/`offline` do navegador, atrás de um *conditional import* — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` |
+| `web` | só os eventos `online`/`offline` do navegador **e o bipe do modo caixa** (Web Audio), os dois atrás de um *conditional import* — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` |
 | `tekton_core` | o `AppTextField` de todo campo digitável e as máscaras `UnitSpec` — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` (**L-d**). Vem do **git**; o `pubspec_overrides.yaml` local, git-ignored, aponta para o clone ao lado |
 | `mobile_scanner` | a câmera do leitor de código: EAN e o QR da etiqueta de balança. No web, usa o `BarcodeDetector` do navegador quando existe e, senão, o zxing-wasm baixado do jsDelivr na primeira leitura. **Só** `lib/ui/barcode/widgets/barcode_camera_view.dart` o importa — **acréscimo à lista congelada**, ver `docs/decisoes-divergencias.md` (**M-c**). Versão **exata** no `pubspec.yaml` |
 
