@@ -16,6 +16,10 @@ sem parar, com o preço da última compra marcado "preço anterior".
   grants, `create_product_registration` aceitando `barcodes`/`scale_codes` e a RPC
   nova `add_packagings`. Asserções em `supabase/checks/product_barcode_cases.sql`
   (entrou na lista do `tool/checks.sh`). Aplicada e conferida no `postgresql@17` local.
+  **No `prod`:** em 11/10/2026 `supabase migration list --linked` já a mostrava
+  aplicada e `supabase db push --linked --dry-run` respondeu *"Remote database is up to
+  date"*; os sete arquivos do `tool/checks.sh` rodaram contra o `prod` no mesmo dia e
+  todos os casos de `product_barcode_cases.sql` deram `ok`, terminando em `rollback`.
 - **(2) Domínio** (`lib/domain/models/`). Novos: `barcode.dart` (`Barcode`),
   `scale_label.dart` (`ScaleLabel`, `ScaleCode`), `scan_resolution.dart`
   (`resolveScan`), `barcode_owner.dart` (`BarcodeOwner`, `conflictOf`,
@@ -43,11 +47,6 @@ sem parar, com o preço da última compra marcado "preço anterior".
 - **(5) Pacote.** `mobile_scanner` `7.4.2` (versão exata, `pubspec.yaml`).
 - **Sem rota nova**: o leitor e o modo caixa são diálogos.
 - **Pendências:**
-  - **aplicar a migration no `prod`** (`supabase db push --linked`, conferir com
-    `supabase migration list --linked`) **antes** de publicar o app pela `main`. Sem
-    ela, o salvar da Tela 4 chama `add_packagings`, que não existe, e
-    `fetchProductOptions` pede um embed que não existe;
-  - **`tool/checks.sh` falha no arquivo novo** até essa aplicação;
   - **as policies RLS da tabela nova não foram testadas pela chave anon**;
   - **conferir no PWA instalado** que a câmera lê um EAN-13 real e o QR da balança, e
     o que acontece sem rede (o zxing-wasm vem do jsDelivr na primeira leitura).
