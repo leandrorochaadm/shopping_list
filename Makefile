@@ -3,11 +3,15 @@
 
 DB ?= shopping_list_dev
 
-.PHONY: run api seed
+.PHONY: run phone api seed
 
 # The app against the local Postgres, starting the API if it is not up.
 run:
 	tool/local_dev/run.sh
+
+# A release build for the iPhone, over HTTPS on the tailnet.
+phone:
+	tool/local_dev/phone.sh
 
 # Only the API (PostgREST + Caddy), for when the app runs elsewhere.
 api:

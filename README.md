@@ -427,6 +427,10 @@ tool/local_dev/run.sh              # sobe a API e abre o app no Chrome
 
 `tool/local_dev/up.sh` sobe só a API, em `http://127.0.0.1:54321/rest/v1`.
 
+`make phone` gera o build de release e o serve por HTTPS na rede do Tailscale, para abrir
+no iPhone com a câmera funcionando. O endereço aparece no fim do build. Exige o Serve
+ativado na conta do Tailscale e o app do Tailscale ligado no celular.
+
 ### 3. Contra um projeto Supabase hospedado
 
 ```bash

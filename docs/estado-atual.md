@@ -647,6 +647,10 @@ container.
   `flutter run` já com os dois `--dart-define` lidos do `.env`. Sem argumento usa
   `-d chrome`; o que for passado atravessa para o `flutter run`. Se ele mesmo subiu a
   API, derruba ao sair; uma API que já estava de pé ele não toca.
+- **`make phone` (`tool/local_dev/phone.sh`) leva o app ao iPhone**: build de release
+  servido por HTTPS no Tailscale (`tailscale serve`), o app em `https://<mac>` e a API em
+  `:8443`. É o HTTPS que libera a câmera. Exige o Serve ativado na conta e o Tailscale
+  ligado no celular; `tailscale serve reset` desfaz.
 - `setup.py` também imprime o `flutter run` completo, se preferir montar à mão.
 - **A chave anon é um JWT HS256 com o claim `role: anon`** assinado por um segredo
   local. É esse claim que faz o PostgREST dar `SET ROLE anon`, que é o que sujeita a
