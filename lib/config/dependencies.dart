@@ -153,7 +153,7 @@ final List<Override> overridesRemote = [
     (ref) => DeviceUserRepositoryHive(ref.watch(deviceUserBoxProvider)),
   ),
   catalogRepositoryProvider.overrideWith(
-    (ref) => CatalogRepositoryRemote(ref.watch(supabaseClientProvider)),
+    (ref) => CatalogRepositoryRemote(ref.watch(pocketBaseProvider)),
   ),
   storeRepositoryProvider.overrideWith(
     (ref) => StoreRepositoryRemote(ref.watch(pocketBaseProvider)),

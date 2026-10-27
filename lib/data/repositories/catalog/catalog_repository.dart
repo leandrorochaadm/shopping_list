@@ -176,8 +176,8 @@ abstract class CatalogRepository {
   /// WITH their codes.
   Future<IList<Product>> fetchProductsOf(String registrationId);
 
-  /// Registration + N leaves in ONE transaction, through the Postgres
-  /// function of the base migration. Two separate calls would leave an orphan
+  /// Registration + N leaves in ONE transaction, through one PocketBase batch
+  /// (atomic). Two separate calls would leave an orphan
   /// registration with no leaf when the second one failed — and the duplicate
   /// guard would then block the user's own retry.
   ///
@@ -198,7 +198,7 @@ abstract class CatalogRepository {
   /// `[ Abrir e acrescentar embalagem ]`, and the "comprou o Omo de 2,3 kg
   /// tendo só o de 500 g" case of the wireframe.
   ///
-  /// It is the `add_packagings` function: leaves and codes in one transaction.
+  /// One PocketBase batch (atomic): leaves and codes together.
   /// Only for a registration sold by piece — a scale code of a product that
   /// already exists goes in through [addScaleCode].
   Future<IList<Product>> addPackagings({
@@ -232,7 +232,7 @@ abstract class CatalogRepository {
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final catalogRepositoryProvider = Provider<CatalogRepository>(
   (ref) => throw UnimplementedError(
     'catalogRepositoryProvider was not overridden. See '
