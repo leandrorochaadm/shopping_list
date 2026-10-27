@@ -165,6 +165,10 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | id de registro | `newRecordId` / `isRecordId` | 15 caracteres `[a-z0-9]`, o formato do PocketBase. Nasce no app, antes da gravação |
 | data guardada | `encodeStoredDay` / `decodeStoredDay` | dia de calendário à meia-noite UTC, `'YYYY-MM-DD 00:00:00.000Z'`. Lê só os 10 primeiros caracteres |
 | instante guardado | `encodeInstant` / `decodeInstant` | sempre UTC. `created_at` da compra e `warned_*_at` |
+| plano de escrita da compra | `PurchaseWritePlan` | `forCreate`/`forCorrection`/`forDeletion`: o que as três RPCs faziam, calculado no domain |
+| mudança numa linha da lista | `ListItemChange` | estado final de `fulfilled_on` e `not_found`; `notFound` nulo é "não mexe" |
+| o que acontece com fulfilled_on | `FulfillmentChange` | `KeepFulfillment`, `SetFulfilled`, `ReopenItem`; reabrir ≠ não mexer |
+| etapa da escrita | `PurchaseWriteStep` | a ordem do lote: pai antes do filho, inversa na exclusão |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
