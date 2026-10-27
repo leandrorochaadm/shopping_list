@@ -15,18 +15,18 @@ abstract class SpendingCapRepository {
   /// written twice.
   ///
   /// Always answers ONE entry per month asked — **ordered by month, not by
-  /// the order asked**: `cap_states` closes with `order by m.month`. The
+  /// the order asked**: `buildMonthCapStatuses` orders by month. The
   /// correction, which asks for two, matches by `MonthCapStatus.month` and
   /// never by index.
   Future<IList<MonthCapStatus>> fetchStatuses(IList<ReportPeriod> months);
 
-  /// The new cap and the rearm, in ONE transaction: writing the cap and
+  /// The new cap and the rearm, in ONE atomic PocketBase batch: writing the cap and
   /// clearing the month's marks cannot end up half done.
   Future<void> save({required SpendingCap cap, required CapAlerts alerts});
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final spendingCapRepositoryProvider = Provider<SpendingCapRepository>(
   (ref) => throw UnimplementedError(
     'spendingCapRepositoryProvider was not overridden. See '

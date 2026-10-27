@@ -68,21 +68,20 @@ class SpendingCapRepositoryLocal implements SpendingCapRepository {
   ) async {
     await Future<void>.delayed(latency);
 
-    final answer =
-        [
-          for (final period in months)
-            MonthCapStatus(
-              month: period.from,
-              // A month older than the first cap has none, forever.
-              cap: _capInForceOn(period.from),
-              spent: _spending[firstDayOfMonth(period.from)] ?? Money.zero,
-              alerts:
-                  _alerts[firstDayOfMonth(period.from)] ??
-                  CapAlerts.none(period.from),
-            ),
-        ]..sort((a, b) => a.month.compareTo(b.month));
+    final answer = [
+      for (final period in months)
+        MonthCapStatus(
+          month: period.from,
+          // A month older than the first cap has none, forever.
+          cap: _capInForceOn(period.from),
+          spent: _spending[firstDayOfMonth(period.from)] ?? Money.zero,
+          alerts:
+              _alerts[firstDayOfMonth(period.from)] ??
+              CapAlerts.none(period.from),
+        ),
+    ]..sort((a, b) => a.month.compareTo(b.month));
 
-    // Ordered by month and NOT by the order asked, exactly like `cap_states`:
+    // Ordered by month and NOT by the order asked, exactly like `buildMonthCapStatuses`:
     // a caller matching by index would be a bug this fake has to be able to
     // catch.
     return answer.toIList();
@@ -98,7 +97,7 @@ class SpendingCapRepositoryLocal implements SpendingCapRepository {
     _cap = cap;
     saved.add(cap);
     alertsWritten.add(alerts);
-    // The whole transaction of `save_spending_cap`: the cap, the month's
+    // The whole batch of the real `save`: the cap, the month's
     // marks cleared, and the desired state written over them.
     _alerts[alerts.month] = alerts;
   }

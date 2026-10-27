@@ -376,28 +376,25 @@ execução não deixa rastro.
 
 ## CI/CD
 
-[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) — GitHub Actions →
-Cloudflare Pages, em **todo push de toda branch**.
+Dois workflows do GitHub Actions:
 
-```
-checkout → flutter pub get → flutter analyze → flutter test --coverage
-         → piso de 90% (reprova abaixo) → flutter build web → wrangler pages deploy
-```
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — em todo push e PR para `main` e
+  `develop`. Não publica nada.
 
-Três coisas que esse arquivo resolve e que costumam passar despercebidas:
+  ```
+  flutter pub get → dart format → flutter analyze → flutter test --coverage
+                  → piso de 90% (reprova abaixo) → flutter build web
+                  + migrations do PocketBase num banco vazio + testes de tool/
+  ```
 
-- **`analyze` antes de `test`**, porque é ele quem pega o import proibido dentro do domínio.
-- **`main` publica em produção; qualquer outra branch publica um preview** contra a base
-  descartável. A URL de preview é adivinhável (`<hash>.<projeto>.pages.dev`), e uma URL não
-  divulgada é a única barreira que este sistema tem — então o que fica atrás de uma URL
-  adivinhável tem de ser a base que se pode jogar fora.
-- **Credencial ausente pula a publicação em vez de reprovar.** Analyze, teste e build ainda
-  rodam e ainda guardam o push, que era o que mantinha o workflow útil enquanto o deploy
-  não existia. Um `if:` de step **não enxerga o `env:` do próprio step** — a decisão de
-  publicar é tomada dentro de um script e viaja como `output`. Isso custou dois runs verdes
-  que não provavam nada.
+- [`.github/workflows/release.yml`](.github/workflows/release.yml) — só na tag `vX.Y.Z`:
+  confere, aplica as migrations no PocketBase de produção e publica o APK e o PWA.
 
-Sem credencial de Supabase, o build mostra uma tela `MisconfiguredApp` — não uma tela branca.
+**`analyze` antes de `test`**, porque é ele quem pega o import proibido dentro do domínio.
+O piso de cobertura mora no `MIN_COVERAGE` do `ci.yml`, e o `.githooks/pre-push` o lê de lá.
+
+O `deploy.yml` antigo, que publicava a versão Supabase no Cloudflare Pages a cada push, foi
+apagado na migração para o PocketBase: um merge no `main` publicaria um app sem servidor.
 
 ---
 
@@ -426,6 +423,10 @@ tool/local_dev/run.sh              # sobe a API e abre o app no Chrome
 ```
 
 `tool/local_dev/up.sh` sobe só a API, em `http://127.0.0.1:54321/rest/v1`.
+
+`make phone` gera o build de release e o serve por HTTPS na rede do Tailscale, para abrir
+no iPhone com a câmera funcionando. O endereço aparece no fim do build. Exige o Serve
+ativado na conta do Tailscale e o app do Tailscale ligado no celular.
 
 ### 3. Contra um projeto Supabase hospedado
 

@@ -5,7 +5,7 @@ Casal que quer saber quanto gasta em quê, não esquecer item e não pagar caro.
 
 **As fontes da verdade estão em `docs/`, nesta ordem de precedência:**
 
-1. `docs/requisitos-lista-de-compras.md` — 18 requisitos essenciais, é o que o cliente lê
+1. `docs/requisitos-lista-de-compras.md` — 18 requisitos essenciais mais o 19 (código de barras, 10/10/2026), é o que o cliente lê
 2. `docs/tecnico-lista-de-compras.md` — questionário técnico, **decisões 1 a 25 congeladas**
 3. `docs/wireframes-lista-de-compras.md` — 6 telas + 6 diálogos + painel `#3a`
 4. `docs/handoff-lista-de-compras.md` — 19 histórias (H1–H19), ordem de entrega, glossário

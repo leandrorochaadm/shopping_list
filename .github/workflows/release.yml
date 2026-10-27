@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.44.0
+  POCKETBASE_VERSION: 0.40.5
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Check tag matches pubspec
+        run: |
+          set -euo pipefail
+          version="$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match pubspec version ${version}"
+            exit 1
+          fi
+      - name: Check migrations on an empty database
+        run: |
+          set -euo pipefail
+          zip="pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip"
+          base="https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}"
+          dir="$RUNNER_TEMP/pocketbase"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/$zip" "$base/$zip"
+          curl -fsSL --retry 3 -o "$dir/checksums.txt" "$base/checksums.txt"
+          (cd "$dir" && grep " ${zip}$" checksums.txt | sha256sum -c -)
+          unzip -o -q "$dir/$zip" pocketbase -d "$dir"
+          "$dir/pocketbase" migrate up --dir="$dir/pb_data" --migrationsDir=pocketbase/pb_migrations
+
+  # Runs before the web app goes out, so a new app version never meets an old schema.
+  migrations:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Deploy PocketBase migrations
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_HOST: ${{ vars.VPS_SSH_HOST }}
+          VPS_SSH_USER: ${{ vars.VPS_SSH_USER }}
+          VPS_SSH_KNOWN_HOSTS: ${{ vars.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in VPS_SSH_KEY VPS_SSH_HOST VPS_SSH_USER VPS_SSH_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing ${name}"
+              exit 1
+            fi
+          done
+          key="$RUNNER_TEMP/deploy_key"
+          known_hosts="$RUNNER_TEMP/known_hosts"
+          printf '%s\n' "$VPS_SSH_KEY" > "$key"
+          chmod 600 "$key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$known_hosts"
+          # The key's forced command on the server ignores the remote command and reads the tarball.
+          tar -C pocketbase/pb_migrations -czf - . | ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" \
+            "${VPS_SSH_USER}@${VPS_SSH_HOST}" deploy
+          rm -f "$key"
+
+  web:
+    needs: migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Check Cloudflare settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_PAGES_PROJECT; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing ${name}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Write production config
+        env:
+          POCKETBASE_URL: ${{ secrets.PROD_POCKETBASE_URL }}
+          SENTRY_DSN: ${{ secrets.PROD_SENTRY_DSN }}
+        run: uv run tool/ci/write_prod_config.py
+      - run: flutter pub get
+      # The three values the menu footer shows; web cannot read the pubspec at runtime.
+      - name: Build web
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^version:[[:space:]]*\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          flutter build web --release --dart-define-from-file=config/prod.json \
+            --dart-define=APP_VERSION="$version" \
+            --dart-define=APP_BUILD_NUMBER="${GITHUB_RUN_NUMBER}" \
+            --dart-define=APP_COMMIT="${GITHUB_SHA::7}"
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.148.0'
+          command: pages deploy build/web --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main

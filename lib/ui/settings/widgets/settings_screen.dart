@@ -8,10 +8,12 @@ import '../../../routing/routes.dart';
 import '../../core/widgets/message_view.dart';
 import '../../device_user/view_model/device_user_view_model.dart';
 import '../../device_user/widgets/device_user_options.dart';
+import '../view_model/sign_out_view_model.dart';
 import '../view_model/spending_cap_view_model.dart';
 import 'spending_cap_section.dart';
 
-/// Settings — the month's spending cap (H13) and the device user label (H1).
+/// Settings — the month's spending cap (H13), the device user label (H1) and,
+/// last, "Sair".
 ///
 /// The cap comes first because it is the one thing here that is read and
 /// changed more than once: the label is written on the first opening and then
@@ -37,9 +39,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     setState(() => _saving = true);
-    final error = await ref.read(deviceUserViewModelProvider.notifier).save(
-      name,
-    );
+    final error = await ref
+        .read(deviceUserViewModelProvider.notifier)
+        .save(name);
     if (!mounted) return;
     setState(() => _saving = false);
 
@@ -48,9 +50,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _signOut(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Sair da conta?'),
+        content: const Text(
+          'Para voltar, entre de novo com o e-mail e a senha. A compra em '
+          'andamento e o nome deste aparelho continuam salvos.',
+        ),
+        actions: [
+          TextButton(
+            key: const ValueKey('cancel-sign-out'),
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            key: const ValueKey('confirm-sign-out'),
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref.read(signOutViewModelProvider.notifier).signOut();
+    // On success the router's redirect swaps the screen: nobody navigates here.
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(deviceUserViewModelProvider);
+    final signingOut = ref.watch(signOutViewModelProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -127,6 +163,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ],
                 ),
               },
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                key: const ValueKey('sign-out'),
+                icon: const Icon(Icons.logout),
+                label: Text(signingOut ? 'Saindo...' : 'Sair'),
+                onPressed: signingOut ? null : () => _signOut(context),
+              ),
             ],
           ),
         ),

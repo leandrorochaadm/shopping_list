@@ -13,14 +13,23 @@ class PurchaseItemRow extends StatelessWidget {
   const PurchaseItemRow({
     required this.item,
     required this.onEdit,
-    required this.onRemove,
+    this.onRemove,
+    this.onConfirmPrice,
     this.editing = false,
     super.key,
   });
 
   final PurchaseItem item;
   final VoidCallback onEdit;
-  final VoidCallback onRemove;
+
+  /// Null hides the trash can: checkout mode draws only the `[ed]`, and the
+  /// removal is the "Remover item" of its dialog.
+  final VoidCallback? onRemove;
+
+  /// The tap on the "preço anterior" label. Null draws it disabled: the
+  /// correction of a saved purchase passes nothing, and there every item
+  /// comes from the database as typed.
+  final VoidCallback? onConfirmPrice;
 
   /// True while this very line is loaded in the form below — the form is the
   /// only place it can be corrected, and without a mark on the row there is
@@ -36,9 +45,22 @@ class PurchaseItemRow extends StatelessWidget {
       dense: true,
       selected: editing,
       title: Text(item.label),
-      subtitle: Text(
-        '${item.quantityLabel} · ${formatMoney(item.paid)}',
-        style: theme.textTheme.bodySmall,
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '${item.quantityLabel} · ${formatMoney(item.paid)}',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (item.isPriceUnconfirmed)
+            ActionChip(
+              key: ValueKey('price-unconfirmed-${item.id}'),
+              label: const Text('preço anterior'),
+              visualDensity: VisualDensity.compact,
+              onPressed: onConfirmPrice,
+            ),
+        ],
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -48,11 +70,12 @@ class PurchaseItemRow extends StatelessWidget {
             tooltip: 'Corrigir ${item.label}',
             onPressed: onEdit,
           ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Remover ${item.label}',
-            onPressed: onRemove,
-          ),
+          if (onRemove != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: 'Remover ${item.label}',
+              onPressed: onRemove,
+            ),
         ],
       ),
     );

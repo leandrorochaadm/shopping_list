@@ -9,6 +9,7 @@ import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -66,6 +67,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(purchases: repository ?? _SpyRepository()),

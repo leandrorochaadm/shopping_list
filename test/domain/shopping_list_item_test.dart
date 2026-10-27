@@ -594,25 +594,31 @@ void main() {
       expect(_item().effectivePreferredRegistration, isNull);
     });
 
-    test('the preference falls when the registration moved to another type', () {
-      // M-b: no purchase of THIS line's type can be that registration any
-      // more, and keeping the preference would pin the line to the list.
-      final item = _item(
-        registration: _registration().copyWith(productTypeId: 'type-2'),
-        brand: _brand,
-      );
+    test(
+      'the preference falls when the registration moved to another type',
+      () {
+        // M-b: no purchase of THIS line's type can be that registration any
+        // more, and keeping the preference would pin the line to the list.
+        final item = _item(
+          registration: _registration().copyWith(productTypeId: 'type-2'),
+          brand: _brand,
+        );
 
-      expect(item.effectivePreferredRegistration, isNull);
-      expect(item.acceptsRegistration('any-id'), isTrue);
-      expect(item.preferredRegistration, isNotNull);
-    });
+        expect(item.effectivePreferredRegistration, isNull);
+        expect(item.acceptsRegistration('any-id'), isTrue);
+        expect(item.preferredRegistration, isNotNull);
+      },
+    );
 
-    test('the preference holds while the registration stays in the line type', () {
-      final item = _item(registration: _registration(), brand: _brand);
+    test(
+      'the preference holds while the registration stays in the line type',
+      () {
+        final item = _item(registration: _registration(), brand: _brand);
 
-      expect(item.effectivePreferredRegistration, _registration());
-      expect(item.acceptsRegistration('any-id'), isFalse);
-    });
+        expect(item.effectivePreferredRegistration, _registration());
+        expect(item.acceptsRegistration('any-id'), isFalse);
+      },
+    );
   });
 
   group('acceptsRegistration — the question planWriteOffs asks (M-a)', () {
@@ -704,6 +710,36 @@ void main() {
           quantity: 12,
         ).listStatusLabel,
         'na lista: pedindo 12 un',
+      );
+    });
+  });
+
+  group('fromJson — quantity as PocketBase sends it', () {
+    Map<String, dynamic> row(int? quantity) => {
+      'id': 'item-1',
+      'quantity': quantity,
+      'entered_on': '2026-08-28',
+      'product_type': {
+        'id': 'type-1',
+        'name': 'Leite',
+        'category_id': 'cat-1',
+        'base_unit': 'milliliter',
+        'active': true,
+        'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
+      },
+    };
+
+    test('reads a PocketBase zero quantity as no quantity', () {
+      final item = ShoppingListItem.fromJson(row(0));
+
+      expect(item.quantity, isNull);
+      expect(item.hasQuantity, isFalse);
+    });
+
+    test('refuses a negative quantity read from outside', () {
+      expect(
+        () => ShoppingListItem.fromJson(row(-1)),
+        throwsA(isA<InvalidQuantity>()),
       );
     });
   });

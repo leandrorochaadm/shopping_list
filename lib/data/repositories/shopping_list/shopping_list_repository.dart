@@ -24,7 +24,7 @@ abstract class ShoppingListRepository {
   /// Writes the line and returns what the database created, embeds included.
   ///
   /// **The item arrives with its `id` already filled in**, born on the phone
-  /// through `newUuidV4()`. It is not a whim: without the id before the write
+  /// through `newRecordId()`. It is not a whim: without the id before the write
   /// there is no way to discard the echo of our own INSERT, and resending an
   /// `add` that timed out would create a second item on the list.
   ///
@@ -75,11 +75,14 @@ abstract class ShoppingListRepository {
   /// (H10), and it is deliberately irreversible: reactivating the type does
   /// NOT bring the item back.
   ///
-  /// [day] comes from the ViewModel — no `current_date` in SQL (decision 7).
+  /// [day] comes from the ViewModel — no server clock (decision 7).
   ///
   /// It returns the ids that left, and the `_remote` consumes their echo
   /// inside itself before the Future completes — see [expectEcho].
-  Future<IList<String>> removeOpenItemsOfType(String productTypeId, DateTime day);
+  Future<IList<String>> removeOpenItemsOfType(
+    String productTypeId,
+    DateTime day,
+  );
 
   /// Tells the channel that the next changes to these rows are OURS.
   ///
@@ -106,7 +109,7 @@ abstract class ShoppingListRepository {
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final shoppingListRepositoryProvider = Provider<ShoppingListRepository>(
   (ref) => throw UnimplementedError(
     'shoppingListRepositoryProvider was not overridden. See '

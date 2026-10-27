@@ -1,5 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
+import '../../../domain/models/barcode.dart';
+import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/brand.dart';
 import '../../../domain/models/category.dart';
@@ -7,6 +9,8 @@ import '../../../domain/models/packaging.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/scale_label.dart';
+import '../../services/api_exception.dart';
 import 'catalog_repository.dart';
 
 /// In-memory fake: debug without --dart-define, and every test.
@@ -130,6 +134,47 @@ class CatalogRepositoryLocal implements CatalogRepository {
 
   var _nextId = 100;
 
+  /// What `rethrowAsKnownFailure` makes of the `23505` in the remote; the
+  /// `AppFailure` reads it as `DuplicateRecord`.
+  static const _conflictStatus = 409;
+
+  /// Code -> id of the leaf. `Barcode` and `ScaleCode` have `==`, so the key
+  /// is already the unique `(code, store_id)`. They start EMPTY: seeding a
+  /// code would change the `==` of leaves the tests already compare.
+  final Map<Barcode, String> _barcodeOwners = {};
+  final Map<ScaleCode, String> _scaleCodeOwners = {};
+
+  /// The maps are the only source of the codes.
+  Product _withCodes(Product leaf) => leaf.copyWith(
+    barcodes: [
+      for (final e in _barcodeOwners.entries)
+        if (e.value == leaf.id) e.key,
+    ].lock,
+    scaleCodes: [
+      for (final e in _scaleCodeOwners.entries)
+        if (e.value == leaf.id) e.key,
+    ].lock,
+  );
+
+  /// Called BEFORE any write: the fake's half of the rollback of
+  /// `add_packagings`. Refuses a code already taken or repeated in the request.
+  void _checkFree(Iterable<Barcode> barcodes, Iterable<ScaleCode> scaleCodes) {
+    final codes = barcodes.toList();
+    final scales = scaleCodes.toList();
+    final repeated =
+        codes.toSet().length != codes.length ||
+        scales.toSet().length != scales.length;
+    if (repeated ||
+        codes.any(_barcodeOwners.containsKey) ||
+        scales.any(_scaleCodeOwners.containsKey)) {
+      throw ApiException(
+        _conflictStatus,
+        'duplicate key value violates unique constraint '
+        '"product_barcode_code_key"',
+      );
+    }
+  }
+
   static Product _leaf(
     String id,
     String registrationId,
@@ -228,8 +273,17 @@ class CatalogRepositoryLocal implements CatalogRepository {
   Future<Product> updateProduct(Product product) async {
     await Future<void>.delayed(latency);
     final index = _products.indexWhere((entry) => entry.id == product.id);
-    if (index >= 0) _products[index] = product;
-    return product;
+    // The leaf that arrives came from `fetchProducts`, already with its codes.
+    // Stored like that it would leave in `_products` a copy that
+    // `removeBarcode` does not clean, and `fetchLeavesOfType`/`findOwners`
+    // would hand back a code that was already released.
+    if (index >= 0) {
+      _products[index] = product.copyWith(
+        barcodes: const IList.empty(),
+        scaleCodes: const IList.empty(),
+      );
+    }
+    return _withCodes(product);
   }
 
   @override
@@ -241,7 +295,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
   @override
   Future<IList<Product>> fetchProducts() async {
     await Future<void>.delayed(latency);
-    return _products.toIList();
+    return _products.map(_withCodes).toIList();
   }
 
   @override
@@ -315,42 +369,119 @@ class CatalogRepositoryLocal implements CatalogRepository {
     await Future<void>.delayed(latency);
     return _products
         .where((product) => product.productRegistrationId == registrationId)
+        .map(_withCodes)
         .toIList();
   }
 
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     await Future<void>.delayed(latency);
+
+    _checkFree(packagings.expand((p) => p.barcodes), scaleCodes);
 
     final created = registration.copyWith(id: 'reg-${_nextId++}');
     _registrations.add(created);
 
-    final products = _insert(created.id!, packagings);
+    final products = _insert(created.id!, packagings, scaleCodes: scaleCodes);
     return SavedRegistration(registration: created, products: products);
   }
 
   @override
   Future<IList<Product>> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     await Future<void>.delayed(latency);
+    // Like the `add_packagings` function: an empty list creates no leaf. The
+    // "empty = one by-weight leaf" of `_insert` belongs to a NEW registration.
+    if (packagings.isEmpty) return const IList.empty();
+
+    _checkFree(packagings.expand((p) => p.barcodes), const IList.empty());
     return _insert(registrationId, packagings);
   }
 
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    await Future<void>.delayed(latency);
+    final owners = <Barcode, BarcodeOwner>{};
+    for (final code in codes.toSet()) {
+      final leafId = _barcodeOwners[code];
+      if (leafId == null) continue;
+      // The raw leaf: the remote embed does not bring the owner's codes either.
+      final leaf = _products.firstWhere((entry) => entry.id == leafId);
+      final registration = _registrations.firstWhere(
+        (entry) => entry.id == leaf.productRegistrationId,
+      );
+      owners[code] = BarcodeOwner(
+        product: leaf,
+        registration: registration,
+        type: _types.firstWhere((t) => t.id == registration.productTypeId),
+        brand: registration.brandId == null
+            ? null
+            : _brands.firstWhere((b) => b.id == registration.brandId),
+      );
+    }
+    return owners.lock;
+  }
+
+  @override
+  Future<void> addBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    await Future<void>.delayed(latency);
+    _checkFree([code], const []);
+    _barcodeOwners[code] = productId;
+  }
+
+  @override
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    await Future<void>.delayed(latency);
+    // The remote `DELETE` filters by `product_id`: another owner's code stays.
+    if (_barcodeOwners[code] == productId) _barcodeOwners.remove(code);
+  }
+
+  @override
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    await Future<void>.delayed(latency);
+    _checkFree(const [], [code]);
+    _scaleCodeOwners[code] = productId;
+  }
+
+  @override
+  Future<void> removeScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) async {
+    await Future<void>.delayed(latency);
+    if (_scaleCodeOwners[code] == productId) _scaleCodeOwners.remove(code);
+  }
+
   /// The fake's half of the transaction: one leaf per packaging, and exactly
-  /// one leaf with no packaging when the product is sold by weight.
-  IList<Product> _insert(String registrationId, IList<Packaging> packagings) {
+  /// one leaf with no packaging when the product is sold by weight. Each
+  /// card's codes go to its own leaf; the scale codes to the by-weight one.
+  IList<Product> _insert(
+    String registrationId,
+    IList<PackagingWithBarcodes> packagings, {
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
     final leaves = packagings.isEmpty
         ? [Product(productRegistrationId: registrationId)]
         : [
-            for (final packaging in packagings)
+            for (final p in packagings)
               Product(
                 productRegistrationId: registrationId,
-                packaging: packaging,
+                packaging: p.packaging,
               ),
           ];
 
@@ -358,6 +489,17 @@ class CatalogRepositoryLocal implements CatalogRepository {
       for (final leaf in leaves) leaf.copyWith(id: 'prod-${_nextId++}'),
     ];
     _products.addAll(created);
-    return created.toIList();
+
+    for (var i = 0; i < packagings.length; i++) {
+      for (final code in packagings[i].barcodes) {
+        _barcodeOwners[code] = created[i].id!;
+      }
+    }
+    if (packagings.isEmpty) {
+      for (final code in scaleCodes) {
+        _scaleCodeOwners[code] = created.single.id!;
+      }
+    }
+    return created.map(_withCodes).toIList();
   }
 }

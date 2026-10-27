@@ -4,12 +4,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:pocketbase/pocketbase.dart';
 
+import 'config/app_config.dart';
 import 'config/dependencies.dart';
-import 'config/environment.dart';
 import 'config/startup.dart';
+import 'data/repositories/auth/auth_repository_remote.dart';
 import 'data/repositories/device_user/device_user_repository_hive.dart';
 import 'data/repositories/purchase_draft/purchase_draft_repository_hive.dart';
+import 'data/services/auth_store_hive.dart';
 import 'routing/router.dart';
 import 'ui/core/app_locale.dart';
 import 'ui/core/themes/app_theme.dart';
@@ -33,9 +36,10 @@ Future<void> main() async {
 
   final Box<String> deviceUserBox;
   final Box<String> purchaseDraftBox;
+  final Box<String> authBox;
   try {
-    // Hive holds exactly two things (`tecnico §4.2`): the purchase draft and
-    // the device user label. On web it writes to IndexedDB — which Safari
+    // Hive holds three things (`tecnico §4.2`): the purchase draft, the
+    // device user label and the session. On web it writes to IndexedDB — which Safari
     // denies in a private window — and that is also why the app MUST be
     // tested installed on the home screen: an installed PWA and a Safari tab
     // have separate storage.
@@ -57,31 +61,43 @@ Future<void> main() async {
     purchaseDraftBox = await Hive.openBox<String>(
       PurchaseDraftRepositoryHive.boxName,
     );
+    await PurchaseDraftRepositoryHive.discardLegacyDraft(purchaseDraftBox);
+    // The third box, in the SAME try: a browser that denies IndexedDB denies
+    // all three, and without the session box no login survives closing the app.
+    authBox = await Hive.openBox<String>(authBoxName);
   } on Object catch (e, st) {
     debugPrint('Local storage unavailable: $e\n$st');
     runApp(const MisconfiguredApp.storageUnavailable());
     return;
   }
 
+  final config = AppConfig.fromEnvironment();
   final List<Override> overrides;
   final bool usingFakes;
   switch (resolveStartup(
-    configured: Environment.isSupabaseConfigured,
+    configured: config.missingKeys.isEmpty,
     debug: kDebugMode,
   )) {
     case StartupPlan.remote:
+      final PocketBase pb;
       try {
-        await Environment.initializeSupabase();
+        pb = PocketBase(
+          config.pocketBaseUrl,
+          authStore: buildAuthStore(authBox),
+        );
+        await restoreSession(pb);
       } on Object catch (e, st) {
-        // The defines were there and the SDK still refused to start: a wrong
-        // project URL, an anon key from another project. Letting it escape
-        // from main paints a white screen, and an installed PWA has no
-        // console to explain one.
-        debugPrint('Supabase.initialize failed: $e\n$st');
+        // The address was there and the client still failed to start. Letting
+        // it escape from main paints a white screen, and an installed PWA has
+        // no console to explain one.
+        debugPrint('PocketBase startup failed: $e\n$st');
         runApp(const MisconfiguredApp.startupFailed());
         return;
       }
-      overrides = overridesRemote;
+      overrides = [
+        pocketBaseProvider.overrideWithValue(pb),
+        ...overridesRemote,
+      ];
       usingFakes = false;
     case StartupPlan.fakes:
       overrides = overridesLocal;
@@ -96,6 +112,7 @@ Future<void> main() async {
       overrides: [
         deviceUserBoxProvider.overrideWithValue(deviceUserBox),
         purchaseDraftBoxProvider.overrideWithValue(purchaseDraftBox),
+        authBoxProvider.overrideWithValue(authBox),
         ...overrides,
       ],
       child: ShoppingListApp(usingFakes: usingFakes),

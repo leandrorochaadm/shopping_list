@@ -44,10 +44,51 @@ final class Packaging {
   });
 
   factory Packaging.fromJson(Map<String, dynamic> json) => Packaging(
-    pieceCount: json['piece_count'] as int,
-    pieceSize: json['piece_size'] as int,
-    baseUnit: BaseUnit.fromJson(json['piece_size_unit'] as String),
+    pieceCount: json[pieceCountKey] as int,
+    pieceSize: json[pieceSizeKey] as int,
+    baseUnit: BaseUnit.fromJson(json[pieceSizeUnitKey] as String),
   );
+
+  static const pieceCountKey = 'piece_count';
+  static const pieceSizeKey = 'piece_size';
+  static const pieceSizeUnitKey = 'piece_size_unit';
+  static const totalContentKey = 'total_content';
+
+  /// Reads the four packaging fields of a leaf: all four or none. `null` is a
+  /// leaf sold by weight. A field is empty when it is `null`, `0` or `''`
+  /// (what PocketBase returns for a `number`/`text` without value).
+  /// Throws [ArgumentError] for half a packaging or a non-positive total.
+  static Packaging? fromLeafJson(Map<String, dynamic> json) {
+    bool empty(String key) {
+      final value = json[key];
+      return value == null || value == 0 || value == '';
+    }
+
+    final keys = [
+      pieceCountKey,
+      pieceSizeKey,
+      pieceSizeUnitKey,
+      totalContentKey,
+    ];
+    final emptyCount = keys.where(empty).length;
+    if (emptyCount == keys.length) return null;
+    if (emptyCount != 0) {
+      throw ArgumentError.value(
+        json,
+        'packaging',
+        'half a packaging: all four fields or none',
+      );
+    }
+    final total = json[totalContentKey] as num;
+    if (total <= 0) {
+      throw ArgumentError.value(
+        total,
+        totalContentKey,
+        'a packaging holds more than zero',
+      );
+    }
+    return Packaging.fromJson(json);
+  }
 
   /// How many pieces the package holds: the 6 of "6 × 350 ml".
   final int pieceCount;
@@ -64,10 +105,10 @@ final class Packaging {
   final int totalContent;
 
   Map<String, dynamic> toJson() => {
-    'piece_count': pieceCount,
-    'piece_size': pieceSize,
-    'piece_size_unit': baseUnit.toJson(),
-    'total_content': totalContent,
+    pieceCountKey: pieceCount,
+    pieceSizeKey: pieceSize,
+    pieceSizeUnitKey: baseUnit.toJson(),
+    totalContentKey: totalContent,
   };
 
   /// The duplicate guard for packaging, and the reason everything is an
@@ -87,15 +128,12 @@ final class Packaging {
       ? baseUnit.formatQuantity(pieceSize)
       : '$pieceCount × ${baseUnit.formatQuantity(pieceSize)}';
 
-  Packaging copyWith({
-    int? pieceCount,
-    int? pieceSize,
-    BaseUnit? baseUnit,
-  }) => Packaging(
-    pieceCount: pieceCount ?? this.pieceCount,
-    pieceSize: pieceSize ?? this.pieceSize,
-    baseUnit: baseUnit ?? this.baseUnit,
-  );
+  Packaging copyWith({int? pieceCount, int? pieceSize, BaseUnit? baseUnit}) =>
+      Packaging(
+        pieceCount: pieceCount ?? this.pieceCount,
+        pieceSize: pieceSize ?? this.pieceSize,
+        baseUnit: baseUnit ?? this.baseUnit,
+      );
 
   @override
   bool operator ==(Object other) =>

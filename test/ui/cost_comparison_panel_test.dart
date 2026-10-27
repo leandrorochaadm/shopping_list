@@ -1,17 +1,24 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
+import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/product_option.dart';
 import 'package:shopping_list/domain/models/proportional_cost.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
+import 'package:shopping_list/ui/core/unit_specs.dart';
 import 'package:shopping_list/ui/purchase/widgets/cost_comparison_panel.dart';
 
+import '../helpers/barcode_camera.dart';
 import '../helpers/purchase.dart';
 import '../helpers/viewport.dart';
 
 /// The panel is a plain `StatefulWidget`: these tests pump it inside a
-/// `MaterialApp` with **no container and no router**, the way
-/// `product_field_test.dart` does.
+/// `MaterialApp` with **no router**, the way `product_field_test.dart` does.
+/// The `ProviderScope` is only there for the reader: the `BarcodeCameraView`
+/// reads `barcodeCameraBuilderProvider`.
 ///
 /// **No `initializeDateFormatting('pt_BR')` needed**, and it is worth knowing
 /// why: the panel formats money only through `formatMoneyPlain`, which is
@@ -60,19 +67,83 @@ void main() {
       ),
   ].lock;
 
+  const bottleCode = '7894900011517';
+  const tinyCode = '7894900530018';
+  const powderCode = '7891000100103';
+  const unknownCode = '7891000053508';
+
+  /// `seeded()` with the bottle and the 269 ml one carrying a code each.
+  IList<ProductOption> scannable() => [
+    for (final option in seeded())
+      switch (option.id) {
+        'prod-3' => optionByPiece(
+          id: 'prod-3',
+          brand: cokeBrand,
+          description: 'original',
+          pieceSize: 2000,
+          purchaseCount: 1,
+          lastPurchasedOn: option.lastPurchasedOn,
+          priceReference: option.priceReference,
+          barcodes: [Barcode.typed(bottleCode)].lock,
+        ),
+        'prod-2' => optionByPiece(
+          id: 'prod-2',
+          brand: cokeBrand,
+          description: 'original',
+          pieceSize: 269,
+          barcodes: [Barcode.typed(tinyCode)].lock,
+        ),
+        _ => option,
+      },
+  ].lock;
+
+  final powder = optionByPiece(
+    id: 'powder-1',
+    type: powderType,
+    brand: omoBrand,
+    pieceSize: 1000,
+    unit: BaseUnit.gram,
+    barcodes: [Barcode.typed(powderCode)].lock,
+  );
+
+  /// `chicken()` with the tray carrying a scale code for `store-1`.
+  IList<ProductOption> chickenWithLabel() => [
+    for (final option in chicken())
+      option.id == 'chick-1'
+          ? optionByWeight(
+              id: 'chick-1',
+              type: beefType,
+              purchaseCount: 1,
+              lastPurchasedOn: option.lastPurchasedOn,
+              priceReference: option.priceReference,
+              scaleCodes: [
+                ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+              ].lock,
+            )
+          : option,
+  ].lock;
+
   /// What came back from the panel, and whether it came back at all.
-  ProductOption? picked;
+  CostPick? picked;
   var closed = false;
+  final registeredCodes = <Barcode>[];
+  ProductOption? registerAnswer;
+  late FakeBarcodeCamera camera;
 
   setUp(() {
     picked = null;
     closed = false;
+    registeredCodes.clear();
+    registerAnswer = null;
+    camera = FakeBarcodeCamera();
   });
 
   Future<void> openPanel(
     WidgetTester tester, {
     IList<ProductOption>? options,
+    IList<ProductOption>? scanOptions,
     String launchingId = 'prod-4',
+    String? storeId = 'store-1',
     Size viewport = const Size(1200, 2400),
     bool keyboard = false,
   }) async {
@@ -94,23 +165,32 @@ void main() {
     final launching = all.firstWhere((option) => option.id == launchingId);
 
     await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Builder(
-            builder: (context) => TextButton(
-              onPressed: () async {
-                picked = await CostComparisonPanel.show(
-                  context,
-                  candidates: costCandidatesOf(
-                    options: all,
-                    typeId: launching.type.id,
+      ProviderScope(
+        overrides: [camera.override],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async {
+                  picked = await CostComparisonPanel.show(
+                    context,
+                    candidates: costCandidatesOf(
+                      options: all,
+                      typeId: launching.type.id,
+                      launching: launching,
+                    ),
                     launching: launching,
-                  ),
-                  launching: launching,
-                );
-                closed = true;
-              },
-              child: const Text('abrir'),
+                    options: scanOptions ?? all,
+                    storeId: storeId,
+                    onRegister: (code) async {
+                      registeredCodes.add(code);
+                      return registerAnswer;
+                    },
+                  );
+                  closed = true;
+                },
+                child: const Text('abrir'),
+              ),
             ),
           ),
         ),
@@ -118,6 +198,18 @@ void main() {
     );
     await tester.tap(find.text('abrir'));
     await tester.pumpAndSettle();
+  }
+
+  Future<void> scan(WidgetTester tester, String raw) async {
+    await tester.tap(find.byKey(const ValueKey('cost-scan')));
+    await tester.pumpAndSettle();
+    camera.read(raw);
+    await tester.pumpAndSettle();
+  }
+
+  String? scanMessageIn(WidgetTester tester) {
+    final finder = find.byKey(const ValueKey('cost-scan-message'));
+    return finder.evaluate().isEmpty ? null : tester.widget<Text>(finder).data;
   }
 
   /// The `TextField` an `AppTextField` builds: the key is on the wrapper, and
@@ -236,20 +328,21 @@ void main() {
     expect(find.byKey(const ValueKey('cost-show-all')), findsNothing);
   });
 
-  testWidgets('the footer asks for the second price, and [ Usar ] is locked', (
-    tester,
-  ) async {
-    await openPanel(tester);
+  testWidgets(
+    'the footer asks for the second price, and [ Adicionar ] is locked',
+    (tester) async {
+      await openPanel(tester);
 
-    expect(headlineIn(tester), 'Preencha o preço de duas opções.');
-    expect(
-      tester
-          .widget<FilledButton>(find.byKey(const ValueKey('cost-use')))
-          .onPressed,
-      isNull,
-    );
-    expect(find.byIcon(Icons.star), findsNothing);
-  });
+      expect(headlineIn(tester), 'Preencha o preço de duas opções.');
+      expect(
+        tester
+            .widget<FilledButton>(find.byKey(const ValueKey('cost-add')))
+            .onPressed,
+        isNull,
+      );
+      expect(find.byIcon(Icons.star), findsNothing);
+    },
+  );
 
   testWidgets('ticking the second line does the whole computation at once', (
     tester,
@@ -307,7 +400,7 @@ void main() {
     expect(tickedIn(tester, tinyKey), isTrue);
     expect(
       tester
-          .widget<FilledButton>(find.byKey(const ValueKey('cost-use')))
+          .widget<FilledButton>(find.byKey(const ValueKey('cost-add')))
           .onPressed,
       isNull,
     );
@@ -325,7 +418,7 @@ void main() {
     expect(find.textContaining('%'), findsNothing);
   });
 
-  testWidgets('below 1% nobody is crowned and [ Usar ] survives it', (
+  testWidgets('below 1% nobody is crowned and [ Adicionar ] survives it', (
     tester,
   ) async {
     // R$ 10,00 for 2 L against R$ 21,10 for 4,2 L: 500 and 502,4 cents a
@@ -346,23 +439,32 @@ void main() {
     // The button STAYS, pointing at the cheaper one (F-h).
     expect(
       tester
-          .widget<FilledButton>(find.byKey(const ValueKey('cost-use')))
+          .widget<FilledButton>(find.byKey(const ValueKey('cost-add')))
           .onPressed,
       isNotNull,
     );
-    expect(find.text('Usar $bottleLabel'), findsOneWidget);
+    expect(find.text('Adicionar $bottleLabel à compra'), findsOneWidget);
   });
 
-  testWidgets('[ Usar X ] closes handing back X', (tester) async {
+  testWidgets('[ Adicionar X à compra ] closes handing back the CostPick', (
+    tester,
+  ) async {
     await openPanel(tester);
     await tester.tap(find.byKey(bottleKey));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('cost-use')));
+    await tester.tap(find.byKey(const ValueKey('cost-add')));
     await tester.pumpAndSettle();
 
     expect(closed, isTrue);
-    expect(picked?.id, 'prod-3');
+    expect(
+      picked,
+      CostPick(
+        option: seeded().firstWhere((option) => option.id == 'prod-3'),
+        quantity: 1,
+        paid: Money(1000),
+      ),
+    );
   });
 
   testWidgets('[ X ] closes handing back nothing', (tester) async {
@@ -498,7 +600,7 @@ void main() {
     final headline = tester.getRect(
       find.byKey(const ValueKey('cost-headline')),
     );
-    final button = tester.getRect(find.byKey(const ValueKey('cost-use')));
+    final button = tester.getRect(find.byKey(const ValueKey('cost-add')));
     final firstRowBefore = tester.getRect(
       find.byKey(const ValueKey('cost-row-prod-1')),
     );
@@ -521,7 +623,7 @@ void main() {
       tester.getRect(find.byKey(const ValueKey('cost-headline'))),
       headline,
     );
-    expect(tester.getRect(find.byKey(const ValueKey('cost-use'))), button);
+    expect(tester.getRect(find.byKey(const ValueKey('cost-add'))), button);
   });
 
   testWidgets('the header names the unit the computation is in', (
@@ -634,7 +736,7 @@ void main() {
     expect(headlineIn(tester), 'Preencha o preço de duas opções.');
     expect(
       tester
-          .widget<FilledButton>(find.byKey(const ValueKey('cost-use')))
+          .widget<FilledButton>(find.byKey(const ValueKey('cost-add')))
           .onPressed,
       isNull,
     );
@@ -678,7 +780,7 @@ void main() {
       lessThanOrEqualTo(iPhone12KeyboardFold),
     );
     expect(
-      tester.getRect(find.byKey(const ValueKey('cost-use'))).bottom,
+      tester.getRect(find.byKey(const ValueKey('cost-add'))).bottom,
       lessThanOrEqualTo(iPhone12KeyboardFold),
     );
   });
@@ -711,8 +813,264 @@ void main() {
     }
     // And the footer, which is the answer, is above it too.
     expect(
-      tester.getRect(find.byKey(const ValueKey('cost-use'))).bottom,
+      tester.getRect(find.byKey(const ValueKey('cost-add'))).bottom,
       lessThanOrEqualTo(iPhone12KeyboardFold),
     );
+  });
+
+  testWidgets('[ Ler outro ] ticks the line read and focuses its price', (
+    tester,
+  ) async {
+    await openPanel(tester, options: scannable());
+
+    await scan(tester, bottleCode);
+
+    expect(tickedIn(tester, bottleKey), isTrue);
+    expect(
+      tester
+          .widget<TextField>(fieldOf('cost-price-prod-3'))
+          .focusNode!
+          .hasFocus,
+      isTrue,
+    );
+  });
+
+  testWidgets('a leaf outside the short list comes in ticked, price empty', (
+    tester,
+  ) async {
+    await openPanel(tester, options: scannable());
+    expect(find.text(tinyLabel), findsNothing);
+
+    await scan(tester, tinyCode);
+
+    expect(find.text(tinyLabel), findsOneWidget);
+    expect(tickedIn(tester, tinyKey), isTrue);
+    expect(priceIn(tester, 'prod-2'), isEmpty);
+    // Nothing is left to reveal.
+    expect(find.byKey(const ValueKey('cost-show-all')), findsNothing);
+  });
+
+  testWidgets('reading a ticked line keeps it ticked', (tester) async {
+    await openPanel(tester, options: scannable());
+
+    await scan(tester, bottleCode);
+    await scan(tester, bottleCode);
+
+    expect(tickedIn(tester, bottleKey), isTrue);
+  });
+
+  testWidgets('another type is refused with the sentence', (tester) async {
+    await openPanel(
+      tester,
+      options: scannable(),
+      scanOptions: scannable().add(powder),
+    );
+
+    await scan(tester, powderCode);
+
+    expect(
+      scanMessageIn(tester),
+      'Esse é ${powderType.name.toLowerCase()}. '
+      'Aqui só se compara ${softDrinkType.name.toLowerCase()}.',
+    );
+    expect(tickedIn(tester, crateKey), isTrue);
+    expect(tickedIn(tester, bottleKey), isFalse);
+    expect(tickedIn(tester, canKey), isFalse);
+  });
+
+  testWidgets('a scale label fills Quanto vem with the weight', (tester) async {
+    await openPanel(
+      tester,
+      options: chickenWithLabel(),
+      launchingId: 'chick-2',
+    );
+
+    await scan(tester, '02822521001605261107');
+
+    expect(
+      tester
+          .widget<Checkbox>(find.byKey(const ValueKey('cost-check-chick-1')))
+          .value,
+      isTrue,
+    );
+    expect(contentIn(tester, 'chick-1'), specOf(BaseUnit.gram).format(160));
+  });
+
+  testWidgets('an unknown code offers Cadastrar and the new leaf comes back '
+      'ticked', (tester) async {
+    registerAnswer = optionByPiece(
+      id: 'prod-9',
+      brand: cokeBrand,
+      description: 'original',
+      pieceSize: 600,
+      unit: BaseUnit.milliliter,
+    );
+    await openPanel(tester, options: scannable());
+
+    await scan(tester, unknownCode);
+    expect(scanMessageIn(tester), 'Nenhum produto com esse código.');
+
+    await tester.tap(find.byKey(const ValueKey('cost-register')));
+    await tester.pumpAndSettle();
+
+    expect(registeredCodes, [Barcode.typed(unknownCode)]);
+    expect(find.text('Coca-Cola original 600 ml'), findsOneWidget);
+    expect(
+      tester
+          .widget<Checkbox>(find.byKey(const ValueKey('cost-check-prod-9')))
+          .value,
+      isTrue,
+    );
+    expect(priceIn(tester, 'prod-9'), isEmpty);
+    expect(scanMessageIn(tester), isNull);
+    expect(find.byKey(const ValueKey('cost-register')), findsNothing);
+  });
+
+  testWidgets('Cadastrar that comes back empty changes nothing', (
+    tester,
+  ) async {
+    await openPanel(tester, options: scannable());
+
+    await scan(tester, unknownCode);
+    await tester.tap(find.byKey(const ValueKey('cost-register')));
+    await tester.pumpAndSettle();
+
+    expect(scanMessageIn(tester), 'Nenhum produto com esse código.');
+    expect(find.byKey(const ValueKey('cost-register')), findsOneWidget);
+    expect(tickedIn(tester, bottleKey), isFalse);
+  });
+
+  testWidgets('an unknown label and an invalid code say so', (tester) async {
+    await openPanel(tester, options: scannable());
+
+    await scan(tester, '2822521001605');
+    expect(
+      scanMessageIn(tester),
+      'Não conheço esta etiqueta. Escolha o produto pela lista.',
+    );
+
+    await scan(tester, '7894900011518');
+    expect(scanMessageIn(tester), 'Código de barras inválido.');
+  });
+
+  testWidgets('the reader closed with nothing changes nothing', (tester) async {
+    await openPanel(tester, options: scannable());
+
+    await tester.tap(find.byKey(const ValueKey('cost-scan')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('reader-close')));
+    await tester.pumpAndSettle();
+
+    expect(scanMessageIn(tester), isNull);
+    expect(tickedIn(tester, crateKey), isTrue);
+    expect(tickedIn(tester, bottleKey), isFalse);
+  });
+
+  testWidgets('tapping the name of a ticked line moves the button to it', (
+    tester,
+  ) async {
+    await openPanel(tester);
+    await tester.tap(find.byKey(bottleKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(crateLabel));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Adicionar $crateLabel à compra'), findsOneWidget);
+    expect(tickedIn(tester, crateKey), isTrue);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('cost-row-prod-3')),
+        matching: find.byIcon(Icons.star),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('tapping the name of an unticked line ticks it', (tester) async {
+    await openPanel(tester);
+
+    await tester.tap(find.text(canLabel));
+    await tester.pumpAndSettle();
+
+    expect(tickedIn(tester, canKey), isTrue);
+  });
+
+  testWidgets('the picked line with no price locks the button and names it', (
+    tester,
+  ) async {
+    await openPanel(tester);
+    await tester.tap(find.byKey(const ValueKey('cost-show-all')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(tinyKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(tinyLabel));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('cost-add')))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<Text>(find.byKey(const ValueKey('cost-missing-price')))
+          .data,
+      'Digite o preço do $tinyLabel.',
+    );
+
+    await tester.enterText(
+      find.byKey(const ValueKey('cost-price-prod-2')),
+      '300',
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Adicionar $tinyLabel à compra'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const ValueKey('cost-add')))
+          .onPressed,
+      isNotNull,
+    );
+    expect(find.byKey(const ValueKey('cost-missing-price')), findsNothing);
+  });
+
+  testWidgets('the weighed line hands back what comes in it', (tester) async {
+    await openPanel(tester, options: chicken(), launchingId: 'chick-1');
+    await tester.enterText(
+      find.byKey(const ValueKey('cost-content-chick-1')),
+      '800',
+    );
+    await tester.tap(find.byKey(const ValueKey('cost-check-chick-2')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text(chicken().first.label));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cost-add')));
+    await tester.pumpAndSettle();
+
+    expect(
+      picked,
+      CostPick(option: chicken().first, quantity: 800, paid: Money(1200)),
+    );
+  });
+
+  testWidgets('a double tap on the button closes once', (tester) async {
+    await openPanel(tester);
+    await tester.tap(find.byKey(bottleKey));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('cost-add')));
+    await tester.pump();
+    await tester.tap(
+      find.byKey(const ValueKey('cost-add')),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('abrir'), findsOneWidget);
+    expect(closed, isTrue);
   });
 }

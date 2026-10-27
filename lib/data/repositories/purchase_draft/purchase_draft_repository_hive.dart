@@ -23,10 +23,18 @@ final class PurchaseDraftRepositoryHive implements PurchaseDraftRepository {
   /// caught in `main` and shown by `MisconfiguredApp.storageUnavailable()`.
   static const boxName = 'purchase_draft';
 
-  /// VERSIONED (`tecnico §4.8`): the day the structure changes, the key
-  /// becomes `draft_v2` and the old draft is ignored. Nobody writes a
-  /// migration for data that lives for hours.
-  static const _key = 'draft_v1';
+  /// VERSIONED (`tecnico §4.8`): the version went up because the old ids
+  /// of `draft_v1` do not exist in PocketBase. The old draft disappears on
+  /// purpose, and nobody writes a migration for data that lives for hours.
+  static const _key = 'draft_v2';
+
+  static const _legacyKey = 'draft_v1';
+
+  /// Deletes the `draft_v1` row, if any, once at opening. It is never read or
+  /// converted, and `draft_v2` is left alone.
+  static Future<void> discardLegacyDraft(Box<String> box) async {
+    if (box.containsKey(_legacyKey)) await box.delete(_legacyKey);
+  }
 
   final Box<String> _box;
 

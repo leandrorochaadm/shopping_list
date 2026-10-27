@@ -8,8 +8,9 @@ import '../../../domain/models/report_period.dart';
 /// The reads of screen 5. I/O and nothing else: ordering, dividing and
 /// building the tree is the domain's job.
 abstract class ReportRepository {
-  /// The three aggregations of the interval, in a single instant. The interval
-  /// is decided in the ViewModel, off the phone's clock: no `now()` in SQL
+  /// The three aggregations of the interval, read in one go from the purchase
+  /// lines; the sums are `summarizePeriod`. The interval is decided in the
+  /// ViewModel, off the phone's clock: no `now()` in the repository
   /// (decision 7).
   Future<PeriodReport> fetchPeriodReport(ReportPeriod period);
 
@@ -18,7 +19,7 @@ abstract class ReportRepository {
   /// embedded.
   ///
   /// [since] is computed in the ViewModel, off the phone's clock: no `now()`
-  /// and no `current_date` in SQL (decision 7).
+  /// in the repository (decision 7).
   ///
   /// **It reduces nothing.** Choosing the most recent purchase of each store
   /// is a rule, and a rule belongs to the domain (`buildComparison`) — the
@@ -27,7 +28,7 @@ abstract class ReportRepository {
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final reportRepositoryProvider = Provider<ReportRepository>(
   (ref) => throw UnimplementedError(
     'reportRepositoryProvider was not overridden. See '

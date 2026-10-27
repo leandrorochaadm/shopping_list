@@ -9,6 +9,8 @@ import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repo
 import 'package:shopping_list/data/repositories/store/store_repository.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
@@ -30,6 +32,9 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   int updateTypeCalls = 0;
   int updateRegistrationCalls = 0;
   int updateProductCalls = 0;
+  int findOwnersCalls = 0;
+  int addBarcodeCalls = 0;
+  int removeBarcodeCalls = 0;
 
   Object? _take() {
     final failure = failNextCall;
@@ -84,6 +89,36 @@ class _SpyCatalog extends CatalogRepositoryLocal {
     final failure = _take();
     if (failure != null) throw failure;
     return super.updateProduct(product);
+  }
+
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    findOwnersCalls++;
+    final failure = _take();
+    if (failure != null) throw failure;
+    return super.findOwners(codes);
+  }
+
+  @override
+  Future<void> addBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    addBarcodeCalls++;
+    final failure = _take();
+    if (failure != null) throw failure;
+    return super.addBarcode(productId: productId, code: code);
+  }
+
+  @override
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  }) async {
+    removeBarcodeCalls++;
+    final failure = _take();
+    if (failure != null) throw failure;
+    return super.removeBarcode(productId: productId, code: code);
   }
 }
 
@@ -469,7 +504,7 @@ void main() {
         description: 'zero',
         sellingMode: SellingMode.byPiece,
       ),
-      packagings: const IList<Packaging>.empty(),
+      packagings: const IList<PackagingWithBarcodes>.empty(),
     );
     await notifierOf(c).refresh();
 
@@ -817,6 +852,152 @@ void main() {
       expect(CatalogKind.registration.createLabel, 'Novo cadastro de produto');
       expect(CatalogKind.packaging.createLabel, 'Nova embalagem');
       expect(CatalogKind.store.createLabel, 'Novo mercado');
+    });
+  });
+
+  // ── Codes of a packaging ───────────────────────────────────────────────
+
+  group('codes of a packaging', () {
+    final milk = Barcode.typed('7894900011517');
+
+    Future<ProviderContainer> loaded() async {
+      final c = container();
+      await c.read(catalogMaintenanceViewModelProvider.future);
+      return c;
+    }
+
+    Product leafInState(ProviderContainer c, String id) =>
+        valueOf(c).products.firstWhere((p) => p.id == id);
+
+    test('addBarcode writes and the leaf in the state shows it', () async {
+      final c = await loaded();
+
+      final outcome = await notifierOf(c).addBarcode('prod-1', milk);
+
+      expect((outcome! as BarcodeAdded).releasedFrom, isNull);
+      expect(leafInState(c, 'prod-1').barcodes, [milk].lock);
+    });
+
+    test('addBarcode refuses a code of another active leaf', () async {
+      await catalog.addBarcode(productId: 'prod-2', code: milk);
+      final owner = (await catalog.findOwners([milk].lock))[milk]!;
+      final c = await loaded();
+
+      final outcome = await notifierOf(c).addBarcode('prod-1', milk);
+
+      expect(
+        (outcome! as BarcodeAddRefused).message,
+        'Esse código já é do ${owner.label}.',
+      );
+      expect(catalog.addBarcodeCalls, 1); // only the fixture above
+    });
+
+    test('addBarcode refuses a code the leaf already has', () async {
+      await catalog.addBarcode(productId: 'prod-1', code: milk);
+      final c = await loaded();
+      final before = catalog.findOwnersCalls;
+
+      final outcome = await notifierOf(c).addBarcode('prod-1', milk);
+
+      expect(
+        (outcome! as BarcodeAddRefused).message,
+        'Esse código já está nesta embalagem.',
+      );
+      expect(catalog.findOwnersCalls, before);
+    });
+
+    test('addBarcode releases a deactivated owner without asking', () async {
+      await catalog.addBarcode(productId: 'prod-2', code: milk);
+      final leaf = (await catalog.fetchProducts()).firstWhere(
+        (p) => p.id == 'prod-2',
+      );
+      await catalog.updateProduct(leaf.deactivated());
+      final c = await loaded();
+
+      final outcome = await notifierOf(c).addBarcode('prod-1', milk);
+
+      expect((outcome! as BarcodeAdded).releasedFrom, isNotNull);
+      expect(catalog.removeBarcodeCalls, 1);
+      expect(leafInState(c, 'prod-1').barcodes, [milk].lock);
+      expect(leafInState(c, 'prod-2').barcodes, isEmpty);
+    });
+
+    test('addBarcode on a leaf that went away', () async {
+      final c = await loaded();
+
+      final outcome = await notifierOf(c).addBarcode('prod-404', milk);
+
+      expect(
+        (outcome! as BarcodeAddRefused).message,
+        'Não encontrei a embalagem. Atualize a lista.',
+      );
+    });
+
+    test('addBarcode translates a failure', () async {
+      final c = await loaded();
+      catalog.failNextCall = ApiException(503, 'down');
+
+      final outcome = await notifierOf(c).addBarcode('prod-1', milk);
+
+      expect((outcome! as BarcodeAddFailed).message, isNot(contains('down')));
+    });
+
+    test('addBarcode guards against double tap', () async {
+      final c = await loaded();
+
+      final outcomes = await Future.wait([
+        notifierOf(c).addBarcode('prod-1', milk),
+        notifierOf(c).addBarcode('prod-1', milk),
+      ]);
+
+      expect(outcomes.where((o) => o == null), hasLength(1));
+      expect(catalog.findOwnersCalls, 1);
+    });
+
+    test('removeBarcode frees the code for another leaf', () async {
+      await catalog.addBarcode(productId: 'prod-1', code: milk);
+      final c = await loaded();
+
+      final result = await notifierOf(c).removeBarcode('prod-1', milk);
+
+      expect(result, isNull);
+      expect(leafInState(c, 'prod-1').barcodes, isEmpty);
+      final outcome = await notifierOf(c).addBarcode('prod-2', milk);
+      expect(outcome, isA<BarcodeAdded>());
+    });
+
+    test('removeBarcode on a leaf that went away', () async {
+      final c = await loaded();
+
+      expect(
+        await notifierOf(c).removeBarcode('prod-404', milk),
+        'Não encontrei a embalagem. Atualize a lista.',
+      );
+    });
+
+    test('removeBarcode translates a failure', () async {
+      await catalog.addBarcode(productId: 'prod-1', code: milk);
+      final c = await loaded();
+      catalog.failNextCall = ApiException(503, 'down');
+
+      final result = await notifierOf(c).removeBarcode('prod-1', milk);
+
+      expect(result, isNotNull);
+      expect(result, isNot(contains('down')));
+    });
+
+    test('removeBarcode guards against double tap', () async {
+      await catalog.addBarcode(productId: 'prod-1', code: milk);
+      final c = await loaded();
+
+      final results = await Future.wait([
+        notifierOf(c).removeBarcode('prod-1', milk),
+        notifierOf(c).removeBarcode('prod-1', milk),
+      ]);
+
+      // Success and the guard are both null: the call count tells them apart.
+      expect(results, [null, null]);
+      expect(catalog.removeBarcodeCalls, 1);
     });
   });
 }

@@ -297,9 +297,8 @@ IList<ProductOption> rankOptions(
   for (final entry in history) {
     counts.update(entry.productId, (n) => n + 1, ifAbsent: () => 1);
     final known = latest[entry.productId];
-    // The most RECENT one is the reference. There is no `order` in the query
-    // that brought these: ordering an embedded table in PostgREST orders the
-    // children, not the parents, so the comparison happens here.
+    // The most RECENT one is the reference. The history comes unordered
+    // per product, so the comparison happens here.
     if (known == null || entry.purchasedOn.isAfter(known.purchasedOn)) {
       latest[entry.productId] = entry;
     }

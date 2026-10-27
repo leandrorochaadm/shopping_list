@@ -1,6 +1,7 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
@@ -28,11 +29,13 @@ void main() {
   );
 
   group('SavedRegistration', () {
-    SavedRegistration saved({String regId = 'reg-1', String leafId = 'prod-1'}) =>
-        SavedRegistration(
-          registration: registration(id: regId),
-          products: [leaf(id: leafId)].lock,
-        );
+    SavedRegistration saved({
+      String regId = 'reg-1',
+      String leafId = 'prod-1',
+    }) => SavedRegistration(
+      registration: registration(id: regId),
+      products: [leaf(id: leafId)].lock,
+    );
 
     test('equality covers every field', () {
       expect(saved(), saved());
@@ -42,9 +45,42 @@ void main() {
     });
   });
 
+  group('PackagingWithBarcodes', () {
+    Packaging size(int pieceSize) => Packaging(
+      pieceCount: 1,
+      pieceSize: pieceSize,
+      baseUnit: BaseUnit.milliliter,
+    );
+    final code = Barcode.typed('7894900011517');
+
+    PackagingWithBarcodes card({int pieceSize = 350, IList<Barcode>? codes}) =>
+        PackagingWithBarcodes(
+          packaging: size(pieceSize),
+          barcodes: codes ?? [code].lock,
+        );
+
+    test('equality covers every field', () {
+      expect(card(), card());
+      expect(card().hashCode, card().hashCode);
+      expect(card(), isNot(card(pieceSize: 269)));
+      expect(card(), isNot(card(codes: const IList.empty())));
+    });
+
+    test('has no code by default', () {
+      expect(PackagingWithBarcodes(packaging: size(350)).barcodes, isEmpty);
+    });
+
+    test('toString names the packaging', () {
+      expect(card().toString(), contains('350'));
+    });
+  });
+
   group('TypeLeaf', () {
     TypeLeaf pair({String leafId = 'prod-1', String regId = 'reg-1'}) =>
-        TypeLeaf(product: leaf(id: leafId), registration: registration(id: regId));
+        TypeLeaf(
+          product: leaf(id: leafId),
+          registration: registration(id: regId),
+        );
 
     test('equality covers every field', () {
       expect(pair(), pair());

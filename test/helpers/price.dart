@@ -19,11 +19,7 @@ final streetMarket = Store(id: 'store-2', name: 'Feira do Bairro');
 final grocery = Store(id: 'store-3', name: 'Mercearia do Zé', active: false);
 
 /// The crate of requirement 6: 12 × 350 ml, 4200 ml a purchase.
-final cokeCrate = optionByPiece(
-  id: 'prod-4',
-  brand: cokeBrand,
-  pieceCount: 12,
-);
+final cokeCrate = optionByPiece(id: 'prod-4', brand: cokeBrand, pieceCount: 12);
 
 /// The single can of the same type — what makes "Tipo inteiro" answer
 /// something different from "Este produto".

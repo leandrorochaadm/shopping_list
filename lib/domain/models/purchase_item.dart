@@ -2,7 +2,33 @@ import 'base_unit.dart';
 import 'money.dart';
 import 'product_option.dart';
 import 'shopping_list_item.dart' show InvalidQuantity;
-import 'uuid.dart';
+import 'record_id.dart';
+
+const _priceOriginKey = 'price_origin';
+
+/// Where the `paid` of a line came from.
+enum PriceOrigin {
+  // First on purpose: reordering the enum changes the `fromApi` default.
+  // `lastPurchase` is the safe side — the warning asks for a check instead of
+  // silently accepting (decision of 10/10/2026, an exception to the `unknown`
+  // of the global enum rule).
+  lastPurchase('last_purchase'),
+  typed('typed');
+
+  const PriceOrigin(this.apiValue);
+
+  final String apiValue;
+
+  /// `null` is a draft stored before this field existed: the price was typed.
+  /// An unknown value comes from a newer version and falls to the safe side.
+  static PriceOrigin fromApi(String? raw) {
+    if (raw == null) return PriceOrigin.typed;
+    for (final origin in values) {
+      if (origin.apiValue == raw) return origin;
+    }
+    return values.first;
+  }
+}
 
 /// One line of a purchase: a leaf, how much of it, and what was paid for that
 /// much — the TOTAL paid, never a unit price. The receipt carries the total,
@@ -19,12 +45,20 @@ final class PurchaseItem {
     required ProductOption option,
     required int quantity,
     required Money paid,
+    PriceOrigin priceOrigin = PriceOrigin.typed,
   }) {
     if (quantity <= 0) throw const InvalidQuantity();
+    if (paid.cents < 0) {
+      throw ArgumentError.value(
+        paid.cents,
+        'paid',
+        'a purchase line cannot cost less than zero',
+      );
+    }
     return PurchaseItem._(
       // Born on the phone, like the purchase's own key: the write-offs point
       // at it, and a resend that arrives twice has to find the same rows.
-      id: id ?? newUuidV4(),
+      id: id ?? newRecordId(),
       option: option,
       quantity: quantity,
       // Here, and ONLY here, is where "1 fardo de 12 × 350 ml" becomes
@@ -32,6 +66,7 @@ final class PurchaseItem {
       // conversion happens before the write and no report may redo it.
       quantityInBaseUnit: option.toBaseUnit(quantity),
       paid: paid,
+      priceOrigin: priceOrigin,
     );
   }
 
@@ -41,6 +76,7 @@ final class PurchaseItem {
     required this.quantity,
     required this.quantityInBaseUnit,
     required this.paid,
+    required this.priceOrigin,
   });
 
   /// Reads what the DRAFT stored — the leaf comes whole, see the class doc.
@@ -49,6 +85,7 @@ final class PurchaseItem {
     option: ProductOption.fromJson(json['product'] as Map<String, dynamic>),
     quantity: (json['quantity'] as num).toInt(),
     paid: Money.fromJson(json['total_paid']),
+    priceOrigin: PriceOrigin.fromApi(json[_priceOriginKey] as String?),
   );
 
   final String id;
@@ -64,6 +101,17 @@ final class PurchaseItem {
 
   /// Cents. The total paid for this line.
   final Money paid;
+
+  /// Where [paid] came from.
+  final PriceOrigin priceOrigin;
+
+  /// The price still has to be checked by someone (rule 11: the row asks).
+  bool get isPriceUnconfirmed => priceOrigin == PriceOrigin.lastPurchase;
+
+  /// The only way the origin changes (rule 7): `lastPurchase` -> `typed`.
+  PurchaseItem confirmedPrice() => isPriceUnconfirmed
+      ? PurchaseItem(id: id, option: option, quantity: quantity, paid: paid)
+      : this;
 
   String get productId => option.product.id!;
 
@@ -106,6 +154,7 @@ final class PurchaseItem {
   Map<String, dynamic> toDraftJson() => {
     ...toJson(),
     'product': option.toJson(),
+    _priceOriginKey: priceOrigin.apiValue,
   };
 
   PurchaseItem copyWith({
@@ -119,6 +168,9 @@ final class PurchaseItem {
     option: option ?? this.option,
     quantity: quantity ?? this.quantity,
     paid: paid ?? this.paid,
+    // No parameter for it (rule 7): the origin only changes in
+    // [confirmedPrice], but an edit of quantity or price keeps it.
+    priceOrigin: priceOrigin,
   );
 
   @override
@@ -129,11 +181,12 @@ final class PurchaseItem {
           other.option == option &&
           other.quantity == quantity &&
           other.quantityInBaseUnit == quantityInBaseUnit &&
-          other.paid == paid);
+          other.paid == paid &&
+          other.priceOrigin == priceOrigin);
 
   @override
   int get hashCode =>
-      Object.hash(id, option, quantity, quantityInBaseUnit, paid);
+      Object.hash(id, option, quantity, quantityInBaseUnit, paid, priceOrigin);
 
   @override
   String toString() => 'PurchaseItem($label, $quantityLabel, ${paid.cents})';

@@ -10,6 +10,7 @@ import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/monthly_average.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
+import 'package:shopping_list/domain/models/record_id.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/ui/shopping_list/view_model/shopping_list_view_model.dart';
@@ -194,7 +195,7 @@ void main() {
         .add(_milk, _drinks, today: DateTime(2026, 8, 28));
 
     expect(repository.lastAdded!.id, isNotNull);
-    expect(repository.lastAdded!.id!.length, 36);
+    expect(repository.lastAdded!.id!.length, recordIdLength);
   });
 
   test(
@@ -413,6 +414,22 @@ void main() {
       expect(repository.lastAdded!.quantity, 2000);
     });
 
+    test('add and addMany give each item a record id', () async {
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+      final viewModel = container.read(shoppingListViewModelProvider.notifier);
+
+      await viewModel.add(_milk, _drinks, today: DateTime(2026, 8, 28));
+      expect(isRecordId(repository.lastAdded!.id!), isTrue);
+
+      await viewModel.addMany(
+        [_line(typeId: 'type-5', name: 'Café', average: 700)].lock,
+        today: DateTime(2026, 8, 28),
+      );
+      expect(isRecordId(repository.lastAdded!.id!), isTrue);
+    });
+
     test('add with no quantity keeps being the `#1a` path', () async {
       final repository = _SpyRepository(initial: seed);
       final container = containerWith(repository);
@@ -547,10 +564,7 @@ void main() {
           containsAll(['Café', 'Sabão em pó']),
         );
         expect(
-          reopened
-              .where((item) => item.type.id == 'type-5')
-              .single
-              .quantity,
+          reopened.where((item) => item.type.id == 'type-5').single.quantity,
           isNull,
         );
       },
@@ -567,6 +581,118 @@ void main() {
 
       expect(error, isNull);
       expect(repository.addCalls, 0);
+    });
+  });
+
+  group('addWithRegistration — the [▥] of #1a and screen 2', () {
+    final italac = ProductRegistration(
+      id: 'reg-italac',
+      productTypeId: _milk.id!,
+      brandId: 'brand-italac',
+      description: 'integral',
+      sellingMode: SellingMode.byPiece,
+    );
+    final italacBrand = Brand(id: 'brand-italac', name: 'Italac');
+
+    ShoppingListItem lineAsking(
+      ProductRegistration? registration, {
+      DateTime? fulfilledOn,
+    }) => ShoppingListItem(
+      id: 'item-asking',
+      type: _milk,
+      category: _drinks,
+      preferredRegistration: registration,
+      enteredOn: DateTime(2026, 8, 28),
+      fulfilledOn: fulfilledOn,
+    );
+
+    Future<(_SpyRepository, ProviderContainer)> start(
+      List<ShoppingListItem> initial,
+    ) async {
+      final repository = _SpyRepository(initial: initial);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+      return (repository, container);
+    }
+
+    Future<String?> addItalac(ProviderContainer container) => container
+        .read(shoppingListViewModelProvider.notifier)
+        .addWithRegistration(
+          _milk,
+          _drinks,
+          registration: italac,
+          brand: italacBrand,
+          today: DateTime(2026, 8, 28, 21, 30),
+        );
+
+    test(
+      'writes the line with the product and its brand, no quantity',
+      () async {
+        final (repository, container) = await start(const []);
+
+        final error = await addItalac(container);
+
+        expect(error, isNull);
+        expect(repository.lastAdded!.preferredRegistration, italac);
+        expect(repository.lastAdded!.preferredRegistrationBrand, italacBrand);
+        expect(repository.lastAdded!.quantity, isNull);
+        expect(repository.lastAdded!.enteredOn, DateTime(2026, 8, 28));
+      },
+    );
+
+    test('refuses a product an open line already asks for', () async {
+      final (repository, container) = await start([lineAsking(italac)]);
+
+      expect(await addItalac(container), 'Já está na lista.');
+      expect(repository.addCalls, 0);
+    });
+
+    test('a "Qualquer um" line does not block a product', () async {
+      final (repository, container) = await start([lineAsking(null)]);
+
+      expect(await addItalac(container), isNull);
+      expect(repository.addCalls, 1);
+    });
+
+    test('a line already bought does not block', () async {
+      final (repository, container) = await start([
+        lineAsking(italac, fulfilledOn: DateTime(2026, 8, 29)),
+      ]);
+
+      expect(await addItalac(container), isNull);
+      expect(repository.addCalls, 1);
+    });
+
+    test('a line whose product was deactivated does not block it', () async {
+      final deactivated = ProductRegistration(
+        id: 'reg-italac',
+        productTypeId: _milk.id!,
+        brandId: 'brand-italac',
+        description: 'integral',
+        sellingMode: SellingMode.byPiece,
+        active: false,
+      );
+      final (_, container) = await start([lineAsking(deactivated)]);
+
+      expect(await addItalac(container), isNull);
+    });
+
+    test('writes once on a double tap', () async {
+      final (repository, container) = await start(const []);
+
+      await Future.wait([addItalac(container), addItalac(container)]);
+
+      expect(repository.addCalls, 1);
+    });
+
+    test('translates a failure', () async {
+      final (repository, container) = await start(const []);
+      repository.failNextCall = ApiException(503, 'down');
+
+      final error = await addItalac(container);
+
+      expect(error, isNotNull);
+      expect(error, isNot(contains('down')));
     });
   });
 }

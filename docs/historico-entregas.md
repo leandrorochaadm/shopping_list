@@ -4,6 +4,42 @@ Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra.
 
 ---
 
+## Código de barras e etiqueta de balança — M-c a M-f (10/10/2026)
+
+**A guarda do `_mutate` devolve `null` ("deu certo") sem gravar.** Com outra escrita em
+curso, o `putItem` do rascunho volta sem fazer nada, e o `state` só muda depois do
+`save`. No modo caixa, duas latas lidas em rajada virariam duas linhas de 1. A tela
+enfileira as leituras (`_enqueue` em `checkout_screen.dart`) e só chama o `checkoutScan`
+da próxima depois que a anterior terminou, já com os itens atualizados.
+
+**Intervalo fixo desde a última leitura engole a segunda lata igual.** Quem resolve é o
+`codeGoneGap` (400 ms em `barcode_camera_view.dart`): o tempo **sem ver o código**. O
+mesmo código só vale de novo depois de sair do visor.
+
+**A câmera continua lendo enquanto o painel desce, e a leitura fechava a tela de baixo.**
+Todo fechamento do `BarcodeReaderSheet` confere se o painel ainda está no topo
+(`ModalRoute.of(context)?.isCurrent`).
+
+**O `ListView` só monta as linhas perto da vista.** Rolar até a linha lida na Despensa
+precisa do `context` dela, e linha ainda não montada não tem um. Por isso a tela é um
+`SingleChildScrollView`.
+
+**O `#1a` é modal e cobre o SnackBar da Tela 1.** As frases da leitura ficam dentro do
+painel (`ScanNotice`), nunca em SnackBar.
+
+**Os 20 dígitos do QR estouram o `int` do `countSpec`.** O campo do leitor é texto sem
+máscara: `barcode_reader_sheet.dart` não importa `UnitSpec` nem `countSpec`.
+
+**O `tool/checks.sh` roda contra o projeto hospedado.** Ele falha no arquivo
+`product_barcode_cases.sql` até a migration chegar ao `prod`.
+
+**No Safari do iPhone, o visor da câmera ficava preto.** O `mobile_scanner` 7.4.2 cria o
+`<video>` sem `playsinline`, e o iPhone não desenha esse vídeo dentro da página. No Mac e
+nos testes nada aparece. A correção mora no `web/index.html`: o `play()` dos vídeos põe
+o atributo antes de tocar. Regenerar o `web/` com `flutter create` apaga o script.
+
+---
+
 ## Vários produtos do mesmo tipo na lista — M-a (01/10/2026)
 
 **A passada específica vem antes da genérica, e não pela idade.** Com "Leite 2 L"

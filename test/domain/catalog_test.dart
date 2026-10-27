@@ -46,10 +46,7 @@ void main() {
 
       expect(findNameConflict(existing, 'Carrefour', ignoringId: '1'), isNull);
       // Another row with that name is still a conflict.
-      expect(
-        findNameConflict(existing, 'Carrefour', ignoringId: '2')?.id,
-        '1',
-      );
+      expect(findNameConflict(existing, 'Carrefour', ignoringId: '2')?.id, '1');
       // And creating passes nothing, so every row counts.
       expect(findNameConflict(existing, 'carrefour')?.id, '1');
     });
@@ -73,7 +70,11 @@ void main() {
       );
       expect(
         findNameConflict([
-          ProductType(name: 'Leite', categoryId: 'c', baseUnit: BaseUnit.milliliter),
+          ProductType(
+            name: 'Leite',
+            categoryId: 'c',
+            baseUnit: BaseUnit.milliliter,
+          ),
         ], ' leite '),
         isNotNull,
       );
@@ -177,8 +178,11 @@ void main() {
         'Leite',
       );
       expect(
-        () =>
-            ProductType(name: ' ', categoryId: 'c1', baseUnit: BaseUnit.milliliter),
+        () => ProductType(
+          name: ' ',
+          categoryId: 'c1',
+          baseUnit: BaseUnit.milliliter,
+        ),
         throwsA(isA<BlankName>()),
       );
     });
@@ -197,7 +201,32 @@ void main() {
       expect(leite().hashCode, leite().hashCode);
       expect(leite(), isNot(leite().copyWith(baseUnit: BaseUnit.unit)));
       expect(leite(), isNot(leite().copyWith(categoryId: 'c2')));
-      expect(leite().toString(), 'ProductType(Leite, milliliter, active: true)');
+      expect(
+        leite().toString(),
+        'ProductType(Leite, milliliter, active: true)',
+      );
+    });
+  });
+
+  group('name uniqueness left to the domain', () {
+    test('a type name is unique across categories', () {
+      expect(
+        findNameConflict([
+          ProductType(
+            name: 'Leite',
+            categoryId: 'a',
+            baseUnit: BaseUnit.milliliter,
+          ),
+        ], 'leite'),
+        isNotNull,
+      );
+    });
+
+    test('a letter outside the accent table makes a different name', () {
+      expect(
+        findNameConflict([Brand(id: '1', name: 'Dvořák')], 'Dvorak'),
+        isNull,
+      );
     });
   });
 }

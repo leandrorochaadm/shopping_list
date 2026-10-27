@@ -3,6 +3,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'base_unit.dart';
 import 'money.dart';
 import 'product_option.dart';
+import 'product_type.dart';
 
 // **This file imports `product_option.dart`, and NEVER the other way round.**
 // It is the opposite of `price_increase.dart`, where it is the leaf that
@@ -115,6 +116,26 @@ final class CostCandidates {
   /// Does `[ Ver todas do tipo ]` appear? Only when there is something left
   /// to reveal.
   bool get hasMore => shown.length < all.length;
+
+  /// The leaf a read (or `[ Cadastrar ]`) brought in joins the short list.
+  /// The caller already asked `admitScan`; the type is not checked again.
+  ///
+  /// Compares **by id**, like `admitScan`: the read option may differ in
+  /// history. A leaf with no id changes nothing (the panel keeps one
+  /// controller per id, the same reason as the filter of `costCandidatesOf`).
+  CostCandidates withShown(ProductOption option) {
+    final id = option.id;
+    if (id == null || shown.any((shownOption) => shownOption.id == id)) {
+      return this;
+    }
+    return CostCandidates(
+      // A leaf registered just now is not in `all` yet.
+      all: all.any((candidate) => candidate.id == id)
+          ? all
+          : all.add(option).sort(compareForPicker),
+      shown: shown.add(option).sort(compareForPicker),
+    );
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -270,6 +291,7 @@ final class CostRanking {
     required this.headline,
     this.best,
     this.usable,
+    this.missingPriceOf,
   });
 
   /// Every line of the panel, **ordered**: first the ones that compete, from
@@ -290,7 +312,13 @@ final class CostRanking {
   /// F-h): the system stops ASSERTING an advantage, but it does not take away
   /// the way out of choosing without closing the panel. `null` is the locked
   /// button.
+  ///
+  /// It is where `[ Adicionar … à compra ]` points.
   final ProductOption? usable;
+
+  /// The `label` of the line the person picked while it has no price: the
+  /// screen writes "Digite o preço do {label}." above the locked button.
+  final String? missingPriceOf;
 
   @override
   bool operator ==(Object other) =>
@@ -299,13 +327,148 @@ final class CostRanking {
           other.lines == lines &&
           other.headline == headline &&
           other.best == best &&
-          other.usable == usable);
+          other.usable == usable &&
+          other.missingPriceOf == missingPriceOf);
 
   @override
-  int get hashCode => Object.hash(lines, headline, best, usable);
+  int get hashCode =>
+      Object.hash(lines, headline, best, usable, missingPriceOf);
 
   @override
   String toString() => 'CostRanking(${lines.length} lines, best: ${best?.id})';
+}
+
+/// What `[ Adicionar … à compra ]` hands back: the leaf, the quantity to type
+/// on screen 3 (packages, or the smallest unit when sold by weight) and the
+/// total paid.
+final class CostPick {
+  const CostPick({
+    required this.option,
+    required this.quantity,
+    required this.paid,
+  });
+
+  final ProductOption option;
+  final int quantity;
+  final Money paid;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CostPick &&
+          other.option == option &&
+          other.quantity == quantity &&
+          other.paid == paid);
+
+  @override
+  int get hashCode => Object.hash(option, quantity, paid);
+
+  @override
+  String toString() => 'CostPick(${option.label}, $quantity, ${paid.cents})';
+}
+
+/// The line `[ Adicionar … à compra ]` builds, or `null` while it is locked.
+///
+/// [typedContent] follows the contract of `rankCosts`: a `null` value is the
+/// cleared field, and an absent key is nobody having typed (the "1 kg" the
+/// field opens with, F-m).
+CostPick? costPickOf(
+  CostRanking ranking,
+  IMap<String, Money> prices,
+  IMap<String, int?> typedContent,
+) {
+  final option = ranking.usable;
+  final id = option?.id;
+  if (option == null || id == null) return null;
+  final price = prices[id];
+  if (price == null || price.cents <= 0) return null;
+
+  if (!acceptsTypedContentOf(option)) {
+    return CostPick(option: option, quantity: 1, paid: price);
+  }
+  if (!typedContent.containsKey(id)) {
+    return CostPick(
+      option: option,
+      quantity: option.baseUnit.unitsPerLargeUnit,
+      paid: price,
+    );
+  }
+  final typed = typedContent[id];
+  if (typed == null || typed <= 0) return null;
+  return CostPick(option: option, quantity: typed, paid: price);
+}
+
+/// What a read does to the panel.
+sealed class ScanAdmission {
+  const ScanAdmission();
+}
+
+/// The line is already in the short list: it only gets ticked.
+final class AlreadyShown extends ScanAdmission {
+  const AlreadyShown({required this.id});
+
+  final String id;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || (other is AlreadyShown && other.id == id);
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() => 'AlreadyShown($id)';
+}
+
+/// A leaf of the type that was outside the short list: it comes in ticked,
+/// with the price empty.
+final class AddedToShown extends ScanAdmission {
+  const AddedToShown({required this.option});
+
+  final ProductOption option;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is AddedToShown && other.option == option);
+
+  @override
+  int get hashCode => option.hashCode;
+
+  @override
+  String toString() => 'AddedToShown(${option.label})';
+}
+
+/// The read leaf is of another type than the panel's.
+final class OtherType extends ScanAdmission {
+  const OtherType({required this.scannedType});
+
+  final ProductType scannedType;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is OtherType && other.scannedType == scannedType);
+
+  @override
+  int get hashCode => scannedType.hashCode;
+
+  @override
+  String toString() => 'OtherType(${scannedType.name})';
+}
+
+/// Compares by id, never by `==` of [ProductOption]: the scanned option comes
+/// from another read of the options and its history may differ.
+ScanAdmission admitScan(CostCandidates candidates, ProductOption scanned) {
+  // Every leaf of `all` is of one type, by construction of `costCandidatesOf`.
+  if (candidates.all.isEmpty ||
+      scanned.type.id != candidates.all.first.type.id) {
+    return OtherType(scannedType: scanned.type);
+  }
+  if (candidates.shown.any((option) => option.id == scanned.id)) {
+    return AlreadyShown(id: scanned.id!);
+  }
+  return AddedToShown(option: scanned);
 }
 
 /// The whole rule of the calculator: pure, in integers, and without a single
@@ -337,6 +500,10 @@ CostRanking rankCosts({
   required IMap<String, int?> contents,
   required ISet<String> selected,
   required BaseUnit baseUnit,
+
+  /// The line whose NAME was tapped. Ignored when it has no line or the line
+  /// is unticked: the `★` rules, as before.
+  String? pickedId,
 }) {
   // Who competes: ticked AND with a price. A ticked line with no price waits
   // and stays out of the computation; a line with a price and unticked stays
@@ -384,6 +551,29 @@ CostRanking rankCosts({
   // **Two lines with a price are already enough** for there to be an answer.
   final hasAnswer = competing.length >= 2;
   final leader = hasAnswer ? competing.first : null;
+
+  // The picked line decides where `[ Adicionar … à compra ]` points.
+  ProductOption? usable = leader?.option;
+  String? missingPriceOf;
+  if (pickedId != null) {
+    final pickedContender = competing
+        .where((contender) => contender.option.id == pickedId)
+        .firstOrNull;
+    final pickedWaiting = waiting
+        .where((option) => option.id == pickedId)
+        .firstOrNull;
+    if (pickedContender != null) {
+      usable = pickedContender.option;
+    } else if (pickedWaiting != null) {
+      usable = null;
+      final price = prices[pickedId];
+      // A ticked line with a price but no content waits WITHOUT a sentence:
+      // the empty field on the line is already the warning.
+      missingPriceOf = price == null || price.cents <= 0
+          ? pickedWaiting.label
+          : null;
+    }
+  }
   // The tie is between the FIRST and the SECOND: below the cut nobody is
   // crowned.
   final tied = hasAnswer && !_differs(competing[1], leader!);
@@ -416,7 +606,8 @@ CostRanking rankCosts({
   return CostRanking(
     lines: lines.lock,
     best: tied ? null : leader?.option,
-    usable: leader?.option,
+    usable: usable,
+    missingPriceOf: missingPriceOf,
     headline: _headline(
       competing: competing,
       leader: leader,

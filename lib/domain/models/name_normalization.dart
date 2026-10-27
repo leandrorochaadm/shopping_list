@@ -1,8 +1,8 @@
 /// The Dart half of the catalog's duplicate guard.
 ///
-/// The other half is `normalize_name(text)` in
-/// `supabase/migrations/20260827090000_normalize_function.sql`, and the two
-/// have to agree: the app is what ANSWERS the user ("esse produto já existe"),
+/// The rule came from the old SQL function `normalize_name(text)`, which no
+/// server runs any more; its table of cases lives in
+/// `test/domain/name_normalization_test.dart`. The app is what ANSWERS the user ("esse produto já existe"),
 /// and the unique index over the generated column is the net underneath.
 ///
 /// **Removing accents is a table written by hand, and that is a decision.**
@@ -17,7 +17,7 @@
 /// what the index then refuses. The failure is safe (the write is rejected and
 /// the user reads "já existe um cadastro com esses dados") but the sentence
 /// arrives without the app having explained it first. Widening the table is
-/// the fix, and `supabase/checks/normalize_cases.sql` is what exposes the gap.
+/// the fix, and that test is what exposes the gap.
 library;
 
 /// Lower case, no surrounding blanks, no accents — the same three things the

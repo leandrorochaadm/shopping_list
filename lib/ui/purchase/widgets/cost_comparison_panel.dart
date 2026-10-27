@@ -2,10 +2,13 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../../domain/models/barcode.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/product_option.dart';
 import '../../../domain/models/proportional_cost.dart';
+import '../../../domain/models/scan_resolution.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../core/formatting.dart';
 import '../../core/unit_specs.dart';
 
@@ -21,33 +24,56 @@ import '../../core/unit_specs.dart';
 /// fixed footer with the verdict and the button. On a small phone the answer
 /// never scrolls out of sight.
 ///
-/// **Nothing typed here becomes a record.** There is no repository, no
-/// provider and not a single `await`: the prices live in
-/// `TextEditingController`s that die with the panel. Whoever writes a price
-/// down is the purchase.
+/// **Nothing typed here becomes a record.** There is no repository and no
+/// provider. The two `await`s are the reader and screen 4 (through
+/// `onRegister`), and the panel saves nothing typed here: the prices live in
+/// `TextEditingController`s that die with the panel. Whoever writes the item
+/// down is screen 3, with the `CostPick` handed back.
 class CostComparisonPanel extends StatefulWidget {
   const CostComparisonPanel({
     required this.candidates,
     required this.launching,
+    required this.options,
+    required this.storeId,
+    required this.onRegister,
     super.key,
   });
 
-  /// Hands back the chosen leaf, or `null` when it closes choosing nothing.
+  /// Hands back what to put in the purchase, or `null` when it closes
+  /// choosing nothing.
   ///
   /// `isScrollControlled` is the `══` of the wireframe and what lets the
   /// keyboard come up without covering the lines — the same as panel `#1a`.
-  static Future<ProductOption?> show(
+  static Future<CostPick?> show(
     BuildContext context, {
     required CostCandidates candidates,
     required ProductOption launching,
-  }) => showModalBottomSheet<ProductOption>(
+    required IList<ProductOption> options,
+    required String? storeId,
+    required Future<ProductOption?> Function(Barcode code) onRegister,
+  }) => showModalBottomSheet<CostPick>(
     context: context,
     isScrollControlled: true,
-    builder: (context) =>
-        CostComparisonPanel(candidates: candidates, launching: launching),
+    builder: (context) => CostComparisonPanel(
+      candidates: candidates,
+      launching: launching,
+      options: options,
+      storeId: storeId,
+      onRegister: onRegister,
+    ),
   );
 
   final CostCandidates candidates;
+
+  /// Every leaf, of every type. It is where `resolveScan` looks, and what
+  /// says "Esse é detergente".
+  final IList<ProductOption> options;
+
+  /// The store of the purchase, for the scale label.
+  final String? storeId;
+
+  /// Opens screen 4 with the code and returns the new leaf.
+  final Future<ProductOption?> Function(Barcode code) onRegister;
 
   /// The product being registered — **the only line that opens ticked**.
   final ProductOption launching;
@@ -78,8 +104,30 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
   /// Has `[ Ver todas do tipo ]` been tapped?
   bool _showingAll = false;
 
+  /// Grows with `withShown` when a read brings a leaf in.
+  late CostCandidates _candidates = widget.candidates;
+
+  /// Gains the leaf `[ Cadastrar ]` registered, so a second read of the same
+  /// code finds it.
+  late IList<ProductOption> _options = widget.options;
+
+  /// One focus node per leaf, created with its price controller.
+  final _priceFocus = <String, FocusNode>{};
+
+  /// The line whose name was tapped.
+  String? _pickedId;
+
+  /// The sentence of the last read, and the code `[ Cadastrar ]` sends.
+  String? _scanMessage;
+  Barcode? _unknownCode;
+
+  bool _closed = false;
+
+  /// A reader or screen 4 is open: a second tap must not stack another one.
+  bool _busy = false;
+
   IList<ProductOption> get _lines =>
-      _showingAll ? widget.candidates.all : widget.candidates.shown;
+      _showingAll ? _candidates.all : _candidates.shown;
 
   @override
   void initState() {
@@ -88,25 +136,30 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
     // [ Ver todas do tipo ] reveals lines that already carry the right price,
     // and creating a controller in the middle of a build would be the wrong
     // way to do that.
-    for (final option in widget.candidates.all) {
-      final id = option.id;
-      if (id == null) continue;
-      final opening = openingPriceOf(option);
-      _priceControllers[id] = TextEditingController(
-        // `''` and not `format(0)`: the mask reads an empty field as zero,
-        // but a leaf never bought in the window opens BLANK, and `format`
-        // would write 'R$ 0,00' into every one of them.
-        text: opening == null ? '' : UnitSpec.currency.format(opening.cents),
+    widget.candidates.all.forEach(_addControllers);
+  }
+
+  /// Creates the controllers of a leaf, **only if the id has none yet**. The
+  /// same method serves the leaf registered just now, which was not in `all`.
+  void _addControllers(ProductOption option) {
+    final id = option.id;
+    if (id == null || _priceControllers.containsKey(id)) return;
+    final opening = openingPriceOf(option);
+    _priceControllers[id] = TextEditingController(
+      // `''` and not `format(0)`: the mask reads an empty field as zero,
+      // but a leaf never bought in the window opens BLANK, and `format`
+      // would write 'R$ 0,00' into every one of them.
+      text: opening == null ? '' : UnitSpec.currency.format(opening.cents),
+    );
+    _priceFocus[id] = FocusNode();
+    // The quantity opens at what ONE typed price buys — which the domain
+    // already answers, and is one pricing unit on the weighed line. So the
+    // panel opens exactly as it opened, and the field is an invitation to
+    // correct, not a question to answer before using it.
+    if (acceptsTypedContentOf(option)) {
+      _contentControllers[id] = TextEditingController(
+        text: specOf(option.baseUnit).format(contentPricedOf(option)),
       );
-      // The quantity opens at what ONE typed price buys — which the domain
-      // already answers, and is one pricing unit on the weighed line. So the
-      // panel opens exactly as it opened, and the field is an invitation to
-      // correct, not a question to answer before using it.
-      if (acceptsTypedContentOf(option)) {
-        _contentControllers[id] = TextEditingController(
-          text: specOf(option.baseUnit).format(contentPricedOf(option)),
-        );
-      }
     }
   }
 
@@ -117,6 +170,9 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
     }
     for (final controller in _contentControllers.values) {
       controller.dispose();
+    }
+    for (final node in _priceFocus.values) {
+      node.dispose();
     }
     super.dispose();
   }
@@ -173,6 +229,112 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
     });
   }
 
+  /// The only exit by code: a second `pop` during the exit animation would
+  /// close screen 3, with the purchase typed in it.
+  void _closeWith(CostPick? pick) {
+    if (_closed || ModalRoute.of(context)?.isCurrent != true) return;
+    _closed = true;
+    Navigator.of(context).pop(pick);
+  }
+
+  Future<void> _scan() async {
+    if (_busy) return;
+    _busy = true;
+    setState(() {
+      _scanMessage = null;
+      _unknownCode = null;
+    });
+    String? raw;
+    try {
+      raw = await BarcodeReaderSheet.show(context);
+    } finally {
+      _busy = false;
+    }
+    if (!mounted || raw == null) return;
+    switch (resolveScan(raw, _options, storeId: widget.storeId)) {
+      case PackagingMatch(:final option):
+        _admit(option);
+      case ScaleMatch(:final option, :final quantity):
+        _admit(option, weight: quantity);
+      case NoMatch(:final code):
+        setState(() {
+          _scanMessage = 'Nenhum produto com esse código.';
+          _unknownCode = code;
+        });
+      case UnknownLabel() || ScaleUnlinked() || ScaleInManyStores():
+        setState(() {
+          _scanMessage =
+              'Não conheço esta etiqueta. Escolha o produto pela lista.';
+        });
+      case InvalidScan():
+        setState(() => _scanMessage = 'Código de barras inválido.');
+    }
+  }
+
+  void _admit(ProductOption option, {int? weight}) {
+    if (option.id == null) return;
+    switch (admitScan(_candidates, option)) {
+      case OtherType(:final scannedType):
+        setState(() {
+          _scanMessage =
+              'Esse é ${scannedType.name.toLowerCase()}. '
+              'Aqui só se compara '
+              '${widget.launching.type.name.toLowerCase()}.';
+          _unknownCode = null;
+        });
+      case AlreadyShown(:final id):
+        _tickAndFocus(id, weight: weight);
+      case AddedToShown(:final option):
+        setState(() {
+          _addControllers(option);
+          _candidates = _candidates.withShown(option);
+        });
+        _tickAndFocus(option.id!, weight: weight);
+    }
+  }
+
+  void _tickAndFocus(String id, {int? weight}) {
+    setState(() {
+      _selected.add(id);
+      _scanMessage = null;
+      _unknownCode = null;
+      final content = _contentControllers[id];
+      if (weight != null && content != null) {
+        // Every line of the panel is of the type of `launching`, and this is
+        // the same unit `_CostRow` uses.
+        content.text = specOf(widget.launching.baseUnit).format(weight);
+      }
+    });
+    // The new line only exists on the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _priceFocus[id]?.requestFocus();
+    });
+  }
+
+  Future<void> _register() async {
+    final code = _unknownCode;
+    if (code == null || _busy) return;
+    _busy = true;
+    ProductOption? created;
+    try {
+      created = await widget.onRegister(code);
+    } finally {
+      _busy = false;
+    }
+    if (!mounted || created == null) return;
+    final leaf = created;
+    setState(() => _options = _options.add(leaf));
+    _admit(leaf);
+  }
+
+  void _onNameTapped(CostLine line) {
+    if (!line.selected) {
+      _toggle(line.option);
+    } else {
+      setState(() => _pickedId = line.option.id);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -185,7 +347,9 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
       contents: _contents,
       selected: _selected.lock,
       baseUnit: baseUnit,
+      pickedId: _pickedId,
     );
+    final pick = costPickOf(ranking, _prices, _contents);
 
     return Padding(
       // The keyboard. Without this the fixed footer sits behind it on the
@@ -219,9 +383,29 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
               icon: const Icon(Icons.close),
               // `tecnico §7.5`: an icon-only button carries a semantic label.
               tooltip: 'Fechar',
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => _closeWith(null),
             ),
           ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const ValueKey('cost-scan'),
+              icon: const Icon(Icons.qr_code_scanner),
+              label: const Text('Ler outro'),
+              onPressed: _scan,
+            ),
+          ),
+          if (_scanMessage case final message?)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(message, key: const ValueKey('cost-scan-message')),
+            ),
+          if (_unknownCode != null)
+            TextButton(
+              key: const ValueKey('cost-register'),
+              onPressed: _register,
+              child: const Text('Cadastrar'),
+            ),
           const Divider(height: 1),
           // ── Band 2: the only one that scrolls ────────────────────────
           Flexible(
@@ -238,10 +422,12 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
                     baseUnit: baseUnit,
                     priceController: _priceControllers[line.option.id]!,
                     contentController: _contentControllers[line.option.id],
+                    priceFocus: _priceFocus[line.option.id],
+                    onNameTapped: () => _onNameTapped(line),
                     onToggle: () => _toggle(line.option),
                     onEdited: () => setState(() {}),
                   ),
-                if (widget.candidates.hasMore && !_showingAll)
+                if (_candidates.hasMore && !_showingAll)
                   Align(
                     alignment: Alignment.centerLeft,
                     child: TextButton(
@@ -265,18 +451,29 @@ class _CostComparisonPanelState extends State<CostComparisonPanel> {
                   key: const ValueKey('cost-headline'),
                   style: theme.textTheme.titleSmall,
                 ),
+                if (ranking.missingPriceOf case final label?)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Digite o preço do $label.',
+                      key: const ValueKey('cost-missing-price'),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.error,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 12),
                 FilledButton(
-                  key: const ValueKey('cost-use'),
+                  key: const ValueKey('cost-add'),
                   // Locked while there are not two lines with a price. On a
-                  // technical tie it STAYS, pointing at the cheaper one.
-                  onPressed: ranking.usable == null
-                      ? null
-                      : () => Navigator.of(context).pop(ranking.usable),
+                  // technical tie it STAYS, pointing at the cheaper one. The
+                  // tapped line stands on its own, and a tapped line with no
+                  // price locks it too.
+                  onPressed: pick == null ? null : () => _closeWith(pick),
                   child: Text(
-                    ranking.usable == null
-                        ? 'Usar'
-                        : 'Usar ${ranking.usable!.label}',
+                    pick == null
+                        ? 'Adicionar à compra'
+                        : 'Adicionar ${pick.option.label} à compra',
                   ),
                 ),
               ],
@@ -310,8 +507,10 @@ class _CostRow extends StatelessWidget {
     required this.baseUnit,
     required this.priceController,
     required this.onToggle,
+    required this.onNameTapped,
     required this.onEdited,
     this.contentController,
+    this.priceFocus,
     super.key,
   });
 
@@ -325,7 +524,10 @@ class _CostRow extends StatelessWidget {
   /// space, empty.
   final TextEditingController? contentController;
 
+  final FocusNode? priceFocus;
+
   final VoidCallback onToggle;
+  final VoidCallback onNameTapped;
   final VoidCallback onEdited;
 
   @override
@@ -346,11 +548,11 @@ class _CostRow extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Height 1: the name, with the whole width ────────────────
-            // The name toggles the line too. Height 2 is NOT wrapped: an
-            // `InkWell` over the two fields would steal the tap of whoever
-            // is aiming at them to type.
+            // The name ticks an unticked line and picks a ticked one. Height 2
+            // is NOT wrapped: an `InkWell` over the two fields would steal
+            // the tap of whoever is aiming at them to type.
             InkWell(
-              onTap: onToggle,
+              onTap: onNameTapped,
               child: Padding(
                 padding: const EdgeInsets.only(left: 8),
                 child: Row(
@@ -410,6 +612,7 @@ class _CostRow extends StatelessWidget {
                   child: AppTextField.currency(
                     key: ValueKey('cost-price-${line.option.id}'),
                     controller: priceController,
+                    focusNode: priceFocus,
                     // The column is the narrowest of the three and the clear
                     // button costs 24 pt of it (decision D4).
                     showClearButton: false,

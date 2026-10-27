@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../core/beep.dart';
 import '../../core/online_status.dart';
+import '../../../domain/models/barcode.dart';
 import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/money.dart';
 import '../../../domain/models/price_increase.dart';
@@ -14,9 +16,13 @@ import '../../../domain/models/product_option.dart';
 import '../../../domain/models/proportional_cost.dart';
 import '../../../domain/models/purchase_draft.dart';
 import '../../../domain/models/purchase_item.dart';
+import '../../../domain/models/scale_label.dart';
+import '../../../domain/models/scan_resolution.dart';
 import '../../../domain/models/store.dart';
 import '../../../domain/models/unit_price.dart';
 import '../../../routing/routes.dart';
+import '../../barcode/view_model/barcode_lookup_view_model.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../catalog/widgets/new_product_screen.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -28,10 +34,13 @@ import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
 import '../view_model/new_purchase_view_model.dart';
 import '../view_model/purchase_draft_view_model.dart';
+import 'checkout_screen.dart';
 import 'cost_comparison_panel.dart';
 import 'price_increase_warning.dart';
 import 'product_field.dart';
 import 'purchase_item_row.dart';
+import 'scale_link_dialog.dart';
+import 'scale_store_dialog.dart';
 
 /// Screen 3 — registering a purchase, against the two-minute budget of
 /// requirement 3.
@@ -64,10 +73,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   final _productController = TextEditingController();
   final _productFocus = FocusNode();
 
-  /// Where the cursor goes when the `#3a` panel hands an option back — it is
-  /// the "volta ao lançamento com o produto já trocado, o cursor na
-  /// quantidade" of requirement 17. `[ + Adicionar ]` keeps sending the
-  /// focus back to Produto.
+  /// The focus of the Quantidade field.
   final _quantityFocus = FocusNode();
 
   ProductOption? _option;
@@ -75,7 +81,9 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// Leaves registered on screen 4 during THIS purchase. They are held here
   /// instead of invalidating the picker's provider: invalidating would reload
   /// the whole catalog and blank the form — the same reason the stores are
-  /// watched by the widget and not by the ViewModel.
+  /// watched by the widget and not by the ViewModel. After a successful
+  /// reload (a label linked in "Qual produto é este?") they are emptied: the
+  /// reloaded list already has them, and keeping them would double the row.
   IList<ProductOption> _justRegistered = const IList.empty();
 
   /// Which of the two money fields was typed LAST — and therefore which one
@@ -94,6 +102,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   String? _editingItemId;
 
   bool _saving = false;
+
+  /// The price question is open, the confirmation is being written, or a
+  /// second tap arrived in the same frame: without this, a double tap opens
+  /// two questions.
+  bool _askingPrices = false;
+
+  /// The "Itens desta compra" title, where `[ Conferir ]` scrolls back to.
+  final _itemsKey = GlobalKey();
 
   /// Whether the Data/Mercado header is open — `null` while nobody has
   /// touched it, which is what lets it answer for itself: open while there is
@@ -285,17 +301,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// A product picked in the **Produto field** — and a different product is a
   /// different purchase line: the amount, the total paid and the price per
   /// pricing unit are all cleared before it takes over.
-  ///
-  /// It is NOT what the `#3a` panel comes back through: there the product
-  /// changes INSIDE the same type, with the amount already typed, and
-  /// requirement 17 says the way back lands on the amount — clearing it would
-  /// throw away exactly what the comparison was made for.
   void _onProductChanged(ProductOption option) {
     _quantityController.clear();
     _valueController.clear();
     _unitPriceController.clear();
     _onProductChosen(option);
   }
+
+  /// The quantity changed — typed, or written by a scale label. Either way the
+  /// money field the person did NOT type is the one that follows.
+  void _onQuantityChanged() => setState(_recomputePrices);
 
   void _onProductChosen(ProductOption option) {
     setState(() {
@@ -362,6 +377,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       return;
     }
 
+    await _putItem(option, quantity, paid);
+  }
+
+  /// Puts the line in the draft and clears the form for the next item. Shared
+  /// by `[ + Adicionar ]` and by the `#3a` panel, which puts its item straight
+  /// in the purchase as if it had been typed in the form.
+  Future<void> _putItem(ProductOption option, int quantity, Money paid) async {
+    final messenger = ScaffoldMessenger.of(context);
     final error = await ref
         .read(purchaseDraftViewModelProvider.notifier)
         .putItem(
@@ -397,15 +420,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
   /// The `[ Comparar custo ]→3a` of the wireframe.
   ///
-  /// The way back is treated as ANY product choice — `_onProductChosen`
-  /// already clears `_valueTouched`, and the `_onQuantityChanged` right after
-  /// it redoes the suggested value against the new option's history. The ⚠ of
-  /// H15 redoes itself, because it is a getter over `_option`.
-  Future<void> _compareCost(IList<ProductOption> options) async {
+  /// The panel puts the item **straight** in the purchase, as if it had been
+  /// typed in the form, and the screen comes back clean for the next item.
+  Future<void> _compareCost(
+    IList<ProductOption> options,
+    String? storeId,
+  ) async {
     final option = _option;
     if (option == null) return;
 
-    final picked = await CostComparisonPanel.show(
+    final pick = await CostComparisonPanel.show(
       context,
       candidates: costCandidatesOf(
         options: options,
@@ -415,28 +439,30 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
         launching: option,
       ),
       launching: option,
+      options: options,
+      storeId: storeId,
+      onRegister: (code) => _registerLeaf(initialBarcode: code),
     );
     // Closed choosing nothing: the item stays exactly as it was.
-    if (!mounted || picked == null) return;
+    if (!mounted || pick == null) return;
 
-    // **The `setState` first and the controller after**, in the order of
-    // `_registerProduct`: writing into the Autocomplete's controller outside
-    // a `setState` reopens the options overlay over the field just filled in.
-    _onProductChosen(picked);
-    _productController.text = picked.selectedLabel;
-    _quantityFocus.requestFocus();
+    await _putItem(pick.option, pick.quantity, pick.paid);
   }
 
-  /// The `[+Novo]→4` of the wireframe. `push`, never `go`: `go` replaces the
-  /// route and would take this screen — with the purchase on it — away.
-  Future<void> _registerProduct() async {
+  /// Opens screen 4 and returns the leaf it registered, already in
+  /// `_justRegistered`. `push`, never `go`: `go` replaces the route and would
+  /// take this screen — with the purchase on it — away.
+  Future<ProductOption?> _registerLeaf({Barcode? initialBarcode}) async {
     final picked = await context.push<PickedProduct>(
       Routes.newProduct,
       // What tells screen 4 to hand the leaf back instead of navigating to
       // the list.
-      extra: const NewProductRequest(returnsSelection: true),
+      extra: NewProductRequest(
+        returnsSelection: true,
+        initialBarcode: initialBarcode,
+      ),
     );
-    if (!mounted || picked == null) return;
+    if (!mounted || picked == null) return null;
 
     final option = ProductOption(
       product: picked.product,
@@ -446,8 +472,17 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       // No reference: a product registered a moment ago has never been
       // bought, which is the wireframe's "sem base de comparação".
     );
+    setState(() => _justRegistered = _justRegistered.add(option));
+    return option;
+  }
+
+  /// The `[+Novo]→4` of the wireframe — and, with [initialBarcode], the
+  /// `[ Cadastrar produto ]` of a code nobody has.
+  Future<void> _registerProduct({Barcode? initialBarcode}) async {
+    final option = await _registerLeaf(initialBarcode: initialBarcode);
+    if (!mounted || option == null) return;
+
     setState(() {
-      _justRegistered = _justRegistered.add(option);
       _option = option;
       _priceSource = _PriceSource.none;
     });
@@ -460,7 +495,264 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     _productController.text = option.selectedLabel;
   }
 
+  IList<Store> get _stores =>
+      ref.read(storeViewModelProvider).value ?? const IList<Store>.empty();
+
+  /// A product chosen by a read. The SAME leaf already chosen does not clear
+  /// the form, so a price per kilo already typed redoes the total when the
+  /// weight arrives; a different leaf is another line, as in the list.
+  void _chooseScanned(ProductOption option) {
+    if (_option?.id != option.id) {
+      _onProductChanged(option);
+      // After the `setState`, for the reason in `_registerProduct`.
+      _productController.text = option.selectedLabel;
+    }
+    // After the frame: the Quantidade field is still disabled until the
+    // `setState` above rebuilds, and a disabled field takes no focus.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _quantityFocus.requestFocus();
+    });
+  }
+
+  Future<void> _applyScaleMatch(ScaleMatch match) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final adopted = ref
+        .read(purchaseDraftViewModelProvider)
+        .storeAdoptedFrom(match);
+    if (adopted != null) {
+      final error = await ref
+          .read(purchaseDraftViewModelProvider.notifier)
+          .setStore(adopted);
+      if (!mounted) return;
+      if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+    _chooseScanned(match.option);
+    // Null leaves the Quantidade empty, with no sentence.
+    if (match.quantity case final grams?) {
+      _quantityController.text = _quantitySpec.format(grams);
+      _onQuantityChanged();
+    }
+  }
+
+  bool _scanning = false;
+
+  /// The `[▥]` beside the Produto field.
+  Future<void> _scan() async {
+    if (_scanning) return;
+    _scanning = true;
+    try {
+      final raw = await BarcodeReaderSheet.show(context);
+      if (!mounted || raw == null) return;
+      await _applyScan(raw);
+    } finally {
+      _scanning = false;
+    }
+  }
+
+  Future<void> _applyScan(String raw, {String? storeId}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final options = _allOptions(ref.read(newPurchaseViewModelProvider));
+    final store = storeId ?? ref.read(purchaseDraftViewModelProvider).storeId;
+
+    switch (resolveScan(raw, options, storeId: store)) {
+      case PackagingMatch(:final option):
+        _chooseScanned(option);
+      case ScaleMatch() && final match:
+        await _applyScaleMatch(match);
+      case ScaleInManyStores(:final storeIds):
+        final chosen = await ScaleStoreDialog.show(
+          context,
+          storeIds: storeIds,
+          stores: _stores,
+        );
+        if (!mounted || chosen == null) return;
+        await _applyScan(raw, storeId: chosen);
+      case ScaleUnlinked() && final unlinked:
+        await _linkLabel(unlinked, options, store);
+      case UnknownLabel():
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não conheço esta etiqueta. Escolha o produto pela lista.',
+            ),
+          ),
+        );
+      case NoMatch(:final code):
+        final register = await _askToRegister(code);
+        if (!mounted || !register) return;
+        await _registerProduct(initialBarcode: code);
+      case InvalidScan():
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Código de barras inválido.')),
+        );
+    }
+  }
+
+  /// "Qual produto é este?": links the label to the tapped leaf in that store
+  /// and uses it. A failed link does NOT stop the line — the purchase is typed
+  /// in the aisle, and the link only serves the next read.
+  Future<void> _linkLabel(
+    ScaleUnlinked label,
+    IList<ProductOption> options,
+    String? storeId,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final link = await ScaleLinkDialog.show(
+      context,
+      label: label,
+      candidates: scaleLinkCandidatesOf(options),
+      stores: _stores,
+      storeId: storeId,
+    );
+    if (!mounted || link == null) return;
+
+    final error = await ref
+        .read(barcodeLookupViewModelProvider.notifier)
+        .linkScaleCode(
+          registration: link.option.registration,
+          productId: link.option.id!,
+          code: ScaleCode(storeId: link.storeId, itemCode: label.itemCode),
+        );
+    if (!mounted) return;
+
+    await _applyScaleMatch(label.linkedTo(link.option, link.storeId));
+    if (!mounted) return;
+
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    final reloadError = await _reloadOptions();
+    if (!mounted) return;
+    if (reloadError != null) {
+      messenger.showSnackBar(SnackBar(content: Text(reloadError)));
+    }
+  }
+
+  /// Reloads the options; once they are in, the leaves registered on screen
+  /// are in them too, and keeping `_justRegistered` would show each twice in
+  /// the picker.
+  Future<String?> _reloadOptions() async {
+    final error = await ref
+        .read(newPurchaseViewModelProvider.notifier)
+        .refresh();
+    if (!mounted) return error;
+    if (error == null) setState(() => _justRegistered = const IList.empty());
+    return error;
+  }
+
+  /// The `[ ▥ Passar no caixa ]→3b`. The items are already in the draft when
+  /// checkout mode closes; this screen only redraws.
+  Future<void> _openCheckout() async {
+    // First line, before any `await`: iOS only plays sound after a gesture,
+    // and this tap is the gesture.
+    ref.read(beepProvider).unlock();
+    // The line being corrected may change at the till, and `Salvar alteração`
+    // would write the old version over it.
+    if (_editingItemId != null) _clearForm();
+    await CheckoutScreen.show(
+      context,
+      options: () => _allOptions(ref.read(newPurchaseViewModelProvider)),
+      onRegister: (code) => _registerLeaf(initialBarcode: code),
+      reloadOptions: _reloadOptions,
+    );
+  }
+
+  Future<bool> _askToRegister(Barcode code) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        content: Text('Nenhum produto com o código ${code.label}.'),
+        actions: [
+          FilledButton(
+            key: const ValueKey('unknown-code-register'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cadastrar produto'),
+          ),
+          TextButton(
+            key: const ValueKey('unknown-code-close'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  Future<void> _confirmItemPrice(String itemId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(purchaseDraftViewModelProvider.notifier)
+        .confirmPrice(itemId);
+    if (!mounted) return;
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
+
+  Future<void> _confirmAllPrices() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final error = await ref
+        .read(purchaseDraftViewModelProvider.notifier)
+        .confirmAllPrices();
+    if (!mounted) return;
+    if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
+  }
+
+  Future<bool?> _askPricesChecked(int count) => showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(unconfirmedPricesMessage(count)),
+      content: const Text('Bateu com o cupom?'),
+      actions: [
+        TextButton(
+          key: const ValueKey('check-prices'),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Conferir'),
+        ),
+        FilledButton(
+          key: const ValueKey('prices-checked-save'),
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Conferi, salvar'),
+        ),
+      ],
+    ),
+  );
+
+  void _showItems() {
+    final target = _itemsKey.currentContext;
+    if (target != null) {
+      Scrollable.ensureVisible(
+        target,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
   Future<void> _save() async {
+    if (_askingPrices) return;
+    final draft = ref.read(purchaseDraftViewModelProvider);
+    if (draft.hasUnconfirmedPrices) {
+      _askingPrices = true;
+      try {
+        final checked = await _askPricesChecked(draft.unconfirmedPrices);
+        if (!mounted) return;
+        if (checked != true) {
+          // [ Conferir ] or a tap outside: back to the list, nothing saved.
+          _showItems();
+          return;
+        }
+        // Released only after the confirmation is written, so a tap on
+        // `[ Salvar compra ]` during the wait cannot open a second question.
+        await _confirmAllPrices();
+        if (!mounted) return;
+      } finally {
+        _askingPrices = false;
+      }
+    }
+    await _submit();
+  }
+
+  Future<void> _submit() async {
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
 
@@ -565,6 +857,21 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     .setStore(created!.id!);
               },
             ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.tonalIcon(
+                key: const ValueKey('checkout-open'),
+                // Compact: with the keyboard up, `[ + Adicionar à compra ]`
+                // has to stay above the fold of an iPhone 12.
+                style: FilledButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.qr_code_scanner),
+                label: const Text('Passar no caixa'),
+                onPressed: _saving || !options.hasValue ? null : _openCheckout,
+              ),
+            ),
             const Divider(height: 32),
             _ProductField(
               state: options,
@@ -576,7 +883,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               onChosen: _onProductChanged,
               onRetry: () =>
                   ref.read(newPurchaseViewModelProvider.notifier).refresh(),
-              onCreate: _registerProduct,
+              onCreate: () => _registerProduct(),
+              onScan: _scan,
             ),
             // The `[ Comparar custo ]→3a`, optional and off the normal path:
             // it only appears when the chosen product's type has TWO options
@@ -594,7 +902,8 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     key: const ValueKey('compare-cost'),
                     onPressed: _saving
                         ? null
-                        : () => _compareCost(_allOptions(options)),
+                        : () =>
+                              _compareCost(_allOptions(options), draft.storeId),
                     child: const Text('Comparar custo'),
                   ),
                 ),
@@ -619,7 +928,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     decoration: InputDecoration(
                       labelText: _option?.quantityLabel ?? 'Quantidade',
                     ),
-                    onChanged: (_) => setState(_recomputePrices),
+                    onChanged: (_) => _onQuantityChanged(),
                   ),
                 ),
                 // The price of ONE pricing unit — the number on the shelf tag.
@@ -702,8 +1011,18 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
             // the keyboard on a twenty-item purchase.
             if (draft.items.isNotEmpty) ...[
               const Divider(height: 32),
+              if (draft.hasUnconfirmedPrices)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    key: const ValueKey('confirm-all-prices'),
+                    onPressed: _saving ? null : _confirmAllPrices,
+                    child: const Text('Todos conferidos'),
+                  ),
+                ),
               Text(
                 'Itens desta compra',
+                key: _itemsKey,
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               for (final item in draft.items)
@@ -711,6 +1030,9 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                   item: item,
                   editing: item.id == _editingItemId,
                   onEdit: () => _edit(item),
+                  onConfirmPrice: _saving
+                      ? null
+                      : () => _confirmItemPrice(item.id),
                   onRemove: () async {
                     if (item.id == _editingItemId) _clearForm();
                     await ref
@@ -1064,6 +1386,7 @@ class _ProductField extends StatelessWidget {
     required this.onChosen,
     required this.onRetry,
     required this.onCreate,
+    required this.onScan,
   });
 
   final AsyncValue<IList<ProductOption>> state;
@@ -1079,6 +1402,7 @@ class _ProductField extends StatelessWidget {
   final ValueChanged<ProductOption> onChosen;
   final Future<String?> Function() onRetry;
   final VoidCallback onCreate;
+  final VoidCallback onScan;
 
   @override
   Widget build(BuildContext context) {
@@ -1093,7 +1417,7 @@ class _ProductField extends StatelessWidget {
           children: [
             // The picker itself lives in `product_field.dart`, shared with
             // the correction screen: what stays here is the loading/error
-            // hint and the two buttons around it, which are screen 3's.
+            // hint and the three buttons around it, which are screen 3's.
             Expanded(
               child: ProductField(
                 options: options,
@@ -1103,6 +1427,13 @@ class _ProductField extends StatelessWidget {
                 hintText: _hint(options),
                 onSelected: onChosen,
               ),
+            ),
+            IconButton(
+              key: const ValueKey('scan-product'),
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Ler código',
+              // No options loaded, nowhere to look the code up.
+              onPressed: enabled && state.hasValue ? onScan : null,
             ),
             IconButton(
               key: const ValueKey('new-product'),
@@ -1145,3 +1476,9 @@ class _ProductField extends StatelessWidget {
 /// `none`, the form nobody has touched, is what lets the last purchase
 /// pre-fill both.
 enum _PriceSource { none, total, unitPrice }
+
+/// The title of the "bateu com o cupom?" question: Portuguese plural, not the
+/// `count` one.
+@visibleForTesting
+String unconfirmedPricesMessage(int count) =>
+    count == 1 ? '1 preço não conferido.' : '$count preços não conferidos.';

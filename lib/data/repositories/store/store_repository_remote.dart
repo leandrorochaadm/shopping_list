@@ -1,29 +1,30 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:pocketbase/pocketbase.dart';
 
 import '../../../domain/models/store.dart';
-import '../../services/supabase_error.dart';
+import '../../services/pb_schema.dart';
+import '../../services/pocketbase_error.dart';
 import 'store_repository.dart';
 
 /// The real thing. The client is PRIVATE: the UI never reaches it.
 final class StoreRepositoryRemote implements StoreRepository {
-  StoreRepositoryRemote(this._client);
+  StoreRepositoryRemote(this._pb);
 
-  final SupabaseClient _client;
-
-  static const _table = 'store';
+  final PocketBase _pb;
 
   @override
   Future<IList<Store>> fetchAll() async {
     try {
-      // No `.eq('active', true)`: the duplicate guard of decision B3 needs the
+      requireSession(_pb);
+      // No `active` filter: the duplicate guard of decision B3 needs the
       // deactivated rows, and the screen is what decides to grey them out.
-      final rows = await _client.from(_table).select().order('name');
-      return rows.map(Store.fromJson).toIList();
+      // No owner filter: the `listRule` already limits the list to the
+      // signed-in user.
+      final records = await _pb
+          .collection(PbCollections.store)
+          .getFullList(sort: PbFields.name);
+      return records.map(_storeOf).toIList();
     } on Object catch (e, st) {
-      // Without this the SQLSTATE 23505 of the unique index would be read as
-      // "status 23505", fall into the >= 500 arm and tell the user the server
-      // is down when the name is simply taken.
       rethrowAsKnownFailure(e, st);
     }
   }
@@ -31,14 +32,15 @@ final class StoreRepositoryRemote implements StoreRepository {
   @override
   Future<Store> create(Store store) async {
     try {
-      final row = await _client
-          .from(_table)
-          // The generated `name_normalized` column and its unique index are
-          // the net underneath: `toJson` sends the name as typed.
-          .insert(store.toJson())
-          .select()
-          .single();
-      return Store.fromJson(row);
+      requireSession(_pb);
+      // The duplicate guard lives in the domain (`findNameConflict`); the
+      // server has no unique index on the name, so `toJson` sends it as typed.
+      final record = await _pb
+          .collection(PbCollections.store)
+          .create(
+            body: {...store.toJson(), PbFields.user: _pb.authStore.record!.id},
+          );
+      return _storeOf(record);
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
@@ -47,19 +49,19 @@ final class StoreRepositoryRemote implements StoreRepository {
   @override
   Future<Store> update(Store store) async {
     try {
-      // The id leaves the payload because it is already in the `.eq`, and
-      // sending a primary key inside an update is asking to swap it by
-      // accident one day.
-      final payload = store.toJson()..remove('id');
-      final row = await _client
-          .from(_table)
-          .update(payload)
-          .eq('id', store.id!)
-          .select()
-          .single();
-      return Store.fromJson(row);
+      requireSession(_pb);
+      // Neither the id nor the owner go in the body: the id is in the path,
+      // and the `updateRule` refuses an owner swap.
+      final body = store.toJson()..remove(PbFields.id);
+      final record = await _pb
+          .collection(PbCollections.store)
+          .update(store.id!, body: body);
+      return _storeOf(record);
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
   }
+
+  Store _storeOf(RecordModel record) =>
+      Store.fromJson({...record.data, PbFields.id: record.id});
 }

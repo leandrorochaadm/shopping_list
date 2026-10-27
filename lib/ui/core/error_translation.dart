@@ -13,14 +13,26 @@ import 'app_failure.dart';
 /// ('atualizar a lista', 'salvar a compra').
 String translateError(Object e, StackTrace? st, String action) {
   // debugPrint is NOT stripped from a release build, and this is deliberate.
-  // A PostgrestException body names columns and values, and this line puts it
-  // in the browser console in production — which, in an installed PWA, is the
+  // A `ClientException` from the PocketBase SDK carries the server's
+  // response, which names fields and values, and this line puts it in the browser console in production — which, in an installed PWA, is the
   // only diagnosis anyone will ever get, and it never leaves the phone.
   // Wrapping it in kDebugMode would erase the only trail production leaves.
   // What must never happen is the raw detail reaching the SCREEN: that is what
   // the sentence below is for, and a test holds it.
   debugPrint('[$action] $e\n${st ?? ''}');
   return translateFailure(AppFailure.from(e), action);
+}
+
+/// The sign-in screen's own reading of a failure: there a 401 is a wrong
+/// password, not a server refusal.
+String translateSignInError(Object e, StackTrace? st) {
+  debugPrint('[entrar] $e\n${st ?? ''}');
+  final failure = AppFailure.from(e);
+  return switch (failure) {
+    SessionExpired() || AccessDenied() => 'E-mail ou senha incorretos.',
+    NoConnection() => 'Sem conexão. Tente de novo.',
+    _ => translateFailure(failure, 'entrar'),
+  };
 }
 
 /// The switch the compiler polices. Adding a variant to AppFailure makes this
@@ -30,6 +42,7 @@ String translateError(Object e, StackTrace? st, String action) {
 /// The returned strings are user-facing, so they are written in pt-BR.
 String translateFailure(AppFailure failure, String action) => switch (failure) {
   NoConnection() => 'Sem conexão. Verifique a internet e tente de novo.',
+  SessionExpired() => 'Entre de novo para continuar.',
   AccessDenied() => 'O servidor recusou o acesso a este dado.',
   RecordNotFound() => 'Este registro não existe mais. Atualize a tela.',
   DuplicateRecord() => 'Já existe um cadastro com esses dados.',

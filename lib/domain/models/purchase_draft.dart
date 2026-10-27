@@ -3,7 +3,8 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'calendar_day.dart';
 import 'money.dart';
 import 'purchase_item.dart';
-import 'uuid.dart';
+import 'scan_resolution.dart';
+import 'record_id.dart';
 
 /// The purchase being typed — H8's whole story.
 ///
@@ -24,7 +25,7 @@ final class PurchaseDraft {
   /// A brand new draft: a fresh key, today, and this phone's label.
   factory PurchaseDraft.startedOn(DateTime today, String registeredBy) =>
       PurchaseDraft(
-        purchaseId: newUuidV4(),
+        purchaseId: newRecordId(),
         date: dayOf(today),
         registeredBy: registeredBy,
       );
@@ -36,8 +37,8 @@ final class PurchaseDraft {
     registeredBy: json['registered_by'] as String? ?? '',
     storeId: json['store_id'] as String?,
     items: [
-      for (final item in (json['items'] as List? ?? const [])
-          .cast<Map<String, dynamic>>())
+      for (final item
+          in (json['items'] as List? ?? const []).cast<Map<String, dynamic>>())
         PurchaseItem.fromJson(item),
     ].toIList(),
     pendingSubmission: json['pending_submission'] as bool? ?? false,
@@ -108,6 +109,34 @@ final class PurchaseDraft {
 
   PurchaseDraft withoutItem(String itemId) =>
       copyWith(items: items.removeWhere((entry) => entry.id == itemId));
+
+  /// How many lines still carry a price that came from the last purchase.
+  int get unconfirmedPrices =>
+      items.where((item) => item.isPriceUnconfirmed).length;
+
+  /// The question the `[ Salvar compra ]` (ask before saving?) and the
+  /// `[ Todos conferidos ]` (does it show?) both put: the screen asks, it
+  /// does not compare the count with zero on its own.
+  bool get hasUnconfirmedPrices => unconfirmedPrices > 0;
+
+  /// The tap on the "preço anterior" label. It takes the id, not the item, to
+  /// confirm the line as it is NOW in the draft: at checkout the same line may
+  /// have gained +1 between the draw and the tap, and rewriting the old item
+  /// would erase that sum. An id that does not exist changes nothing.
+  PurchaseDraft withPriceConfirmed(String itemId) => copyWith(
+    items: items
+        .map((item) => item.id == itemId ? item.confirmedPrice() : item)
+        .toIList(),
+  );
+
+  /// The `[ Conferi, salvar ]`: every line becomes a typed price, in place.
+  PurchaseDraft allPricesConfirmed() =>
+      copyWith(items: items.map((item) => item.confirmedPrice()).toIList());
+
+  /// The store a read gives to the draft: only a scale label found while no
+  /// store is chosen. A store already chosen is NEVER replaced.
+  String? storeAdoptedFrom(ScanResolution resolution) =>
+      storeId == null && resolution is ScaleMatch ? resolution.storeId : null;
 
   PurchaseDraft markedPending() => copyWith(pendingSubmission: true);
 

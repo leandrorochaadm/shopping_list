@@ -1,8 +1,12 @@
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter/material.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../../domain/models/barcode.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/packaging.dart';
+import '../../../domain/models/product.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../core/unit_specs.dart';
 
 /// One line of the packaging list WHILE it is being typed.
@@ -17,6 +21,7 @@ final class PackagingDraft {
     this.pieceCount = '1',
     this.pieceSize = '',
     this.unit,
+    this.barcodes = const IList.empty(),
   });
 
   /// Stable across rebuilds so Flutter does not confuse two rows when one in
@@ -27,6 +32,9 @@ final class PackagingDraft {
   final String pieceCount;
   final String pieceSize;
   final BaseUnit? unit;
+
+  /// The codes printed on this packaging, already accepted by the card.
+  final IList<Barcode> barcodes;
 
   /// The parsed line, or null while it is incomplete or invalid.
   ///
@@ -58,11 +66,13 @@ final class PackagingDraft {
     String? pieceCount,
     String? pieceSize,
     BaseUnit? unit,
+    IList<Barcode>? barcodes,
   }) => PackagingDraft(
     id: id,
     pieceCount: pieceCount ?? this.pieceCount,
     pieceSize: pieceSize ?? this.pieceSize,
     unit: unit ?? this.unit,
+    barcodes: barcodes ?? this.barcodes,
   );
 
   /// Changing the TYPE changes the magnitude of the line, so the unit has to
@@ -73,7 +83,16 @@ final class PackagingDraft {
     pieceCount: pieceCount,
     pieceSize: pieceSize,
     unit: unit,
+    barcodes: barcodes,
   );
+
+  /// Lets the refusals of [packagingCodesWith] through: the rule is the
+  /// domain's, the draft only keeps the answer.
+  PackagingDraft withBarcode(String raw) =>
+      copyWith(barcodes: packagingCodesWith(barcodes, raw));
+
+  PackagingDraft withoutBarcode(Barcode code) =>
+      copyWith(barcodes: barcodes.remove(code));
 }
 
 /// One packaging being typed, as a card: the two fields on top and what it
@@ -90,7 +109,7 @@ final class PackagingDraft {
 /// field simply writes the type's unit as a suffix. Letting the line pick
 /// "ml" under a type measured in grams would make that type's total add
 /// volume to weight, and that total is what every report is built on.
-class PackagingRow extends StatelessWidget {
+class PackagingRow extends StatefulWidget {
   const PackagingRow({
     required this.draft,
     required this.baseUnit,
@@ -112,13 +131,60 @@ class PackagingRow extends StatelessWidget {
   /// `2 × 500` matches `1 × 1000` because the comparison happens on the total.
   final bool duplicate;
 
+  @override
+  State<PackagingRow> createState() => _PackagingRowState();
+}
+
+class _PackagingRowState extends State<PackagingRow> {
+  final _barcodeText = TextEditingController();
+
+  /// The sentence of the last refusal of this card; it goes away on typing
+  /// and on the next accepted code.
+  String? _barcodeError;
+
+  PackagingDraft get draft => widget.draft;
+  BaseUnit get baseUnit => widget.baseUnit;
+  bool get enabled => widget.enabled;
+  bool get duplicate => widget.duplicate;
+
   /// A type measured in units has no measure field: the piece is the unit.
   bool get _countsOnly => baseUnit == BaseUnit.unit;
 
   @override
+  void dispose() {
+    _barcodeText.dispose();
+    super.dispose();
+  }
+
+  void _include(String raw, {required bool typed}) {
+    try {
+      widget.onChanged(widget.draft.withBarcode(raw));
+      if (typed) _barcodeText.clear();
+      setState(() => _barcodeError = null);
+    } on InStoreBarcode catch (e) {
+      setState(() => _barcodeError = e.message);
+    } on InvalidBarcode catch (e) {
+      setState(() => _barcodeError = e.message);
+    } on BarcodeAlreadyOnPackaging catch (e) {
+      setState(() => _barcodeError = e.message);
+    }
+  }
+
+  void _includeTyped() => _include(_barcodeText.text, typed: true);
+
+  Future<void> _scan() async {
+    final raw = await BarcodeReaderSheet.show(context);
+    // Read AFTER the await: the card may have been rebuilt meanwhile.
+    if (!mounted || raw == null) return;
+    _include(raw, typed: false);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final packaging = draft.packaging;
+    final onChanged = widget.onChanged;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -206,10 +272,79 @@ class PackagingRow extends StatelessWidget {
                 TextButton.icon(
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Remover'),
-                  onPressed: enabled ? onRemoved : null,
+                  onPressed: enabled ? widget.onRemoved : null,
                 ),
               ],
             ),
+            Text(
+              'Código de barras (opcional)',
+              style: theme.textTheme.bodyMedium,
+            ),
+            Row(
+              children: [
+                Expanded(
+                  child: AppTextField(
+                    key: ValueKey('barcode-${draft.id}'),
+                    controller: _barcodeText,
+                    enabled: enabled,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      hintText: 'Código de barras',
+                    ),
+                    onChanged: (_) {
+                      if (_barcodeError != null) {
+                        setState(() => _barcodeError = null);
+                      }
+                    },
+                    onSubmitted: (text) {
+                      if (text.trim().isNotEmpty) _includeTyped();
+                    },
+                  ),
+                ),
+                IconButton(
+                  key: ValueKey('barcode-scan-${draft.id}'),
+                  icon: const Icon(Icons.qr_code_scanner),
+                  tooltip: 'Ler código',
+                  onPressed: enabled ? _scan : null,
+                ),
+                ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _barcodeText,
+                  builder: (context, value, _) => IconButton(
+                    key: ValueKey('barcode-add-${draft.id}'),
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Incluir código',
+                    onPressed: enabled && value.text.trim().isNotEmpty
+                        ? _includeTyped
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+            if (_barcodeError case final error?)
+              Text(
+                error,
+                key: ValueKey('barcode-error-${draft.id}'),
+                style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
+              ),
+            if (draft.barcodes.isEmpty)
+              const Text('Nenhum código.')
+            else
+              for (final code in draft.barcodes)
+                Row(
+                  children: [
+                    Expanded(child: Text('• ${code.label}')),
+                    IconButton(
+                      key: ValueKey('barcode-remove-${draft.id}-${code.code}'),
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Remover código',
+                      onPressed: enabled
+                          ? () => widget.onChanged(
+                              widget.draft.withoutBarcode(code),
+                            )
+                          : null,
+                    ),
+                  ],
+                ),
           ],
         ),
       ),

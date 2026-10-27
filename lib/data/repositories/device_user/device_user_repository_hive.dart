@@ -5,7 +5,7 @@ import 'package:hive_ce/hive.dart';
 import '../../../domain/models/device_user.dart';
 import 'device_user_repository.dart';
 
-/// The real implementation, and it is HIVE — not Supabase.
+/// The real implementation, and it is HIVE — not PocketBase.
 ///
 /// `handoff §8` is explicit: the label does not go to the database. What
 /// reaches Postgres is the `registered_by` text copied onto each purchase, at

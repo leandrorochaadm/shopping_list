@@ -4,7 +4,7 @@ import '../app_locale.dart';
 import '../themes/app_theme.dart';
 import 'message_view.dart';
 
-/// Shown INSTEAD of the app when the build cannot reach its Supabase project.
+/// Shown INSTEAD of the app when the build cannot reach its PocketBase server.
 ///
 /// Falling back to the `_local` fakes here is right while developing and wrong
 /// in a deploy: it would put an app on the phone that looks like it works and
@@ -15,26 +15,24 @@ import 'message_view.dart';
 /// The sentences are in pt-BR like every other screen — on this project the
 /// person who reads them is also the one who runs the deploy.
 class MisconfiguredApp extends StatelessWidget {
-  /// The build shipped without SUPABASE_URL / SUPABASE_ANON_KEY.
+  /// The build shipped without `config/<env>.json` (no `POCKETBASE_URL`).
   const MisconfiguredApp({super.key})
     : title = 'Configuração ausente',
       message =
           'Este build saiu sem o endereço do banco.\n\n'
-          'Refaça o deploy passando SUPABASE_URL e SUPABASE_ANON_KEY.';
+          'Refaça o deploy com o arquivo config/prod.json (POCKETBASE_URL).';
 
-  /// The two values were there and Supabase still refused to start: a wrong
-  /// project URL, an anon key from another project.
+  /// The address was there and the PocketBase client or the session
+  /// restoration still failed with an unexpected error.
   ///
-  /// Storage denied by the browser used to land here too, and does not any
-  /// more: `initializeSupabase` runs with `persistSession: false`, so the
-  /// refusal now belongs to Hive and to [MisconfiguredApp.storageUnavailable].
-  /// The two are fixed in different places, which is the whole reason they are
-  /// two screens.
+  /// Storage denied by the browser is not this screen: it belongs to Hive (now
+  /// three boxes) and to [MisconfiguredApp.storageUnavailable]. The two are
+  /// fixed in different places, which is the whole reason they are two screens.
   const MisconfiguredApp.startupFailed({super.key})
     : title = 'Falha ao iniciar',
       message =
           'Não foi possível abrir a conexão com o banco deste build.\n\n'
-          'Confira SUPABASE_URL e SUPABASE_ANON_KEY e refaça o deploy.';
+          'Confira POCKETBASE_URL em config/prod.json e refaça o deploy.';
 
   /// The pt-BR date and currency data failed to load. It shares nothing with
   /// the two above: the build is fine and the browser is fine, so naming the

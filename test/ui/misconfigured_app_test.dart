@@ -13,8 +13,8 @@ void main() {
     await tester.pumpWidget(const MisconfiguredApp());
 
     expect(find.text('Configuração ausente'), findsOneWidget);
-    expect(find.textContaining('SUPABASE_URL'), findsOneWidget);
-    expect(find.textContaining('SUPABASE_ANON_KEY'), findsOneWidget);
+    expect(find.textContaining('POCKETBASE_URL'), findsOneWidget);
+    expect(find.textContaining('config/prod.json'), findsOneWidget);
   });
 
   testWidgets('separates a failed startup from a missing configuration', (
@@ -26,7 +26,7 @@ void main() {
     await tester.pumpWidget(const MisconfiguredApp.startupFailed());
 
     expect(find.text('Falha ao iniciar'), findsOneWidget);
-    expect(find.textContaining('SUPABASE_URL'), findsOneWidget);
+    expect(find.textContaining('POCKETBASE_URL'), findsOneWidget);
     expect(find.textContaining('saiu sem o endereço'), findsNothing);
   });
 
@@ -39,6 +39,7 @@ void main() {
     expect(find.text('Armazenamento bloqueado'), findsOneWidget);
     expect(find.textContaining('janela privada'), findsOneWidget);
     expect(find.textContaining('SUPABASE_URL'), findsNothing);
+    expect(find.textContaining('POCKETBASE_URL'), findsNothing);
   });
 
   testWidgets('blames the date formatting, not the storage or the build', (
@@ -53,6 +54,7 @@ void main() {
     expect(find.textContaining('formato de datas'), findsOneWidget);
     expect(find.textContaining('janela privada'), findsNothing);
     expect(find.textContaining('SUPABASE_URL'), findsNothing);
+    expect(find.textContaining('POCKETBASE_URL'), findsNothing);
   });
 
   testWidgets('renders in pt-BR like every other screen', (tester) async {

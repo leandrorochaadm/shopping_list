@@ -6,7 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
+import 'package:shopping_list/data/repositories/store/store_repository.dart';
+import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
@@ -14,19 +18,60 @@ import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/selling_choice.dart';
+import 'package:shopping_list/domain/models/store.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
 import 'package:shopping_list/ui/catalog/widgets/packaging_row.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
+import '../helpers/auth.dart';
+import '../helpers/barcode_camera.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/shopping_list.dart';
 import '../helpers/viewport.dart';
 
 void main() {
+  const cola = '7894900011517';
+  const coffee = '7891000100103';
+  const guarana = '7894900530018';
+  const cocoa = '7891000053508';
+
+  final cola2l = BarcodeOwner(
+    product: Product(
+      id: 'prod-3',
+      productRegistrationId: 'reg-1',
+      packaging: Packaging(
+        pieceCount: 1,
+        pieceSize: 2000,
+        baseUnit: BaseUnit.milliliter,
+      ),
+    ),
+    registration: ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      description: 'original',
+      sellingMode: SellingMode.byPiece,
+    ),
+    type: ProductType(
+      id: 'type-1',
+      name: 'Refrigerante',
+      categoryId: 'cat-1',
+      baseUnit: BaseUnit.milliliter,
+    ),
+    brand: Brand(id: 'brand-1', name: 'Coca-Cola'),
+  );
+  final cola2lOff = BarcodeOwner(
+    product: cola2l.product.deactivated(),
+    registration: cola2l.registration,
+    type: cola2l.type,
+    brand: cola2l.brand,
+  );
+
   /// Mounted through the real router: screen 4 asks `context.canPop()` to
   /// decide which exit R11 gives it, and that question has no answer without
   /// a GoRouter above it.
@@ -34,6 +79,8 @@ void main() {
     WidgetTester tester, {
     CatalogRepository? repository,
     NewProductRequest? request,
+    FakeBarcodeCamera? camera,
+    StoreRepository? stores,
   }) async {
     // A tall viewport: screen 4 is a long form, and the default 800×600 puts
     // the second packaging row outside the render tree, where a tap misses.
@@ -44,7 +91,10 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(repository: repository),
+        storeOverride(repository: stores),
+        ?camera?.override,
         // The router starts on `/`, which is the real screen 1 since H4.
         shoppingListOverride(),
       ],
@@ -115,6 +165,16 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(field), text);
     await tester.pumpAndSettle();
+  }
+
+  Future<void> includeTyped(WidgetTester tester, int card, String code) async {
+    await type(tester, ValueKey('barcode-$card'), code);
+    await tapOn(tester, find.byKey(ValueKey('barcode-add-$card')));
+  }
+
+  Future<void> pickRefrigerante(WidgetTester tester) async {
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
   }
 
   testWidgets('asks for the type before offering any measure', (tester) async {
@@ -678,7 +738,9 @@ void main() {
     // answer `(error: null, saved: null)` when the guard fired, the screen
     // read `error == null` as success, said "Produto salvo." and navigated
     // away — with nothing written. Deleting the `case null` of the screen
-    // brings it back, and this test fails.
+    // brings it back, and this test fails. The guard now fires in
+    // `checkBarcodes`, which shares `_writingRegistration` with the stuck
+    // `save`.
     final repository = _StuckRepository();
     final container = await pumpScreen(tester, repository: repository);
 
@@ -698,10 +760,12 @@ void main() {
               sellingMode: SellingMode.byPiece,
             ),
             packagings: [
-              Packaging.typed(
-                pieceCount: '1',
-                pieceSize: '350',
-                baseUnit: BaseUnit.milliliter,
+              PackagingWithBarcodes(
+                packaging: Packaging.typed(
+                  pieceCount: '1',
+                  pieceSize: '350',
+                  baseUnit: BaseUnit.milliliter,
+                ),
               ),
             ].lock,
           ),
@@ -721,6 +785,340 @@ void main() {
 
     repository.release();
     await tester.pumpAndSettle();
+  });
+
+  group('PackagingDraft barcodes', () {
+    final draft = PackagingDraft(
+      id: 1,
+      pieceCount: '2',
+      pieceSize: '350',
+      unit: BaseUnit.milliliter,
+    );
+
+    test('withBarcode adds the code and keeps the rest of the line', () {
+      final updated = draft.withBarcode(cola);
+      expect(updated.barcodes, [Barcode.typed(cola)].lock);
+      expect(updated.pieceCount, '2');
+      expect(updated.pieceSize, '350');
+      expect(updated.unit, BaseUnit.milliliter);
+    });
+
+    test('withBarcode lets the domain refusal through', () {
+      expect(
+        () => draft.withBarcode(cola).withBarcode(cola),
+        throwsA(isA<BarcodeAlreadyOnPackaging>()),
+      );
+    });
+
+    test('withUnit and copyWith keep the codes', () {
+      final coded = draft.withBarcode(cola);
+      expect(coded.withUnit(BaseUnit.gram).barcodes, coded.barcodes);
+      expect(coded.copyWith(pieceSize: '1').barcodes, coded.barcodes);
+    });
+
+    test('withoutBarcode removes only that code', () {
+      final coded = draft.withBarcode(cola).withBarcode(coffee);
+      expect(
+        coded.withoutBarcode(Barcode.typed(cola)).barcodes,
+        [Barcode.typed(coffee)].lock,
+      );
+    });
+  });
+
+  group('NewProductRequest', () {
+    test('equality covers every field', () {
+      final request = NewProductRequest(initialBarcode: Barcode.typed(cola));
+      final same = NewProductRequest(initialBarcode: Barcode.typed(cola));
+      expect(request, same);
+      expect(request.hashCode, same.hashCode);
+      expect(request, isNot(const NewProductRequest()));
+      expect(
+        request,
+        isNot(NewProductRequest(initialBarcode: Barcode.typed(coffee))),
+      );
+    });
+  });
+
+  group('barcodes on the card', () {
+    IconButton addButton(WidgetTester tester) =>
+        tester.widget<IconButton>(find.byKey(const ValueKey('barcode-add-1')));
+
+    testWidgets('a typed code goes in with + and the field empties', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      expect(find.text('Nenhum código.'), findsOneWidget);
+
+      await includeTyped(tester, 1, cola);
+
+      expect(find.text('• $cola'), findsOneWidget);
+      expect(find.text('Nenhum código.'), findsNothing);
+      expect(addButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('+ is off while the field is empty', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      expect(addButton(tester).onPressed, isNull);
+
+      await type(tester, const ValueKey('barcode-1'), '   ');
+      expect(addButton(tester).onPressed, isNull);
+
+      await type(tester, const ValueKey('barcode-1'), '');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('barcode-error-1')), findsNothing);
+    });
+
+    testWidgets('x removes the code', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await includeTyped(tester, 1, cola);
+
+      await tapOn(
+        tester,
+        find.byKey(ValueKey('barcode-remove-1-${Barcode.typed(cola).code}')),
+      );
+
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('refuses the same code twice on the card', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await includeTyped(tester, 1, cola);
+      await includeTyped(tester, 1, cola);
+
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('barcode-error-1')),
+          matching: find.text('Esse código já está nesta embalagem.'),
+        ),
+        findsNothing,
+      );
+      expect(find.text('Esse código já está nesta embalagem.'), findsOneWidget);
+      expect(find.text('• $cola'), findsOneWidget);
+    });
+
+    testWidgets('refuses a scale code with the scale sentence', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await includeTyped(tester, 1, '2822521001605');
+
+      expect(find.text('Esse é um código de balança.'), findsOneWidget);
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('refuses an invalid code', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await includeTyped(tester, 1, '7894900011518');
+
+      expect(find.text('Código de barras inválido.'), findsOneWidget);
+
+      await type(tester, const ValueKey('barcode-1'), '7');
+      expect(find.text('Código de barras inválido.'), findsNothing);
+    });
+
+    testWidgets('a camera read goes straight into the list, with no +', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await pickRefrigerante(tester);
+
+      await tapOn(tester, find.byKey(const ValueKey('barcode-scan-1')));
+      camera.read(cola);
+      await tester.pumpAndSettle();
+
+      expect(find.text('• $cola'), findsOneWidget);
+      expect(find.byKey(const ValueKey('fake-camera')), findsNothing);
+    });
+
+    testWidgets('a scale label read by the camera is refused', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await pickRefrigerante(tester);
+
+      await tapOn(tester, find.byKey(const ValueKey('barcode-scan-1')));
+      camera.read('02822521001605261107');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Esse é um código de balança.'), findsOneWidget);
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('initialBarcode fills the first card', (tester) async {
+      await pumpScreen(
+        tester,
+        request: NewProductRequest(initialBarcode: Barcode.typed(cola)),
+      );
+      await pickRefrigerante(tester);
+
+      expect(find.text('• $cola'), findsOneWidget);
+
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('saves 0, 1 and 3 codes, each on its own card', (tester) async {
+      final repository = _WithOwners();
+      await pumpScreen(tester, repository: repository);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      await type(tester, const ValueKey('size-2'), '2000');
+      await includeTyped(tester, 2, cola);
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      await type(tester, const ValueKey('size-3'), '269');
+      await includeTyped(tester, 3, coffee);
+      await includeTyped(tester, 3, guarana);
+      await includeTyped(tester, 3, cocoa);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(repository.saved?.map((p) => p.barcodes).toList(), [
+        const IList<Barcode>.empty(),
+        [Barcode.typed(cola)].lock,
+        [
+          Barcode.typed(coffee),
+          Barcode.typed(guarana),
+          Barcode.typed(cocoa),
+        ].lock,
+      ]);
+      expect(repository.findOwnersCalls, 1);
+    });
+
+    testWidgets('a code of an active product blocks the save above the '
+        'button', (tester) async {
+      final repository = _WithOwners(owners: {Barcode.typed(cola): cola2l});
+      await pumpScreen(tester, repository: repository);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text('Esse código já é do ${cola2l.label}.'), findsOneWidget);
+      expect(saveButton(tester).onPressed, isNull);
+      expect(repository.saved, isNull);
+
+      // Typing a measure is not touching a code: the block stays.
+      await type(tester, const ValueKey('size-1'), '351');
+      expect(saveButton(tester).onPressed, isNull);
+
+      await tapOn(
+        tester,
+        find.byKey(ValueKey('barcode-remove-1-${Barcode.typed(cola).code}')),
+      );
+      expect(find.text('Esse código já é do ${cola2l.label}.'), findsNothing);
+      expect(saveButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('selling loose drops the code block', (tester) async {
+      final repository = _WithOwners(owners: {Barcode.typed(cola): cola2l});
+      await pumpScreen(tester, repository: repository);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+      expect(saveButton(tester).onPressed, isNull);
+
+      await tapOn(tester, find.text('Volume'));
+
+      expect(find.text('Esse código já é do ${cola2l.label}.'), findsNothing);
+      expect(saveButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('the same code on two cards is refused before the database', (
+      tester,
+    ) async {
+      final repository = _WithOwners();
+      await pumpScreen(tester, repository: repository);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      await type(tester, const ValueKey('size-2'), '2000');
+      await includeTyped(tester, 2, cola);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(
+        find.text('Esse código já está em outra embalagem desta tela.'),
+        findsOneWidget,
+      );
+      expect(repository.findOwnersCalls, 0);
+      expect(repository.saved, isNull);
+    });
+
+    testWidgets('a code of a deactivated product saves without asking and '
+        'says so', (tester) async {
+      final repository = _WithOwners(owners: {Barcode.typed(cola): cola2lOff});
+      await pumpScreen(tester, repository: repository);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(repository.removedFrom, ['prod-3']);
+      expect(find.textContaining('Produto salvo.'), findsOneWidget);
+      expect(
+        find.textContaining(releasedBarcodeMessage(cola2lOff)),
+        findsOneWidget,
+      );
+      expect(repository.saved?.single.barcodes, [Barcode.typed(cola)].lock);
+    });
+
+    testWidgets('a failing check keeps the form and says why', (tester) async {
+      final repository = _WithOwners(failFind: true);
+      await pumpScreen(tester, repository: repository);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(
+        find.text('Sem conexão. Verifique a internet e tente de novo.'),
+        findsOneWidget,
+      );
+      expect(find.text('Vai se chamar: 350 ml'), findsOneWidget);
+      expect(saveButton(tester).onPressed, isNotNull);
+      expect(repository.saved, isNull);
+    });
+
+    testWidgets('the saved packagings show their codes, read only', (
+      tester,
+    ) async {
+      await pumpScreen(
+        tester,
+        repository: _WithSavedCodes(cola),
+        request: const NewProductRequest(registrationId: 'reg-1'),
+      );
+
+      await tapOn(tester, find.byKey(const ValueKey('existing-packagings')));
+
+      expect(
+        tester
+            .widget<Text>(
+              find.byKey(const ValueKey('existing-barcodes-prod-1')),
+            )
+            .data,
+        cola,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('existing-packagings')),
+          matching: find.byIcon(Icons.close),
+        ),
+        findsNothing,
+      );
+    });
   });
 
   group('PickedProduct', () {
@@ -1108,6 +1506,358 @@ void main() {
       expect(description.enabled, isFalse);
     });
   });
+  group('scale codes', () {
+    const tamara = '2822521001605';
+    const tamaraQr = '02822521001605261107';
+    const other = '2004417001603';
+    const storeKey = ValueKey('scale-store');
+
+    Future<void> toWeight(WidgetTester tester) async {
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await tapOn(tester, find.text('Peso'));
+      // Without a description the identity matches `reg-2` and the screen locks.
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> includeScale(
+      WidgetTester tester,
+      String store,
+      String raw,
+    ) async {
+      await choose(tester, storeKey, store);
+      await type(tester, const ValueKey('scale-code'), raw);
+      await tapOn(tester, find.byKey(const ValueKey('scale-add')));
+    }
+
+    bool buttonOn(WidgetTester tester, Key key) =>
+        tester.widget<IconButton>(find.byKey(key)).onPressed != null;
+
+    TextField fieldOf(WidgetTester tester) => tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const ValueKey('scale-code')),
+        matching: find.byType(TextField),
+      ),
+    );
+
+    testWidgets('sold by piece has no scale code section', (tester) async {
+      await pumpScreen(tester);
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      expect(find.byKey(const ValueKey('scale-codes')), findsNothing);
+
+      await toWeight(tester);
+      expect(find.byKey(const ValueKey('scale-codes')), findsOneWidget);
+    });
+
+    testWidgets('a typed label goes in with its store and the field empties', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await includeScale(tester, 'Carrefour', tamara);
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(find.text('Nenhum código.'), findsNothing);
+      expect(fieldOf(tester).controller?.text, isEmpty);
+    });
+
+    testWidgets('+, ▥ and the field are off until a store is chosen', (
+      tester,
+    ) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      expect(fieldOf(tester).enabled, isFalse);
+      expect(buttonOn(tester, const ValueKey('scale-scan')), isFalse);
+      expect(buttonOn(tester, const ValueKey('scale-add')), isFalse);
+
+      await choose(tester, storeKey, 'Carrefour');
+      expect(fieldOf(tester).enabled, isTrue);
+      expect(buttonOn(tester, const ValueKey('scale-scan')), isTrue);
+    });
+
+    testWidgets('a failed store load offers to try again', (tester) async {
+      final stores = _FlakyStores();
+      await pumpScreen(tester, stores: stores);
+      await toWeight(tester);
+
+      expect(
+        find.text('Não foi possível carregar os mercados.'),
+        findsOneWidget,
+      );
+
+      await tapOn(tester, find.text('Tentar de novo'));
+
+      expect(find.byKey(storeKey), findsOneWidget);
+      expect(find.text('Não foi possível carregar os mercados.'), findsNothing);
+    });
+
+    testWidgets('the inactive store is not offered', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await tapOn(tester, find.byKey(storeKey));
+
+      expect(find.text('Feira do Bairro'), findsWidgets);
+      expect(find.text('Mercearia do Zé'), findsNothing);
+    });
+
+    testWidgets('a camera read keeps only the item code', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toWeight(tester);
+      await choose(tester, storeKey, 'Carrefour');
+
+      await tapOn(tester, find.byKey(const ValueKey('scale-scan')));
+      camera.read(tamaraQr);
+      await tester.pumpAndSettle();
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('the same code twice in the same store is refused under the '
+        'field', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+
+      await type(tester, const ValueKey('scale-code'), tamaraQr);
+      await tapOn(tester, find.byKey(const ValueKey('scale-add')));
+
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('scale-error'))).data,
+        'Esse código já está neste produto.',
+      );
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('the same code in another store is taken', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await includeScale(tester, 'Carrefour', tamara);
+      await includeScale(tester, 'Feira do Bairro', tamara);
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(find.text('• Feira do Bairro · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('what is not a scale label is refused', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+
+      await includeScale(tester, 'Carrefour', '7894900011517');
+      expect(find.text('Não conheço esta etiqueta.'), findsOneWidget);
+
+      await type(tester, const ValueKey('scale-code'), '78949');
+      expect(find.text('Não conheço esta etiqueta.'), findsNothing);
+    });
+
+    testWidgets('x removes the code before saving', (tester) async {
+      await pumpScreen(tester);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+
+      await tapOn(
+        tester,
+        find.byKey(const ValueKey('scale-remove-store-1-2822521')),
+      );
+
+      expect(find.text('Nenhum código.'), findsOneWidget);
+    });
+
+    testWidgets('saving sends the scale codes', (tester) async {
+      final repository = _ScaleSpy();
+      await pumpScreen(tester, repository: repository);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+      await includeScale(tester, 'Feira do Bairro', other);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(
+        repository.savedScaleCodes,
+        [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+          const ScaleCode(storeId: 'store-2', itemCode: '2004417'),
+        ].lock,
+      );
+    });
+
+    testWidgets('selling by piece again sends no scale code', (tester) async {
+      final repository = _ScaleSpy();
+      await pumpScreen(tester, repository: repository);
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+      await tapOn(tester, find.text('Unidade'));
+      await type(tester, const ValueKey('count-1'), '1');
+      await type(tester, const ValueKey('size-1'), '500');
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(repository.saveCalls, 1);
+      expect(repository.savedScaleCodes, isEmpty);
+    });
+
+    testWidgets('a code taken in this store by another product is refused on '
+        'save', (tester) async {
+      await pumpScreen(tester, repository: _ScaleTakenOnSave());
+      await toWeight(tester);
+      await includeScale(tester, 'Carrefour', tamara);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text(ScaleCode.takenMessage), findsOneWidget);
+      expect(find.byKey(const ValueKey('scale-codes')), findsOneWidget);
+    });
+
+    group('on a saved product', () {
+      const request = NewProductRequest(registrationId: 'reg-2');
+
+      testWidgets('each + writes at once', (tester) async {
+        final repository = _WithScaleCodes();
+        await pumpScreen(tester, repository: repository, request: request);
+
+        expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+
+        await includeScale(tester, 'Feira do Bairro', other);
+
+        expect(repository.added, [
+          const ScaleCode(storeId: 'store-2', itemCode: '2004417'),
+        ]);
+        expect(find.text('• Feira do Bairro · 2004417'), findsOneWidget);
+        expect(saveButton(tester).onPressed, isNull);
+      });
+
+      testWidgets('x removes at once', (tester) async {
+        final repository = _WithScaleCodes();
+        await pumpScreen(tester, repository: repository, request: request);
+
+        await tapOn(
+          tester,
+          find.byKey(const ValueKey('scale-remove-store-1-2822521')),
+        );
+
+        expect(repository.removed, [
+          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+        ]);
+        expect(find.text('Nenhum código.'), findsOneWidget);
+      });
+
+      testWidgets('a failed write stays under the field', (tester) async {
+        final repository = _WithScaleCodes()
+          ..failAdd = ApiException(500, 'boom');
+        await pumpScreen(tester, repository: repository, request: request);
+
+        await includeScale(tester, 'Feira do Bairro', other);
+
+        expect(
+          tester.widget<Text>(find.byKey(const ValueKey('scale-error'))).data,
+          'O servidor está indisponível. Tente de novo em instantes.',
+        );
+        expect(find.text('• Feira do Bairro · 2004417'), findsNothing);
+        expect(find.textContaining('ApiException'), findsNothing);
+      });
+    });
+  });
+}
+
+/// Records the scale codes that reach the save.
+class _ScaleSpy extends CatalogRepositoryLocal {
+  _ScaleSpy() : super(latency: Duration.zero);
+
+  IList<ScaleCode> savedScaleCodes = const IList.empty();
+  int saveCalls = 0;
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    saveCalls++;
+    savedScaleCodes = scaleCodes;
+    return super.saveRegistrationWithProducts(
+      registration: registration,
+      packagings: packagings,
+      scaleCodes: scaleCodes,
+    );
+  }
+}
+
+/// The database refuses the scale code on save: it belongs to another product.
+class _ScaleTakenOnSave extends CatalogRepositoryLocal {
+  _ScaleTakenOnSave() : super(latency: Duration.zero);
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    if (scaleCodes.isNotEmpty) {
+      throw ApiException(
+        409,
+        'duplicate key value violates unique constraint '
+        '"product_barcode_code_key"',
+      );
+    }
+    return super.saveRegistrationWithProducts(
+      registration: registration,
+      packagings: packagings,
+      scaleCodes: scaleCodes,
+    );
+  }
+}
+
+/// `prod-5` (Acém moído, loose) comes back with a scale code already on it.
+class _WithScaleCodes extends CatalogRepositoryLocal {
+  _WithScaleCodes() : super(latency: Duration.zero);
+
+  final added = <ScaleCode>[];
+  final removed = <ScaleCode>[];
+  Object? failAdd;
+
+  @override
+  Future<IList<Product>> fetchProductsOf(String registrationId) async =>
+      (await super.fetchProductsOf(registrationId))
+          .map(
+            (leaf) => leaf.id == 'prod-5'
+                ? leaf.copyWith(
+                    scaleCodes: [
+                      const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+                    ].lock,
+                  )
+                : leaf,
+          )
+          .toIList();
+
+  @override
+  Future<void> addScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) {
+    final failure = failAdd;
+    if (failure != null) {
+      failAdd = null;
+      throw failure;
+    }
+    added.add(code);
+    return super.addScaleCode(productId: productId, code: code);
+  }
+
+  @override
+  Future<void> removeScaleCode({
+    required String productId,
+    required ScaleCode code,
+  }) {
+    removed.add(code);
+    return super.removeScaleCode(productId: productId, code: code);
+  }
 }
 
 /// Records what the editing path writes, and can stand a registration in
@@ -1122,7 +1872,7 @@ class _RecordingRepository extends CatalogRepositoryLocal {
   final bool refusesPackagings;
 
   ProductRegistration? updated;
-  IList<Packaging>? added;
+  IList<PackagingWithBarcodes>? added;
 
   @override
   Future<ProductRegistration?> findRegistration({
@@ -1157,7 +1907,7 @@ class _RecordingRepository extends CatalogRepositoryLocal {
   @override
   Future<IList<Product>> addPackagings({
     required String registrationId,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
   }) async {
     if (refusesPackagings) throw NetworkException('offline');
     added = packagings;
@@ -1190,7 +1940,8 @@ class _StuckRepository extends CatalogRepositoryLocal {
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) => _held.future;
 }
 
@@ -1216,7 +1967,8 @@ class _RefusingRepository extends CatalogRepositoryLocal {
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
-    required IList<Packaging> packagings,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async => throw NetworkException('offline');
 }
 
@@ -1257,5 +2009,82 @@ class _WithDeactivated extends CatalogRepositoryLocal {
       description: description,
     );
     return found?.id == registrationId ? found!.deactivated() : found;
+  }
+}
+
+/// The owners of a code come through the read, never through a write awaited
+/// before the first pump: inside `testWidgets` the clock is fake, so that
+/// `await` would deadlock the test instead of failing it.
+class _WithOwners extends CatalogRepositoryLocal {
+  _WithOwners({this.owners = const {}, this.failFind = false})
+    : super(latency: Duration.zero);
+
+  final Map<Barcode, BarcodeOwner> owners;
+  final bool failFind;
+  int findOwnersCalls = 0;
+  final removedFrom = <String>[];
+  IList<PackagingWithBarcodes>? saved;
+
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    findOwnersCalls++;
+    if (failFind) throw NetworkException('offline');
+    return {for (final code in codes) code: ?owners[code]}.lock;
+  }
+
+  @override
+  Future<void> removeBarcode({
+    required String productId,
+    required Barcode code,
+  }) {
+    removedFrom.add(productId);
+    return super.removeBarcode(productId: productId, code: code);
+  }
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<PackagingWithBarcodes> packagings,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    saved = packagings;
+    return super.saveRegistrationWithProducts(
+      registration: registration,
+      packagings: packagings,
+      scaleCodes: scaleCodes,
+    );
+  }
+}
+
+/// The leaf `prod-1` comes back with a code already on it.
+class _WithSavedCodes extends CatalogRepositoryLocal {
+  _WithSavedCodes(this.code) : super(latency: Duration.zero);
+
+  final String code;
+
+  @override
+  Future<IList<Product>> fetchProductsOf(String registrationId) async =>
+      (await super.fetchProductsOf(registrationId))
+          .map(
+            (leaf) => leaf.id == 'prod-1'
+                ? leaf.copyWith(barcodes: [Barcode.typed(code)].lock)
+                : leaf,
+          )
+          .toIList();
+}
+
+/// The first read of the stores fails; the next one works.
+class _FlakyStores extends StoreRepositoryLocal {
+  _FlakyStores() : super(latency: Duration.zero);
+
+  bool _failed = false;
+
+  @override
+  Future<IList<Store>> fetchAll() {
+    if (!_failed) {
+      _failed = true;
+      throw NetworkException('offline');
+    }
+    return super.fetchAll();
   }
 }

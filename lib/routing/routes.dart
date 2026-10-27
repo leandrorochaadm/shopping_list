@@ -1,9 +1,14 @@
 /// Every screen of the app has a named route — the eleven of `tecnico §3.4`,
-/// not only the six the wireframes drew.
+/// not only the six the wireframes drew. Besides them there are `/welcome`,
+/// `/spike` and `/login` (13 routes).
 ///
 /// Paths are identifiers, so they are in English. What the user reads is the
 /// screen title, which is pt-BR.
 abstract final class Routes {
+  /// The door for whoever has no session: every other route falls here until
+  /// the person signs in.
+  static const login = '/login';
+
   /// Screen 1, the home of the bottom bar.
   static const shoppingList = '/';
 
@@ -48,6 +53,7 @@ abstract final class Routes {
 /// Route names, used by `context.goNamed` so a path change never has to be
 /// hunted down across screens.
 abstract final class RouteNames {
+  static const login = 'login';
   static const shoppingList = 'shoppingList';
   static const welcome = 'welcome';
   static const suggestions = 'suggestions';

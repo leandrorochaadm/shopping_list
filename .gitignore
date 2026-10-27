@@ -47,8 +47,7 @@ app.*.map.json
 # Scratch: implementation plans and diagrams, not part of the deliverable
 /temp/
 
-# Credentials: the hosted project's URL and anon key, plus the database
-# password used to run supabase/checks/ by hand. Never committed -- they enter
+# Credentials: the hosted project's URL and anon key. Never committed -- they enter
 # the build by --dart-define and the CI by GitHub secrets. The example file IS
 # committed, and is the only place the variable names are written down.
 /.env
@@ -57,3 +56,12 @@ app.*.map.json
 
 # Local override that points tekton_core at the clone next door — never committed.
 pubspec_overrides.yaml
+
+# PocketBase: only migrations are versioned
+pocketbase/*
+!pocketbase/pb_migrations/
+# Build-time config: only the examples are versioned
+/config/*.json
+!/config/*.json.example
+# wrangler cache
+.wrangler/

@@ -48,24 +48,27 @@ void main() {
       expect(AppFailure.from(original), same(original));
     });
 
-    test('keeps the variant when an AppFailure arrives wrapped by Riverpod', () {
-      // Built through a real container, for the same reason the unwrap test
-      // below does it: ProviderException's constructor is internal to
-      // Riverpod. It is also what fixes the POSITION of the guard — before
-      // the loop it would never reach a wrapped failure.
-      const original = DuplicateRecord();
-      final failing = Provider<int>((ref) => throw original);
-      final container = ProviderContainer.test();
+    test(
+      'keeps the variant when an AppFailure arrives wrapped by Riverpod',
+      () {
+        // Built through a real container, for the same reason the unwrap test
+        // below does it: ProviderException's constructor is internal to
+        // Riverpod. It is also what fixes the POSITION of the guard — before
+        // the loop it would never reach a wrapped failure.
+        const original = DuplicateRecord();
+        final failing = Provider<int>((ref) => throw original);
+        final container = ProviderContainer.test();
 
-      Object? caught;
-      try {
-        container.read(failing);
-      } on Object catch (e) {
-        caught = e;
-      }
+        Object? caught;
+        try {
+          container.read(failing);
+        } on Object catch (e) {
+          caught = e;
+        }
 
-      expect(AppFailure.from(caught!), same(original));
-    });
+        expect(AppFailure.from(caught!), same(original));
+      },
+    );
 
     test('unwraps the ProviderException Riverpod wraps a failure into', () {
       // Built through a real container instead of by hand: the wrapping is
@@ -103,6 +106,33 @@ void main() {
 
       // Fails if the unwrap ever goes back to a single `if` instead of a loop.
       expect(AppFailure.from(caught!), isA<RecordNotFound>());
+    });
+  });
+
+  group('SessionExpired', () {
+    test('classifies SessionExpiredException as SessionExpired', () {
+      final failure = AppFailure.from(SessionExpiredException());
+
+      expect(failure, isA<SessionExpired>());
+      expect(failure, isNot(isA<AccessDenied>()));
+    });
+
+    test('keeps SessionExpired when Riverpod wraps it', () {
+      final failing = Provider<int>((ref) => throw SessionExpiredException());
+      final container = ProviderContainer.test();
+
+      Object? caught;
+      try {
+        container.read(failing);
+      } on Object catch (e) {
+        caught = e;
+      }
+
+      expect(AppFailure.from(caught!), isA<SessionExpired>());
+    });
+
+    test('classifies 429 as ServerUnavailable', () {
+      expect(AppFailure.from(ApiException(429, '')), isA<ServerUnavailable>());
     });
   });
 }

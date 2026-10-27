@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../data/repositories/auth/auth_repository.dart';
 import '../data/repositories/device_user/device_user_repository.dart';
+import '../ui/auth/widgets/login_screen.dart';
 import '../ui/catalog/widgets/catalog_maintenance_screen.dart';
 import '../ui/catalog/widgets/new_product_screen.dart';
 import '../ui/consumption/widgets/remaining_screen.dart';
@@ -16,6 +21,21 @@ import '../ui/shopping_list/widgets/shopping_list_screen.dart';
 import '../ui/spike/widgets/typing_spike_screen.dart';
 import 'routes.dart';
 
+/// Turns the session stream into a [Listenable] for `refreshListenable`.
+final class _SessionRefresh extends ChangeNotifier {
+  StreamSubscription<bool>? _subscription;
+
+  void follow(Stream<bool> changes) {
+    _subscription ??= changes.listen((_) => notifyListeners());
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+}
+
 /// The eleven routes of `tecnico §3.4`, registered from day one.
 ///
 /// **Since H17/H18 all eleven have a screen.** Until then the ones not written
@@ -24,11 +44,13 @@ import 'routes.dart';
 /// the `pendingDestinations` map beside it were deleted along with the last
 /// two entries of this file.
 ///
-/// **No route is protected** — there is no session to protect. The single
-/// `redirect` this app has is not about identity either: while the device
-/// user label is not in Hive, every route falls to [Routes.welcome].
+/// There is a session (PocketBase): every route requires it, except
+/// [Routes.login]. The device rule comes after: while the device user label is
+/// not in Hive, every route falls to [Routes.welcome].
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final refresh = _SessionRefresh();
   final router = GoRouter(
+    refreshListenable: refresh,
     initialLocation: Routes.shoppingList,
     // go_router runs this SYNCHRONOUSLY, which is why the Hive box is opened
     // by `main` before runApp: after that, reading the label costs nothing.
@@ -37,13 +59,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     // every label change, and rebuilding the provider throws the whole
     // navigation stack away under the user's finger.
     redirect: (context, state) {
+      final auth = ref.read(authRepositoryProvider);
+      // The subscription is born at the first redirect, not when the provider
+      // is built, so reading the router without a session override works.
+      refresh.follow(auth.changes);
+
+      // Also the loop guard of /login.
+      if (state.matchedLocation == Routes.login) {
+        return auth.isSignedIn ? Routes.shoppingList : null;
+      }
+      if (!auth.isSignedIn) return Routes.login;
+
       // Without this guard /welcome redirects to /welcome and the screen
       // never opens — a loop whose symptom points at nothing.
       if (state.matchedLocation == Routes.welcome) return null;
 
       // The S1 spike measures typing, not the app: sending it through the
       // welcome screen would add a question to a stopwatch run. Goes away
-      // with the route.
+      // with the route. After the session check: the spike needs a session too.
       if (state.matchedLocation == Routes.typingSpike) return null;
 
       return ref.read(storedDeviceUserProvider) == null ? Routes.welcome : null;
@@ -58,6 +91,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: Routes.welcome,
         name: RouteNames.welcome,
         builder: (context, state) => const WelcomeScreen(),
+      ),
+      GoRoute(
+        path: Routes.login,
+        name: RouteNames.login,
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: Routes.suggestions,
@@ -93,7 +131,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.newProduct,
         // The `extra` says what was asked of screen 4: screen 3 asks for
         // the chosen leaf BACK instead of a navigation to the list, and the
-        // catalog maintenance says WHICH registration to open. Whoever
+        // catalog maintenance says WHICH registration to open, and the code read
+        // that goes on the first card. Whoever
         // arrives from the menu passes nothing and falls to the default.
         builder: (context, state) {
           final request =
@@ -101,6 +140,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return NewProductScreen(
             returnsSelection: request.returnsSelection,
             registrationId: request.registrationId,
+            initialBarcode: request.initialBarcode,
           );
         },
       ),
@@ -138,6 +178,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
-  ref.onDispose(router.dispose);
+  ref.onDispose(() {
+    router.dispose();
+    refresh.dispose();
+  });
   return router;
 });

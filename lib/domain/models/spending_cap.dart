@@ -35,6 +35,16 @@ enum CapThreshold {
   };
 }
 
+/// Reads a stored day that must be the first of a month. Throws
+/// [ArgumentError] (named [name]) for any other day.
+DateTime decodeMonthStart(String raw, String name) {
+  final day = decodeCalendarDay(raw);
+  if (day.day != 1) {
+    throw ArgumentError.value(raw, name, 'not the first day of a month');
+  }
+  return day;
+}
+
 /// The cap in force from a month on. One row per CHANGE, never one per month
 /// (decision 14): it crosses months on its own.
 final class SpendingCap {
@@ -53,6 +63,29 @@ final class SpendingCap {
   }
 
   const SpendingCap._({required this.amount, required this.effectiveFrom});
+
+  /// A `spending_cap` record. Throws [ArgumentError] for a negative amount or
+  /// a start that is not day 1, and [InvalidSpendingCap] for zero.
+  factory SpendingCap.fromJson(Map<String, dynamic> json) {
+    final amount = Money.fromJson(json[amountKey]);
+    if (amount.cents < 0) {
+      throw ArgumentError.value(
+        amount.cents,
+        amountKey,
+        'a cap cannot be negative',
+      );
+    }
+    return SpendingCap(
+      amount: amount,
+      effectiveFrom: decodeMonthStart(
+        json[effectiveFromKey] as String,
+        effectiveFromKey,
+      ),
+    );
+  }
+
+  static const amountKey = 'amount';
+  static const effectiveFromKey = 'effective_from';
 
   final Money amount;
 
@@ -145,7 +178,7 @@ final class MonthCapStatus {
   }) : month = firstDayOfMonth(month);
 
   factory MonthCapStatus.fromJson(Map<String, dynamic> json) {
-    final month = decodeCalendarDay(json['month'] as String);
+    final month = decodeMonthStart(json['month'] as String, 'month');
     final amount = json['cap_amount'];
     return MonthCapStatus(
       month: month,
@@ -158,8 +191,9 @@ final class MonthCapStatus {
               // The month the cap STARTED in, straight from the query — never
               // `month`, which would make a cap in force since March claim to
               // have been born in August.
-              effectiveFrom: decodeCalendarDay(
+              effectiveFrom: decodeMonthStart(
                 json['cap_effective_from'] as String,
+                'cap_effective_from',
               ),
             ),
       spent: Money.fromJson(json['spent']),
@@ -230,8 +264,7 @@ final class SpendingCapEvaluation {
   int get hashCode => Object.hash(alerts, triggered);
 
   @override
-  String toString() =>
-      'SpendingCapEvaluation($alerts, triggered: $triggered)';
+  String toString() => 'SpendingCapEvaluation($alerts, triggered: $triggered)';
 }
 
 /// **The whole rule of H13, in one pure function.** Four doors call it — the
@@ -265,11 +298,7 @@ SpendingCapEvaluation evaluateSpendingCap({
   return SpendingCapEvaluation(
     // The desired STATE of both marks, never a "mark it" order — and that is
     // what makes this same call the rearm when a cut stops being crossed.
-    alerts: CapAlerts(
-      month: month,
-      warned80: crossed80,
-      warned100: crossed100,
-    ),
+    alerts: CapAlerts(month: month, warned80: crossed80, warned100: crossed100),
     triggered: [
       if (crossed80 && !current.warned80) CapThreshold.approaching,
       if (crossed100 && !current.warned100) CapThreshold.exceeded,

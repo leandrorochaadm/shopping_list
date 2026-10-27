@@ -11,6 +11,7 @@ import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -54,6 +55,7 @@ void main() {
     // `/` is what the router starts on.
     final container = ProviderContainer.test(
       overrides: [
+        authOverride(),
         ...overrides,
         shoppingListOverride(),
         catalogOverride(),

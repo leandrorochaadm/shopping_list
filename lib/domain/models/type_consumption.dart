@@ -62,9 +62,10 @@ final class TypeConsumption {
   /// month an average at all (`requisitos §8`, the single exception).
   final int consumedInMonth;
 
-  /// The oldest purchase of this type in the whole history, with no interval
-  /// filter — it is what says whether the product predates the window, and so
-  /// what the divisor is.
+  /// The day of the oldest purchase of this type that was READ or, when there
+  /// is a purchase older than the read, the day before it starts
+  /// (`consumptionReadStart`). Only the divisor reads it — it says whether
+  /// the product predates the window.
   final DateTime firstPurchaseOn;
 
   @override

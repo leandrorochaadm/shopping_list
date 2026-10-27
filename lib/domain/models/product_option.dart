@@ -1,5 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
+import 'barcode.dart';
 import 'base_unit.dart';
 import 'brand.dart';
 import 'money.dart';
@@ -32,7 +33,7 @@ final class ProductOption {
     this.baseline,
   });
 
-  /// Reads the PostgREST embed: the leaf comes with its registration nested,
+  /// Reads the nested map the `_remote` builds from the PocketBase `expand`: the leaf comes with its registration nested,
   /// and the registration with its type and its brand.
   factory ProductOption.fromJson(Map<String, dynamic> json) {
     final registration = json['product_registration'] as Map<String, dynamic>;
@@ -50,7 +51,7 @@ final class ProductOption {
     );
   }
 
-  /// The way back to [fromJson] — the SAME nested shape PostgREST returns.
+  /// The way back to [fromJson] — the SAME nested shape the `_remote` builds.
   ///
   /// It exists for the purchase DRAFT: an item kept in Hive has to be drawn
   /// and re-edited with no network at all, which is the whole point of H8.
@@ -60,7 +61,7 @@ final class ProductOption {
   /// The history is deliberately left out: [purchaseCount],
   /// [lastPurchasedOn], [priceReference] and [baseline] are what the last
   /// three months say, not what this option IS, and they are recomputed on
-  /// every load.
+  /// every load. The product's codes stay out too, for the same reason.
   Map<String, dynamic> toJson() => {
     ...product.toJson(),
     'product_registration': {
@@ -341,3 +342,31 @@ IList<ProductGroup> groupForPicker(IList<ProductOption> options) {
       ProductGroup(header: types[key]!.name, options: byType[key]!.toIList()),
   ].toIList();
 }
+
+/// The option whose packaging has [code], or null. The database index keeps it
+/// to one; the first is only the deterministic answer if that fails.
+///
+/// The comparison is by [Barcode] `==` (GTIN-14): a UPC-A finds the packaging
+/// saved as the EAN-13 of the same number.
+ProductOption? findOptionByBarcode(IList<ProductOption> options, Barcode code) {
+  for (final option in options) {
+    if (option.product.barcodes.contains(code)) return option;
+  }
+  return null;
+}
+
+/// The options with a scale code equal to [itemCode] — in [storeId] only, or in
+/// every store when it is null. Keeps the order of [options].
+IList<ProductOption> findOptionsByScaleCode(
+  IList<ProductOption> options,
+  String itemCode, {
+  String? storeId,
+}) => [
+  for (final option in options)
+    if (option.product.scaleCodes.any(
+      (code) =>
+          code.itemCode == itemCode &&
+          (storeId == null || code.storeId == storeId),
+    ))
+      option,
+].toIList();

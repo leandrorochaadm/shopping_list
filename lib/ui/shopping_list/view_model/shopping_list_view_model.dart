@@ -8,8 +8,9 @@ import '../../../domain/models/category.dart';
 import '../../../domain/models/monthly_average.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
-import '../../../domain/models/uuid.dart';
+import '../../../domain/models/record_id.dart';
 import '../../core/error_translation.dart';
 
 /// Screen 1: the list the two of them edit from their phones.
@@ -80,7 +81,7 @@ final class ShoppingListViewModel
   /// registration discarding it would make the second line of milk worth any
   /// milk — exactly what the person did not want.
   ///
-  /// The key is born here through `newUuidV4()`, not in the database: it is
+  /// The key is born here through `newRecordId()`, not in the database: it is
   /// what lets the repository discard the echo of its own INSERT, and what
   /// makes resending a timed-out `add` not become a second item.
   Future<String?> add(
@@ -95,7 +96,7 @@ final class ShoppingListViewModel
     _running = true;
     try {
       final item = ShoppingListItem(
-        id: newUuidV4(),
+        id: newRecordId(),
         type: type,
         category: category,
         preferredRegistration: preferredRegistration,
@@ -119,6 +120,29 @@ final class ShoppingListViewModel
     }
   }
 
+  /// The `[▥]` of the `#1a` panel and the `[ Pôr na lista ]` of screen 2: the
+  /// type with the product read, no packaging. The guard against a product
+  /// already asked for is `isRegistrationTaken`, the same one the item dialog
+  /// applies (M-a). `null` = it worked.
+  Future<String?> addWithRegistration(
+    ProductType type,
+    Category category, {
+    required ProductRegistration registration,
+    Brand? brand,
+    DateTime? today,
+  }) async {
+    if (_running) return null;
+    final items = state.value ?? const IList<ShoppingListItem>.empty();
+    if (isRegistrationTaken(items, registration)) return 'Já está na lista.';
+    return add(
+      type,
+      category,
+      preferredRegistration: registration,
+      preferredRegistrationBrand: brand,
+      today: today,
+    );
+  }
+
   /// `[ Adicionar à lista ]` da Tela 2 (conferir despensa) — several items,
   /// ONE guard.
   ///
@@ -128,7 +152,7 @@ final class ShoppingListViewModel
   /// five items is one action.
   ///
   /// It takes [MonthlyAverage] and not a list of items because the item is
-  /// born with a `uuid` and with today's day, and neither can be created by a
+  /// born with a record id and with today's day, and neither can be created by a
   /// widget (rules 9 and 2). The screen hands over what it chose; whoever
   /// builds the entity is here — the same shape [add] already has.
   ///
@@ -149,7 +173,7 @@ final class ShoppingListViewModel
             .read(shoppingListRepositoryProvider)
             .add(
               ShoppingListItem(
-                id: newUuidV4(),
+                id: newRecordId(),
                 type: line.type,
                 category: line.category,
                 // PantryCheck nunca pergunta quantidade (glossário
