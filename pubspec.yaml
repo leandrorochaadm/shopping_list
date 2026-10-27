@@ -36,6 +36,8 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   supabase_flutter: ^2.17.2
+  # Replaces supabase_flutter during the migration; supabase_flutter leaves later.
+  pocketbase: ^0.25.2
   flutter_riverpod: ^3.0.0
   go_router: ^18.0.0
   hive_ce: ^2.19.3
