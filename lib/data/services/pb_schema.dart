@@ -47,6 +47,7 @@ abstract final class PbFields {
   static const effectiveFrom = 'effective_from';
   static const month = 'month';
   static const purchaseCount = 'purchase_count';
+  static const quantity = 'quantity';
 
   // Back-relations (expand of children).
   static const purchaseItemViaPurchaseId = 'purchase_item_via_purchase_id';
@@ -55,4 +56,12 @@ abstract final class PbFields {
   static const productBarcodeViaProductId = 'product_barcode_via_product_id';
   static const productViaProductRegistrationId =
       'product_via_product_registration_id';
+  static const listWriteOffViaShoppingListItemId =
+      'list_write_off_via_shopping_list_item_id';
+}
+
+abstract final class PbRealtime {
+  static const allRecords = '*'; // every record of a collection
+  static const connectTopic = 'PB_CONNECT'; // (re)connection of the SSE
+  static const createAction = 'create'; // RecordSubscriptionEvent.action
 }

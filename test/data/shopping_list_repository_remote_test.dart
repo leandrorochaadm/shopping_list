@@ -1,466 +1,679 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_remote.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/pending_changes.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
-class _MockClient extends Mock implements SupabaseClient {}
+import '../helpers/pocketbase_test_client.dart';
 
-/// The channel is stubbed only enough for `watchChanges()` to hand back its
-/// stream: nothing here exercises the Realtime wiring, which belongs to
-/// `supabase_flutter`. The two callbacks are `@visibleForTesting` precisely so
-/// the RULES can be tested without capturing the `callback:` argument.
-class _MockChannel extends Mock implements RealtimeChannel {}
+const _itemId = 'item00000000001';
+const _otherItemId = 'item00000000002';
+const _typeId = 'type00000000001';
+const _categoryId = 'cat000000000001';
+const _registrationId = 'reg000000000001';
+const _brandId = 'brand0000000001';
+const _otherId = 'other0000000001';
 
-/// The success path of `removeOpenItemsOfType`: an update, four filters, and
-/// a `.select('id')` that hands back the rows that actually left. None of
-/// these builders is a Future — they only IMPLEMENT one — so `then` is what
-/// `await` reaches.
-class _FakeUpdate extends Fake implements PostgrestFilterBuilder<dynamic> {
-  _FakeUpdate(this.ids);
+const _expandQuery =
+    'product_type_id.category_id,'
+    'preferred_registration_id.brand_id,'
+    'list_write_off_via_shopping_list_item_id';
+const _openFilter = 'fulfilled_on = "" && removed_on = ""';
 
-  final List<String> ids;
-
-  @override
-  PostgrestFilterBuilder<dynamic> eq(String column, Object value) => this;
-
-  @override
-  PostgrestFilterBuilder<dynamic> isFilter(String column, Object? value) =>
-      this;
-
-  @override
-  PostgrestTransformBuilder<PostgrestList> select([String columns = '*']) =>
-      _FakeRows([
-        for (final id in ids) {'id': id},
-      ]);
-}
-
-class _FakeRows extends Fake
-    implements PostgrestTransformBuilder<PostgrestList> {
-  _FakeRows(this.rows);
-
-  final PostgrestList rows;
-
-  @override
-  Future<R> then<R>(
-    FutureOr<R> Function(PostgrestList) onValue, {
-    Function? onError,
-  }) => Future.value(rows).then(onValue, onError: onError);
-}
-
-class _FakeTable extends Fake implements SupabaseQueryBuilder {
-  _FakeTable(this.ids);
-
-  final List<String> ids;
-
-  @override
-  PostgrestFilterBuilder<dynamic> update(Map values) => _FakeUpdate(ids);
-}
-
-/// The success path of `add`: an insert, the `.select(_selection)` of the
-/// embed, and a `.single()` that hands back the row the way PostgREST does.
-/// [inserted] keeps what reached `insert`, which is what the database stores —
-/// a final list rather than a field, because the builder is `@immutable`.
-class _FakeInsertTable extends Fake implements SupabaseQueryBuilder {
-  _FakeInsertTable(this.row);
-
-  final PostgrestMap row;
-  final inserted = <Object>[];
-
-  @override
-  PostgrestFilterBuilder<dynamic> insert(
-    Object values, {
-    bool defaultToNull = true,
-  }) {
-    inserted.add(values);
-    return _FakeInsert(row);
-  }
-}
-
-class _FakeInsert extends Fake implements PostgrestFilterBuilder<dynamic> {
-  _FakeInsert(this.row);
-
-  final PostgrestMap row;
-
-  @override
-  PostgrestTransformBuilder<PostgrestList> select([String columns = '*']) =>
-      _FakeInsertedRows(row);
-}
-
-class _FakeInsertedRows extends Fake
-    implements PostgrestTransformBuilder<PostgrestList> {
-  _FakeInsertedRows(this.row);
-
-  final PostgrestMap row;
-
-  @override
-  PostgrestTransformBuilder<PostgrestMap> single() => _FakeSingleRow(row);
-}
-
-class _FakeSingleRow extends Fake
-    implements PostgrestTransformBuilder<PostgrestMap> {
-  _FakeSingleRow(this.row);
-
-  final PostgrestMap row;
-
-  @override
-  Future<R> then<R>(
-    FutureOr<R> Function(PostgrestMap) onValue, {
-    Function? onError,
-  }) => Future.value(row).then(onValue, onError: onError);
-}
-
-PostgresChangePayload _payload(
-  PostgresChangeEvent event, {
-  String? id = 'item-1',
-}) => PostgresChangePayload(
-  schema: 'public',
-  table: 'shopping_list_item',
-  commitTimestamp: DateTime(2026, 8, 28),
-  eventType: event,
-  // A DELETE brings only the primary key, and in oldRecord.
-  newRecord: event == PostgresChangeEvent.delete ? const {} : {'id': ?id},
-  oldRecord: event == PostgresChangeEvent.delete ? {'id': ?id} : const {},
-  errors: null,
-);
-
-ShoppingListItem _item({String? id = 'item-1'}) => ShoppingListItem(
-  id: id,
+ShoppingListItem _item({
+  int? quantity,
+  ProductRegistration? registration,
+  bool picked = false,
+}) => ShoppingListItem(
+  id: _itemId,
   type: ProductType(
-    id: 'type-1',
+    id: _typeId,
     name: 'Leite',
-    categoryId: 'cat-1',
+    categoryId: _categoryId,
     baseUnit: BaseUnit.milliliter,
   ),
-  category: Category(id: 'cat-1', name: 'Bebidas'),
+  category: Category(id: _categoryId, name: 'Bebidas'),
+  preferredRegistration: registration,
+  quantity: quantity,
   enteredOn: DateTime(2026, 8, 28),
+  picked: picked,
 );
 
-void main() {
-  setUpAll(() {
-    registerFallbackValue(PostgresChangeEvent.all);
-    registerFallbackValue((PostgresChangePayload _) {});
-  });
-
-  late _MockClient client;
-  late _MockChannel channel;
-  late ShoppingListRepositoryRemote repository;
-
-  setUp(() {
-    client = _MockClient();
-    channel = _MockChannel();
-    repository = ShoppingListRepositoryRemote(client);
-
-    // The failure is raised at the first hop of every chain, which is where a
-    // real PostgrestException would surface anyway.
-    when(() => client.from(any())).thenThrow(
-      const PostgrestException(message: 'duplicate key', code: '23505'),
-    );
-
-    when(() => client.channel(any())).thenReturn(channel);
-    when(
-      () => channel.onPostgresChanges(
-        event: any(named: 'event'),
-        schema: any(named: 'schema'),
-        table: any(named: 'table'),
-        callback: any(named: 'callback'),
-      ),
-    ).thenReturn(channel);
-    when(() => channel.subscribe(any(), any())).thenReturn(channel);
-    when(channel.unsubscribe).thenAnswer((_) async => 'ok');
-  });
-
-  group('every method translates the SQLSTATE instead of leaking it', () {
-    // Without this the 23505 arrives as "status 23505", falls into the >= 500
-    // arm of AppFailure and tells the user the server is down.
-    test('fetchAll', () {
-      expect(repository.fetchAll, throwsA(_is409));
-    });
-
-    test('add', () {
-      expect(() => repository.add(_item()), throwsA(_is409));
-    });
-
-    test('update', () {
-      expect(() => repository.update(_item()), throwsA(_is409));
-    });
-
-    test('remove', () {
-      // Since H7 it is an UPDATE filling `removed_on`, not a DELETE — the
-      // write-off trail has a foreign key here.
-      expect(
-        () => repository.remove(_item(), DateTime(2026, 8, 28)),
-        throwsA(_is409),
-      );
-    });
-
-    test('fetchItemsByIds', () {
-      expect(() => repository.fetchItemsByIds(['item-1']), throwsA(_is409));
-    });
-
-    test('countOpenItemsOfType', () {
-      expect(() => repository.countOpenItemsOfType('type-1'), throwsA(_is409));
-    });
-
-    test('removeOpenItemsOfType', () {
-      expect(
-        () => repository.removeOpenItemsOfType('type-1', DateTime(2026, 8, 28)),
-        throwsA(_is409),
-      );
-    });
-  });
-
-  group('add — the write the pantry check and the #1a panel share', () {
-    test('inserts the table columns and reads the embedded row back', () async {
-      // The row PostgREST answers with: the same `_selection` embed the fetch
-      // reads, so what comes back is what reopening the app will show.
-      final table = _FakeInsertTable({
-        'id': 'item-1',
-        'quantity': null,
-        'entered_on': '2026-08-28',
-        'picked': false,
-        'not_found': false,
-        'fulfilled_on': null,
-        'removed_on': null,
-        'list_write_off': <Object>[],
-        'product_type': {
-          'id': 'type-1',
+Map<String, dynamic> _itemRecord({
+  String id = _itemId,
+  Map<String, dynamic> data = const {},
+  Map<String, dynamic>? expandOverride,
+  bool picked = false,
+}) => recordJson(
+  id,
+  {
+    'product_type_id': _typeId,
+    'preferred_registration_id': '',
+    'quantity': 0,
+    'entered_on': '2026-08-28 00:00:00.000Z',
+    'picked': picked,
+    'not_found': false,
+    'fulfilled_on': '',
+    'removed_on': '',
+    ...data,
+  },
+  expand:
+      expandOverride ??
+      {
+        'product_type_id': recordJson(_typeId, {
           'name': 'Leite',
-          'category_id': 'cat-1',
+          'category_id': _categoryId,
           'base_unit': 'milliliter',
           'active': true,
-          'category': {'id': 'cat-1', 'name': 'Bebidas', 'active': true},
+          'expand': {
+            'category_id': recordJson(_categoryId, {
+              'name': 'Bebidas',
+              'active': true,
+            }),
+          },
+        }),
+      },
+);
+
+Map<String, dynamic> _registrationRecord({String brandId = _brandId}) =>
+    recordJson(_registrationId, {
+      'product_type_id': _typeId,
+      'brand_id': brandId,
+      'description': 'integral',
+      'selling_mode': 'by_piece',
+      'active': true,
+      if (brandId.isNotEmpty)
+        'expand': {
+          'brand_id': recordJson(_brandId, {'name': 'Italac', 'active': true}),
         },
-        'preferred_registration': null,
-      });
-      when(() => client.from('shopping_list_item')).thenAnswer((_) => table);
+    });
 
-      final created = await repository.add(_item());
+Map<String, dynamic> _typeExpand() =>
+    (_itemRecord()['expand'] as Map<String, dynamic>)['product_type_id']
+        as Map<String, dynamic>;
 
-      // Only the table's own columns, and the quantity goes as NULL — the
-      // pantry check never asks for one, and the column accepts it.
-      expect(table.inserted.single, {
-        'id': 'item-1',
-        'product_type_id': 'type-1',
-        'preferred_registration_id': null,
-        'quantity': null,
-        'entered_on': '2026-08-28',
-        'picked': false,
-        'not_found': false,
-        'fulfilled_on': null,
-        'removed_on': null,
-      });
-      expect(created, _item());
+RecordSubscriptionEvent _event(String action, {String? id = _otherId}) =>
+    RecordSubscriptionEvent(
+      action: action,
+      record: id == null ? null : RecordModel.fromJson({'id': id}),
+    );
+
+http.Response _echoBatch(http.Request request) {
+  final requests = (jsonDecode(request.body) as Map)['requests'] as List;
+  return http.Response(
+    jsonEncode([
+      for (final _ in requests) {'status': 200, 'body': <String, dynamic>{}},
+    ]),
+    200,
+    headers: {'content-type': 'application/json; charset=utf-8'},
+  );
+}
+
+final _is409 = isA<ApiException>().having((e) => e.statusCode, 'status', 409);
+
+Map<String, dynamic> _body(http.Request request) =>
+    jsonDecode(request.body) as Map<String, dynamic>;
+
+void main() {
+  late List<http.Request> requests;
+
+  ShoppingListRepositoryRemote build(
+    FutureOr<http.Response> Function(http.Request) handler, {
+    bool signedIn = true,
+  }) => ShoppingListRepositoryRemote(
+    testPocketBase(
+      MockClient((request) async {
+        requests.add(request);
+        return handler(request);
+      }),
+      signedIn: signedIn,
+    ),
+  );
+
+  ShoppingListRepositoryRemote answering(http.Response response) =>
+      build((_) => response);
+
+  /// A repository whose every write fails, so only the echo bookkeeping stays.
+  ShoppingListRepositoryRemote failing() =>
+      ShoppingListRepositoryRemote(testPocketBase(offlineClient()));
+
+  setUp(() => requests = []);
+
+  group('fetchAll', () {
+    test('rebuilds the line from the expand', () async {
+      final repository = answering(
+        listJson([
+          _itemRecord(
+            data: {'preferred_registration_id': _registrationId},
+            expandOverride: {
+              'product_type_id': _typeExpand(),
+              'preferred_registration_id': _registrationRecord(),
+              'list_write_off_via_shopping_list_item_id': [
+                recordJson('wo0000000000001', {'quantity_written_off': 300}),
+                recordJson('wo0000000000002', {'quantity_written_off': 200}),
+              ],
+            },
+          ),
+        ]),
+      );
+
+      final items = await repository.fetchAll();
+
+      final item = items.single;
+      expect(item.preferredRegistration?.id, _registrationId);
+      expect(item.preferredRegistrationBrand?.name, 'Italac');
+      expect(item.writtenOffQuantity, 500);
+      expect(item.writeOffCount, 2);
+      final request = requests.single;
+      expect(request.method, 'GET');
+      expect(request.url.path, '/api/collections/shopping_list_item/records');
+      expect(request.url.queryParameters['filter'], _openFilter);
+      expect(request.url.queryParameters['expand'], _expandQuery);
+    });
+
+    test('reads the empty value of PocketBase as null', () async {
+      final repository = answering(listJson([_itemRecord()]));
+
+      final item = (await repository.fetchAll()).single;
+
+      expect(item.quantity, isNull);
+      expect(item.preferredRegistration, isNull);
+      expect(item.writtenOffQuantity, 0);
+      expect(item.writeOffCount, 0);
+      expect(item.fulfilledOn, isNull);
+      expect(item.removedOn, isNull);
+      expect(item.enteredOn, DateTime(2026, 8, 28));
+    });
+
+    test('a registration without brand has no brand', () async {
+      final repository = answering(
+        listJson([
+          _itemRecord(
+            data: {'preferred_registration_id': _registrationId},
+            expandOverride: {
+              'product_type_id': _typeExpand(),
+              'preferred_registration_id': _registrationRecord(brandId: ''),
+            },
+          ),
+        ]),
+      );
+
+      final item = (await repository.fetchAll()).single;
+
+      expect(item.preferredRegistration?.brandId, isNull);
+      expect(item.preferredRegistrationBrand, isNull);
+    });
+
+    test('an empty list comes back empty', () async {
+      final items = await answering(listJson([])).fetchAll();
+
+      expect(items, isEmpty);
+    });
+
+    test('a date with a time is rejected', () async {
+      final repository = answering(
+        listJson([
+          _itemRecord(data: {'entered_on': '2026-08-28 15:30:00.000Z'}),
+        ]),
+      );
+
+      await expectLater(repository.fetchAll(), throwsFormatException);
     });
   });
 
-  group('the reads H9 and H10 add', () {
-    test(
-      'removeOpenItemsOfType swallows the echo of every row it removed',
-      () async {
-        // Deactivating a type writes on `shopping_list_item`, same channel,
-        // same banner — and unlike the correction, the writer here IS this
-        // repository, so the echo is its own problem. Without the `.select('id')`
-        // it would not even know which rows it touched.
-        when(
-          () => client.from(any()),
-        ).thenAnswer((_) => _FakeTable(['item-1', 'item-2']));
+  group('fetchItemsByIds', () {
+    test('brings a closed item, with no open filter', () async {
+      final repository = answering(
+        listJson([
+          _itemRecord(data: {'fulfilled_on': '2026-08-30 00:00:00.000Z'}),
+        ]),
+      );
 
-        final removed = await repository.removeOpenItemsOfType(
-          'type-1',
-          DateTime(2026, 8, 28),
-        );
-        expect(removed, ['item-1', 'item-2']);
+      final items = await repository.fetchItemsByIds([_itemId]);
 
-        final seen = <ListChangeKind>[];
-        repository.watchChanges().listen(seen.add);
-        await Future<void>.delayed(Duration.zero);
-
-        repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
-        repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-2'));
-        await Future<void>.delayed(Duration.zero);
-        expect(seen, isEmpty);
-
-        // A THIRD echo for the same row is the other phone, and it does show.
-        repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
-        await Future<void>.delayed(Duration.zero);
-        expect(seen, [ListChangeKind.changed]);
-      },
-    );
-
-    test('expectEcho counts WITH repetition', () async {
-      // An item the correction writes twice — the undo reopens it and the
-      // corrected purchase closes it again, two UPDATEs in one transaction —
-      // sends two echoes. A `Set` here would let the second one through and
-      // paint the banner on the phone that made the correction.
-      repository.expectEcho(['item-1', 'item-1']);
-
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
-      await Future<void>.delayed(Duration.zero);
-
-      repository.onChange(_payload(PostgresChangeEvent.update));
-      repository.onChange(_payload(PostgresChangeEvent.update));
-      await Future<void>.delayed(Duration.zero);
-      expect(seen, isEmpty);
-
-      repository.onChange(_payload(PostgresChangeEvent.update));
-      await Future<void>.delayed(Duration.zero);
-      expect(seen, [ListChangeKind.changed]);
+      expect(items.single.fulfilledOn, DateTime(2026, 8, 30));
+      final filter = requests.single.url.queryParameters['filter']!;
+      expect(filter, contains(_itemId));
+      expect(filter, isNot(contains('fulfilled_on = ""')));
     });
 
-    test(
-      'fetchItemsByIds with an empty set does NOT touch the client',
-      () async {
-        // An empty `in.()` is a round trip that comes back with zero rows, and
-        // a purchase that wrote nothing off lands here on every correction.
-        final items = await repository.fetchItemsByIds(const <String>[]);
+    test('an empty set does not touch the client', () async {
+      final items = await answering(
+        listJson([]),
+      ).fetchItemsByIds(const <String>[]);
 
-        expect(items, isEmpty);
-        verifyNever(() => client.from(any()));
+      expect(items, isEmpty);
+      expect(requests, isEmpty);
+    });
+
+    test('splits the ids in blocks of 50 without repeating any', () async {
+      final repository = answering(listJson([]));
+      final ids = [
+        for (var i = 0; i < 120; i++) 'id${i.toString().padLeft(12, '0')}',
+      ];
+
+      await repository.fetchItemsByIds([...ids, ...ids.take(5)]);
+
+      expect(requests, hasLength(3));
+      final perRequest = [
+        for (final r in requests)
+          RegExp(
+            'id\\d{12}',
+          ).allMatches(r.url.queryParameters['filter']!).map((m) => m[0]!),
+      ];
+      expect(perRequest.map((l) => l.length).toList()..sort(), [20, 50, 50]);
+      final all = perRequest.expand((l) => l).toList();
+      expect(all.toSet(), hasLength(120));
+      expect(all, hasLength(120));
+    });
+  });
+
+  group('countOpenItemsOfType', () {
+    test('reads the total, not the page', () async {
+      final repository = answering(
+        listJson([_itemRecord()], perPage: 1, totalItems: 3),
+      );
+
+      expect(await repository.countOpenItemsOfType(_typeId), 3);
+      final query = requests.single.url.queryParameters;
+      expect(query['perPage'], '1');
+      expect(query['skipTotal'], 'false');
+      expect(query['filter'], contains('product_type_id = "$_typeId"'));
+      expect(query['filter'], contains('fulfilled_on = ""'));
+    });
+
+    test('is zero when nothing is open', () async {
+      final repository = answering(listJson([], perPage: 1, totalItems: 0));
+
+      expect(await repository.countOpenItemsOfType(_typeId), 0);
+    });
+  });
+
+  group('writes', () {
+    test('add writes the columns with the owner and reads back', () async {
+      final repository = answering(recordResponse(_itemRecord()));
+
+      final saved = await repository.add(_item());
+
+      expect(saved, _item());
+      final request = requests.single;
+      expect(request.method, 'POST');
+      expect(request.url.queryParameters['expand'], _expandQuery);
+      expect(_body(request), {
+        'id': _itemId,
+        'product_type_id': _typeId,
+        'preferred_registration_id': '',
+        'quantity': 0,
+        'entered_on': '2026-08-28 00:00:00.000Z',
+        'picked': false,
+        'not_found': false,
+        'fulfilled_on': '',
+        'removed_on': '',
+        'user': testUserId,
+      });
+    });
+
+    test('add sends the registration and the quantity', () async {
+      final repository = answering(recordResponse(_itemRecord()));
+      final registration = ProductRegistration(
+        id: _registrationId,
+        productTypeId: _typeId,
+        sellingMode: SellingMode.byPiece,
+      );
+
+      await repository.add(_item(quantity: 1000, registration: registration));
+
+      final body = _body(requests.single);
+      expect(body['preferred_registration_id'], _registrationId);
+      expect(body['quantity'], 1000);
+    });
+
+    test('update sends neither the owner nor the id', () async {
+      final repository = answering(recordResponse(_itemRecord(picked: true)));
+
+      final saved = await repository.update(_item().togglePicked());
+
+      expect(saved.picked, isTrue);
+      final request = requests.single;
+      expect(request.method, 'PATCH');
+      expect(
+        request.url.path,
+        '/api/collections/shopping_list_item/records/$_itemId',
+      );
+      expect(request.url.queryParameters['expand'], _expandQuery);
+      final body = _body(request);
+      expect(body, isNot(contains('user')));
+      expect(body, isNot(contains('id')));
+      expect(body['picked'], isTrue);
+    });
+
+    test('remove writes only removed_on', () async {
+      final repository = answering(recordResponse(_itemRecord()));
+
+      await repository.remove(_item(), DateTime(2026, 8, 28, 15, 30));
+
+      expect(requests, hasLength(1));
+      expect(requests.single.method, 'PATCH');
+      expect(
+        requests.single.url.path,
+        '/api/collections/shopping_list_item/records/$_itemId',
+      );
+      expect(_body(requests.single), {
+        'removed_on': '2026-08-28 00:00:00.000Z',
+      });
+    });
+  });
+
+  group('removeOpenItemsOfType', () {
+    test('swallows the echo of every row it removed', () async {
+      final repository = build((request) {
+        if (request.method == 'POST') return _echoBatch(request);
+        return listJson([
+          recordJson(_itemId, {}),
+          recordJson(_otherItemId, {}),
+        ]);
+      });
+      final emitted = <ListChangeKind>[];
+      repository.watchChanges().listen(emitted.add);
+
+      final ids = await repository.removeOpenItemsOfType(
+        _typeId,
+        DateTime(2026, 8, 28),
+      );
+
+      expect(ids.toList(), [_itemId, _otherItemId]);
+      final get = requests.first;
+      expect(get.url.queryParameters['fields'], 'id');
+      expect(get.url.queryParameters['filter'], contains(_typeId));
+      expect(get.url.queryParameters['filter'], contains('fulfilled_on = ""'));
+      final batch = requests.singleWhere((r) => r.url.path == '/api/batch');
+      final sent = _body(batch)['requests'] as List;
+      expect(sent, hasLength(2));
+      for (final r in sent.cast<Map<String, dynamic>>()) {
+        expect(r['method'], 'PATCH');
+        expect(r['body'], {'removed_on': '2026-08-28 00:00:00.000Z'});
+      }
+
+      repository.onEvent(_event('update', id: _itemId));
+      repository.onEvent(_event('update', id: _otherItemId));
+      await pumpEventQueue();
+      expect(emitted, isEmpty);
+
+      repository.onEvent(_event('update', id: _itemId));
+      await pumpEventQueue();
+      expect(emitted, [ListChangeKind.changed]);
+    });
+
+    test('does nothing when no item is open', () async {
+      final repository = answering(listJson([]));
+
+      final ids = await repository.removeOpenItemsOfType(
+        _typeId,
+        DateTime(2026, 8, 28),
+      );
+
+      expect(ids, isEmpty);
+      expect(requests.where((r) => r.url.path == '/api/batch'), isEmpty);
+    });
+
+    test('a failing batch is classified and writes nothing', () async {
+      final repository = build((request) {
+        if (request.method == 'POST') {
+          return batchErrorJson(index: 1, status: 400);
+        }
+        return listJson([
+          recordJson(_itemId, {}),
+          recordJson(_otherItemId, {}),
+        ]);
+      });
+
+      await expectLater(
+        repository.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28)),
+        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 403)),
+      );
+    });
+  });
+
+  group('failures', () {
+    final conflict = errorJson(
+      400,
+      data: {
+        'id': {'code': 'validation_not_unique', 'message': ''},
       },
     );
+
+    final calls =
+        <String, Future<Object?> Function(ShoppingListRepositoryRemote)>{
+          'fetchAll': (r) => r.fetchAll(),
+          'fetchItemsByIds': (r) => r.fetchItemsByIds([_itemId]),
+          'countOpenItemsOfType': (r) => r.countOpenItemsOfType(_typeId),
+          'removeOpenItemsOfType': (r) =>
+              r.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28)),
+          'add': (r) => r.add(_item()),
+          'update': (r) => r.update(_item()),
+          'remove': (r) => r.remove(_item(), DateTime(2026, 8, 28)),
+        };
+
+    for (final entry in calls.entries) {
+      test('${entry.key} translates the failure', () async {
+        await expectLater(entry.value(answering(conflict)), throwsA(_is409));
+      });
+
+      test('${entry.key} without a session sends nothing', () async {
+        final repository = build((_) => conflict, signedIn: false);
+
+        await expectLater(
+          entry.value(repository),
+          throwsA(
+            isA<ApiException>().having((e) => e.statusCode, 'status', 401),
+          ),
+        );
+        expect(requests, isEmpty);
+      });
+    }
+
+    test('offline is a NetworkException', () async {
+      final repository = ShoppingListRepositoryRemote(
+        testPocketBase(offlineClient()),
+      );
+
+      await expectLater(
+        repository.fetchAll(),
+        throwsA(isA<NetworkException>()),
+      );
+      await expectLater(
+        repository.add(_item()),
+        throwsA(isA<NetworkException>()),
+      );
+      await expectLater(
+        repository.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28)),
+        throwsA(isA<NetworkException>()),
+      );
+    });
+
+    test('an item of another owner or already gone is a 404', () async {
+      final repository = answering(errorJson(404));
+
+      await expectLater(
+        repository.update(_item()),
+        throwsA(isA<ApiException>().having((e) => e.statusCode, 's', 404)),
+      );
+    });
   });
 
   group('the channel', () {
-    test('an INSERT from the other phone is a new item', () async {
-      // Listen FIRST: the controller is a broadcast one, and it drops what it
-      // receives while nobody is on the other end.
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
+    late ShoppingListRepositoryRemote repository;
+    late List<ListChangeKind> emitted;
 
-      repository.onChange(_payload(PostgresChangeEvent.insert, id: 'other'));
-      await Future<void>.delayed(Duration.zero);
-
-      expect(seen, [ListChangeKind.added]);
+    setUp(() {
+      repository = failing();
+      emitted = [];
     });
 
-    test('an UPDATE and a DELETE are just a change', () async {
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
+    Future<void> listen() async {
+      repository.watchChanges().listen(emitted.add);
+      await pumpEventQueue();
+    }
 
-      repository
-        ..onChange(_payload(PostgresChangeEvent.update, id: 'other'))
-        ..onChange(_payload(PostgresChangeEvent.delete, id: 'other'));
-      await Future<void>.delayed(Duration.zero);
+    test('an insert from the other phone is a new item', () async {
+      await listen();
 
-      expect(seen, [ListChangeKind.changed, ListChangeKind.changed]);
+      repository.onEvent(_event('create'));
+      await pumpEventQueue();
+
+      expect(emitted, [ListChangeKind.added]);
     });
 
-    test('a payload with no id at all still counts', () async {
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
+    test('an update and a delete are just a change', () async {
+      await listen();
 
-      repository.onChange(_payload(PostgresChangeEvent.insert, id: null));
-      await Future<void>.delayed(Duration.zero);
+      repository.onEvent(_event('update'));
+      repository.onEvent(_event('delete'));
+      await pumpEventQueue();
 
-      expect(seen, [ListChangeKind.added]);
+      expect(emitted, [ListChangeKind.changed, ListChangeKind.changed]);
+    });
+
+    test('an event with no record still counts', () async {
+      await listen();
+
+      repository.onEvent(_event('create', id: null));
+      await pumpEventQueue();
+
+      expect(emitted, [ListChangeKind.added]);
     });
 
     test('the echo of OUR OWN write says nothing', () async {
-      // D2 — without this discard, adding an item shows "1 item novo" to
-      // whoever has just added it.
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
+      await listen();
+      await expectLater(
+        repository.add(_item()),
+        throwsA(isA<NetworkException>()),
+      );
 
-      // The write registers the echo BEFORE its await, so the failure of the
-      // I/O afterwards does not matter here.
-      await expectLater(() => repository.add(_item()), throwsA(_is409));
-      repository.onChange(_payload(PostgresChangeEvent.insert));
-      await Future<void>.delayed(Duration.zero);
+      repository.onEvent(_event('create', id: _itemId));
+      await pumpEventQueue();
 
-      expect(seen, isEmpty);
+      expect(emitted, isEmpty);
     });
 
     test('two writes to the same row swallow two echoes', () async {
-      // THE test that fails if the counter goes back to being a Set: two taps
-      // on the same checkbox are two writes to one row, a Set would hold one
-      // entry, and the second echo would become a banner about the change the
-      // person has just made.
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
+      await listen();
+      for (var i = 0; i < 2; i++) {
+        await expectLater(
+          repository.update(_item()),
+          throwsA(isA<NetworkException>()),
+        );
+      }
 
-      await expectLater(() => repository.update(_item()), throwsA(_is409));
-      await expectLater(() => repository.update(_item()), throwsA(_is409));
-      repository
-        ..onChange(_payload(PostgresChangeEvent.update))
-        ..onChange(_payload(PostgresChangeEvent.update));
-      await Future<void>.delayed(Duration.zero);
+      for (var i = 0; i < 3; i++) {
+        repository.onEvent(_event('update', id: _itemId));
+      }
+      await pumpEventQueue();
 
-      expect(seen, isEmpty);
+      expect(emitted, [ListChangeKind.changed]);
+    });
 
-      // And the third one, which nobody here wrote, comes through.
-      repository.onChange(_payload(PostgresChangeEvent.update));
-      await Future<void>.delayed(Duration.zero);
-      expect(seen, [ListChangeKind.changed]);
+    test('expectEcho counts WITH repetition', () async {
+      await listen();
+      repository.expectEcho([_itemId, _itemId]);
+
+      for (var i = 0; i < 3; i++) {
+        repository.onEvent(_event('update', id: _itemId));
+      }
+      await pumpEventQueue();
+
+      expect(emitted, [ListChangeKind.changed]);
     });
 
     test('a row this phone never wrote comes through', () async {
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
-
+      await listen();
       await expectLater(
-        () => repository.remove(_item(), DateTime(2026, 8, 28)),
-        throwsA(_is409),
+        repository.remove(_item(), DateTime(2026, 8, 28)),
+        throwsA(isA<NetworkException>()),
       );
-      repository.onChange(_payload(PostgresChangeEvent.delete, id: 'other'));
-      await Future<void>.delayed(Duration.zero);
 
-      expect(seen, [ListChangeKind.changed]);
+      repository.onEvent(_event('update'));
+      await pumpEventQueue();
+
+      expect(emitted, [ListChangeKind.changed]);
     });
 
     test('coming back after a drop says the list changed', () async {
-      // D1 — a channel failure is silence; what becomes an event is coming
-      // BACK, because anything could have changed while it was down.
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
+      await listen();
 
-      repository.onStatus(RealtimeSubscribeStatus.subscribed, null);
-      await Future<void>.delayed(Duration.zero);
-      expect(seen, isEmpty, reason: 'the first subscribe is not a change');
+      repository.onConnect();
+      await pumpEventQueue();
+      expect(emitted, isEmpty);
 
-      repository.onStatus(RealtimeSubscribeStatus.channelError, 'boom');
-      repository.onStatus(RealtimeSubscribeStatus.subscribed, null);
-      await Future<void>.delayed(Duration.zero);
-
-      expect(seen, [ListChangeKind.changed]);
+      repository.onSubscribed();
+      repository.onConnect();
+      await pumpEventQueue();
+      expect(emitted, [ListChangeKind.changed]);
     });
 
     test('reopening the screen does not invent a change', () async {
-      // `_closeChannel` zeroes the flag, so the next `subscribed` is a first
-      // one again — otherwise the list opens saying "a lista mudou" over
-      // nothing.
-      final subscription = repository.watchChanges().listen((_) {});
-      repository.onStatus(RealtimeSubscribeStatus.subscribed, null);
-      await subscription.cancel();
+      final first = repository.watchChanges().listen((_) {});
+      repository.onSubscribed();
+      await first.cancel();
+      await pumpEventQueue();
 
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
-      repository.onStatus(RealtimeSubscribeStatus.subscribed, null);
-      await Future<void>.delayed(Duration.zero);
+      repository.watchChanges().listen(emitted.add);
+      repository.onConnect();
+      await pumpEventQueue();
 
-      expect(seen, isEmpty);
+      expect(emitted, isEmpty);
     });
 
-    test('shares one channel across listeners', () {
-      repository.watchChanges().listen((_) {});
-      repository.watchChanges().listen((_) {});
+    test('closing the channel forgets the pending echoes', () async {
+      repository.expectEcho([_itemId]);
+      final first = repository.watchChanges().listen((_) {});
+      await first.cancel();
+      await pumpEventQueue();
 
-      verify(() => client.channel('shopping_list_item')).called(1);
+      await listen();
+      repository.onEvent(_event('update', id: _itemId));
+      await pumpEventQueue();
+
+      expect(emitted, [ListChangeKind.changed]);
+    });
+
+    test('a failing subscription is silence, not an error', () async {
+      final errors = <Object>[];
+      await runZonedGuarded(() async {
+        repository.watchChanges().listen((_) {}, onError: errors.add);
+        await pumpEventQueue();
+      }, (error, _) => errors.add(error));
+
+      expect(errors, isEmpty);
+    });
+
+    test('two listeners share one stream', () async {
+      final a = repository.watchChanges().listen(emitted.add);
+      final b = repository.watchChanges().listen(emitted.add);
+      await pumpEventQueue();
+
+      repository.onEvent(_event('update'));
+      await pumpEventQueue();
+      expect(emitted, hasLength(2));
+
+      await a.cancel();
+      await b.cancel();
     });
   });
 }
 
-/// 409, never 23505 read as a number.
-final _is409 = isA<ApiException>().having(
-  (e) => e.statusCode,
-  'statusCode',
-  409,
+http.Response recordResponse(Map<String, dynamic> json) => http.Response(
+  jsonEncode(json),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
 );

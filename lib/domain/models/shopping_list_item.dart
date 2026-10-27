@@ -14,9 +14,9 @@ import 'product_type.dart';
 /// in memory — would mean fetching EVERY registration in the database just to
 /// find the label of one line.
 ///
-/// **`fromJson` reads the PostgREST embed, `toJson` writes only the table's
-/// own columns.** The asymmetry is deliberate: it is the real contract of the
-/// API underneath.
+/// **`fromJson` reads the nested map the remote repository builds, `toJson`
+/// writes only the table's own columns.** The asymmetry is deliberate: it is
+/// the real contract of the API underneath.
 final class ShoppingListItem {
   factory ShoppingListItem({
     String? id,
@@ -70,19 +70,25 @@ final class ShoppingListItem {
     required this.removedOn,
   });
 
-  /// Reads the embed of `_selection`: `product_type` comes nested, and the
-  /// category comes nested inside it; the registration's brand comes nested
-  /// inside the registration.
+  static const typeKey = 'product_type';
+  static const categoryKey = 'category';
+  static const preferredRegistrationKey = 'preferred_registration';
+  static const brandKey = 'brand';
+  static const writeOffsKey = 'list_write_off';
+
+  /// Reads the nested map the remote repository builds: the type comes
+  /// nested, and the category comes nested inside it; the registration's
+  /// brand comes nested inside the registration.
   factory ShoppingListItem.fromJson(Map<String, dynamic> json) {
-    final type = json['product_type'] as Map<String, dynamic>;
+    final type = json[typeKey] as Map<String, dynamic>;
     final registration =
-        json['preferred_registration'] as Map<String, dynamic>?;
-    final brand = registration?['brand'] as Map<String, dynamic>?;
+        json[preferredRegistrationKey] as Map<String, dynamic>?;
+    final brand = registration?[brandKey] as Map<String, dynamic>?;
 
     return ShoppingListItem(
       id: json['id'] as String?,
       type: ProductType.fromJson(type),
-      category: Category.fromJson(type['category'] as Map<String, dynamic>),
+      category: Category.fromJson(type[categoryKey] as Map<String, dynamic>),
       preferredRegistration: registration == null
           ? null
           : ProductRegistration.fromJson(registration),
@@ -100,10 +106,10 @@ final class ShoppingListItem {
       // second number to recompute — two sources for one figure diverge on
       // the first mistake. Summing dozens of rows in Dart is not a cost;
       // `handoff §7` sizes the whole list in the dozens.
-      writtenOffQuantity: _sumWriteOffs(json['list_write_off']),
+      writtenOffQuantity: _sumWriteOffs(json[writeOffsKey]),
       // The SIZE of the same embed the line above sums. Two numbers out of
       // one read, because H9 needs both — see [writeOffCount].
-      writeOffCount: _countWriteOffs(json['list_write_off']),
+      writeOffCount: _countWriteOffs(json[writeOffsKey]),
       fulfilledOn: _dayOrNull(json['fulfilled_on']),
       removedOn: _dayOrNull(json['removed_on']),
     );
