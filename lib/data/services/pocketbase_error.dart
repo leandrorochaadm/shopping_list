@@ -3,7 +3,6 @@ import 'package:pocketbase/pocketbase.dart';
 import 'api_exception.dart';
 
 const _notUniqueCode = 'validation_not_unique';
-const _sessionExpiredBody = 'session expired';
 
 /// Turns a PocketBase SDK failure into one of the two exception types the rest
 /// of the app knows about, and rethrows it. Every `_remote` method wraps its
@@ -25,7 +24,7 @@ Never rethrowAsKnownFailure(Object error, StackTrace stackTrace) {
   Error.throwWithStackTrace(error, stackTrace);
 }
 
-/// Throws a 401 when there is no valid session.
+/// Throws [SessionExpiredException] when there is no valid session.
 ///
 /// An expired token becomes an **anonymous** call in PocketBase (empty list,
 /// create answers 400), never a 401, so the check has to happen here. Clearing
@@ -35,7 +34,7 @@ void requireSession(PocketBase pb) {
   // Only clear when there is something to clear, to avoid repeated onChange
   // events on every call after sign-out.
   if (pb.authStore.token.isNotEmpty) pb.authStore.clear();
-  throw ApiException(401, _sessionExpiredBody);
+  throw SessionExpiredException();
 }
 
 /// Maps a PocketBase failure to the HTTP status `AppFailure.from` expects.

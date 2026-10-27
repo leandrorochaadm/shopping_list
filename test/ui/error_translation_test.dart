@@ -126,4 +126,35 @@ void main() {
       expect(message, contains('salvar a compra'));
     });
   });
+
+  group('session and sign-in', () {
+    test('asks to sign in again on SessionExpired', () {
+      expect(
+        translateFailure(const SessionExpired(), 'x'),
+        'Entre de novo para continuar.',
+      );
+      expect(
+        translateError(SessionExpiredException(), null, 'x'),
+        'Entre de novo para continuar.',
+      );
+    });
+
+    test('translateSignInError tells a wrong password from other failures', () {
+      expect(
+        translateSignInError(ApiException(401, 'invalid credentials'), null),
+        'E-mail ou senha incorretos.',
+      );
+      expect(
+        translateSignInError(NetworkException(Exception('offline')), null),
+        'Sem conexão. Tente de novo.',
+      );
+      expect(
+        translateSignInError(ApiException(503, ''), null),
+        'O servidor está indisponível. Tente de novo em instantes.',
+      );
+      final unknown = translateSignInError(Exception('detail-123'), null);
+      expect(unknown, 'Não foi possível entrar. Tente de novo.');
+      expect(unknown, isNot(contains('detail-123')));
+    });
+  });
 }

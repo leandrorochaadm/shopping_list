@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/misc.dart' show ProviderException;
 
 import '../../data/services/api_exception.dart'
-    show ApiException, NetworkException;
+    show ApiException, NetworkException, SessionExpiredException;
 
 /// Classifies a technical failure ONCE, so every consumer — the message, a
 /// flow decision, a log line — switches over a sealed type instead of
@@ -34,12 +34,13 @@ sealed class AppFailure {
     if (raw is AppFailure) return raw;
 
     if (raw is NetworkException) return const NoConnection();
+    if (raw is SessionExpiredException) return const SessionExpired();
     if (raw is ApiException) {
       return switch (raw.statusCode) {
         401 || 403 => const AccessDenied(),
         404 => const RecordNotFound(),
         409 => const DuplicateRecord(),
-        >= 500 => const ServerUnavailable(),
+        429 || >= 500 => const ServerUnavailable(),
         _ => const RequestRejected(),
       };
     }
@@ -57,8 +58,13 @@ final class NoConnection extends AppFailure {
   const NoConnection();
 }
 
-/// 401/403. There is no login here, so this is never an expired session: it is
-/// a row-level security policy — or a wrong anon key — saying no.
+/// The token expired or the session was cleared; the router (step 14) sends
+/// the person to the login screen.
+final class SessionExpired extends AppFailure {
+  const SessionExpired();
+}
+
+/// 403, or a bare 401: the owner rule on the server saying no.
 final class AccessDenied extends AppFailure {
   const AccessDenied();
 }

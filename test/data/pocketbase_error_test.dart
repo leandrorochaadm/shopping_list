@@ -288,4 +288,30 @@ void main() {
     expect(items.single.id, 'abc123abc123abc');
     expect(items.single.getStringValue('user'), testUserId);
   });
+
+  group('SessionExpiredException', () {
+    test('requireSession throws SessionExpiredException', () {
+      final signedOut = testPocketBase(offlineClient(), signedIn: false);
+      expect(
+        () => requireSession(signedOut),
+        throwsA(isA<SessionExpiredException>()),
+      );
+
+      final expired = testPocketBase(offlineClient(), signedIn: false);
+      expired.authStore.save(fakeAuthToken(DateTime.utc(2000)), null);
+      expect(
+        () => requireSession(expired),
+        throwsA(isA<SessionExpiredException>()),
+      );
+    });
+
+    test('rethrowAsKnownFailure passes the same instance through', () {
+      final original = SessionExpiredException();
+
+      expect(
+        () => rethrowAsKnownFailure(original, StackTrace.current),
+        throwsA(same(original)),
+      );
+    });
+  });
 }
