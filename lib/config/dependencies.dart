@@ -171,7 +171,7 @@ final List<Override> overridesRemote = [
     (ref) => ConsumptionRepositoryRemote(ref.watch(pocketBaseProvider)),
   ),
   spendingCapRepositoryProvider.overrideWith(
-    (ref) => SpendingCapRepositoryRemote(ref.watch(supabaseClientProvider)),
+    (ref) => SpendingCapRepositoryRemote(ref.watch(pocketBaseProvider)),
   ),
   // The second exception, for the same reason as the label: the draft is a
   // purchase that is not a purchase yet, and it must survive precisely when

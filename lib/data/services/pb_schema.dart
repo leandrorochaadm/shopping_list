@@ -52,6 +52,7 @@ abstract final class PbFields {
   static const notFound = 'not_found';
   static const quantityInBaseUnit = 'quantity_in_base_unit';
   static const totalPaid = 'total_paid';
+  static const amount = 'amount';
   static const quantityWrittenOff = 'quantity_written_off';
   static const clearedNotFound = 'cleared_not_found';
   static const warned80At = 'warned_80_at';

@@ -28,6 +28,8 @@ import 'package:shopping_list/data/repositories/report/report_repository_remote.
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_remote.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
+import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_remote.dart';
 import 'package:shopping_list/data/repositories/store/store_repository.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_remote.dart';
@@ -195,6 +197,23 @@ void main() {
     expect(
       container.read(storeRepositoryProvider),
       isA<StoreRepositoryRemote>(),
+    );
+  });
+
+  test('runs the spending cap on PocketBase against the real server', () {
+    final container = ProviderContainer.test(
+      overrides: [
+        pocketBaseProvider.overrideWithValue(
+          testPocketBase(
+            MockClient((request) async => fail('no request expected')),
+          ),
+        ),
+        ...overridesRemote,
+      ],
+    );
+    expect(
+      container.read(spendingCapRepositoryProvider),
+      isA<SpendingCapRepositoryRemote>(),
     );
   });
 
