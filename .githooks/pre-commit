@@ -9,6 +9,7 @@ changes on top is only checked: re-staging it would sweep those changes into
 the commit, so the commit stops and asks for `dart format <file>` instead.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -18,9 +19,17 @@ def out(*args):
     return subprocess.run(args, check=True, capture_output=True, text=True).stdout.splitlines()
 
 
+def dart():
+    """`fvm dart` when the project pins its Flutter in .fvmrc, so the format matches that SDK."""
+    if os.path.exists('.fvmrc') and shutil.which('fvm'):
+        return ['fvm', 'dart']
+    return ['dart'] if shutil.which('dart') else None
+
+
 def main():
     # The hook also runs from an IDE, where the login shell's PATH is not loaded.
-    if shutil.which('dart') is None:
+    command = dart()
+    if command is None:
         print('pre-commit: dart is not on the PATH, skipping the format', file=sys.stderr)
         return 0
 
@@ -33,11 +42,11 @@ def main():
     full = [f for f in staged if f not in unstaged]
 
     if full:
-        subprocess.run(['dart', 'format', *full], check=True, capture_output=True)
+        subprocess.run([*command, 'format', *full], check=True, capture_output=True)
         subprocess.run(['git', 'add', *full], check=True)
 
     if partial:
-        check = subprocess.run(['dart', 'format', '--output=none', '--set-exit-if-changed', *partial])
+        check = subprocess.run([*command, 'format', '--output=none', '--set-exit-if-changed', *partial])
         if check.returncode != 0:
             print('pre-commit: partly staged files need formatting; run dart format on them and stage again.',
                   file=sys.stderr)
