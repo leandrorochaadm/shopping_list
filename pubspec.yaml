@@ -1,5 +1,5 @@
 name: shopping_list
-description: "Lista de compras de supermercado — PWA para dois iPhones, sem login, com base única no Supabase."
+description: "Lista de compras de supermercado — PWA para dois iPhones, com login, com base única no PocketBase."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -35,8 +35,6 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  supabase_flutter: ^2.17.2
-  # Replaces supabase_flutter during the migration; supabase_flutter leaves later.
   pocketbase: ^0.25.2
   flutter_riverpod: ^3.0.0
   go_router: ^18.0.0
@@ -44,11 +42,9 @@ dependencies:
   hive_ce_flutter: ^2.3.4
   intl: ^0.20.2
   fast_immutable_collections: ^11.2.0
-  http: ^1.6.0
   # ONLY for the browser's `online`/`offline` events, behind a conditional
   # import — decision 22 rules out connectivity_plus, and a polling Timer
-  # would wake the WebKit up for nothing. It is already in pubspec.lock as a
-  # transitive of supabase_flutter; declaring it is what keeps
+  # would wake the WebKit up for nothing. Declaring it is what keeps
   # `depend_on_referenced_packages` quiet, and the analyze of the CI green.
   web: ^1.1.1
   # The shared widget kit — today only `AppTextField`, the one field every
@@ -80,6 +76,11 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  # Only `package:http/testing.dart` (the `MockClient` of the `_remote` tests)
+  # and the `ClientException` of `test/data/api_exception_test.dart`; `lib/`
+  # does not import `package:http` (the app's `ClientException` is the
+  # `pocketbase` one).
+  http: ^1.6.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:hive_ce/hive.dart';
 import 'package:pocketbase/pocketbase.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/repositories/auth/auth_repository.dart';
 import '../data/repositories/auth/auth_repository_local.dart';
@@ -45,15 +44,6 @@ final pocketBaseProvider = Provider<PocketBase>(
   (ref) => throw UnimplementedError(
     'pocketBaseProvider was not overridden. main builds the client before '
     'runApp and overrides it there.',
-  ),
-);
-
-/// Kept only so the `_remote` repositories that have not moved to PocketBase
-/// yet still compile; reading it in the app throws.
-final supabaseClientProvider = Provider<SupabaseClient>(
-  (ref) => throw UnimplementedError(
-    'supabaseClientProvider is no longer initialized: this repository has not '
-    'moved to PocketBase yet.',
   ),
 );
 

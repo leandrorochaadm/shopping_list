@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:shopping_list/config/dependencies.dart';
 import 'package:http/testing.dart';
 import 'package:shopping_list/data/repositories/auth/auth_repository.dart';
@@ -33,14 +32,8 @@ import 'package:shopping_list/data/repositories/spending_cap/spending_cap_reposi
 import 'package:shopping_list/data/repositories/store/store_repository.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_remote.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../helpers/pocketbase_test_client.dart';
-
-/// Only its constructor is used: the three `_remote` repositories read
-/// `supabaseClientProvider`, and `Supabase.instance` asserts when
-/// `initialize` has not run — which is the case in EVERY test.
-class _MockClient extends Mock implements SupabaseClient {}
 
 /// The two override lists are what decides whether the app writes to a real
 /// store or to a fake, and a feature that forgets a line here compiles, passes
@@ -94,7 +87,6 @@ void main() {
 
     final container = ProviderContainer.test(
       overrides: [
-        supabaseClientProvider.overrideWithValue(_MockClient()),
         pocketBaseProvider.overrideWithValue(
           testPocketBase(
             MockClient((request) async => fail('no request expected')),

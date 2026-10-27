@@ -20,7 +20,7 @@ class MisconfiguredApp extends StatelessWidget {
     : title = 'Configuração ausente',
       message =
           'Este build saiu sem o endereço do banco.\n\n'
-          'Refaça o deploy passando SUPABASE_URL e SUPABASE_ANON_KEY.';
+          'Refaça o deploy com o arquivo config/prod.json (POCKETBASE_URL).';
 
   /// The address was there and the PocketBase client or the session
   /// restoration still failed with an unexpected error.
@@ -32,7 +32,7 @@ class MisconfiguredApp extends StatelessWidget {
     : title = 'Falha ao iniciar',
       message =
           'Não foi possível abrir a conexão com o banco deste build.\n\n'
-          'Confira SUPABASE_URL e SUPABASE_ANON_KEY e refaça o deploy.';
+          'Confira POCKETBASE_URL em config/prod.json e refaça o deploy.';
 
   /// The pt-BR date and currency data failed to load. It shares nothing with
   /// the two above: the build is fine and the browser is fine, so naming the
