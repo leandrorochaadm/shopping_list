@@ -6,10 +6,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository_local.dart';
+import 'package:shopping_list/data/repositories/device_user/device_user_repository.dart';
+import 'package:shopping_list/data/repositories/device_user/device_user_repository_local.dart';
+import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
+import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
 import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository.dart';
 import 'package:shopping_list/data/repositories/spending_cap/spending_cap_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/device_user.dart';
 import 'package:shopping_list/domain/models/money.dart';
+import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/report_period.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/ui/settings/widgets/settings_screen.dart';
@@ -27,7 +35,9 @@ class _SpyRepository extends SpendingCapRepositoryLocal {
   Object? failNextWrite;
 
   @override
-  Future<IList<MonthCapStatus>> fetchStatuses(IList<ReportPeriod> months) async {
+  Future<IList<MonthCapStatus>> fetchStatuses(
+    IList<ReportPeriod> months,
+  ) async {
     final failure = failNextRead;
     failNextRead = null;
     if (failure != null) throw failure;
@@ -43,6 +53,23 @@ class _SpyRepository extends SpendingCapRepositoryLocal {
     failNextWrite = null;
     if (failure != null) throw failure;
     return super.save(cap: cap, alerts: alerts);
+  }
+}
+
+class _SpySessionRepository extends AuthRepositoryLocal {
+  _SpySessionRepository({super.latency = Duration.zero})
+    : super(signedIn: true);
+
+  Object? failNextCall;
+  int signOutCalls = 0;
+
+  @override
+  Future<void> signOut() async {
+    signOutCalls++;
+    final failure = failNextCall;
+    failNextCall = null;
+    if (failure != null) throw failure;
+    return super.signOut();
   }
 }
 
@@ -179,7 +206,8 @@ void main() {
   ) async {
     await pumpSettings(
       tester,
-      caps: _SpyRepository(today: today)..failNextRead = ApiException(500, 'boom'),
+      caps: _SpyRepository(today: today)
+        ..failNextRead = ApiException(500, 'boom'),
     );
 
     expect(
@@ -294,10 +322,7 @@ void main() {
     )..failNextWrite = NetworkException('offline');
     await pumpSettings(tester, caps: repository);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('cap-amount')),
-      '180000',
-    );
+    await tester.enterText(find.byKey(const ValueKey('cap-amount')), '180000');
     await tester.tap(find.byKey(const ValueKey('save-cap')));
     await tester.pumpAndSettle();
 
@@ -340,5 +365,180 @@ void main() {
     );
 
     expect(cap.dy, lessThan(label.dy));
+  });
+
+  group('sign out', () {
+    Future<void> pumpSignedIn(
+      WidgetTester tester, {
+      required AuthRepository auth,
+      PurchaseDraftRepositoryLocal? drafts,
+      DeviceUserRepositoryLocal? users,
+    }) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authRepositoryProvider.overrideWith((ref) => auth),
+            purchaseDraftRepositoryProvider.overrideWith(
+              (ref) => drafts ?? PurchaseDraftRepositoryLocal(),
+            ),
+            deviceUserRepositoryProvider.overrideWith(
+              (ref) =>
+                  users ??
+                  DeviceUserRepositoryLocal(
+                    initial: DeviceUser('Leandro'),
+                    latency: Duration.zero,
+                  ),
+            ),
+            spendingCapRepositoryProvider.overrideWith(
+              (ref) => _SpyRepository(
+                spending: {thisMonth: const Money(130000)},
+                today: today,
+              ),
+            ),
+          ],
+          child: MaterialApp.router(routerConfig: _router()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('sign-out')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> openDialog(WidgetTester tester) async {
+      await tester.tap(find.byKey(const ValueKey('sign-out')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('shows the sign out button below the device user section', (
+      tester,
+    ) async {
+      await pumpSignedIn(tester, auth: _SpySessionRepository());
+
+      final label = tester.getTopLeft(
+        find.text('Quem está usando este aparelho'),
+      );
+      final button = tester.getTopLeft(find.byKey(const ValueKey('sign-out')));
+      expect(button.dy, greaterThan(label.dy));
+      expect(find.text('Sair'), findsOneWidget);
+    });
+
+    testWidgets('signs out once after confirming', (tester) async {
+      final auth = _SpySessionRepository();
+      await pumpSignedIn(tester, auth: auth);
+
+      await openDialog(tester);
+      expect(find.text('Sair da conta?'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('confirm-sign-out')));
+      await tester.pumpAndSettle();
+
+      expect(auth.signOutCalls, 1);
+      expect(find.text('Sair da conta?'), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
+
+    testWidgets('does nothing when the confirmation is canceled', (
+      tester,
+    ) async {
+      final auth = _SpySessionRepository();
+      await pumpSignedIn(tester, auth: auth);
+
+      await openDialog(tester);
+      await tester.tap(find.byKey(const ValueKey('cancel-sign-out')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sair da conta?'), findsNothing);
+      expect(auth.signOutCalls, 0);
+      expect(auth.isSignedIn, isTrue);
+      expect(find.text('Configurações'), findsOneWidget);
+    });
+
+    testWidgets('does nothing when the dialog is dismissed', (tester) async {
+      final auth = _SpySessionRepository();
+      await pumpSignedIn(tester, auth: auth);
+
+      await openDialog(tester);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sair da conta?'), findsNothing);
+      expect(auth.signOutCalls, 0);
+      expect(find.text('Configurações'), findsOneWidget);
+    });
+
+    testWidgets('shows the failure in a SnackBar and stays on settings', (
+      tester,
+    ) async {
+      final auth = _SpySessionRepository()
+        ..failNextCall = Exception('disk-full');
+      await pumpSignedIn(tester, auth: auth);
+
+      await openDialog(tester);
+      await tester.tap(find.byKey(const ValueKey('confirm-sign-out')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Não foi possível sair. Tente de novo.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const ValueKey('sign-out')), findsOneWidget);
+      expect(find.text('Sair'), findsOneWidget);
+    });
+
+    testWidgets('disables the button while signing out', (tester) async {
+      final auth = _SpySessionRepository(
+        latency: const Duration(milliseconds: 500),
+      );
+      await pumpSignedIn(tester, auth: auth);
+
+      await openDialog(tester);
+      await tester.tap(find.byKey(const ValueKey('confirm-sign-out')));
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text('Saindo...'), findsOneWidget);
+      final button = tester.widget<OutlinedButton>(
+        find.byKey(const ValueKey('sign-out')),
+      );
+      expect(button.onPressed, isNull);
+
+      // pumpAndSettle alone would not advance the fake's pending delay.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('sign-out')),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Saindo...'), findsNothing);
+      expect(find.text('Sair'), findsOneWidget);
+    });
+
+    testWidgets('keeps the draft and the label after signing out', (
+      tester,
+    ) async {
+      final draft = PurchaseDraft.startedOn(today, 'Leandro');
+      final drafts = PurchaseDraftRepositoryLocal(initial: draft);
+      final users = DeviceUserRepositoryLocal(
+        initial: DeviceUser('Leandro'),
+        latency: Duration.zero,
+      );
+      await pumpSignedIn(
+        tester,
+        auth: _SpySessionRepository(),
+        drafts: drafts,
+        users: users,
+      );
+
+      await openDialog(tester);
+      await tester.tap(find.byKey(const ValueKey('confirm-sign-out')));
+      await tester.pumpAndSettle();
+
+      expect(drafts.readNow(), draft);
+      expect(drafts.writes, 0);
+      expect(users.readNow()?.name, 'Leandro');
+    });
   });
 }
