@@ -173,6 +173,8 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | mudança numa linha da lista | `ListItemChange` | estado final de `fulfilled_on` e `not_found`; `notFound` nulo é "não mexe" |
 | o que acontece com fulfilled_on | `FulfillmentChange` | `KeepFulfillment`, `SetFulfilled`, `ReopenItem`; reabrir ≠ não mexer |
 | etapa da escrita | `PurchaseWriteStep` | a ordem do lote: pai antes do filho, inversa na exclusão |
+| linha crua do relatório | `PeriodLine` | uma linha de compra do intervalo com categoria, tipo e marca já resolvidos. **Marca nula é valor** |
+| somar o período | `summarizePeriod` | o que a função report_period do SQL fazia. Não filtra data nem active, e não ordena |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
