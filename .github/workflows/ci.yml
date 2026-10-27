@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+# Keep in sync with release.yml and the PocketBase on the VPS.
+env:
+  FLUTTER_VERSION: 3.44.0
+  POCKETBASE_VERSION: 0.40.5
+
+jobs:
+  flutter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
+      - run: flutter build web --dart-define-from-file=config/dev.json.example
+
+  pocketbase:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Download PocketBase
+        run: |
+          set -euo pipefail
+          zip="pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip"
+          base="https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}"
+          dir="$RUNNER_TEMP/pocketbase-download"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/$zip" "$base/$zip"
+          curl -fsSL --retry 3 -o "$dir/checksums.txt" "$base/checksums.txt"
+          (cd "$dir" && grep " ${zip}$" checksums.txt | sha256sum -c -)
+          unzip -o "$dir/$zip" pocketbase -d pocketbase/
+          ./pocketbase/pocketbase --version | grep -F "$POCKETBASE_VERSION"
+      - name: Check migrations on an empty database
+        run: ./pocketbase/pocketbase migrate up --dir="$RUNNER_TEMP/pb_data" --migrationsDir=pocketbase/pb_migrations
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Test tool scripts
+        run: uv run --with pytest --with httpx pytest tool/

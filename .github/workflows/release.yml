@@ -1,0 +1,193 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.44.0
+  POCKETBASE_VERSION: 0.40.5
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Check tag matches pubspec
+        run: |
+          set -euo pipefail
+          version="$(grep -m1 '^version:' pubspec.yaml | sed 's/^version:[[:space:]]*//; s/+.*//' | tr -d '[:space:]')"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match pubspec version ${version}"
+            exit 1
+          fi
+      - name: Check migrations on an empty database
+        run: |
+          set -euo pipefail
+          zip="pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip"
+          base="https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}"
+          dir="$RUNNER_TEMP/pocketbase"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/$zip" "$base/$zip"
+          curl -fsSL --retry 3 -o "$dir/checksums.txt" "$base/checksums.txt"
+          (cd "$dir" && grep " ${zip}$" checksums.txt | sha256sum -c -)
+          unzip -o -q "$dir/$zip" pocketbase -d "$dir"
+          "$dir/pocketbase" migrate up --dir="$dir/pb_data" --migrationsDir=pocketbase/pb_migrations
+
+  # Runs before the APK and the web app go out, so a new app version never meets an old schema.
+  migrations:
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Deploy PocketBase migrations
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_SSH_HOST: ${{ vars.VPS_SSH_HOST }}
+          VPS_SSH_USER: ${{ vars.VPS_SSH_USER }}
+          VPS_SSH_KNOWN_HOSTS: ${{ vars.VPS_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in VPS_SSH_KEY VPS_SSH_HOST VPS_SSH_USER VPS_SSH_KNOWN_HOSTS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing ${name}"
+              exit 1
+            fi
+          done
+          key="$RUNNER_TEMP/deploy_key"
+          known_hosts="$RUNNER_TEMP/known_hosts"
+          printf '%s\n' "$VPS_SSH_KEY" > "$key"
+          chmod 600 "$key"
+          printf '%s\n' "$VPS_SSH_KNOWN_HOSTS" > "$known_hosts"
+          # The key's forced command on the server ignores the remote command and reads the tarball.
+          tar -C pocketbase/pb_migrations -czf - . | ssh -i "$key" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts" \
+            "${VPS_SSH_USER}@${VPS_SSH_HOST}" deploy
+          rm -f "$key"
+
+  android:
+    needs: [verify, migrations]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Write production config
+        env:
+          POCKETBASE_URL: ${{ secrets.PROD_POCKETBASE_URL }}
+          SENTRY_DSN: ${{ secrets.PROD_SENTRY_DSN }}
+        run: uv run tool/ci/write_prod_config.py
+      - name: Write signing files
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Missing secret ANDROID_KEYSTORE_BASE64}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing secret ANDROID_KEYSTORE_PASSWORD}"
+          : "${ANDROID_KEY_ALIAS:?Missing secret ANDROID_KEY_ALIAS}"
+          : "${ANDROID_KEY_PASSWORD:?Missing secret ANDROID_KEY_PASSWORD}"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/upload-keystore.jks
+          {
+            echo "storePassword=${ANDROID_KEYSTORE_PASSWORD}"
+            echo "keyPassword=${ANDROID_KEY_PASSWORD}"
+            echo "keyAlias=${ANDROID_KEY_ALIAS}"
+            echo "storeFile=upload-keystore.jks"
+          } > android/key.properties
+      - run: flutter pub get
+      - run: flutter build apk --release --dart-define-from-file=config/prod.json
+      - name: Check release signature
+        run: |
+          set -euo pipefail
+          build_tools="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)"
+          certs="$("$build_tools/apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)"
+          if echo "$certs" | grep -q 'CN=Android Debug'; then
+            echo "::error::APK is signed with the debug key"
+            exit 1
+          fi
+      - name: Name the APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk "shop-${GITHUB_REF_NAME}.apk"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: shop-${{ github.ref_name }}.apk
+          generate_release_notes: true
+      - name: Remove signing files and config
+        if: always()
+        run: rm -f android/key.properties android/app/upload-keystore.jks config/prod.json
+
+  web:
+    needs: migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: false
+      - name: Check Cloudflare settings
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_PAGES_PROJECT; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing ${name}"
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - name: Write production config
+        env:
+          POCKETBASE_URL: ${{ secrets.PROD_POCKETBASE_URL }}
+          SENTRY_DSN: ${{ secrets.PROD_SENTRY_DSN }}
+        run: uv run tool/ci/write_prod_config.py
+      - run: flutter pub get
+      - run: flutter build web --release --dart-define-from-file=config/prod.json
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: '4.148.0'
+          command: pages deploy build/web --project-name=${{ vars.CLOUDFLARE_PAGES_PROJECT }} --branch=main

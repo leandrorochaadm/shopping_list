@@ -57,3 +57,12 @@ app.*.map.json
 
 # Local override that points tekton_core at the clone next door — never committed.
 pubspec_overrides.yaml
+
+# PocketBase: only migrations are versioned
+pocketbase/*
+!pocketbase/pb_migrations/
+# Build-time config: only the examples are versioned
+/config/*.json
+!/config/*.json.example
+# wrangler cache
+.wrangler/
