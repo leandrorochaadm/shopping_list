@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_remote.dart';
-import 'package:shopping_list/data/repositories/store/store_repository_remote.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
@@ -16,7 +15,6 @@ import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
-import 'package:shopping_list/domain/models/store.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class _MockClient extends Mock implements SupabaseClient {}
@@ -497,32 +495,6 @@ void main() {
         contains('product_barcode ( code, store_id )'),
       );
       expect(table.columns.single, isNot(contains('product_barcode!inner')));
-    });
-  });
-
-  group('StoreRepositoryRemote', () {
-    late StoreRepositoryRemote repository;
-
-    setUp(() => repository = StoreRepositoryRemote(client));
-
-    test('fetchAll translates the SQLSTATE instead of leaking it', () {
-      expect(repository.fetchAll, throwsA(isA<ApiException>()));
-    });
-
-    test('create translates the SQLSTATE instead of leaking it', () {
-      expect(
-        () => repository.create(Store(name: 'Carrefour')),
-        throwsA(isA<ApiException>()),
-      );
-    });
-
-    test('update translates the SQLSTATE instead of leaking it', () {
-      // Renaming "Carrefur" to "Carrefour" collides with a store that
-      // already holds the name, and 23505 is what comes back.
-      expect(
-        () => repository.update(Store(id: 'store-1', name: 'Carrefour')),
-        throwsA(isA<ApiException>()),
-      );
     });
   });
 }

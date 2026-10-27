@@ -22,7 +22,7 @@ abstract class StoreRepository {
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final storeRepositoryProvider = Provider<StoreRepository>(
   (ref) => throw UnimplementedError(
     'storeRepositoryProvider was not overridden. See config/dependencies.dart.',

@@ -89,6 +89,11 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         supabaseClientProvider.overrideWithValue(_MockClient()),
+        pocketBaseProvider.overrideWithValue(
+          testPocketBase(
+            MockClient((request) async => fail('no request expected')),
+          ),
+        ),
         deviceUserBoxProvider.overrideWithValue(box),
         purchaseDraftBoxProvider.overrideWithValue(draftBox),
         ...overridesRemote,
@@ -170,6 +175,23 @@ void main() {
     final repository = container.read(authRepositoryProvider);
     expect(repository, isA<AuthRepositoryLocal>());
     expect(repository.isSignedIn, isTrue);
+  });
+
+  test('runs the stores on PocketBase against the real server', () {
+    final container = ProviderContainer.test(
+      overrides: [
+        pocketBaseProvider.overrideWithValue(
+          testPocketBase(
+            MockClient((request) async => fail('no request expected')),
+          ),
+        ),
+        ...overridesRemote,
+      ],
+    );
+    expect(
+      container.read(storeRepositoryProvider),
+      isA<StoreRepositoryRemote>(),
+    );
   });
 
   test('runs the session on PocketBase against the real server', () {
