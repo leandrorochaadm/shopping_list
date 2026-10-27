@@ -165,10 +165,10 @@ final List<Override> overridesRemote = [
     (ref) => PurchaseRepositoryRemote(ref.watch(pocketBaseProvider)),
   ),
   reportRepositoryProvider.overrideWith(
-    (ref) => ReportRepositoryRemote(ref.watch(supabaseClientProvider)),
+    (ref) => ReportRepositoryRemote(ref.watch(pocketBaseProvider)),
   ),
   consumptionRepositoryProvider.overrideWith(
-    (ref) => ConsumptionRepositoryRemote(ref.watch(supabaseClientProvider)),
+    (ref) => ConsumptionRepositoryRemote(ref.watch(pocketBaseProvider)),
   ),
   spendingCapRepositoryProvider.overrideWith(
     (ref) => SpendingCapRepositoryRemote(ref.watch(supabaseClientProvider)),

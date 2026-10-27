@@ -12,6 +12,8 @@ import 'package:shopping_list/data/repositories/auth/auth_repository_remote.dart
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_remote.dart';
+import 'package:shopping_list/data/repositories/consumption/consumption_repository.dart';
+import 'package:shopping_list/data/repositories/consumption/consumption_repository_remote.dart';
 import 'package:shopping_list/data/repositories/device_user/device_user_repository.dart';
 import 'package:shopping_list/data/repositories/device_user/device_user_repository_hive.dart';
 import 'package:shopping_list/data/repositories/device_user/device_user_repository_local.dart';
@@ -21,6 +23,8 @@ import 'package:shopping_list/data/repositories/purchase/purchase_repository_rem
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_hive.dart';
 import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_repository_local.dart';
+import 'package:shopping_list/data/repositories/report/report_repository.dart';
+import 'package:shopping_list/data/repositories/report/report_repository_remote.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_remote.dart';
@@ -193,6 +197,30 @@ void main() {
       isA<StoreRepositoryRemote>(),
     );
   });
+
+  test(
+    'runs the report and the consumption on PocketBase against the real server',
+    () {
+      final container = ProviderContainer.test(
+        overrides: [
+          pocketBaseProvider.overrideWithValue(
+            testPocketBase(
+              MockClient((request) async => fail('no request expected')),
+            ),
+          ),
+          ...overridesRemote,
+        ],
+      );
+      expect(
+        container.read(reportRepositoryProvider),
+        isA<ReportRepositoryRemote>(),
+      );
+      expect(
+        container.read(consumptionRepositoryProvider),
+        isA<ConsumptionRepositoryRemote>(),
+      );
+    },
+  );
 
   test('runs the session on PocketBase against the real server', () {
     final container = ProviderContainer.test(

@@ -13,12 +13,11 @@ import '../../../domain/models/type_consumption.dart';
 /// repositories do.
 abstract class ConsumptionRepository {
   /// Consumption per type in the two intervals, plus the day each type was
-  /// first ever bought — in ONE call, at ONE instant of the database.
-  ///
-  /// Two calls would be two instants, and a purchase registered in between
-  /// would make "falta comprar" disagree with the average it is subtracted
-  /// from. Both intervals are decided in the ViewModel, off the phone's clock:
-  /// no `now()` in SQL (decision 7).
+  /// first ever bought. It is read from the raw lines since
+  /// `consumptionReadStart` and added up by `buildTypeConsumption`; a purchase
+  /// saved between the reads is handled in the domain. Both intervals are
+  /// decided in the ViewModel, off the phone's clock: no `now()` in the
+  /// repository (decision 7).
   ///
   /// Takes [ReportPeriod] twice and not four loose dates: a month IS a period,
   /// the closed window IS a period, and `ReportPeriod` already refuses an
@@ -34,7 +33,7 @@ abstract class ConsumptionRepository {
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final consumptionRepositoryProvider = Provider<ConsumptionRepository>(
   (ref) => throw UnimplementedError(
     'consumptionRepositoryProvider was not overridden. See '
