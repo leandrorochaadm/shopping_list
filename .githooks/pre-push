@@ -6,7 +6,7 @@ Two things pull this lock in opposite directions:
 * `pubspec_overrides.yaml` (local, git-ignored) points tekton_core at the clone
   next door, so the kit can be edited without a commit in between. Every
   `flutter pub get` then writes a lock with `source: path`.
-* `deploy.yml` checks out THIS repository alone. A lock with `source: path`
+* the CI checks out THIS repository alone. A lock with `source: path`
   breaks its `flutter pub get` on the first line.
 
 So before every push this hook steps the override aside, resolves tekton_core
@@ -14,16 +14,14 @@ from `main`, amends the resulting lock into the commit going out, and puts the
 override back. The push is then STOPPED on purpose: `git push` had already
 resolved the old commit, and only the next push carries the amended one.
 
-Then it runs the same gates as `deploy.yml` (analyze, tests, coverage floor),
+Then it runs the same gates as the CI (analyze, tests, coverage floor),
 so a push that CI would reject is stopped here instead.
 
-Last, with the gates green, it applies the pending migrations to the linked
-Supabase project. Every branch deploys, and every preview points at `prod`
-while there is no `dev` project (see the header of `deploy.yml`), so the
-schema has to be there before the build that `git push` is about to trigger.
+Last, with the gates green, it runs `tool/pb_permissions_test.py`, which starts a
+throwaway PocketBase with the migrations and checks the owner rules. A missing
+binary asks for `make setup`.
 """
 
-import json
 import os
 import re
 import shutil
@@ -33,7 +31,9 @@ import sys
 ZERO = '0' * 40
 OVERRIDES = 'pubspec_overrides.yaml'
 STASHED = 'pubspec_overrides.yaml.pre-push'
-WORKFLOW = '.github/workflows/deploy.yml'
+WORKFLOWS = ('.github/workflows/ci.yml', '.github/workflows/deploy.yml')
+PERMISSIONS_TEST = 'tool/pb_permissions_test.py'
+BINARY_MISSING = 3  # ExitCode.BINARY_MISSING of tool/pb_permissions_test.py
 LCOV = 'coverage/lcov.info'
 
 
@@ -93,10 +93,15 @@ def sync_lock():
 
 
 def min_coverage():
-    """Reads the floor from the workflow, so the number lives in one place."""
-    with open(WORKFLOW, encoding='utf-8') as handle:
-        match = re.search(r"MIN_COVERAGE:\s*'?([\d.]+)'?", handle.read())
-    return float(match.group(1)) if match else 90.0
+    """Reads the floor from the first workflow that has it, so the number lives in one place."""
+    for path in WORKFLOWS:
+        if not os.path.exists(path):
+            continue
+        with open(path, encoding='utf-8') as handle:
+            match = re.search(r"MIN_COVERAGE:\s*'?([\d.]+)'?", handle.read())
+        if match:
+            return float(match.group(1))
+    return 90.0
 
 
 def line_coverage():
@@ -117,7 +122,7 @@ def gate(title, *args):
 
 
 def checks():
-    """The same gates `deploy.yml` runs before the build, in the same order."""
+    """The same gates the CI runs before the build, in the same order."""
     if not gate('flutter analyze', 'flutter', 'analyze'):
         print('pre-push: flutter analyze failed.', file=sys.stderr)
         return 1
@@ -132,32 +137,21 @@ def checks():
     return 0
 
 
-def migrate():
-    """Applies the pending migrations to the linked project. 0 when up to date."""
-    if shutil.which('supabase') is None:
-        print('pre-push: supabase is not on the PATH, migrations NOT applied', file=sys.stderr)
-        return 0
-
-    # `--agent no` keeps the prompts and the format the same from an IDE.
-    flags = ('--linked', '--agent', 'no', '--output-format', 'json')
-    print('pre-push: checking pending migrations...')
-    dry = subprocess.run(('supabase', 'db', 'push', '--dry-run', *flags),
-                         capture_output=True, text=True)
-    if dry.returncode != 0:
-        print(dry.stderr or dry.stdout, file=sys.stderr)
-        print('pre-push: could not reach the linked project.', file=sys.stderr)
+def permissions(*extra_args):
+    """Runs the PocketBase permission test. 0 when it passed, 1 otherwise."""
+    if shutil.which('uv') is None:
+        print('pre-push: uv is not on the PATH, the permission test did NOT run.', file=sys.stderr)
         return 1
-    report = json.loads(dry.stdout)
-    if report.get('upToDate'):
-        print('pre-push: database is up to date')
+    title = f'uv run {PERMISSIONS_TEST}'
+    print(f'pre-push: {title}...')
+    code = subprocess.run(('uv', 'run', PERMISSIONS_TEST, *extra_args)).returncode
+    if code == 0:
         return 0
-
-    for name in report.get('migrations', []):
-        print(f'pre-push: applying {name}')
-    if not gate('supabase db push', 'supabase', 'db', 'push', '--yes', *flags):
-        print('pre-push: supabase db push failed; the push is stopped.', file=sys.stderr)
+    if code == BINARY_MISSING:
+        print('pre-push: the PocketBase binary is missing -- run: make setup', file=sys.stderr)
         return 1
-    return 0
+    print(f'pre-push: the permission test failed (exit {code}); the push is stopped.', file=sys.stderr)
+    return 1
 
 
 def main():
@@ -170,7 +164,7 @@ def main():
         print('pre-push: flutter is not on the PATH, skipping the checks', file=sys.stderr)
         return 0
 
-    return sync_lock() or checks() or migrate()
+    return sync_lock() or checks() or permissions()
 
 
 if __name__ == '__main__':

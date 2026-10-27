@@ -4,8 +4,6 @@
 SHELL := /bin/bash
 .SHELLFLAGS := -euo pipefail -c
 
-DB ?= shopping_list_dev
-
 PB_VERSION := 0.40.5
 PB_DIR := pocketbase
 PB_BIN := $(PB_DIR)/pocketbase
@@ -30,23 +28,21 @@ SHA256 := $(if $(shell command -v sha256sum),sha256sum,shasum -a 256)
 .PHONY: run phone api seed help setup pb-install pb-migrate pb-superuser \
 	pb-serve pb-reset config run-android test test-tool check build-web build-apk
 
-# The app against the local Postgres, starting the API if it is not up.
+# The app against the local PocketBase, starting it if it is not up.
 run:
 	tool/local_dev/run.sh
 
-# A release build for the iPhone, over HTTPS on the tailnet.
+# A release build for the iPhone against the local PocketBase, over HTTPS on the tailnet.
 phone:
 	tool/local_dev/phone.sh
 
-# Only the API (PostgREST + Caddy), for when the app runs elsewhere.
-api:
-	tool/local_dev/up.sh
+# Only the local PocketBase, for when the app runs elsewhere.
+api: pb-serve
 
-# Regenerates supabase/seed.sql anchored on today and applies it locally.
-# It WIPES the catalog, purchases and list of $(DB) first.
+# Needs `make api` (or `make pb-serve`) up in another terminal. Wipes and
+# rewrites only the records of dev@local.test.
 seed:
-	uv run tool/make_seed.py
-	psql -v ON_ERROR_STOP=1 -q -d $(DB) -f supabase/seed.sql
+	uv run tool/pb_seed.py
 
 help: ## List the available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
