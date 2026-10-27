@@ -162,6 +162,9 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | há preço a conferir? | `hasUnconfirmedPrices` / `unconfirmedPrices` / `PurchaseItem.isPriceUnconfirmed` | |
 | conferir um preço ou todos | `withPriceConfirmed` / `allPricesConfirmed` / `confirmPrice` / `confirmAllPrices` | os dois primeiros no rascunho, os dois últimos no ViewModel |
 | linha escolhida sem preço | `CostRanking.missingPriceOf` | "Digite o preço do {label}." acima do botão travado |
+| id de registro | `newRecordId` / `isRecordId` | 15 caracteres `[a-z0-9]`, o formato do PocketBase. Nasce no app, antes da gravação |
+| data guardada | `encodeStoredDay` / `decodeStoredDay` | dia de calendário à meia-noite UTC, `'YYYY-MM-DD 00:00:00.000Z'`. Lê só os 10 primeiros caracteres |
+| instante guardado | `encodeInstant` / `decodeInstant` | sempre UTC. `created_at` da compra e `warned_*_at` |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
