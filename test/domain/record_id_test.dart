@@ -2,7 +2,6 @@ import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/record_id.dart';
-import 'package:shopping_list/domain/models/uuid.dart';
 
 void main() {
   group('record id', () {
@@ -33,7 +32,7 @@ void main() {
     });
 
     test('refuses a uuid, empty, uppercase and the wrong length', () {
-      expect(isRecordId(newUuidV4()), isFalse);
+      expect(isRecordId('3f2b8c1e-4d5a-4b6c-8d7e-9f0a1b2c3d4e'), isFalse);
       expect(isRecordId(''), isFalse);
       expect(isRecordId('abc123def456gh'), isFalse);
       expect(isRecordId('abc123def456ghij'), isFalse);

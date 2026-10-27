@@ -24,7 +24,7 @@ abstract class ShoppingListRepository {
   /// Writes the line and returns what the database created, embeds included.
   ///
   /// **The item arrives with its `id` already filled in**, born on the phone
-  /// through `newUuidV4()`. It is not a whim: without the id before the write
+  /// through `newRecordId()`. It is not a whim: without the id before the write
   /// there is no way to discard the echo of our own INSERT, and resending an
   /// `add` that timed out would create a second item on the list.
   ///

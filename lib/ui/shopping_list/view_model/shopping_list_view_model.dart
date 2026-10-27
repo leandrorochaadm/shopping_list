@@ -10,7 +10,7 @@ import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
-import '../../../domain/models/uuid.dart';
+import '../../../domain/models/record_id.dart';
 import '../../core/error_translation.dart';
 
 /// Screen 1: the list the two of them edit from their phones.
@@ -81,7 +81,7 @@ final class ShoppingListViewModel
   /// registration discarding it would make the second line of milk worth any
   /// milk — exactly what the person did not want.
   ///
-  /// The key is born here through `newUuidV4()`, not in the database: it is
+  /// The key is born here through `newRecordId()`, not in the database: it is
   /// what lets the repository discard the echo of its own INSERT, and what
   /// makes resending a timed-out `add` not become a second item.
   Future<String?> add(
@@ -96,7 +96,7 @@ final class ShoppingListViewModel
     _running = true;
     try {
       final item = ShoppingListItem(
-        id: newUuidV4(),
+        id: newRecordId(),
         type: type,
         category: category,
         preferredRegistration: preferredRegistration,
@@ -152,7 +152,7 @@ final class ShoppingListViewModel
   /// five items is one action.
   ///
   /// It takes [MonthlyAverage] and not a list of items because the item is
-  /// born with a `uuid` and with today's day, and neither can be created by a
+  /// born with a record id and with today's day, and neither can be created by a
   /// widget (rules 9 and 2). The screen hands over what it chose; whoever
   /// builds the entity is here — the same shape [add] already has.
   ///
@@ -173,7 +173,7 @@ final class ShoppingListViewModel
             .read(shoppingListRepositoryProvider)
             .add(
               ShoppingListItem(
-                id: newUuidV4(),
+                id: newRecordId(),
                 type: line.type,
                 category: line.category,
                 // PantryCheck nunca pergunta quantidade (glossário

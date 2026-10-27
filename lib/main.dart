@@ -61,6 +61,7 @@ Future<void> main() async {
     purchaseDraftBox = await Hive.openBox<String>(
       PurchaseDraftRepositoryHive.boxName,
     );
+    await PurchaseDraftRepositoryHive.discardLegacyDraft(purchaseDraftBox);
     // The third box, in the SAME try: a browser that denies IndexedDB denies
     // all three, and without the session box no login survives closing the app.
     authBox = await Hive.openBox<String>(authBoxName);

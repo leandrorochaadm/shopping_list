@@ -148,7 +148,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
 
   /// The value of "Qualquer um" in the dropdown. Not null, because null is
   /// what the field holds when nothing was chosen; and never a real id, since
-  /// ids are uuids.
+  /// ids are 15 characters of `[a-z0-9]` (`newRecordId`).
   static const _any = '';
 
   @override

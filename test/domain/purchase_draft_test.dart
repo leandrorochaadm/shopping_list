@@ -2,6 +2,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
+import 'package:shopping_list/domain/models/record_id.dart';
 import 'package:shopping_list/domain/models/scan_resolution.dart';
 
 import '../helpers/purchase.dart';
@@ -33,6 +34,11 @@ void main() {
 
   test('unconfirmedPrices counts only the lastPurchase lines', () {
     expect(withItems(draft).unconfirmedPrices, 2);
+  });
+
+  test('startedOn draws a record id for the purchase', () {
+    final draft = PurchaseDraft.startedOn(DateTime(2026, 8, 18), 'Leandro');
+    expect(isRecordId(draft.purchaseId), isTrue);
   });
 
   test('an empty draft has none', () {

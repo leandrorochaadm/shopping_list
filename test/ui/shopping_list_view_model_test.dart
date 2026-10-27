@@ -10,6 +10,7 @@ import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/domain/models/monthly_average.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
+import 'package:shopping_list/domain/models/record_id.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/ui/shopping_list/view_model/shopping_list_view_model.dart';
@@ -194,7 +195,7 @@ void main() {
         .add(_milk, _drinks, today: DateTime(2026, 8, 28));
 
     expect(repository.lastAdded!.id, isNotNull);
-    expect(repository.lastAdded!.id!.length, 36);
+    expect(repository.lastAdded!.id!.length, recordIdLength);
   });
 
   test(
@@ -411,6 +412,22 @@ void main() {
 
       expect(error, isNull);
       expect(repository.lastAdded!.quantity, 2000);
+    });
+
+    test('add and addMany give each item a record id', () async {
+      final repository = _SpyRepository(initial: seed);
+      final container = containerWith(repository);
+      await container.read(shoppingListViewModelProvider.future);
+      final viewModel = container.read(shoppingListViewModelProvider.notifier);
+
+      await viewModel.add(_milk, _drinks, today: DateTime(2026, 8, 28));
+      expect(isRecordId(repository.lastAdded!.id!), isTrue);
+
+      await viewModel.addMany(
+        [_line(typeId: 'type-5', name: 'Café', average: 700)].lock,
+        today: DateTime(2026, 8, 28),
+      );
+      expect(isRecordId(repository.lastAdded!.id!), isTrue);
     });
 
     test('add with no quantity keeps being the `#1a` path', () async {

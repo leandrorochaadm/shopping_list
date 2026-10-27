@@ -5,6 +5,7 @@ import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
+import 'package:shopping_list/domain/models/record_id.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart'
     show InvalidQuantity;
 
@@ -14,11 +15,7 @@ void main() {
   // Fixed instants everywhere: `DateTime.now()` in a test is a test that
   // fails once a year, at midnight.
   final today = DateTime(2026, 8, 28);
-  final crate = optionByPiece(
-    id: 'prod-4',
-    brand: cokeBrand,
-    pieceCount: 12,
-  );
+  final crate = optionByPiece(id: 'prod-4', brand: cokeBrand, pieceCount: 12);
   final bottle = optionByPiece(id: 'prod-1', brand: cokeBrand);
   final beef = optionByWeight(id: 'prod-5');
 
@@ -38,6 +35,15 @@ void main() {
       expect(twelve.quantityInBaseUnit, 4200);
       expect(one.quantity, 1, reason: 'what was typed is kept as typed');
       expect(twelve.quantity, 12);
+    });
+
+    test('a purchase with no id is born with a record id', () {
+      final purchase = Purchase(
+        date: DateTime(2026, 8, 18),
+        storeId: 's',
+        registeredBy: 'L',
+      );
+      expect(isRecordId(purchase.id), isTrue);
     });
 
     test('sold by weight passes the parsed amount straight through', () {
@@ -66,12 +72,13 @@ void main() {
         paid: const Money(6200),
       );
 
-      expect(item.id, hasLength(36));
-      expect(item.id, isNot(PurchaseItem(
-        option: crate,
-        quantity: 1,
-        paid: const Money(6200),
-      ).id));
+      expect(item.id, hasLength(recordIdLength));
+      expect(
+        item.id,
+        isNot(
+          PurchaseItem(option: crate, quantity: 1, paid: const Money(6200)).id,
+        ),
+      );
     });
 
     test('reads what the row shows', () {
@@ -90,11 +97,7 @@ void main() {
     test('writes only the table columns, with no purchase_id', () {
       // The purchase_id is the same for every line and comes from the
       // purchase itself, in `p_purchase`.
-      final json = purchaseItem(
-        id: 'i1',
-        option: crate,
-        cents: 6200,
-      ).toJson();
+      final json = purchaseItem(id: 'i1', option: crate, cents: 6200).toJson();
 
       expect(json, {
         'id': 'i1',
@@ -245,7 +248,7 @@ void main() {
       );
 
       expect(withHour.date, DateTime(2026, 8, 18));
-      expect(withHour.id, hasLength(36));
+      expect(withHour.id, hasLength(recordIdLength));
     });
 
     test('equality covers every field', () {
@@ -253,7 +256,11 @@ void main() {
       expect(purchase().hashCode, purchase().hashCode);
       expect(
         purchase(),
-        isNot(purchase(items: [purchaseItem(id: 'i1', option: crate)].lock)),
+        isNot(
+          purchase(
+            items: [purchaseItem(id: 'i1', option: crate)].lock,
+          ),
+        ),
       );
       expect(purchase().toString(), contains('2026-08-18'));
     });
@@ -277,7 +284,7 @@ void main() {
       expect(fresh.registeredBy, 'Leandro');
       expect(fresh.isEmpty, isTrue);
       expect(fresh.bannerDismissed, isFalse);
-      expect(fresh.purchaseId, hasLength(36));
+      expect(fresh.purchaseId, hasLength(recordIdLength));
     });
 
     test('withItem adds, and REPLACES the line with the same id', () {
@@ -286,7 +293,9 @@ void main() {
       final one = draft().withItem(
         purchaseItem(id: 'i1', option: crate, cents: 6200),
       );
-      final two = one.withItem(purchaseItem(id: 'i2', option: bottle, cents: 330));
+      final two = one.withItem(
+        purchaseItem(id: 'i2', option: bottle, cents: 330),
+      );
       final corrected = two.withItem(
         purchaseItem(id: 'i1', option: crate, cents: 5900),
       );
@@ -341,12 +350,15 @@ void main() {
       // Whether the banner shows AT ALL is not here: that is
       // `startedWithDraftProvider`, because "came from a previous run of the
       // app" is a question about the session, not about the purchase.
-      final dismissed = PurchaseDraft.fromJson(draft().toJson())
-          .dismissedBanner();
+      final dismissed = PurchaseDraft.fromJson(
+        draft().toJson(),
+      ).dismissedBanner();
 
       expect(dismissed.bannerDismissed, isTrue);
-      expect(PurchaseDraft.fromJson(dismissed.toJson()).bannerDismissed,
-          isTrue);
+      expect(
+        PurchaseDraft.fromJson(dismissed.toJson()).bannerDismissed,
+        isTrue,
+      );
       // And it does NOT throw the purchase away.
       expect(dismissed.storeId, 'store-1');
     });
@@ -364,10 +376,7 @@ void main() {
       // most taps in an aisle.
       expect(draft().isEmpty, isFalse);
       expect(draft().isNotEmpty, isTrue);
-      expect(
-        PurchaseDraft.startedOn(today, 'Leandro').isEmpty,
-        isTrue,
-      );
+      expect(PurchaseDraft.startedOn(today, 'Leandro').isEmpty, isTrue);
     });
 
     test('equality covers every field', () {

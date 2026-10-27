@@ -3,14 +3,12 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'calendar_day.dart';
 import 'money.dart';
 import 'purchase_item.dart';
-import 'uuid.dart';
+import 'record_id.dart';
 
 /// A registered purchase: a day, a store, who registered it, and the lines.
 ///
-/// The **key is born on the phone**. It is not a whim: without it the resend
-/// of H8 that arrives twice would become a second purchase and would write
-/// the list off a second time. `create_purchase` closes that with an
-/// `on conflict (id) do nothing`, and this is the id it conflicts on.
+/// The **key is born on the phone**, so that a resend that arrives twice finds
+/// the same record and does not become a second purchase.
 final class Purchase {
   factory Purchase({
     String? id,
@@ -19,7 +17,7 @@ final class Purchase {
     required String registeredBy,
     IList<PurchaseItem> items = const IList.empty(),
   }) => Purchase._(
-    id: id ?? newUuidV4(),
+    id: id ?? newRecordId(),
     // Rule 9: rounded here, so an instant carrying an hour never breaks the
     // `==` of a purchase that did not change.
     date: dayOf(date),
@@ -57,8 +55,7 @@ final class Purchase {
     if (dayOf(date).isAfter(dayOf(today))) throw const FutureDate();
   }
 
-  Money get total =>
-      items.fold(Money.zero, (sum, item) => sum + item.paid);
+  Money get total => items.fold(Money.zero, (sum, item) => sum + item.paid);
 
   /// What the write-off planner works over: the type, the registration, the
   /// amount in the base unit, and which line of the purchase it came from.

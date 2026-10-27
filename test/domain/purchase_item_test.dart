@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
+import 'package:shopping_list/domain/models/record_id.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart'
     show InvalidQuantity;
 
@@ -22,6 +24,15 @@ void main() {
     expect(confirmed.id, 'item-1');
     expect(confirmed.quantity, 3);
     expect(confirmed.paid.cents, 500);
+  });
+
+  test('a line with no id is born with a record id', () {
+    final line = PurchaseItem(
+      option: leaf,
+      quantity: 1,
+      paid: const Money(100),
+    );
+    expect(isRecordId(line.id), isTrue);
   });
 
   test('confirmedPrice of a typed line is the same line', () {

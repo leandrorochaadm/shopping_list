@@ -2,7 +2,7 @@ import 'base_unit.dart';
 import 'money.dart';
 import 'product_option.dart';
 import 'shopping_list_item.dart' show InvalidQuantity;
-import 'uuid.dart';
+import 'record_id.dart';
 
 const _priceOriginKey = 'price_origin';
 
@@ -58,7 +58,7 @@ final class PurchaseItem {
     return PurchaseItem._(
       // Born on the phone, like the purchase's own key: the write-offs point
       // at it, and a resend that arrives twice has to find the same rows.
-      id: id ?? newUuidV4(),
+      id: id ?? newRecordId(),
       option: option,
       quantity: quantity,
       // Here, and ONLY here, is where "1 fardo de 12 × 350 ml" becomes

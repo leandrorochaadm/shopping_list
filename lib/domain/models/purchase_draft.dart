@@ -4,7 +4,7 @@ import 'calendar_day.dart';
 import 'money.dart';
 import 'purchase_item.dart';
 import 'scan_resolution.dart';
-import 'uuid.dart';
+import 'record_id.dart';
 
 /// The purchase being typed — H8's whole story.
 ///
@@ -25,7 +25,7 @@ final class PurchaseDraft {
   /// A brand new draft: a fresh key, today, and this phone's label.
   factory PurchaseDraft.startedOn(DateTime today, String registeredBy) =>
       PurchaseDraft(
-        purchaseId: newUuidV4(),
+        purchaseId: newRecordId(),
         date: dayOf(today),
         registeredBy: registeredBy,
       );
@@ -37,8 +37,8 @@ final class PurchaseDraft {
     registeredBy: json['registered_by'] as String? ?? '',
     storeId: json['store_id'] as String?,
     items: [
-      for (final item in (json['items'] as List? ?? const [])
-          .cast<Map<String, dynamic>>())
+      for (final item
+          in (json['items'] as List? ?? const []).cast<Map<String, dynamic>>())
         PurchaseItem.fromJson(item),
     ].toIList(),
     pendingSubmission: json['pending_submission'] as bool? ?? false,

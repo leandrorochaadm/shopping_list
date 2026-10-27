@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -93,6 +94,43 @@ void main() {
     // It is what runs right after a successful save, and it is the only
     // guard against registering the same purchase twice.
     expect(box.isEmpty, isTrue);
+  });
+
+  test('a draft_v1 is deleted on opening and never read', () async {
+    await box.put('draft_v1', jsonEncode(draft().toJson()));
+
+    await PurchaseDraftRepositoryHive.discardLegacyDraft(box);
+
+    expect(box.containsKey('draft_v1'), isFalse);
+    expect(repository.readNow(), isNull);
+  });
+
+  test('reads nothing from draft_v1 even when it is valid', () async {
+    await box.put('draft_v1', jsonEncode(draft().toJson()));
+
+    expect(repository.readNow(), isNull);
+  });
+
+  test('discarding the old key keeps the current draft', () async {
+    await repository.save(draft());
+    await box.put('draft_v1', jsonEncode(draft().toJson()));
+
+    await PurchaseDraftRepositoryHive.discardLegacyDraft(box);
+
+    expect(repository.readNow(), draft());
+    expect(box.length, 1);
+  });
+
+  test('discarding with no old draft does nothing', () async {
+    await PurchaseDraftRepositoryHive.discardLegacyDraft(box);
+
+    expect(box.isEmpty, isTrue);
+  });
+
+  test('saves under draft_v2', () async {
+    await repository.save(draft());
+
+    expect(box.containsKey('draft_v2'), isTrue);
   });
 
   test('a draft written by an older shape is ignored, not thrown', () async {
