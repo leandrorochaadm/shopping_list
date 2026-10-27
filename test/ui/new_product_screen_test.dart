@@ -27,6 +27,7 @@ import 'package:shopping_list/ui/catalog/widgets/packaging_row.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/barcode_camera.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
@@ -90,6 +91,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(repository: repository),
         storeOverride(repository: stores),
         ?camera?.override,

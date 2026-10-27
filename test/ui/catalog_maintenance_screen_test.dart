@@ -10,6 +10,7 @@ import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/routing/routes.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -55,6 +56,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(repository: catalog),
         shoppingListOverride(
           repository: ShoppingListRepositoryLocal(latency: Duration.zero),
@@ -480,6 +482,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         // With latency the first frame has no value at all, which is the
         // state this case is about.
         catalogOverride(

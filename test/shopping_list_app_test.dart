@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/main.dart';
 
+import 'helpers/auth.dart';
 import 'helpers/catalog.dart';
 import 'helpers/device_user.dart';
 import 'helpers/locale.dart';
@@ -26,6 +27,7 @@ void main() {
         // LYING.
         overrides: [
           deviceUserOverride(),
+          authOverride(),
           shoppingListOverride(),
           catalogOverride(),
           // Since H7 the app root watches the automatic resend, which reads
@@ -52,6 +54,7 @@ void main() {
         // LYING.
         overrides: [
           deviceUserOverride(),
+          authOverride(),
           shoppingListOverride(),
           catalogOverride(),
           // Since H7 the app root watches the automatic resend, which reads
@@ -77,6 +80,7 @@ void main() {
         // LYING.
         overrides: [
           deviceUserOverride(),
+          authOverride(),
           shoppingListOverride(),
           catalogOverride(),
           // Since H7 the app root watches the automatic resend, which reads
@@ -98,7 +102,11 @@ void main() {
     // first opening is a question, not the list.
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [deviceUserOverride(name: null), ...purchaseOverrides()],
+        overrides: [
+          deviceUserOverride(name: null),
+          authOverride(),
+          ...purchaseOverrides(),
+        ],
         child: const ShoppingListApp(),
       ),
     );

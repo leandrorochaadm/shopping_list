@@ -22,6 +22,7 @@ import 'package:shopping_list/ui/report/widgets/price_comparison_tab.dart';
 import 'package:shopping_list/ui/report/widgets/report_summary_tab.dart';
 import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -91,6 +92,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: <Override>[
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(caps: caps),
@@ -135,7 +137,10 @@ void main() {
     testWidgets('a period with no purchase draws the empty state', (
       tester,
     ) async {
-      await pumpReports(tester, repository: _SpyRepository(fixed: PeriodReport.empty));
+      await pumpReports(
+        tester,
+        repository: _SpyRepository(fixed: PeriodReport.empty),
+      );
 
       expect(
         find.text('Nenhuma compra lançada nesse período.'),
@@ -602,7 +607,9 @@ void main() {
       container
           .read(reportPeriodProvider.notifier)
           .setFrom(DateTime(2026, 8, 10));
-      container.read(reportPeriodProvider.notifier).setTo(DateTime(2026, 8, 20));
+      container
+          .read(reportPeriodProvider.notifier)
+          .setTo(DateTime(2026, 8, 20));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('cap-line')), findsNothing);
@@ -648,6 +655,7 @@ class _FailingCaps extends SpendingCapRepositoryLocal {
   _FailingCaps() : super(latency: Duration.zero);
 
   @override
-  Future<IList<MonthCapStatus>> fetchStatuses(IList<ReportPeriod> months) async =>
-      throw NetworkException('offline');
+  Future<IList<MonthCapStatus>> fetchStatuses(
+    IList<ReportPeriod> months,
+  ) async => throw NetworkException('offline');
 }

@@ -34,6 +34,7 @@ import 'package:shopping_list/ui/purchase/widgets/new_purchase_screen.dart'
 import 'package:shopping_list/ui/purchase/widgets/product_field.dart';
 import 'package:shopping_list/ui/purchase/widgets/purchase_item_row.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/barcode_camera.dart';
 import '../helpers/beep.dart';
 import '../helpers/catalog.dart';
@@ -148,6 +149,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         spendingCapOverride(repository: caps),
         catalogOverride(repository: catalog),
         shoppingListOverride(),

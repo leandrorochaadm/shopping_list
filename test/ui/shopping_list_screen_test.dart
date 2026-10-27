@@ -14,6 +14,7 @@ import 'package:shopping_list/domain/models/shopping_list_item.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/ui/shopping_list/widgets/shopping_list_tile.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/consumption.dart';
 import '../helpers/device_user.dart';
@@ -90,6 +91,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(repository: repository),
         ...overrides,
@@ -129,9 +131,7 @@ void main() {
     await tester.pump(const Duration(seconds: 6));
   });
 
-  testWidgets('says the list is empty, and offers the way out', (
-    tester,
-  ) async {
+  testWidgets('says the list is empty, and offers the way out', (tester) async {
     await pumpScreen(
       tester,
       repository: _SpyRepository(initial: const <ShoppingListItem>[]),
@@ -324,10 +324,7 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Lançar compra'), findsOneWidget);
     // The footer button is gone — it moved to the bottom bar, which writes
     // only "Lançar" (decision I-d).
-    expect(
-      find.widgetWithText(OutlinedButton, 'Lançar compra'),
-      findsNothing,
-    );
+    expect(find.widgetWithText(OutlinedButton, 'Lançar compra'), findsNothing);
     expect(find.text('Histórico de compras'), findsOneWidget);
     expect(find.text('Manutenção do cadastro'), findsOneWidget);
     expect(find.text('Configurações'), findsOneWidget);

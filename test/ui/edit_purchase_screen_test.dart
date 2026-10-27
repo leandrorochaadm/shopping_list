@@ -16,6 +16,7 @@ import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -97,6 +98,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(purchases: purchases, caps: caps),
@@ -126,7 +128,10 @@ void main() {
 
     expect(find.text('28/08/2026'), findsOneWidget);
     expect(find.text('Carrefour'), findsWidgets);
-    expect(find.text('Refrigerante Coca-Cola original 12 × 350 ml'), findsOneWidget);
+    expect(
+      find.text('Refrigerante Coca-Cola original 12 × 350 ml'),
+      findsOneWidget,
+    );
     expect(find.text('R\$ 62,00'), findsWidgets);
   });
 
@@ -188,31 +193,33 @@ void main() {
     expect(find.text('Histórico de compras'), findsOneWidget);
   });
 
-  testWidgets('a double tap on [ Salvar correção ] writes once and leaves once',
-      (tester) async {
-    // The one place where the `null` of the reentrancy guard being read as
-    // success shows up: success POPS. Remove the `_saving` of the screen and
-    // this test has to fail.
-    purchases.hold = Completer<void>();
-    await pumpEdit(tester);
+  testWidgets(
+    'a double tap on [ Salvar correção ] writes once and leaves once',
+    (tester) async {
+      // The one place where the `null` of the reentrancy guard being read as
+      // success shows up: success POPS. Remove the `_saving` of the screen and
+      // this test has to fail.
+      purchases.hold = Completer<void>();
+      await pumpEdit(tester);
 
-    await tester.tap(find.byKey(const ValueKey('save-correction')));
-    await tester.pump();
-    // Still in flight: the button is disabled and says so.
-    expect(find.text('Salvando...'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('save-correction')));
+      await tester.pump();
+      // Still in flight: the button is disabled and says so.
+      expect(find.text('Salvando...'), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const ValueKey('save-correction')),
-      warnIfMissed: false,
-    );
-    await tester.pump();
+      await tester.tap(
+        find.byKey(const ValueKey('save-correction')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
 
-    purchases.hold!.complete();
-    await tester.pumpAndSettle();
+      purchases.hold!.complete();
+      await tester.pumpAndSettle();
 
-    expect(purchases.correctCalls, 1);
-    expect(find.text('Histórico de compras'), findsOneWidget);
-  });
+      expect(purchases.correctCalls, 1);
+      expect(find.text('Histórico de compras'), findsOneWidget);
+    },
+  );
 
   testWidgets('a failed save keeps the screen and says why', (tester) async {
     await pumpEdit(tester);
@@ -232,7 +239,9 @@ void main() {
   ) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Remover Refrigerante Coca-Cola original 12 × 350 ml'));
+    await tester.tap(
+      find.byTooltip('Remover Refrigerante Coca-Cola original 12 × 350 ml'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('save-correction')));
     await tester.pumpAndSettle();
@@ -289,7 +298,9 @@ void main() {
   ) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'));
+    await tester.tap(
+      find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'),
+    );
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const ValueKey('field-value')), '38,00');
@@ -305,18 +316,25 @@ void main() {
   ) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'));
+    await tester.tap(
+      find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('remove-item')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Refrigerante Coca-Cola original 12 × 350 ml'), findsNothing);
+    expect(
+      find.text('Refrigerante Coca-Cola original 12 × 350 ml'),
+      findsNothing,
+    );
   });
 
   testWidgets('an amount typed wrong stays in the dialog', (tester) async {
     await pumpEdit(tester);
 
-    await tester.tap(find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'));
+    await tester.tap(
+      find.byTooltip('Corrigir Refrigerante Coca-Cola original 12 × 350 ml'),
+    );
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byKey(const ValueKey('field-value')), '');

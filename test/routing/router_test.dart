@@ -1,16 +1,23 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository_local.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
+import 'package:shopping_list/ui/auth/widgets/login_screen.dart';
 import 'package:shopping_list/ui/consumption/widgets/remaining_screen.dart';
 import 'package:shopping_list/ui/consumption/widgets/suggestions_screen.dart';
 import 'package:shopping_list/ui/device_user/widgets/welcome_screen.dart';
 import 'package:shopping_list/ui/report/widgets/reports_screen.dart';
 import 'package:shopping_list/ui/settings/widgets/settings_screen.dart';
+import 'package:shopping_list/ui/shopping_list/widgets/shopping_list_screen.dart';
 
+import '../helpers/auth.dart';
 import '../helpers/catalog.dart';
 import '../helpers/consumption.dart';
 import '../helpers/device_user.dart';
@@ -18,6 +25,22 @@ import '../helpers/locale.dart';
 import '../helpers/purchase.dart';
 import '../helpers/report.dart';
 import '../helpers/shopping_list.dart';
+
+/// Counts how many times the router subscribes to the session stream.
+final class _CountingAuthRepository extends AuthRepositoryLocal {
+  _CountingAuthRepository() : super(latency: Duration.zero);
+
+  int listens = 0;
+
+  late final _controller = StreamController<bool>.broadcast(
+    onListen: () => listens++,
+  );
+
+  bool get followed => _controller.hasListener;
+
+  @override
+  Stream<bool> get changes => _controller.stream;
+}
 
 void main() {
   // Screen 3 draws a date, and `main()` does not run in a test.
@@ -48,6 +71,34 @@ void main() {
     Routes.remainingThisMonth: 'Falta comprar este mês',
   };
 
+  Future<ProviderContainer> pumpSession(
+    WidgetTester tester, {
+    required bool signedIn,
+    String? deviceUser = 'Leandro',
+  }) async {
+    final container = ProviderContainer.test(
+      overrides: [
+        authOverride(signedIn: signedIn),
+        deviceUserOverride(name: deviceUser),
+        catalogOverride(),
+        shoppingListOverride(),
+        ...purchaseOverrides(),
+        reportOverride(),
+        consumptionOverride(),
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: container.read(appRouterProvider),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    return container;
+  }
+
   Future<GoRouter> pumpRouter(
     WidgetTester tester, {
     List<Override> overrides = const [],
@@ -75,6 +126,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -109,6 +161,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -129,6 +182,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -182,6 +236,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -225,6 +280,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -252,6 +308,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -287,6 +344,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -321,6 +379,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -358,6 +417,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(name: null),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -382,6 +442,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -409,6 +470,7 @@ void main() {
       tester,
       overrides: [
         deviceUserOverride(name: null),
+        authOverride(),
         catalogOverride(),
         shoppingListOverride(),
         ...purchaseOverrides(),
@@ -423,4 +485,172 @@ void main() {
     expect(find.text('Teste de digitação'), findsOneWidget);
     expect(find.byType(WelcomeScreen), findsNothing);
   });
+
+  testWidgets(
+    'sends a phone without a session to the login screen, from anywhere',
+    (tester) async {
+      final container = await pumpSession(tester, signedIn: false);
+      final router = container.read(appRouterProvider);
+      expect(find.byType(LoginScreen), findsOneWidget);
+
+      for (final path in [
+        Routes.reports,
+        Routes.settings,
+        Routes.newProduct,
+        Routes.welcome,
+      ]) {
+        router.go(path);
+        await tester.pumpAndSettle();
+        expect(find.byType(LoginScreen), findsOneWidget, reason: path);
+      }
+    },
+  );
+
+  testWidgets('asks for the session before asking who is using the phone', (
+    tester,
+  ) async {
+    await pumpSession(tester, signedIn: false, deviceUser: null);
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.byType(WelcomeScreen), findsNothing);
+  });
+
+  testWidgets(
+    'takes a signed-in phone away from the login screen to the list',
+    (tester) async {
+      final container = await pumpSession(tester, signedIn: true);
+      container.read(appRouterProvider).go(Routes.login);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ShoppingListScreen), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+    },
+  );
+
+  testWidgets('opens the list once the sign-in lands', (tester) async {
+    final container = await pumpSession(tester, signedIn: false);
+    expect(find.byType(LoginScreen), findsOneWidget);
+
+    // Not awaited: the fake delay only advances with the pumps below.
+    unawaited(
+      container
+          .read(authRepositoryProvider)
+          .signIn(email: 'a@b.com', password: 'secret'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ShoppingListScreen), findsOneWidget);
+    expect(find.byType(LoginScreen), findsNothing);
+  });
+
+  testWidgets(
+    'opens the welcome screen after signing in a phone that was never marked',
+    (tester) async {
+      final container = await pumpSession(
+        tester,
+        signedIn: false,
+        deviceUser: null,
+      );
+
+      unawaited(
+        container
+            .read(authRepositoryProvider)
+            .signIn(email: 'a@b.com', password: 'secret'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WelcomeScreen), findsOneWidget);
+      expect(find.byType(LoginScreen), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'sends to the login screen when the session ends with the app open',
+    (tester) async {
+      final container = await pumpSession(tester, signedIn: true);
+      container.read(appRouterProvider).go(Routes.settings);
+      await tester.pumpAndSettle();
+      expect(find.byType(SettingsScreen), findsOneWidget);
+
+      unawaited(container.read(authRepositoryProvider).signOut());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LoginScreen), findsOneWidget);
+      expect(find.byType(SettingsScreen), findsNothing);
+    },
+  );
+
+  testWidgets('stays on the login screen without looping', (tester) async {
+    final container = await pumpSession(tester, signedIn: false);
+    final router = container.read(appRouterProvider);
+
+    router.go(Routes.login);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(router.routerDelegate.currentConfiguration.uri.path, Routes.login);
+    expect(find.byType(LoginScreen), findsOneWidget);
+  });
+
+  testWidgets('does not let the S1 spike skip the session', (tester) async {
+    final container = await pumpSession(tester, signedIn: false);
+
+    container.read(appRouterProvider).go(Routes.typingSpike);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(LoginScreen), findsOneWidget);
+    expect(find.text('Teste de digitação'), findsNothing);
+  });
+
+  test(
+    'builds the router without reading the session and names the login route',
+    () {
+      final router = ProviderContainer.test().read(appRouterProvider);
+
+      expect(router.namedLocation(RouteNames.login), Routes.login);
+    },
+  );
+
+  testWidgets(
+    'follows the session once and lets go when the router is rebuilt',
+    (tester) async {
+      final repository = _CountingAuthRepository();
+      final container = ProviderContainer.test(
+        overrides: [
+          authRepositoryProvider.overrideWithValue(repository),
+          deviceUserOverride(),
+          catalogOverride(),
+          shoppingListOverride(),
+          ...purchaseOverrides(),
+          reportOverride(),
+          consumptionOverride(),
+        ],
+      );
+      final router = container.read(appRouterProvider);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      router.go(Routes.reports);
+      await tester.pumpAndSettle();
+      router.go(Routes.settings);
+      await tester.pumpAndSettle();
+      router.go(Routes.shoppingList);
+      await tester.pumpAndSettle();
+
+      expect(repository.listens, 1);
+      expect(repository.followed, isTrue);
+
+      await tester.pumpWidget(const SizedBox());
+      container.invalidate(appRouterProvider);
+      container.read(appRouterProvider);
+      await tester.pump();
+
+      expect(repository.followed, isFalse);
+    },
+  );
 }
