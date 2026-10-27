@@ -2,15 +2,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../domain/models/app_version.dart';
 
-/// Which Supabase project this build talks to. There are two — `dev` and
-/// `prod` (`tecnico §1.5`) — and they are chosen at build time, never at
-/// runtime: web has no flavors, so the separation is `--dart-define` plus two
-/// Cloudflare Pages deploys.
-///
-///     flutter run -d chrome \
-///       --dart-define=SUPABASE_URL=https://xxxx.supabase.co \
-///       --dart-define=SUPABASE_ANON_KEY=eyJ...
+/// What the CI knows about this build: version, build number and commit.
+/// Where the backend lives is not here — `AppConfig`
+/// (`lib/config/app_config.dart`) reads it from
+/// `--dart-define-from-file=config/<env>.json`.
 abstract final class Environment {
+  // Legacy with no caller in the app, kept until the `supabase_flutter`
+  // package is removed.
   static const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
   static const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 

@@ -5,6 +5,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shopping_list/config/dependencies.dart';
+import 'package:http/testing.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository_local.dart';
+import 'package:shopping_list/data/repositories/auth/auth_repository_remote.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_remote.dart';
@@ -24,6 +28,8 @@ import 'package:shopping_list/data/repositories/store/store_repository.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_local.dart';
 import 'package:shopping_list/data/repositories/store/store_repository_remote.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../helpers/pocketbase_test_client.dart';
 
 /// Only its constructor is used: the three `_remote` repositories read
 /// `supabaseClientProvider`, and `Supabase.instance` asserts when
@@ -154,6 +160,53 @@ void main() {
           (e) => e.toString(),
           'toString',
           contains('purchaseDraftBoxProvider'),
+        ),
+      ),
+    );
+  });
+
+  test('runs the session on its fake when there is no backend', () {
+    final container = ProviderContainer.test(overrides: overridesLocal);
+    final repository = container.read(authRepositoryProvider);
+    expect(repository, isA<AuthRepositoryLocal>());
+    expect(repository.isSignedIn, isTrue);
+  });
+
+  test('runs the session on PocketBase against the real server', () {
+    final container = ProviderContainer.test(
+      overrides: [
+        pocketBaseProvider.overrideWithValue(
+          testPocketBase(
+            MockClient((request) async => fail('no request expected')),
+          ),
+        ),
+        ...overridesRemote,
+      ],
+    );
+    final repository = container.read(authRepositoryProvider);
+    expect(repository, isA<AuthRepositoryRemote>());
+    expect(repository.isSignedIn, isTrue);
+  });
+
+  test('says which new override is missing instead of failing later', () {
+    final container = ProviderContainer.test();
+    expect(
+      () => container.read(pocketBaseProvider),
+      throwsA(
+        isA<Object>().having(
+          (e) => e.toString(),
+          'toString',
+          contains('pocketBaseProvider'),
+        ),
+      ),
+    );
+    expect(
+      () => container.read(authBoxProvider),
+      throwsA(
+        isA<Object>().having(
+          (e) => e.toString(),
+          'toString',
+          contains('authBoxProvider'),
         ),
       ),
     );

@@ -1,8 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:hive_ce/hive.dart';
+import 'package:pocketbase/pocketbase.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../data/repositories/auth/auth_repository.dart';
+import '../data/repositories/auth/auth_repository_local.dart';
+import '../data/repositories/auth/auth_repository_remote.dart';
 import '../data/repositories/catalog/catalog_repository.dart';
 import '../data/repositories/catalog/catalog_repository_local.dart';
 import '../data/repositories/catalog/catalog_repository_remote.dart';
@@ -31,13 +35,26 @@ import '../data/repositories/store/store_repository.dart';
 import '../data/repositories/store/store_repository_local.dart';
 import '../data/repositories/store/store_repository_remote.dart';
 
-/// The Supabase client, injected into every `_remote` repository as a PRIVATE
-/// member — the UI never reaches it.
+/// The PocketBase client, built by `main` before runApp and handed over with
+/// the session already restored.
 ///
-/// No `retry`: a failure here means `Supabase.initialize` did not run, which
-/// is an initialization Error, and Riverpod's automatic retry skips Errors.
+/// It is a PRIVATE member of each `_remote` repository — the UI never reaches
+/// it. No `retry`: throwing here is an Error, which Riverpod's automatic retry
+/// already skips.
+final pocketBaseProvider = Provider<PocketBase>(
+  (ref) => throw UnimplementedError(
+    'pocketBaseProvider was not overridden. main builds the client before '
+    'runApp and overrides it there.',
+  ),
+);
+
+/// Kept only so the `_remote` repositories that have not moved to PocketBase
+/// yet still compile; reading it in the app throws.
 final supabaseClientProvider = Provider<SupabaseClient>(
-  (ref) => Supabase.instance.client,
+  (ref) => throw UnimplementedError(
+    'supabaseClientProvider is no longer initialized: this repository has not '
+    'moved to PocketBase yet.',
+  ),
 );
 
 /// The Hive box `main` opens before runApp, handed over already open.
@@ -66,12 +83,29 @@ final purchaseDraftBoxProvider = Provider<Box<String>>(
   ),
 );
 
+/// The third and last box `main` opens before runApp (`tecnico §4.2` now also
+/// holds the session).
+///
+/// It is separate from the other two because the session lives and dies with
+/// the login, not with the device label nor with the purchase draft.
+final authBoxProvider = Provider<Box<String>>(
+  (ref) => throw UnimplementedError(
+    'authBoxProvider was not overridden. main opens the box before runApp and '
+    'overrides it there.',
+  ),
+);
+
 /// Demo and development without a backend: every repository is overridden with
 /// its `_local` fake.
 ///
 /// Each feature adds ONE line here — the repository provider itself is
 /// declared next to its repository, and the override lives in this list.
 final List<Override> overridesLocal = [
+  authRepositoryProvider.overrideWith((ref) {
+    final repository = AuthRepositoryLocal();
+    ref.onDispose(repository.dispose);
+    return repository;
+  }),
   deviceUserRepositoryProvider.overrideWith(
     (ref) => DeviceUserRepositoryLocal(),
   ),
@@ -104,13 +138,17 @@ final List<Override> overridesLocal = [
   ),
 ];
 
-/// Production and `dev` against the real Supabase project. Requires
-/// `Environment.initializeSupabase()` to have run in `main`.
+/// Production and `dev` against the PocketBase server; requires `main` to
+/// override `pocketBaseProvider` (session already restored) and the three
+/// boxes.
 ///
 /// The device user label is the exception that proves the rule: it is local by
 /// decision (`handoff §8` — "não vai ao banco"), so its real implementation is
 /// Hive on both sides of this list.
 final List<Override> overridesRemote = [
+  authRepositoryProvider.overrideWith(
+    (ref) => AuthRepositoryRemote(ref.watch(pocketBaseProvider)),
+  ),
   deviceUserRepositoryProvider.overrideWith(
     (ref) => DeviceUserRepositoryHive(ref.watch(deviceUserBoxProvider)),
   ),
