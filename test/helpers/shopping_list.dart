@@ -9,5 +9,6 @@ import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repo
 /// screen, and every pumpAndSettle would otherwise carry the delay.
 Override shoppingListOverride({ShoppingListRepository? repository}) =>
     shoppingListRepositoryProvider.overrideWith(
-      (ref) => repository ?? ShoppingListRepositoryLocal(latency: Duration.zero),
+      (ref) =>
+          repository ?? ShoppingListRepositoryLocal(latency: Duration.zero),
     );

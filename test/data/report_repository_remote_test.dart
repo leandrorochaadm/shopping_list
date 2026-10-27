@@ -15,8 +15,7 @@ class _MockClient extends Mock implements SupabaseClient {}
 /// A query chain that answers a fixed set of rows. Like `rpc`, none of these
 /// builders is a Future — they only IMPLEMENT one — so `thenAnswer` with an
 /// `async` closure does not compile, and `then` is what `await` reaches.
-class _FakeQuery extends Fake
-    implements PostgrestFilterBuilder<PostgrestList> {
+class _FakeQuery extends Fake implements PostgrestFilterBuilder<PostgrestList> {
   _FakeQuery(this.rows);
 
   final PostgrestList rows;
@@ -82,17 +81,17 @@ void main() {
     // falls into the `>= 500` arm of AppFailure and tells the user the server
     // is down.
     when(
-      () => client.rpc<Map<String, dynamic>>(
-        any(),
-        params: any(named: 'params'),
-      ),
+      () =>
+          client.rpc<Map<String, dynamic>>(any(), params: any(named: 'params')),
     ).thenThrow(
       const PostgrestException(message: 'duplicate key', code: '23505'),
     );
 
     expect(
       () => repository.fetchPeriodReport(period),
-      throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 409)),
+      throwsA(
+        isA<ApiException>().having((e) => e.statusCode, 'statusCode', 409),
+      ),
     );
   });
 
@@ -185,10 +184,8 @@ void main() {
     // `postgrest` speaks through `http`, so this is how a phone with no
     // connection reports itself.
     when(
-      () => client.rpc<Map<String, dynamic>>(
-        any(),
-        params: any(named: 'params'),
-      ),
+      () =>
+          client.rpc<Map<String, dynamic>>(any(), params: any(named: 'params')),
     ).thenThrow(ClientException('offline'));
 
     expect(
@@ -199,10 +196,8 @@ void main() {
 
   test('reads the three aggregations out of the one call', () async {
     when(
-      () => client.rpc<Map<String, dynamic>>(
-        any(),
-        params: any(named: 'params'),
-      ),
+      () =>
+          client.rpc<Map<String, dynamic>>(any(), params: any(named: 'params')),
     ).thenAnswer(
       (_) => _FakeRpc(const {
         'categories': [
@@ -242,35 +237,36 @@ void main() {
     expect(report.brands.single.hasBrand, isFalse);
   });
 
-  test('sends the interval as two calendar days, never as a timestamp', () async {
-    // `purchase_date` is a `date` in Postgres: an ISO instant would not
-    // compare against it the way the query assumes.
-    Map<String, dynamic>? sent;
-    when(
-      () => client.rpc<Map<String, dynamic>>(
-        any(),
-        params: any(named: 'params'),
-      ),
-    ).thenAnswer((invocation) {
-      sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-      return _FakeRpc(const {
-        'categories': <Object>[],
-        'types': <Object>[],
-        'brands': <Object>[],
+  test(
+    'sends the interval as two calendar days, never as a timestamp',
+    () async {
+      // `purchase_date` is a `date` in Postgres: an ISO instant would not
+      // compare against it the way the query assumes.
+      Map<String, dynamic>? sent;
+      when(
+        () => client.rpc<Map<String, dynamic>>(
+          any(),
+          params: any(named: 'params'),
+        ),
+      ).thenAnswer((invocation) {
+        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
+        return _FakeRpc(const {
+          'categories': <Object>[],
+          'types': <Object>[],
+          'brands': <Object>[],
+        });
       });
-    });
 
-    await repository.fetchPeriodReport(period);
+      await repository.fetchPeriodReport(period);
 
-    expect(sent, {'p_from': '2026-08-01', 'p_to': '2026-08-31'});
-  });
+      expect(sent, {'p_from': '2026-08-01', 'p_to': '2026-08-31'});
+    },
+  );
 
   test('an empty period is a value, not an error', () async {
     when(
-      () => client.rpc<Map<String, dynamic>>(
-        any(),
-        params: any(named: 'params'),
-      ),
+      () =>
+          client.rpc<Map<String, dynamic>>(any(), params: any(named: 'params')),
     ).thenAnswer(
       (_) => _FakeRpc(const {
         'categories': <Object>[],

@@ -367,16 +367,15 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     // Newest first, and the tiebreaker is the id — the same stable order the
     // real query gets from `created_at`, without which a purchase on the
     // boundary shows up twice or vanishes.
-    final ordered = [..._purchases]..sort((a, b) {
-      final byDate = b.purchase.date.compareTo(a.purchase.date);
-      return byDate != 0 ? byDate : a.purchase.id.compareTo(b.purchase.id);
-    });
+    final ordered = [..._purchases]
+      ..sort((a, b) {
+        final byDate = b.purchase.date.compareTo(a.purchase.date);
+        return byDate != 0 ? byDate : a.purchase.id.compareTo(b.purchase.id);
+      });
 
     final page = ordered.skip(offset).take(limit + 1).toList();
     return PurchaseHistoryPage(
-      purchases: [
-        for (final entry in page.take(limit)) _summaryOf(entry),
-      ].lock,
+      purchases: [for (final entry in page.take(limit)) _summaryOf(entry)].lock,
       hasMore: page.length > limit,
     );
   }

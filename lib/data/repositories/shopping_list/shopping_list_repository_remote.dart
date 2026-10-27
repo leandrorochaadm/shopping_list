@@ -232,8 +232,8 @@ preferred_registration:preferred_registration_id (
 
   @override
   Stream<ListChangeKind> watchChanges() {
-    final controller =
-        _controller ??= StreamController<ListChangeKind>.broadcast(
+    final controller = _controller ??=
+        StreamController<ListChangeKind>.broadcast(
           // The channel is not closed on the provider's dispose — the
           // repository provider has no per-screen lifetime. It closes here,
           // when the last listener (the PendingChangesNotifier) goes away.

@@ -17,7 +17,10 @@ void main() {
     storeId: store,
     registeredBy: 'Leandro',
     items: [
-      purchaseItem(id: 'pi-1', option: optionByPiece(id: 'prod-1')),
+      purchaseItem(
+        id: 'pi-1',
+        option: optionByPiece(id: 'prod-1'),
+      ),
     ].lock,
   );
 

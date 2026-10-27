@@ -105,9 +105,7 @@ product!inner (
           price: PriceReference(
             paid: Money.fromJson(row['total_paid']),
             quantityInBaseUnit: (row['quantity_in_base_unit'] as num).toInt(),
-            purchasedOn: decodeCalendarDay(
-              purchase['purchase_date'] as String,
-            ),
+            purchasedOn: decodeCalendarDay(purchase['purchase_date'] as String),
           ),
         );
       }).toIList();

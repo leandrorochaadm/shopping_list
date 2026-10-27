@@ -17,7 +17,8 @@ class _MockClient extends Mock implements SupabaseClient {}
 /// does not compile, so the success cases need a stand-in whose `then` is
 /// what `await` reaches. The failing cases use `thenThrow`, which needs none
 /// of this.
-class _FakeListRpc extends Fake implements PostgrestFilterBuilder<List<dynamic>> {
+class _FakeListRpc extends Fake
+    implements PostgrestFilterBuilder<List<dynamic>> {
   _FakeListRpc(this.value);
 
   final List<dynamic> value;
@@ -31,10 +32,8 @@ class _FakeListRpc extends Fake implements PostgrestFilterBuilder<List<dynamic>>
 
 class _FakeVoidRpc extends Fake implements PostgrestFilterBuilder<void> {
   @override
-  Future<R> then<R>(
-    FutureOr<R> Function(void) onValue, {
-    Function? onError,
-  }) => Future<void>.value().then(onValue, onError: onError);
+  Future<R> then<R>(FutureOr<R> Function(void) onValue, {Function? onError}) =>
+      Future<void>.value().then(onValue, onError: onError);
 }
 
 void main() {
@@ -68,8 +67,10 @@ void main() {
 
     final calls = <String, Future<void> Function()>{
       'fetchStatuses': () => repository.fetchStatuses([august].lock),
-      'save': () =>
-          repository.save(cap: cap, alerts: CapAlerts.none(DateTime(2026, 8, 1))),
+      'save': () => repository.save(
+        cap: cap,
+        alerts: CapAlerts.none(DateTime(2026, 8, 1)),
+      ),
     };
 
     for (final entry in calls.entries) {
@@ -97,10 +98,9 @@ void main() {
         return _FakeListRpc(const []);
       });
 
-      await repository.fetchStatuses([
-        august,
-        ReportPeriod.monthOf(DateTime(2026, 9, 10)),
-      ].lock);
+      await repository.fetchStatuses(
+        [august, ReportPeriod.monthOf(DateTime(2026, 9, 10))].lock,
+      );
 
       // Both dates come from the phone's clock: no `now()` in SQL.
       expect(sent!['p_months'], [

@@ -211,8 +211,7 @@ purchase_item (
           ),
         );
         for (final off
-            in (raw['list_write_off'] as List?)
-                    ?.cast<Map<String, dynamic>>() ??
+            in (raw['list_write_off'] as List?)?.cast<Map<String, dynamic>>() ??
                 const <Map<String, dynamic>>[]) {
           trail.add(
             ListWriteOff(

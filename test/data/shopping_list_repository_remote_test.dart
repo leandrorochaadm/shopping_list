@@ -37,7 +37,9 @@ class _FakeUpdate extends Fake implements PostgrestFilterBuilder<dynamic> {
 
   @override
   PostgrestTransformBuilder<PostgrestList> select([String columns = '*']) =>
-      _FakeRows([for (final id in ids) {'id': id}]);
+      _FakeRows([
+        for (final id in ids) {'id': id},
+      ]);
 }
 
 class _FakeRows extends Fake
@@ -260,35 +262,38 @@ void main() {
   });
 
   group('the reads H9 and H10 add', () {
-    test('removeOpenItemsOfType swallows the echo of every row it removed', () async {
-      // Deactivating a type writes on `shopping_list_item`, same channel,
-      // same banner — and unlike the correction, the writer here IS this
-      // repository, so the echo is its own problem. Without the `.select('id')`
-      // it would not even know which rows it touched.
-      when(() => client.from(any())).thenAnswer(
-        (_) => _FakeTable(['item-1', 'item-2']),
-      );
+    test(
+      'removeOpenItemsOfType swallows the echo of every row it removed',
+      () async {
+        // Deactivating a type writes on `shopping_list_item`, same channel,
+        // same banner — and unlike the correction, the writer here IS this
+        // repository, so the echo is its own problem. Without the `.select('id')`
+        // it would not even know which rows it touched.
+        when(
+          () => client.from(any()),
+        ).thenAnswer((_) => _FakeTable(['item-1', 'item-2']));
 
-      final removed = await repository.removeOpenItemsOfType(
-        'type-1',
-        DateTime(2026, 8, 28),
-      );
-      expect(removed, ['item-1', 'item-2']);
+        final removed = await repository.removeOpenItemsOfType(
+          'type-1',
+          DateTime(2026, 8, 28),
+        );
+        expect(removed, ['item-1', 'item-2']);
 
-      final seen = <ListChangeKind>[];
-      repository.watchChanges().listen(seen.add);
-      await Future<void>.delayed(Duration.zero);
+        final seen = <ListChangeKind>[];
+        repository.watchChanges().listen(seen.add);
+        await Future<void>.delayed(Duration.zero);
 
-      repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
-      repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-2'));
-      await Future<void>.delayed(Duration.zero);
-      expect(seen, isEmpty);
+        repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
+        repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-2'));
+        await Future<void>.delayed(Duration.zero);
+        expect(seen, isEmpty);
 
-      // A THIRD echo for the same row is the other phone, and it does show.
-      repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
-      await Future<void>.delayed(Duration.zero);
-      expect(seen, [ListChangeKind.changed]);
-    });
+        // A THIRD echo for the same row is the other phone, and it does show.
+        repository.onChange(_payload(PostgresChangeEvent.update, id: 'item-1'));
+        await Future<void>.delayed(Duration.zero);
+        expect(seen, [ListChangeKind.changed]);
+      },
+    );
 
     test('expectEcho counts WITH repetition', () async {
       // An item the correction writes twice — the undo reopens it and the
@@ -311,14 +316,17 @@ void main() {
       expect(seen, [ListChangeKind.changed]);
     });
 
-    test('fetchItemsByIds with an empty set does NOT touch the client', () async {
-      // An empty `in.()` is a round trip that comes back with zero rows, and
-      // a purchase that wrote nothing off lands here on every correction.
-      final items = await repository.fetchItemsByIds(const <String>[]);
+    test(
+      'fetchItemsByIds with an empty set does NOT touch the client',
+      () async {
+        // An empty `in.()` is a round trip that comes back with zero rows, and
+        // a purchase that wrote nothing off lands here on every correction.
+        final items = await repository.fetchItemsByIds(const <String>[]);
 
-      expect(items, isEmpty);
-      verifyNever(() => client.from(any()));
-    });
+        expect(items, isEmpty);
+        verifyNever(() => client.from(any()));
+      },
+    );
   });
 
   group('the channel', () {
@@ -451,4 +459,8 @@ void main() {
 }
 
 /// 409, never 23505 read as a number.
-final _is409 = isA<ApiException>().having((e) => e.statusCode, 'statusCode', 409);
+final _is409 = isA<ApiException>().having(
+  (e) => e.statusCode,
+  'statusCode',
+  409,
+);

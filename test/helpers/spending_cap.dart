@@ -21,7 +21,10 @@ Override spendingCapOverride({SpendingCapRepository? repository}) =>
     spendingCapRepositoryProvider.overrideWith(
       (ref) =>
           repository ??
-          SpendingCapRepositoryLocal(latency: Duration.zero, spending: const {}),
+          SpendingCapRepositoryLocal(
+            latency: Duration.zero,
+            spending: const {},
+          ),
     );
 
 /// The cap of the acceptance criteria: R$ 1.500 in force since August 2026.

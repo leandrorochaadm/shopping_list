@@ -79,7 +79,10 @@ abstract class ShoppingListRepository {
   ///
   /// It returns the ids that left, and the `_remote` consumes their echo
   /// inside itself before the Future completes — see [expectEcho].
-  Future<IList<String>> removeOpenItemsOfType(String productTypeId, DateTime day);
+  Future<IList<String>> removeOpenItemsOfType(
+    String productTypeId,
+    DateTime day,
+  );
 
   /// Tells the channel that the next changes to these rows are OURS.
   ///
