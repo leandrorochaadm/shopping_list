@@ -1,3 +1,5 @@
+import 'package:fast_immutable_collections/fast_immutable_collections.dart';
+
 import 'calendar_day.dart';
 
 /// A type of product this purchase brought home that SOMEONE ELSE also bought
@@ -63,4 +65,42 @@ bool isWithinRepeatWindow(DateTime purchaseDate, DateTime today) {
   final now = dayOf(today);
   final yesterday = DateTime(now.year, now.month, now.day - 1);
   return day == now || day == yesterday;
+}
+
+/// A purchase line the same-day question reads: the day, who registered it and
+/// the product type (with its name) the line belongs to.
+abstract interface class SameDayPurchaseLine {
+  DateTime get purchaseDate;
+  String get registeredBy;
+  String get productTypeId;
+  String get typeName;
+}
+
+/// What `same_day_types` filtered in SQL: the types in [productTypeIds] that
+/// SOMEONE ELSE bought on [date]. [registeredBy] is compared exactly.
+///
+/// One alert per type (never per brand), named by the first line that entered,
+/// in first-seen order.
+IList<SameDayAlert> sameDayAlertsOf({
+  required DateTime date,
+  required String registeredBy,
+  required IList<SameDayPurchaseLine> lines,
+  required ISet<String> productTypeIds,
+}) {
+  final day = dayOf(date);
+  final found = <String, SameDayAlert>{};
+  for (final line in lines) {
+    if (dayOf(line.purchaseDate) != day) continue;
+    if (line.registeredBy == registeredBy) continue;
+    if (!productTypeIds.contains(line.productTypeId)) continue;
+    found.putIfAbsent(
+      line.productTypeId,
+      () => SameDayAlert(
+        productTypeId: line.productTypeId,
+        typeName: line.typeName,
+        purchasedOn: day,
+      ),
+    );
+  }
+  return found.values.toIList();
 }
