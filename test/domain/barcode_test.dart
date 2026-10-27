@@ -174,4 +174,36 @@ void main() {
     expect(const InvalidBarcode().toString(), contains('inválido'));
     expect(const InStoreBarcode().toString(), contains('balança'));
   });
+
+  group('fromJson — the CHECKs of product_barcode', () {
+    test('reads a factory code stored with 13 or 14 digits', () {
+      expect(Barcode.fromJson('07894900011517').code, '07894900011517');
+      expect(Barcode.fromJson('7894900011517').code, '07894900011517');
+    });
+
+    test('accepts 7 and 14 stored digits', () {
+      expect(Barcode.fromJson('1234565').code, '00000001234565');
+      expect(Barcode.fromJson('17894900011514').code, '17894900011514');
+    });
+
+    test('refuses fewer than 7 or more than 14 digits', () {
+      for (final raw in ['123456', '123456789012345', '']) {
+        expect(() => Barcode.fromJson(raw), throwsArgumentError);
+      }
+    });
+
+    test('refuses a stored code with non-digits — case 7e', () {
+      expect(() => Barcode.fromJson('789ABC'), throwsArgumentError);
+    });
+
+    test('refuses an in-store code without a store — cases 7a and 7b', () {
+      for (final raw in ['2822521', '02822521001605']) {
+        expect(() => Barcode.fromJson(raw), throwsArgumentError);
+      }
+    });
+
+    test('refuses a variable-weight UPC-A without a store — case 7c', () {
+      expect(() => Barcode.fromJson('00212345678909'), throwsArgumentError);
+    });
+  });
 }

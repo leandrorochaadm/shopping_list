@@ -74,10 +74,40 @@ final class ScaleLabel {
 final class ScaleCode {
   const ScaleCode({required this.storeId, required this.itemCode});
 
-  factory ScaleCode.fromJson(Map<String, dynamic> json) => ScaleCode(
-    storeId: json[storeIdKey] as String,
-    itemCode: json[codeKey] as String,
-  );
+  /// Throws [ArgumentError] for what the old CHECKs refused: no store, a code
+  /// outside 7 to 14 digits, or a code that is not a scale one.
+  factory ScaleCode.fromJson(Map<String, dynamic> json) {
+    if (!isScaleCodeRow(json)) {
+      throw ArgumentError.value(
+        json[storeIdKey],
+        'store_id',
+        'a scale code needs a store',
+      );
+    }
+    final code = json[codeKey] as String;
+    if (!Barcode.isStoredCode(code)) {
+      throw ArgumentError.value(
+        code,
+        'code',
+        'a stored code has ${Barcode.minStoredLength} to '
+            '${Barcode.gtinLength} digits',
+      );
+    }
+    if (!Barcode.isInStoreCode(code)) {
+      throw ArgumentError.value(
+        code,
+        'code',
+        'a factory code cannot have a store',
+      );
+    }
+    return ScaleCode(storeId: json[storeIdKey] as String, itemCode: code);
+  }
+
+  /// The row has a store (null and PocketBase's `''` mean none).
+  static bool isScaleCodeRow(Map<String, dynamic> row) {
+    final store = row[storeIdKey];
+    return store is String && store.isNotEmpty;
+  }
 
   /// The scale code that a read or typed label gives in THIS store.
   ///

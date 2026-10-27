@@ -31,18 +31,16 @@ final class Product {
     return Product(
       id: json['id'] as String?,
       productRegistrationId: json['product_registration_id'] as String,
-      packaging: json['total_content'] == null
-          ? null
-          : Packaging.fromJson(json),
+      packaging: Packaging.fromLeafJson(json),
       active: json['active'] as bool? ?? true,
       barcodes: [
         for (final row in rows)
-          if (row[ScaleCode.storeIdKey] == null)
+          if (!ScaleCode.isScaleCodeRow(row))
             Barcode.fromJson(row[ScaleCode.codeKey] as String),
       ].lock,
       scaleCodes: [
         for (final row in rows)
-          if (row[ScaleCode.storeIdKey] != null) ScaleCode.fromJson(row),
+          if (ScaleCode.isScaleCodeRow(row)) ScaleCode.fromJson(row),
       ].lock,
     );
   }

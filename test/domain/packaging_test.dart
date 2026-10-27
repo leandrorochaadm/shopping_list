@@ -208,4 +208,66 @@ void main() {
       );
     });
   });
+
+  group('fromLeafJson — all four fields or none', () {
+    Map<String, dynamic> row({
+      Object? count = 6,
+      Object? size = 350,
+      Object? unit = 'milliliter',
+      Object? total = 2100,
+    }) => {
+      'piece_count': count,
+      'piece_size': size,
+      'piece_size_unit': unit,
+      'total_content': total,
+    };
+
+    test('reads the four fields together', () {
+      final packaging = Packaging.fromLeafJson(row())!;
+
+      expect(packaging.pieceCount, 6);
+      expect(packaging.pieceSize, 350);
+      expect(packaging.baseUnit, BaseUnit.milliliter);
+      expect(packaging.totalContent, 2100);
+    });
+
+    test(
+      'reads no packaging from four empty fields, null or PocketBase empty',
+      () {
+        expect(Packaging.fromLeafJson({}), isNull);
+        expect(
+          Packaging.fromLeafJson(row(count: 0, size: 0, unit: '', total: 0)),
+          isNull,
+        );
+        expect(
+          Packaging.fromLeafJson(
+            row(count: null, size: null, unit: null, total: null),
+          ),
+          isNull,
+        );
+      },
+    );
+
+    test('refuses half a packaging', () {
+      final halves = [
+        {'total_content': 2100},
+        row(unit: null),
+        row(count: 0),
+      ];
+      for (final half in halves) {
+        expect(() => Packaging.fromLeafJson(half), throwsArgumentError);
+      }
+    });
+
+    test('refuses a total content that is not positive', () {
+      expect(() => Packaging.fromLeafJson(row(total: -1)), throwsArgumentError);
+    });
+
+    test('refuses a negative piece count read from outside', () {
+      expect(
+        () => Packaging.fromLeafJson(row(count: -1)),
+        throwsA(isA<InvalidPieceCount>()),
+      );
+    });
+  });
 }

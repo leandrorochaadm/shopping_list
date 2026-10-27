@@ -307,4 +307,82 @@ void main() {
       );
     });
   });
+
+  group('fromJson — what the CHECKs refused', () {
+    Map<String, dynamic> row({
+      Object? total = 2100,
+      List<Map<String, dynamic>>? codes,
+    }) => {
+      'id': 'prod-1',
+      'product_registration_id': 'reg-1',
+      'piece_count': total == 2100 ? 6 : 0,
+      'piece_size': total == 2100 ? 350 : 0,
+      'piece_size_unit': total == 2100 ? 'milliliter' : '',
+      'total_content': total,
+      'active': true,
+      'product_barcode': ?codes,
+    };
+
+    test('reads two codes without a store as two barcodes — case 1', () {
+      final product = Product.fromJson(
+        row(
+          codes: [
+            {'code': '07894900011517', 'store_id': null},
+            {'code': '7891000100103', 'store_id': null},
+          ],
+        ),
+      );
+
+      expect(product.barcodes.length, 2);
+      expect(product.scaleCodes, isEmpty);
+    });
+
+    test('reads an empty store_id as a packaging code', () {
+      final product = Product.fromJson(
+        row(
+          codes: [
+            {'code': '07894900011517', 'store_id': ''},
+          ],
+        ),
+      );
+
+      expect(product.barcodes.length, 1);
+      expect(product.scaleCodes, isEmpty);
+    });
+
+    test('reads a weight-sold leaf from PocketBase empties — case 5', () {
+      final product = Product.fromJson(row(total: 0));
+
+      expect(product.packaging, isNull);
+      expect(product.acceptsBarcodes, isFalse);
+      expect(product.barcodes, isEmpty);
+      expect(product.scaleCodes, isEmpty);
+    });
+
+    test('reads a leaf with no embed key as no codes — case 8', () {
+      final product = Product.fromJson(row());
+
+      expect(product.barcodes, isEmpty);
+      expect(product.scaleCodes, isEmpty);
+    });
+
+    test('refuses a leaf with half a packaging', () {
+      final json = row()..['piece_size_unit'] = '';
+
+      expect(() => Product.fromJson(json), throwsArgumentError);
+    });
+
+    test('refuses a leaf whose embed breaks a CHECK', () {
+      expect(
+        () => Product.fromJson(
+          row(
+            codes: [
+              {'code': '2822521', 'store_id': null},
+            ],
+          ),
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
 }

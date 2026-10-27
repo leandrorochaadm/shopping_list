@@ -362,7 +362,10 @@ void main() {
     test('a code taken by an active product names it', () {
       expect(
         barcodeConflictMessage(
-          TakenByActive(code: milk, owner: owner(brand: italac)),
+          TakenByActive(
+            code: milk,
+            owner: owner(brand: italac),
+          ),
         ),
         'Esse código já é do Leite Italac 1 L.',
       );
@@ -373,6 +376,40 @@ void main() {
         releasedBarcodeMessage(owner(brand: italac, leafActive: false)),
         'Esse código era do Leite Italac 1 L, que está desativado. '
         'Agora é deste.',
+      );
+    });
+  });
+
+  group('conflictOf — what the server UNIQUE no longer answers', () {
+    final active = owner();
+    final inactive = owner(productId: 'prod-2', leafActive: false);
+
+    test('four distinct codes on two cards are no conflict — case 2', () {
+      final codes = [milk, soda, juice, Barcode.typed('012345678905')].lock;
+
+      expect(conflictOf(codes, const IMap.empty()), isNull);
+    });
+
+    test('a code held by an active owner is taken — case 3', () {
+      expect(
+        conflictOf([soda].lock, {soda: active}.lock),
+        TakenByActive(code: soda, owner: active),
+      );
+    });
+
+    test('the same code twice in one save is repeated — case 4b', () {
+      expect(
+        conflictOf([juice, juice].lock, const IMap.empty()),
+        RepeatedOnScreen(juice),
+      );
+    });
+
+    test('a released code is free again — case 9', () {
+      expect(conflictOf([milk].lock, const IMap.empty()), isNull);
+      expect(conflictOf([milk].lock, {milk: inactive}.lock), isNull);
+      expect(
+        inactiveHoldersOf([milk].lock, {milk: inactive}.lock),
+        {milk: inactive}.lock,
       );
     });
   });

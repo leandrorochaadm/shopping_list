@@ -19,20 +19,45 @@ final class Barcode {
     if (!hasValidCheckDigit(digits)) throw const InvalidBarcode();
 
     final gtin = digits.padLeft(gtinLength, '0');
-    final ean13 = gtin.substring(gtinLength - ean13Length);
-    if (ean13.startsWith(inStorePrefix) ||
-        ean13.startsWith('0$inStorePrefix')) {
-      throw const InStoreBarcode();
-    }
+    if (isInStoreCode(gtin)) throw const InStoreBarcode();
     return Barcode._(gtin);
   }
 
-  /// The `code` column of `product_barcode` (a row with a null `store_id`).
-  /// The database is trusted; the padding only keeps `==` independent of who
-  /// wrote the row.
-  factory Barcode.fromJson(String code) =>
-      Barcode._(code.padLeft(gtinLength, '0'));
+  /// The `code` column of `product_barcode` (a row with no store). Throws
+  /// [ArgumentError] for what the old CHECKs refused: a code outside 7 to 14
+  /// digits, or a scale code. The check digit is NOT verified (old rows).
+  /// The padding keeps `==` independent of who wrote the row.
+  factory Barcode.fromJson(String code) {
+    if (!isStoredCode(code)) {
+      throw ArgumentError.value(
+        code,
+        'code',
+        'a stored code has $minStoredLength to $gtinLength digits',
+      );
+    }
+    if (isInStoreCode(code)) {
+      throw ArgumentError.value(code, 'code', 'a scale code needs a store');
+    }
+    return Barcode._(code.padLeft(gtinLength, '0'));
+  }
 
+  /// Digits only, [minStoredLength] to [gtinLength] of them.
+  static bool isStoredCode(String code) =>
+      _onlyDigits.hasMatch(code) &&
+      code.length >= minStoredLength &&
+      code.length <= gtinLength;
+
+  /// The last 13 digits (all, if fewer) start with the in-store prefix, with
+  /// or without a leading zero. Looks at the text as given, without padding.
+  static bool isInStoreCode(String digits) {
+    final ean13 = digits.length > ean13Length
+        ? digits.substring(digits.length - ean13Length)
+        : digits;
+    return ean13.startsWith(inStorePrefix) ||
+        ean13.startsWith('0$inStorePrefix');
+  }
+
+  static const minStoredLength = 7;
   static const acceptedLengths = {8, 12, 13, 14};
   static const gtinLength = 14;
   static const ean13Length = 13;

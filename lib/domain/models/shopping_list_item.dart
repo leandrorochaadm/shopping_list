@@ -87,7 +87,11 @@ final class ShoppingListItem {
           ? null
           : ProductRegistration.fromJson(registration),
       preferredRegistrationBrand: brand == null ? null : Brand.fromJson(brand),
-      quantity: (json['quantity'] as num?)?.toInt(),
+      // PocketBase returns 0 for a number without value: no quantity.
+      quantity: switch ((json['quantity'] as num?)?.toInt()) {
+        0 => null,
+        final q => q,
+      },
       enteredOn: decodeCalendarDay(json['entered_on'] as String),
       picked: json['picked'] as bool? ?? false,
       notFound: json['not_found'] as bool? ?? false,

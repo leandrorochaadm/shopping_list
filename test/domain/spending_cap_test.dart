@@ -2,6 +2,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
+import 'package:shopping_list/domain/models/calendar_day.dart';
 
 /// August 2026 — the month every case below talks about. A fixed instant,
 /// never `DateTime.now()`.
@@ -140,7 +141,9 @@ void main() {
       expect(capOf(cap1500), isNot(capOf(const Money(180000))));
       expect(
         capOf(cap1500),
-        isNot(SpendingCap(amount: cap1500, effectiveFrom: DateTime(2026, 7, 1))),
+        isNot(
+          SpendingCap(amount: cap1500, effectiveFrom: DateTime(2026, 7, 1)),
+        ),
       );
     });
 
@@ -159,10 +162,11 @@ void main() {
     });
 
     test('sends the month and both marks to the SQL', () {
-      expect(
-        CapAlerts(month: august, warned80: true).toJson(),
-        {'month': '2026-08-01', 'warned_80': true, 'warned_100': false},
-      );
+      expect(CapAlerts(month: august, warned80: true).toJson(), {
+        'month': '2026-08-01',
+        'warned_80': true,
+        'warned_100': false,
+      });
     });
 
     test('is equal field by field', () {
@@ -452,6 +456,73 @@ void main() {
         failure.toString(),
         'InvalidSpendingCap: Informe um teto maior que zero.',
       );
+    });
+  });
+
+  group('day 1 of the month', () {
+    String day(int d) => encodeCalendarDay(DateTime(2026, 8, d));
+
+    Map<String, dynamic> capRow({Object? amount = 150000, int from = 1}) => {
+      'amount': amount,
+      'effective_from': day(from),
+    };
+
+    test('SpendingCap.fromJson reads a cap from day 1', () {
+      final cap = SpendingCap.fromJson({
+        'amount': 150000,
+        'effective_from': encodeCalendarDay(DateTime(2026, 3, 1)),
+      });
+
+      expect(cap.effectiveFrom, DateTime(2026, 3, 1));
+      expect(cap.amount, const Money(150000));
+    });
+
+    test('SpendingCap.fromJson refuses a start that is not day 1', () {
+      expect(() => SpendingCap.fromJson(capRow(from: 15)), throwsArgumentError);
+    });
+
+    test('SpendingCap.fromJson refuses a negative amount and a zero one', () {
+      expect(
+        () => SpendingCap.fromJson(capRow(amount: -1)),
+        throwsArgumentError,
+      );
+      expect(
+        () => SpendingCap.fromJson(capRow(amount: 0)),
+        throwsA(isA<InvalidSpendingCap>()),
+      );
+    });
+
+    test('MonthCapStatus.fromJson refuses a month that is not day 1', () {
+      expect(
+        () => MonthCapStatus.fromJson({
+          'month': day(15),
+          'cap_amount': null,
+          'spent': 0,
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('MonthCapStatus.fromJson refuses a cap start that is not day 1', () {
+      expect(
+        () => MonthCapStatus.fromJson({
+          'month': day(1),
+          'cap_amount': 150000,
+          'cap_effective_from': day(15),
+          'spent': 0,
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('decodeMonthStart accepts only day 1', () {
+      expect(decodeMonthStart(day(1), 'month'), DateTime(2026, 8, 1));
+      for (final d in [2, 31]) {
+        expect(
+          () => decodeMonthStart(day(d), 'month'),
+          throwsA(isA<ArgumentError>().having((e) => e.name, 'name', 'month')),
+        );
+      }
     });
   });
 }

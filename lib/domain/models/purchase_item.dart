@@ -48,6 +48,13 @@ final class PurchaseItem {
     PriceOrigin priceOrigin = PriceOrigin.typed,
   }) {
     if (quantity <= 0) throw const InvalidQuantity();
+    if (paid.cents < 0) {
+      throw ArgumentError.value(
+        paid.cents,
+        'paid',
+        'a purchase line cannot cost less than zero',
+      );
+    }
     return PurchaseItem._(
       // Born on the phone, like the purchase's own key: the write-offs point
       // at it, and a resend that arrives twice has to find the same rows.

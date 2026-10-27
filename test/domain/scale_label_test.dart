@@ -160,4 +160,41 @@ void main() {
       allOf(contains('store-1'), contains('2822521')),
     );
   });
+
+  group('ScaleCode.fromJson — the CHECKs of product_barcode', () {
+    test('reads a scale code with its store — case 5b', () {
+      expect(
+        ScaleCode.fromJson({'store_id': 'store-1', 'code': '2822521'}),
+        const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
+      );
+    });
+
+    test('refuses a factory code with a store — case 7d', () {
+      expect(
+        () => ScaleCode.fromJson({
+          'store_id': 'store-1',
+          'code': '07894900011517',
+        }),
+        throwsArgumentError,
+      );
+    });
+
+    test('refuses a scale code without a store, null or empty', () {
+      for (final store in [null, '']) {
+        expect(
+          () => ScaleCode.fromJson({'store_id': store, 'code': '2822521'}),
+          throwsArgumentError,
+        );
+      }
+    });
+
+    test('refuses a scale code outside 7 to 14 digits', () {
+      for (final code in ['28225A1', '282252']) {
+        expect(
+          () => ScaleCode.fromJson({'store_id': 'store-1', 'code': code}),
+          throwsArgumentError,
+        );
+      }
+    });
+  });
 }

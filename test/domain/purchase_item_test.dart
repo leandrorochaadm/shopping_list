@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
+import 'package:shopping_list/domain/models/shopping_list_item.dart'
+    show InvalidQuantity;
 
 import '../helpers/purchase.dart';
 
@@ -78,5 +80,40 @@ void main() {
     expect(typed, isNot(fromCheckout()));
     expect(typed.hashCode, isNot(fromCheckout().hashCode));
     expect(fromCheckout().hashCode, fromCheckout().hashCode);
+  });
+
+  group('integrity checks', () {
+    test('refuses a quantity of zero or less', () {
+      for (final quantity in [0, -1]) {
+        expect(
+          () => purchaseItem(
+            id: 'item-1',
+            option: leaf,
+            quantity: quantity,
+            cents: 100,
+          ),
+          throwsA(isA<InvalidQuantity>()),
+        );
+      }
+    });
+
+    test('refuses a negative total paid', () {
+      expect(
+        () => purchaseItem(id: 'item-1', option: leaf, quantity: 1, cents: -1),
+        throwsArgumentError,
+      );
+    });
+
+    test('accepts a free line, total paid zero', () {
+      expect(
+        purchaseItem(
+          id: 'item-1',
+          option: leaf,
+          quantity: 1,
+          cents: 0,
+        ).paid.cents,
+        0,
+      );
+    });
   });
 }
