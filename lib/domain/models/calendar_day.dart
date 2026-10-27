@@ -5,8 +5,8 @@
 /// is read by `fromJson`, which runs before any screen has initialized
 /// anything.
 ///
-/// `encodeCalendarDay`/`decodeCalendarDay` are the PostgREST format and stay
-/// until Supabase is gone. PocketBase uses `encodeStoredDay`/`decodeStoredDay`
+/// `encodeCalendarDay`/`decodeCalendarDay` are the old date-only format, no longer
+/// used by the repositories. PocketBase uses `encodeStoredDay`/`decodeStoredDay`
 /// (calendar days) and `encodeInstant`/`decodeInstant` (UTC instants).
 library;
 
@@ -91,7 +91,7 @@ String encodeCalendarDay(DateTime day) =>
     '${day.month.toString().padLeft(2, '0')}-'
     '${day.day.toString().padLeft(2, '0')}';
 
-/// The way back. It accepts what PostgREST returns for a `date` and also a
+/// The way back. It accepts what the server returns for a `date` and also a
 /// full timestamp, because a column that turns into a timestamptz one day
 /// must not bring the list down with it.
 DateTime decodeCalendarDay(String value) => dayOf(DateTime.parse(value));

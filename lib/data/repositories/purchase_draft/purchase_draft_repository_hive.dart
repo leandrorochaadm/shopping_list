@@ -23,7 +23,7 @@ final class PurchaseDraftRepositoryHive implements PurchaseDraftRepository {
   /// caught in `main` and shown by `MisconfiguredApp.storageUnavailable()`.
   static const boxName = 'purchase_draft';
 
-  /// VERSIONED (`tecnico §4.8`): the version went up because the Supabase ids
+  /// VERSIONED (`tecnico §4.8`): the version went up because the old ids
   /// of `draft_v1` do not exist in PocketBase. The old draft disappears on
   /// purpose, and nobody writes a migration for data that lives for hours.
   static const _key = 'draft_v2';

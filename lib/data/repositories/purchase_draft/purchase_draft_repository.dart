@@ -4,7 +4,7 @@ import '../../../domain/models/purchase_draft.dart';
 
 /// Where the purchase being typed lives while it is not a purchase yet.
 ///
-/// It is HIVE and not Supabase, for the same reason the device label is: a
+/// It is HIVE and not PocketBase, for the same reason the device label is: a
 /// draft that needed the network to survive would be worthless in exactly the
 /// situation H8 exists for.
 abstract class PurchaseDraftRepository {

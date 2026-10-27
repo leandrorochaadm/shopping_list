@@ -31,7 +31,7 @@ final class BarcodeOwner {
     );
   }
 
-  /// The keys of the nested embed in the PostgREST row.
+  /// The keys of the nested map the `_remote` builds from the PocketBase `expand`.
   static const registrationKey = 'product_registration';
   static const typeKey = 'product_type';
   static const brandKey = 'brand';

@@ -33,7 +33,7 @@ final class ProductOption {
     this.baseline,
   });
 
-  /// Reads the PostgREST embed: the leaf comes with its registration nested,
+  /// Reads the nested map the `_remote` builds from the PocketBase `expand`: the leaf comes with its registration nested,
   /// and the registration with its type and its brand.
   factory ProductOption.fromJson(Map<String, dynamic> json) {
     final registration = json['product_registration'] as Map<String, dynamic>;
@@ -51,7 +51,7 @@ final class ProductOption {
     );
   }
 
-  /// The way back to [fromJson] — the SAME nested shape PostgREST returns.
+  /// The way back to [fromJson] — the SAME nested shape the `_remote` builds.
   ///
   /// It exists for the purchase DRAFT: an item kept in Hive has to be drawn
   /// and re-edited with no network at all, which is the whole point of H8.

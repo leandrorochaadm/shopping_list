@@ -1,9 +1,10 @@
 /// The failure types the layers above this one know about.
 ///
 /// They live in their own file — not inside an `api_client.dart` — because this
-/// project has no HTTP client of its own: `supabase_flutter` brings the client,
-/// and the repositories talk to it directly. See `10_backend` in the
-/// flutter-mvvm skill.
+/// project has no HTTP client of its own: the `pocketbase` SDK brings the
+/// client, and the repositories talk to it directly; `pocketbase_error.dart`
+/// is the only place that turns its failure into these two types. See
+/// `10_backend` in the flutter-mvvm skill.
 library;
 
 /// The server ANSWERED and said no.

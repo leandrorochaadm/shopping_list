@@ -45,7 +45,7 @@ final class Product {
     );
   }
 
-  /// The key of the embed in the PostgREST row (it is the table's name).
+  /// The key of the nested map the `_remote` builds from the PocketBase `expand` (it is the table's name).
   static const barcodesKey = 'product_barcode';
 
   final String? id;

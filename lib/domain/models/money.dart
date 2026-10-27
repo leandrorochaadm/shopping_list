@@ -38,11 +38,10 @@ final class Money implements Comparable<Money> {
     );
   }
 
-  /// What PostgREST returns for the `bigint` cents column. `num` and not
+  /// What the server returns for the `bigint` cents column. `num` and not
   /// `int` because a JSON number that fits in an int still arrives as a num
   /// through some paths.
-  factory Money.fromJson(Object? value) =>
-      Money((value as num?)?.toInt() ?? 0);
+  factory Money.fromJson(Object? value) => Money((value as num?)?.toInt() ?? 0);
 
   static const zero = Money(0);
 
