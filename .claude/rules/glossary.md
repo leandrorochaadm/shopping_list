@@ -83,6 +83,10 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | onde o mês está | `MonthCapStatus` | teto vigente + gasto + marcas. É o que `cap_states` responde |
 | o que a avaliação produziu | `SpendingCapEvaluation` | o que **gravar** (`alerts`) e o que **mostrar** (`triggered` / `headline`) |
 | aviso de item repetido | `SameDayAlert` | o tipo que o outro também comprou no mesmo dia. Nível do **tipo**, nunca da marca |
+| avisos a gravar | `planCapAlertWrites` / `CapAlertStep` / `CapAlertWrite` | um passo por mês; `none` não vai ao lote; `rearm` é o salvar do teto |
+| aviso guardado | `StoredCapAlert` | o registro de `spending_cap_alert`: id + mês + dois carimbos; `null` é não cruzado |
+| status dos meses | `buildMonthCapStatuses` | o antigo `cap_states`; ordenado por mês |
+| compras do mesmo dia | `sameDayAlertsOf` / `SameDayPurchaseLine` | o antigo `same_day_types`; outra pessoa, mesmo dia, nível do tipo |
 | janela rolante | `rollingWindowStart` | três meses de calendário terminando hoje, **com o mês em curso dentro**. A **fechada** nasce na H17, no mesmo arquivo |
 | média da janela | `PriceBaseline` | o **par** (pago, quantidade) da janela inteira, nunca um preço por unidade arredondado. Ponderada, como o requisito 4 define |
 | alerta de alta de preço | `PriceIncrease` | **existir É o alerta**; `null` é o silêncio. O limiar é `priceIncreaseThreshold`, `const` no domínio |
