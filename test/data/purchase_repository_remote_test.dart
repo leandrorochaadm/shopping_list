@@ -1,887 +1,416 @@
-import 'dart:async';
+import 'dart:convert';
 
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository.dart';
 import 'package:shopping_list/data/repositories/purchase/purchase_repository_remote.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
-import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/list_write_off.dart';
-import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase.dart';
-import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/spending_cap.dart';
 import 'package:shopping_list/domain/models/write_off_undo.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../helpers/pocketbase_test_client.dart';
 import '../helpers/purchase.dart';
 
-class _MockClient extends Mock implements SupabaseClient {}
+const _purchaseId = 'purchase0000001';
+const _itemId = 'item00000000001';
+const _storeId = 'store000000001';
+const _listItemId = 'listitem0000001';
 
-/// A query chain that answers a fixed set of rows. Like `rpc`, none of these
-/// builders is a Future — they only IMPLEMENT one — so `thenAnswer` with an
-/// `async` closure does not compile, and `then` is what `await` reaches.
-class _FakeQuery extends Fake implements PostgrestFilterBuilder<PostgrestList> {
-  _FakeQuery(this.rows);
-
-  final PostgrestList rows;
-
-  /// The `eq` filters the chain applied, in the order they came. A fake that
-  /// answers `this` to everything swallows the WHERE silently, and there are
-  /// queries here whose filter IS the rule — `fetchProductOptions` keeps the
-  /// deactivated leaf out of screen 3 and out of the `#3a` panel, and it does
-  /// that in SQL and nowhere else.
-  final filters = <String, Object>{};
-
-  @override
-  PostgrestFilterBuilder<PostgrestList> eq(String column, Object value) {
-    filters[column] = value;
-    return this;
-  }
-
-  @override
-  PostgrestFilterBuilder<PostgrestList> gte(String column, Object value) =>
-      this;
-
-  @override
-  PostgrestFilterBuilder<PostgrestList> inFilter(
-    String column,
-    List<dynamic> values,
-  ) => this;
-
-  @override
-  PostgrestTransformBuilder<PostgrestList> order(
-    String column, {
-    bool ascending = false,
-    bool nullsFirst = false,
-    String? referencedTable,
-  }) => this;
-
-  @override
-  PostgrestTransformBuilder<PostgrestList> range(
-    int from,
-    int to, {
-    String? referencedTable,
-  }) => this;
-
-  /// `single()` narrows the chain from a list to a map, so it cannot answer
-  /// with `this` — the fake has to change shape exactly where the real
-  /// builder does.
-  @override
-  PostgrestTransformBuilder<PostgrestMap> single() =>
-      _FakeSingle(rows.isEmpty ? const {} : rows.first);
-
-  @override
-  Future<R> then<R>(
-    FutureOr<R> Function(PostgrestList) onValue, {
-    Function? onError,
-  }) => Future.value(rows).then(onValue, onError: onError);
-}
-
-class _FakeSingle extends Fake
-    implements PostgrestTransformBuilder<PostgrestMap> {
-  _FakeSingle(this.row);
-
-  final PostgrestMap row;
-
-  @override
-  Future<R> then<R>(
-    FutureOr<R> Function(PostgrestMap) onValue, {
-    Function? onError,
-  }) => Future.value(row).then(onValue, onError: onError);
-}
-
-/// The void RPCs of H9. Same trap as `_FakeRpc`: `rpc` is not a Future, it
-/// only implements one.
-class _FakeVoidRpc extends Fake implements PostgrestFilterBuilder<void> {
-  @override
-  Future<R> then<R>(FutureOr<R> Function(void) onValue, {Function? onError}) =>
-      Future<void>.value().then(onValue, onError: onError);
-}
-
-/// H14's read. Same trap as `_FakeRpc`: `rpc` is not a Future.
-class _FakeSameDayRpc extends Fake
-    implements PostgrestFilterBuilder<List<dynamic>> {
-  _FakeSameDayRpc(this.value);
-
-  final List<dynamic> value;
-
-  @override
-  Future<R> then<R>(
-    FutureOr<R> Function(List<dynamic>) onValue, {
-    Function? onError,
-  }) => Future.value(value).then(onValue, onError: onError);
-}
-
-class _FakeTable extends Fake implements SupabaseQueryBuilder {
-  _FakeTable(this.rows);
-
-  final PostgrestList rows;
-
-  /// The chains `select` handed back, so a test can ask which filters were
-  /// applied to them. A `final` list and not a nullable field: a mutable
-  /// field would put `must_be_immutable` on this class, and the project's
-  /// checklist wants `flutter analyze` clean.
-  final queries = <_FakeQuery>[];
-
-  /// The text of each `select`, to assert what is embedded.
-  final columns = <String>[];
-
-  @override
-  PostgrestFilterBuilder<PostgrestList> select([String columns = '*']) {
-    this.columns.add(columns);
-    final query = _FakeQuery(rows);
-    queries.add(query);
-    return query;
-  }
-}
-
-/// `rpc` does not return a Future — it returns a `PostgrestFilterBuilder`,
-/// which only IMPLEMENTS one. Stubbing it with `thenAnswer((_) async => …)`
-/// does not compile, so the success cases need a stand-in whose `then` is
-/// what `await` reaches. The failing cases use `thenThrow`, which needs none
-/// of this.
-class _FakeRpc extends Fake
-    implements PostgrestFilterBuilder<Map<String, dynamic>> {
-  _FakeRpc(this.value);
-
-  final Map<String, dynamic> value;
-
-  @override
-  Future<R> then<R>(
-    FutureOr<R> Function(Map<String, dynamic>) onValue, {
-    Function? onError,
-  }) => Future.value(value).then(onValue, onError: onError);
-}
-
-/// The one inviolable rule of every `_remote` method, held by a test — and
-/// the one thing about `create_purchase` that a happy path never shows: a
-/// resend that arrived twice answers "already registered" instead of writing
-/// a second purchase.
 void main() {
-  late _MockClient client;
-  late PurchaseRepositoryRemote repository;
+  late List<http.Request> requests;
+  final clock = DateTime.utc(2026, 8, 18, 15, 30);
 
-  final submission = PurchaseSubmission(
-    purchase: Purchase(
-      id: 'a1',
-      date: DateTime(2026, 8, 18),
-      storeId: 'store-1',
-      registeredBy: 'Leandro',
-      items: [
-        purchaseItem(
-          id: 'i1',
-          option: optionByPiece(id: 'prod-4', pieceCount: 12),
-          cents: 6200,
-        ),
-      ].lock,
-    ),
-    writeOffs: const IList<ListWriteOff>.empty(),
+  http.Response ok(Object body) => http.Response(
+    jsonEncode(body),
+    200,
+    headers: {'content-type': 'application/json; charset=utf-8'},
   );
 
-  group('when PostgREST refuses', () {
-    setUp(() {
-      client = _MockClient();
-      repository = PurchaseRepositoryRemote(client);
-      // The failure is raised at the first hop of every chain, which is where
-      // a real PostgrestException would surface anyway.
-      when(() => client.from(any())).thenThrow(
-        const PostgrestException(message: 'duplicate key', code: '23505'),
-      );
-      when(
-        () => client.rpc<Map<String, dynamic>>(
-          any(),
-          params: any(named: 'params'),
-        ),
-      ).thenThrow(
-        const PostgrestException(message: 'duplicate key', code: '23505'),
-      );
-      when(
-        () => client.rpc<void>(any(), params: any(named: 'params')),
-      ).thenThrow(
-        const PostgrestException(message: 'duplicate key', code: '23505'),
-      );
-      when(
-        () => client.rpc<List<dynamic>>(any(), params: any(named: 'params')),
-      ).thenThrow(
-        const PostgrestException(message: 'duplicate key', code: '23505'),
-      );
+  /// Answers by method + path; the batch endpoint echoes one 200 per request.
+  PurchaseRepositoryRemote repositoryWith(
+    http.Response Function(http.Request request) answer, {
+    bool signedIn = true,
+  }) {
+    final client = MockClient((request) async {
+      requests.add(request);
+      return answer(request);
     });
+    return PurchaseRepositoryRemote(
+      testPocketBase(client, signedIn: signedIn),
+      clock: () => clock,
+    );
+  }
 
-    final calls = <String, Future<void> Function()>{
-      'fetchProductOptions': () => repository.fetchProductOptions(),
-      'fetchRecentItems': () =>
-          repository.fetchRecentItems(DateTime(2026, 5, 28)),
-      'save': () => repository.save(submission),
-      'fetchPage': () => repository.fetchPage(offset: 0, limit: 20),
-      'fetchDetail': () => repository.fetchDetail('a1'),
-      'correct': () => repository.correct(
-        purchase: submission.purchase,
-        writeOffs: const IList<ListWriteOff>.empty(),
-        restored: const IList<RestoredListItem>.empty(),
-      ),
-      'delete': () => repository.delete(
-        purchaseId: 'a1',
-        restored: const IList<RestoredListItem>.empty(),
-      ),
-      'fetchSameDayTypes': () => repository.fetchSameDayTypes(
-        date: DateTime(2026, 8, 18),
-        registeredBy: 'Leandro',
-        productTypeIds: const ISet<String>.empty(),
-      ),
-    };
+  List<Map<String, dynamic>> batchRequests() {
+    final batch = requests.lastWhere((r) => r.url.path == '/api/batch');
+    return (jsonDecode(batch.body)['requests'] as List)
+        .cast<Map<String, dynamic>>();
+  }
 
-    for (final entry in calls.entries) {
-      test('${entry.key} translates the SQLSTATE instead of leaking it', () {
-        // Without `rethrowAsKnownFailure` the SQLSTATE arrives as
-        // "status 23505", falls into the `>= 500` arm of AppFailure and tells
-        // the user the server is down.
-        expect(
-          entry.value,
-          throwsA(
-            isA<ApiException>().having((e) => e.statusCode, 'statusCode', 409),
+  http.Response echoBatch(http.Request request) {
+    final sent = (jsonDecode(request.body)['requests'] as List).length;
+    return ok([
+      for (var i = 0; i < sent; i++)
+        {'status': 200, 'body': <String, dynamic>{}},
+    ]);
+  }
+
+  final piece = optionByPiece(id: 'product0000001');
+  final purchase = Purchase(
+    id: _purchaseId,
+    date: DateTime.utc(2026, 8, 18),
+    storeId: _storeId,
+    registeredBy: 'Ana',
+    items: [purchaseItem(id: _itemId, option: piece, quantity: 2)].lock,
+  );
+  final writeOff = ListWriteOff(
+    purchaseItemId: _itemId,
+    shoppingListItemId: _listItemId,
+    quantityWrittenOff: 2,
+    fulfills: true,
+  );
+
+  setUp(() => requests = []);
+
+  group('session', () {
+    test('every read refuses to run without a signed-in user', () async {
+      final repository = repositoryWith(
+        (_) => fail('no request expected'),
+        signedIn: false,
+      );
+
+      await expectLater(
+        repository.fetchProductOptions(),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        repository.fetchDetail(_purchaseId),
+        throwsA(isA<ApiException>()),
+      );
+      expect(requests, isEmpty);
+    });
+  });
+
+  group('fetchProductOptions', () {
+    test('builds the option and sends only the active filter', () async {
+      final product = recordJson(
+        piece.product.id!,
+        {
+          ...piece.product.toJson()..remove('id'),
+          'product_registration_id': piece.registration.id,
+        },
+        expand: {
+          'product_registration_id': recordJson(
+            piece.registration.id!,
+            {...piece.registration.toJson()..remove('id'), 'brand_id': ''},
+            expand: {
+              'product_type_id': recordJson(piece.type.id!, {
+                ...piece.type.toJson()..remove('id'),
+              }),
+            },
+          ),
+        },
+      );
+      final repository = repositoryWith((_) => listJson([product]));
+
+      final options = await repository.fetchProductOptions();
+
+      expect(options.single.product.id, piece.product.id);
+      expect(options.single.type, piece.type);
+      expect(options.single.brand, isNull);
+      final query = requests.single.url.queryParameters;
+      expect(query['filter'], contains('active = true'));
+      expect(query['filter'], isNot(contains('user')));
+    });
+  });
+
+  group('fetchPage', () {
+    test(
+      'asks for the page by number and reads hasMore from the total',
+      () async {
+        final repository = repositoryWith(
+          (_) => listJson(
+            [
+              recordJson(
+                _purchaseId,
+                {
+                  'purchase_date': '2026-08-18 00:00:00.000Z',
+                  'registered_by': 'Ana',
+                  'store_id': _storeId,
+                },
+                expand: {
+                  'store_id': recordJson(_storeId, {'name': 'Carrefour'}),
+                  'purchase_item_via_purchase_id': [
+                    recordJson(_itemId, {'total_paid': 1200}),
+                  ],
+                },
+              ),
+            ],
+            page: 2,
+            perPage: 20,
+            totalItems: 45,
           ),
         );
-      });
-    }
+
+        final page = await repository.fetchPage(offset: 20, limit: 20);
+
+        expect(page.hasMore, isTrue);
+        expect(page.purchases.single.storeName, 'Carrefour');
+        final query = requests.single.url.queryParameters;
+        expect(query['page'], '2');
+        expect(query['perPage'], '20');
+        expect(query['sort'], '-purchase_date,-created_at,-id');
+      },
+    );
+
+    test('has no more pages on the last one', () async {
+      final repository = repositoryWith(
+        (_) => listJson([], page: 3, perPage: 20, totalItems: 45),
+      );
+
+      final page = await repository.fetchPage(offset: 40, limit: 20);
+
+      expect(page.hasMore, isFalse);
+    });
+
+    test('rejects an offset that is not a multiple of the limit', () {
+      final repository = repositoryWith((_) => fail('no request expected'));
+
+      expect(
+        () => repository.fetchPage(offset: 5, limit: 20),
+        throwsArgumentError,
+      );
+      expect(requests, isEmpty);
+    });
   });
 
   group('save', () {
-    setUp(() {
-      client = _MockClient();
-      repository = PurchaseRepositoryRemote(client);
-    });
+    test('sends one atomic batch in the order of the plan', () async {
+      final repository = repositoryWith(echoBatch);
 
-    test('answers true when the purchase was already registered', () async {
-      // H8's resend that arrived twice. It is NOT an error: the purchase is
-      // there, the list was written off once, and the draft has to die all
-      // the same.
-      when(
-        () => client.rpc<Map<String, dynamic>>(
-          any(),
-          params: any(named: 'params'),
-        ),
-      ).thenAnswer(
-        (_) => _FakeRpc({'already_registered': true, 'purchase_id': 'a1'}),
+      final repeated = await repository.save(
+        PurchaseSubmission(purchase: purchase, writeOffs: [writeOff].lock),
       );
 
-      expect(await repository.save(submission), isTrue);
-    });
-
-    test('answers false for a purchase that was written now', () async {
-      when(
-        () => client.rpc<Map<String, dynamic>>(
-          any(),
-          params: any(named: 'params'),
-        ),
-      ).thenAnswer(
-        (_) => _FakeRpc({'already_registered': false, 'purchase_id': 'a1'}),
-      );
-
-      expect(await repository.save(submission), isFalse);
-    });
-
-    test('sends the purchase, the items and the write-offs apart', () async {
-      // The three arguments of the function, and the items do NOT carry a
-      // purchase_id: it is the same for all of them and comes from the first
-      // argument.
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<Map<String, dynamic>>(
-          any(),
-          params: any(named: 'params'),
-        ),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeRpc({'already_registered': false});
-      });
-
-      await repository.save(submission);
-
-      expect(sent!['p_purchase'], {
-        'id': 'a1',
-        'purchase_date': '2026-08-18',
-        'store_id': 'store-1',
-        'registered_by': 'Leandro',
-      });
-      final items = sent!['p_items'] as List;
-      expect(items, hasLength(1));
+      expect(repeated, isFalse);
+      expect(requests, hasLength(1));
+      final sent = batchRequests();
+      expect(sent.map((r) => '${r['method']} ${r['url']}').toList(), [
+        'POST /api/collections/purchase/records',
+        'POST /api/collections/purchase_item/records',
+        'POST /api/collections/list_write_off/records',
+        'PATCH /api/collections/shopping_list_item/records/$_listItemId',
+      ]);
+      final created = sent.first['body'] as Map<String, dynamic>;
+      expect(created['id'], _purchaseId);
+      expect(created['purchase_date'], '2026-08-18 00:00:00.000Z');
+      expect(created['created_at'], '2026-08-18 15:30:00.000Z');
+      expect(created['user'], testUserId);
+      final off = sent[2]['body'] as Map<String, dynamic>;
+      expect(off, isNot(contains('fulfills')));
+      expect(off['user'], testUserId);
       expect(
-        (items.single as Map<String, dynamic>).containsKey('purchase_id'),
-        isFalse,
+        (sent[3]['body'] as Map<String, dynamic>)['fulfilled_on'],
+        '2026-08-18 00:00:00.000Z',
       );
-      expect(sent!['p_write_offs'], isEmpty);
-      // H13: the month's marks travel WITH the purchase, in the same
-      // transaction — empty here, which is a month with no cap.
-      expect(sent!['p_cap_alerts'], isEmpty);
     });
 
-    test('sends the month marks the domain decided', () async {
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<Map<String, dynamic>>(
-          any(),
-          params: any(named: 'params'),
+    test('a 409 whose purchase is already stored is a repeated send', () async {
+      final repository = repositoryWith((request) {
+        if (request.url.path == '/api/batch') {
+          return batchErrorJson(
+            index: 0,
+            status: 400,
+            data: {
+              'id': {'code': 'validation_not_unique', 'message': 'taken'},
+            },
+          );
+        }
+        return listJson([recordJson(_purchaseId, {})]);
+      });
+
+      final repeated = await repository.save(
+        PurchaseSubmission(purchase: purchase, writeOffs: const IList.empty()),
+      );
+
+      expect(repeated, isTrue);
+      expect(
+        requests.last.url.queryParameters['filter'],
+        contains(_purchaseId),
+      );
+    });
+
+    test('a 409 with no stored purchase rethrows the original error', () async {
+      final repository = repositoryWith((request) {
+        if (request.url.path == '/api/batch') {
+          return batchErrorJson(
+            index: 0,
+            status: 400,
+            data: {
+              'id': {'code': 'validation_not_unique', 'message': 'taken'},
+            },
+          );
+        }
+        return listJson([]);
+      });
+
+      await expectLater(
+        repository.save(
+          PurchaseSubmission(
+            purchase: purchase,
+            writeOffs: const IList.empty(),
+          ),
         ),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeRpc({'already_registered': false});
+        throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409)),
+      );
+    });
+
+    test('creates the month alert from the stored state', () async {
+      final month = DateTime.utc(2026, 8);
+      final repository = repositoryWith((request) {
+        if (request.url.path == '/api/batch') return echoBatch(request);
+        return listJson([]);
       });
 
       await repository.save(
         PurchaseSubmission(
-          purchase: submission.purchase,
-          writeOffs: const IList<ListWriteOff>.empty(),
+          purchase: purchase,
+          writeOffs: const IList.empty(),
           capAlerts: [
-            CapAlerts(
-              month: DateTime(2026, 8, 1),
-              warned80: true,
-              warned100: false,
-            ),
+            CapAlerts(month: month, warned80: true, warned100: false),
           ].lock,
         ),
       );
 
-      expect(sent!['p_cap_alerts'], [
-        {'month': '2026-08-01', 'warned_80': true, 'warned_100': false},
-      ]);
+      final alert = batchRequests().last;
+      expect(alert['url'], '/api/collections/spending_cap_alert/records');
+      final body = alert['body'] as Map<String, dynamic>;
+      expect(body['month'], '2026-08-01 00:00:00.000Z');
+      expect(body['warned_80_at'], '2026-08-18 15:30:00.000Z');
+      expect(body['warned_100_at'], '');
+      expect(body['user'], testUserId);
     });
   });
 
-  group('the correction and the deletion carry the marks too', () {
-    setUp(() {
-      client = _MockClient();
-      repository = PurchaseRepositoryRemote(client);
-    });
-
-    test('correct sends p_cap_alerts, one entry per month affected', () async {
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<void>(any(), params: any(named: 'params')),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeVoidRpc();
+  group('correct', () {
+    test('deletes the stored lines, then recreates them', () async {
+      final repository = repositoryWith((request) {
+        if (request.url.path == '/api/batch') return echoBatch(request);
+        return listJson([
+          recordJson(
+            'olditem00000001',
+            {},
+            expand: {
+              'list_write_off_via_purchase_item_id': [
+                recordJson('oldoff000000001', {}),
+              ],
+            },
+          ),
+        ]);
       });
 
       await repository.correct(
-        purchase: submission.purchase,
-        writeOffs: const IList<ListWriteOff>.empty(),
-        restored: const IList<RestoredListItem>.empty(),
-        // TWO months: the correction moved the purchase across the turn of
-        // one, so the month it left may have rearmed.
-        capAlerts: [
-          CapAlerts(month: DateTime(2026, 8, 1)),
-          CapAlerts(month: DateTime(2026, 9, 1), warned80: true),
-        ].lock,
+        purchase: purchase,
+        writeOffs: const IList.empty(),
+        restored: const IList.empty(),
       );
 
-      expect(sent!['p_cap_alerts'], [
-        {'month': '2026-08-01', 'warned_80': false, 'warned_100': false},
-        {'month': '2026-09-01', 'warned_80': true, 'warned_100': false},
+      final sent = batchRequests();
+      expect(sent.map((r) => '${r['method']} ${r['url']}').toList(), [
+        'PATCH /api/collections/purchase/records/$_purchaseId',
+        'DELETE /api/collections/list_write_off/records/oldoff000000001',
+        'DELETE /api/collections/purchase_item/records/olditem00000001',
+        'POST /api/collections/purchase_item/records',
       ]);
+      final patch = sent.first['body'] as Map<String, dynamic>;
+      expect(patch.keys, unorderedEquals(['purchase_date', 'store_id']));
     });
 
-    test('delete sends the rearm', () async {
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<void>(any(), params: any(named: 'params')),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeVoidRpc();
+    test('reopens a restored list item with an empty fulfilled_on', () async {
+      final repository = repositoryWith((request) {
+        if (request.url.path == '/api/batch') return echoBatch(request);
+        return listJson([]);
       });
 
       await repository.delete(
-        purchaseId: 'a1',
-        restored: const IList<RestoredListItem>.empty(),
-        capAlerts: [CapAlerts(month: DateTime(2026, 8, 1))].lock,
+        purchaseId: _purchaseId,
+        restored: [
+          const RestoredListItem(
+            id: _listItemId,
+            fulfilledOn: null,
+            notFound: false,
+          ),
+        ].lock,
       );
 
-      expect(sent!['p_cap_alerts'], [
-        {'month': '2026-08-01', 'warned_80': false, 'warned_100': false},
-      ]);
+      final sent = batchRequests();
+      final patch = sent.firstWhere((r) => r['method'] == 'PATCH');
+      expect((patch['body'] as Map<String, dynamic>)['fulfilled_on'], '');
+      expect(sent.last['method'], 'DELETE');
+      expect(
+        sent.last['url'],
+        '/api/collections/purchase/records/$_purchaseId',
+      );
     });
   });
 
   group('fetchSameDayTypes', () {
-    setUp(() {
-      client = _MockClient();
-      repository = PurchaseRepositoryRemote(client);
-    });
+    test('asks nothing when there are no types', () async {
+      final repository = repositoryWith((_) => fail('no request expected'));
 
-    test('sends the day, the label and the types', () async {
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<List<dynamic>>(any(), params: any(named: 'params')),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeSameDayRpc(const []);
-      });
-
-      await repository.fetchSameDayTypes(
-        date: DateTime(2026, 8, 18),
-        registeredBy: 'Leandro',
-        productTypeIds: const ISetConst({'type-1'}),
+      final alerts = await repository.fetchSameDayTypes(
+        date: DateTime.utc(2026, 8, 18),
+        registeredBy: 'Ana',
+        productTypeIds: const ISet.empty(),
       );
 
-      // The day comes from the phone's clock — never `current_date`, which at
-      // 21:00 UTC−4 on the 30th answers the 31st.
-      expect(sent!['p_date'], '2026-08-18');
-      expect(sent!['p_registered_by'], 'Leandro');
-      expect(sent!['p_type_ids'], ['type-1']);
+      expect(alerts, isEmpty);
+      expect(requests, isEmpty);
     });
 
-    test('reads the types, keeping the day that was asked about', () async {
-      when(
-        () => client.rpc<List<dynamic>>(any(), params: any(named: 'params')),
-      ).thenAnswer(
-        (_) => _FakeSameDayRpc([
-          {'product_type_id': 'type-1', 'name': 'Refrigerante'},
+    test('flags a type the other person bought the same day', () async {
+      final repository = repositoryWith(
+        (_) => listJson([
+          recordJson(
+            _itemId,
+            {},
+            expand: {
+              'purchase_id': recordJson(_purchaseId, {
+                'purchase_date': '2026-08-18 00:00:00.000Z',
+                'registered_by': 'Bia',
+              }),
+              'product_id': recordJson(
+                'product0000009',
+                {},
+                expand: {
+                  'product_registration_id': recordJson(
+                    'registration001',
+                    {},
+                    expand: {
+                      'product_type_id': recordJson(piece.type.id!, {
+                        'name': piece.type.name,
+                      }),
+                    },
+                  ),
+                },
+              ),
+            },
+          ),
         ]),
       );
 
       final alerts = await repository.fetchSameDayTypes(
-        date: DateTime(2026, 8, 18),
-        registeredBy: 'Leandro',
-        productTypeIds: const ISetConst({'type-1'}),
+        date: DateTime.utc(2026, 8, 18),
+        registeredBy: 'Ana',
+        productTypeIds: {piece.type.id!}.lock,
       );
 
-      expect(alerts.single.typeName, 'Refrigerante');
-      // The day is NOT in the answer: it is the one asked about, and the
-      // sentence needs it to choose between "hoje" and "no dia 18/08".
-      expect(alerts.single.purchasedOn, DateTime(2026, 8, 18));
-    });
-  });
-
-  group('reading', () {
-    setUp(() {
-      client = _MockClient();
-      repository = PurchaseRepositoryRemote(client);
-    });
-
-    test('reads the picker out of the embed, brand and all', () async {
-      // The shape of the query is the contract here: the registration comes
-      // nested, and the type and the brand nested inside it. A `!inner` put
-      // on `brand` would make the weight-sold product disappear, which is why
-      // the null one is in this fixture too.
-      // `thenAnswer`, not `thenReturn`: the builder implements Future, and
-      // mocktail refuses to return one directly.
-      when(() => client.from('product')).thenAnswer(
-        (_) => _FakeTable([
-          {
-            'id': 'prod-4',
-            'product_registration_id': 'reg-1',
-            'piece_count': 12,
-            'piece_size': 350,
-            'piece_size_unit': 'milliliter',
-            'total_content': 4200,
-            'active': true,
-            'product_registration': {
-              'id': 'reg-1',
-              'product_type_id': 'type-1',
-              'brand_id': 'brand-1',
-              'description': '',
-              'selling_mode': 'by_piece',
-              'active': true,
-              'product_type': {
-                'id': 'type-1',
-                'name': 'Refrigerante',
-                'category_id': 'cat-1',
-                'base_unit': 'milliliter',
-                'active': true,
-              },
-              'brand': {'id': 'brand-1', 'name': 'Coca-Cola', 'active': true},
-            },
-          },
-          {
-            'id': 'prod-5',
-            'product_registration_id': 'reg-2',
-            'active': true,
-            'product_registration': {
-              'id': 'reg-2',
-              'product_type_id': 'type-2',
-              'brand_id': null,
-              'description': '',
-              'selling_mode': 'by_weight',
-              'active': true,
-              'product_type': {
-                'id': 'type-2',
-                'name': 'Acém moído',
-                'category_id': 'cat-2',
-                'base_unit': 'gram',
-                'active': true,
-              },
-              'brand': null,
-            },
-          },
-        ]),
-      );
-
-      final options = await repository.fetchProductOptions();
-
-      expect(options, hasLength(2));
-      expect(options.first.label, 'Coca-Cola 12 × 350 ml');
-      expect(options.first.toBaseUnit(1), 4200);
-      // "Sem marca" is a real answer (decision B2), and it has to survive.
-      expect(options.last.brand, isNull);
-      expect(options.last.label, 'Acém moído (peso)');
-    });
-
-    test('the deactivated leaf is left out — the filter is in SQL', () async {
-      // `handoff §H19`: "um produto desativado fica de fora" do painel `#3a`
-      // — and `handoff §H10` says the same about screen 3's picker. Neither
-      // is decided in Dart: `costCandidatesOf` only cuts what it is handed,
-      // and the panel opens over the very list this method returned.
-      //
-      // So the WHERE below IS the acceptance criterion. Without the assertion
-      // its removal breaks two screens and no test turns red — the fixture
-      // here is active either way, and the mapping keeps passing.
-      final table = _FakeTable([
-        {
-          'id': 'prod-4',
-          'product_registration_id': 'reg-1',
-          'active': true,
-          'piece_count': 12,
-          'piece_size': 350,
-          'piece_size_unit': 'milliliter',
-          'total_content': 4200,
-          'product_registration': {
-            'id': 'reg-1',
-            'product_type_id': 'type-1',
-            'brand_id': 'brand-1',
-            'description': '',
-            'selling_mode': 'by_piece',
-            'active': true,
-            'product_type': {
-              'id': 'type-1',
-              'name': 'Refrigerante',
-              'category_id': 'cat-1',
-              'base_unit': 'milliliter',
-              'active': true,
-            },
-            'brand': {'id': 'brand-1', 'name': 'Coca-Cola', 'active': true},
-          },
-        },
-      ]);
-      when(() => client.from('product')).thenAnswer((_) => table);
-
-      await repository.fetchProductOptions();
-
-      // Both flags, and the second one is the one easy to lose: a deactivated
-      // REGISTRATION takes its leaves with it (`Product.isEffectivelyActiveIn`
-      // is the same `&&`, on the read).
-      expect(table.queries.single.filters, {
-        'active': true,
-        'product_registration.active': true,
-      });
-    });
-
-    test('the options carry the leaf\'s codes, without !inner', () async {
-      final table = _FakeTable([
-        {
-          'id': 'prod-4',
-          'product_registration_id': 'reg-1',
-          'active': true,
-          'piece_count': 12,
-          'piece_size': 350,
-          'piece_size_unit': 'milliliter',
-          'total_content': 4200,
-          'product_barcode': [
-            {'code': '07894900011517', 'store_id': null},
-            {'code': '2822521', 'store_id': 'store-1'},
-          ],
-          'product_registration': {
-            'id': 'reg-1',
-            'product_type_id': 'type-1',
-            'brand_id': 'brand-1',
-            'description': '',
-            'selling_mode': 'by_piece',
-            'active': true,
-            'product_type': {
-              'id': 'type-1',
-              'name': 'Refrigerante',
-              'category_id': 'cat-1',
-              'base_unit': 'milliliter',
-              'active': true,
-            },
-            'brand': {'id': 'brand-1', 'name': 'Coca-Cola', 'active': true},
-          },
-        },
-      ]);
-      when(() => client.from('product')).thenAnswer((_) => table);
-
-      final options = await repository.fetchProductOptions();
-
-      expect(
-        table.columns.single,
-        contains('product_barcode ( code, store_id )'),
-      );
-      expect(table.columns.single, isNot(contains('product_barcode!inner')));
-      expect(
-        options.single.product.barcodes,
-        [Barcode.typed('7894900011517')].lock,
-      );
-      expect(
-        options.single.product.scaleCodes,
-        [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
-      );
-    });
-
-    test('reads the history with the date from the PARENT table', () async {
-      // The filter is on `purchase.purchase_date`, which is what `!inner`
-      // makes possible — and there is no `order` in the query, because
-      // ordering an embedded table in PostgREST orders the children.
-      //
-      // The type comes embedded two levels down, and NOT from the catalog:
-      // `fetchProductOptions` filters `active = true`, and a leaf deactivated
-      // in the middle of the window would take its purchases out of the
-      // type's average (H15, requirement 16).
-      when(() => client.from('purchase_item')).thenAnswer(
-        (_) => _FakeTable([
-          {
-            'product_id': 'prod-4',
-            'quantity_in_base_unit': 4200,
-            'total_paid': 6200,
-            'purchase': {'purchase_date': '2026-08-18'},
-            'product': {
-              'product_registration': {'product_type_id': 'type-1'},
-            },
-          },
-        ]),
-      );
-
-      final history = await repository.fetchRecentItems(DateTime(2026, 5, 28));
-
-      expect(history, hasLength(1));
-      expect(history.single.productId, 'prod-4');
-      expect(history.single.productTypeId, 'type-1');
-      expect(history.single.quantityInBaseUnit, 4200);
-      expect(history.single.paid, const Money(6200));
-      expect(history.single.purchasedOn, DateTime(2026, 8, 18));
-    });
-
-    test(
-      'fetchPage asks for ONE row more and answers hasMore with it',
-      () async {
-        // `range` in PostgREST is inclusive at both ends, so `range(0, 20)`
-        // brings 21 rows. The extra one is dropped, and its existence IS the
-        // answer — no second query, and no count.
-        when(() => client.from('purchase')).thenAnswer(
-          (_) => _FakeTable([
-            for (var i = 0; i < 21; i++)
-              {
-                'id': 'a\$i',
-                'purchase_date': '2026-08-18',
-                'registered_by': 'Leandro',
-                'store': {'name': 'Carrefour'},
-                'purchase_item': [
-                  {'total_paid': 6200},
-                  {'total_paid': 100},
-                ],
-              },
-          ]),
-        );
-
-        final page = await repository.fetchPage(offset: 0, limit: 20);
-
-        expect(page.purchases, hasLength(20));
-        expect(page.hasMore, isTrue);
-        // The total is added up in Dart, out of the embed (D9).
-        expect(page.purchases.first.total, const Money(6300));
-        expect(page.purchases.first.itemCount, 2);
-        expect(page.purchases.first.storeName, 'Carrefour');
-      },
-    );
-
-    test('fetchPage on the last page answers hasMore false', () async {
-      when(() => client.from('purchase')).thenAnswer(
-        (_) => _FakeTable([
-          for (var i = 0; i < 3; i++)
-            {
-              'id': 'a\$i',
-              'purchase_date': '2026-08-18',
-              'registered_by': 'Leandro',
-              'store': {'name': 'Carrefour'},
-              'purchase_item': <Map<String, dynamic>>[],
-            },
-        ]),
-      );
-
-      final page = await repository.fetchPage(offset: 0, limit: 20);
-
-      expect(page.purchases, hasLength(3));
-      expect(page.hasMore, isFalse);
-    });
-
-    test(
-      'fetchDetail is ONE call, with the trail embedded in the item',
-      () async {
-        // Two calls would mean building an `in.(…)` out of the ids the first
-        // one returned — a round trip that depends on another, in the middle of
-        // opening a screen. `list_write_off` has no purchase column, so the
-        // embed is the only way.
-        when(() => client.from('purchase')).thenAnswer(
-          (_) => _FakeTable([
-            {
-              'id': 'a1',
-              'purchase_date': '2026-08-18',
-              'store_id': 'store-1',
-              'registered_by': 'Leandro',
-              'purchase_item': [
-                {
-                  'id': 'i1',
-                  'product_id': 'prod-4',
-                  'quantity': 1,
-                  'quantity_in_base_unit': 4200,
-                  'total_paid': 6200,
-                  'product': {
-                    'id': 'prod-4',
-                    'product_registration_id': 'reg-1',
-                    'piece_count': 12,
-                    'piece_size': 350,
-                    'piece_size_unit': 'milliliter',
-                    'total_content': 4200,
-                    'active': true,
-                    'product_registration': {
-                      'id': 'reg-1',
-                      'product_type_id': 'type-1',
-                      'brand_id': 'brand-1',
-                      'description': '',
-                      'selling_mode': 'by_piece',
-                      'active': true,
-                      'product_type': {
-                        'id': 'type-1',
-                        'name': 'Refrigerante',
-                        'category_id': 'cat-1',
-                        'base_unit': 'milliliter',
-                        'active': true,
-                      },
-                      'brand': {
-                        'id': 'brand-1',
-                        'name': 'Coca-Cola',
-                        'active': true,
-                      },
-                    },
-                  },
-                  'list_write_off': [
-                    {
-                      'shopping_list_item_id': 'l1',
-                      'quantity_written_off': 4200,
-                      'cleared_not_found': true,
-                    },
-                  ],
-                },
-              ],
-            },
-          ]),
-        );
-
-        final detail = await repository.fetchDetail('a1');
-
-        verify(() => client.from('purchase')).called(1);
-        expect(detail.purchase.id, 'a1');
-        expect(detail.purchase.date, DateTime(2026, 8, 18));
-        expect(detail.purchase.registeredBy, 'Leandro');
-        // The line comes back COMPLETE, because the item carries the whole
-        // option — no view around it, and no second query to the catalog.
-        expect(detail.items.single.label, 'Refrigerante Coca-Cola 12 × 350 ml');
-        expect(detail.items.single.paid, const Money(6200));
-        expect(detail.trail.single.shoppingListItemId, 'l1');
-        expect(detail.trail.single.purchaseItemId, 'i1');
-        expect(detail.trail.single.clearedNotFound, isTrue);
-        // `fulfills` is not a column, so it never comes back — the undo
-        // DERIVES it (D6).
-        expect(detail.trail.single.fulfills, isFalse);
-      },
-    );
-  });
-
-  group('the correction', () {
-    setUp(() {
-      client = _MockClient();
-      repository = PurchaseRepositoryRemote(client);
-    });
-
-    test(
-      'update_purchase sends the four keys, and fulfilled_on PRESENT',
-      () async {
-        // Omitting `fulfilled_on` would reopen nothing, and in silence — which
-        // is the whole reason the key travels with a null VALUE.
-        Map<String, dynamic>? sent;
-        when(
-          () => client.rpc<void>(any(), params: any(named: 'params')),
-        ).thenAnswer((invocation) {
-          sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-          return _FakeVoidRpc();
-        });
-
-        await repository.correct(
-          purchase: submission.purchase,
-          writeOffs: [
-            const ListWriteOff(
-              purchaseItemId: 'i1',
-              shoppingListItemId: 'l1',
-              quantityWrittenOff: 2000,
-              fulfills: true,
-            ),
-          ].lock,
-          restored: const [
-            RestoredListItem(id: 'l1', fulfilledOn: null, notFound: true),
-          ].lock,
-        );
-
-        expect(
-          sent!.keys,
-          containsAll(<String>[
-            'p_purchase',
-            'p_items',
-            'p_write_offs',
-            'p_restored',
-          ]),
-        );
-        // Three columns, and `registered_by` is NOT one of them: who
-        // registered a purchase is a historical fact.
-        expect(sent!['p_purchase'], {
-          'id': 'a1',
-          'purchase_date': '2026-08-18',
-          'store_id': 'store-1',
-        });
-
-        final restored =
-            (sent!['p_restored'] as List).single as Map<String, dynamic>;
-        expect(restored.containsKey('fulfilled_on'), isTrue);
-        expect(restored['fulfilled_on'], isNull);
-        expect(restored['not_found'], isTrue);
-
-        // `fulfills` travels in the same object and is still not a column.
-        final off =
-            (sent!['p_write_offs'] as List).single as Map<String, dynamic>;
-        expect(off['fulfills'], isTrue);
-      },
-    );
-
-    test('delete_purchase sends the id and what to give back', () async {
-      Map<String, dynamic>? sent;
-      when(
-        () => client.rpc<void>(any(), params: any(named: 'params')),
-      ).thenAnswer((invocation) {
-        sent = invocation.namedArguments[#params] as Map<String, dynamic>;
-        return _FakeVoidRpc();
-      });
-
-      await repository.delete(
-        purchaseId: 'a1',
-        restored: const [
-          RestoredListItem(id: 'l1', fulfilledOn: null, notFound: false),
-        ].lock,
-      );
-
-      expect(sent!['p_purchase_id'], 'a1');
-      expect((sent!['p_restored'] as List).single, {
-        'id': 'l1',
-        'fulfilled_on': null,
-        'not_found': false,
-      });
+      expect(alerts.single.productTypeId, piece.type.id);
+      expect(requests.single.url.queryParameters['filter'], contains('Ana'));
     });
   });
 }

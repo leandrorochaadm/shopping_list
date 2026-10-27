@@ -174,8 +174,9 @@ abstract class PurchaseRepository {
   Future<bool> save(PurchaseSubmission submission);
 
   /// The app's only paginated screen (`tecnico §1.9`), newest first. [limit]
-  /// is how many fit on a page; the repository asks for ONE more and drops
-  /// it, which is how `hasMore` is answered without a second query.
+  /// is how many fit on a page; [offset] must be a multiple of it. The
+  /// repository asks for a page by number, and `hasMore` comes from the
+  /// total of pages.
   Future<PurchaseHistoryPage> fetchPage({
     required int offset,
     required int limit,
@@ -184,7 +185,7 @@ abstract class PurchaseRepository {
   /// One purchase with its items and the trail those items left.
   Future<PurchaseDetail> fetchDetail(String purchaseId);
 
-  /// The correction (H9), through `update_purchase`. It is NOT [save]: that
+  /// The correction (H9), as one atomic PocketBase batch. It is NOT [save]: that
   /// one is insert-only, and turning it into an upsert would kill the
   /// idempotence of H8's resend (D3).
   ///
@@ -219,7 +220,7 @@ abstract class PurchaseRepository {
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without
-/// --dart-define, Supabase everywhere else.
+/// --dart-define, PocketBase everywhere else.
 final purchaseRepositoryProvider = Provider<PurchaseRepository>(
   (ref) => throw UnimplementedError(
     'purchaseRepositoryProvider was not overridden. See '

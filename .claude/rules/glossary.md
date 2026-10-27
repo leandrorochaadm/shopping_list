@@ -179,6 +179,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | consumo por tipo | `buildTypeConsumption` | o que a RPC `type_consumption` fazia; a primeira compra é derivada da contagem |
 | início da leitura | `consumptionReadStart` | desde quando o repository lê: o início da janela mais antiga |
 | compras por tipo | `purchaseCountsByType` | contagem de compras por tipo, somada da contagem por produto |
+| avisos do teto no servidor | `fetchStoredCapAlerts` / `addCapAlertSteps` | o par leitura/gravação de `spending_cap_alert`; usado pela compra e pelo teto |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso

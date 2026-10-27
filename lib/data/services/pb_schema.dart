@@ -48,6 +48,14 @@ abstract final class PbFields {
   static const month = 'month';
   static const purchaseCount = 'purchase_count';
   static const quantity = 'quantity';
+  static const registeredBy = 'registered_by';
+  static const notFound = 'not_found';
+  static const quantityInBaseUnit = 'quantity_in_base_unit';
+  static const totalPaid = 'total_paid';
+  static const quantityWrittenOff = 'quantity_written_off';
+  static const clearedNotFound = 'cleared_not_found';
+  static const warned80At = 'warned_80_at';
+  static const warned100At = 'warned_100_at';
 
   // Back-relations (expand of children).
   static const purchaseItemViaPurchaseId = 'purchase_item_via_purchase_id';

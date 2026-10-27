@@ -6,6 +6,7 @@ import 'package:shopping_list/data/repositories/purchase_draft/purchase_draft_re
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/money.dart';
 import 'package:shopping_list/domain/models/purchase_draft.dart';
+import 'package:shopping_list/domain/models/record_id.dart';
 import 'package:shopping_list/domain/models/purchase_item.dart';
 import 'package:shopping_list/ui/purchase/view_model/purchase_draft_view_model.dart';
 
@@ -70,7 +71,7 @@ void main() {
       expect(draft.registeredBy, 'Leandro');
       expect(draft.isEmpty, isTrue);
       expect(container.read(recoveryBannerProvider), isFalse);
-      expect(draft.purchaseId, hasLength(36));
+      expect(isRecordId(draft.purchaseId), isTrue);
     });
 
     test('recovers what was in the box, synchronously', () {
@@ -107,9 +108,7 @@ void main() {
     test('persist BEFORE the state changes', () async {
       final repository = _SpyRepository();
       final container = containerWith(repository);
-      final notifier = container.read(
-        purchaseDraftViewModelProvider.notifier,
-      );
+      final notifier = container.read(purchaseDraftViewModelProvider.notifier);
 
       expect(await notifier.setStore('store-1'), isNull);
 
@@ -197,9 +196,7 @@ void main() {
       final repository = _SpyRepository()
         ..failNextCall = NetworkException('storage denied');
       final container = containerWith(repository);
-      final notifier = container.read(
-        purchaseDraftViewModelProvider.notifier,
-      );
+      final notifier = container.read(purchaseDraftViewModelProvider.notifier);
 
       final error = await notifier.putItem(
         purchaseItem(id: 'i1', option: crate, cents: 6200),
@@ -219,9 +216,7 @@ void main() {
     test('putItem replaces the line with the same id', () async {
       // That is what `[ed]` does: it corrects a line, it does not append one.
       final container = containerWith(_SpyRepository());
-      final notifier = container.read(
-        purchaseDraftViewModelProvider.notifier,
-      );
+      final notifier = container.read(purchaseDraftViewModelProvider.notifier);
 
       await notifier.putItem(
         purchaseItem(id: 'i1', option: crate, cents: 6200),
@@ -237,9 +232,7 @@ void main() {
 
     test('removeItem takes the line out', () async {
       final container = containerWith(_SpyRepository());
-      final notifier = container.read(
-        purchaseDraftViewModelProvider.notifier,
-      );
+      final notifier = container.read(purchaseDraftViewModelProvider.notifier);
 
       await notifier.putItem(
         purchaseItem(id: 'i1', option: crate, cents: 6200),
@@ -253,9 +246,7 @@ void main() {
       // The key is what `on conflict (id) do nothing` conflicts on: a resend
       // that found a different one would be a second purchase.
       final container = containerWith(_SpyRepository(initial: stored()));
-      final notifier = container.read(
-        purchaseDraftViewModelProvider.notifier,
-      );
+      final notifier = container.read(purchaseDraftViewModelProvider.notifier);
 
       await notifier.setDate(DateTime(2026, 8, 17));
 
@@ -279,9 +270,7 @@ void main() {
       // The guard of rule 14. This test has to FAIL if it is removed.
       final repository = _SpyRepository();
       final container = containerWith(repository);
-      final notifier = container.read(
-        purchaseDraftViewModelProvider.notifier,
-      );
+      final notifier = container.read(purchaseDraftViewModelProvider.notifier);
 
       final first = notifier.setStore('store-1');
       final second = notifier.setStore('store-2');
@@ -310,7 +299,10 @@ void main() {
 
       expect(container.read(recoveryBannerProvider), isFalse);
       // And the purchase itself is untouched.
-      expect(container.read(purchaseDraftViewModelProvider).items, hasLength(1));
+      expect(
+        container.read(purchaseDraftViewModelProvider).items,
+        hasLength(1),
+      );
     });
 
     test('a purchase typed in THIS run never shows the banner', () async {
@@ -337,9 +329,7 @@ void main() {
       final container = containerWith(repository);
 
       expect(
-        await container
-            .read(purchaseDraftViewModelProvider.notifier)
-            .discard(),
+        await container.read(purchaseDraftViewModelProvider.notifier).discard(),
         isNull,
       );
 
