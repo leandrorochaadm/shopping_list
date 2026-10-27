@@ -26,7 +26,7 @@ PB_URL := https://github.com/pocketbase/pocketbase/releases/download/v$(PB_VERSI
 SHA256 := $(if $(shell command -v sha256sum),sha256sum,shasum -a 256)
 
 .PHONY: run phone api seed help setup pb-install pb-migrate pb-superuser \
-	pb-serve pb-reset config run-android test test-tool check build-web build-apk
+	pb-serve pb-reset config run-android test test-tool check build-web build-apk hooks
 
 # The app against the local PocketBase, starting it if it is not up.
 run:
@@ -47,8 +47,11 @@ seed:
 help: ## List the available targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
-setup: $(PB_STAMP) pb-migrate pb-superuser $(DEV_CONFIG) ## First-time dev setup (then: make pb-serve)
+setup: hooks $(PB_STAMP) pb-migrate pb-superuser $(DEV_CONFIG) ## First-time dev setup (then: make pb-serve)
 	flutter pub get
+
+hooks: ## Turn on .githooks (dart format on commit, checks on push)
+	git config core.hooksPath .githooks
 
 pb-install: $(PB_STAMP) ## Download and verify the PocketBase binary for this machine
 
