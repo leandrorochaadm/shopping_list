@@ -175,6 +175,10 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | etapa da escrita | `PurchaseWriteStep` | a ordem do lote: pai antes do filho, inversa na exclusão |
 | linha crua do relatório | `PeriodLine` | uma linha de compra do intervalo com categoria, tipo e marca já resolvidos. **Marca nula é valor** |
 | somar o período | `summarizePeriod` | o que a função report_period do SQL fazia. Não filtra data nem active, e não ordena |
+| linha de consumo | `ConsumptionLine` | linha plana de `purchase_item` que `buildTypeConsumption` soma |
+| consumo por tipo | `buildTypeConsumption` | o que a RPC `type_consumption` fazia; a primeira compra é derivada da contagem |
+| início da leitura | `consumptionReadStart` | desde quando o repository lê: o início da janela mais antiga |
+| compras por tipo | `purchaseCountsByType` | contagem de compras por tipo, somada da contagem por produto |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso
