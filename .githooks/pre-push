@@ -31,7 +31,7 @@ import sys
 ZERO = '0' * 40
 OVERRIDES = 'pubspec_overrides.yaml'
 STASHED = 'pubspec_overrides.yaml.pre-push'
-WORKFLOWS = ('.github/workflows/ci.yml', '.github/workflows/deploy.yml')
+WORKFLOWS = ('.github/workflows/ci.yml',)
 PERMISSIONS_TEST = 'tool/pb_permissions_test.py'
 BINARY_MISSING = 3  # ExitCode.BINARY_MISSING of tool/pb_permissions_test.py
 LCOV = 'coverage/lcov.info'

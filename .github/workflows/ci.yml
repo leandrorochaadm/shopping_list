@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, develop]
   push:
-    branches: [main]
+    branches: [main, develop]
   workflow_dispatch:
 
 permissions:
@@ -18,6 +18,10 @@ concurrency:
 env:
   FLUTTER_VERSION: 3.44.0
   POCKETBASE_VERSION: 0.40.5
+  # Below the current number on purpose: room for a feature to land with its
+  # tests one commit behind, not for a screen to arrive untested.
+  # .githooks/pre-push reads it from here.
+  MIN_COVERAGE: '90.0'
 
 jobs:
   flutter:
@@ -33,7 +37,18 @@ jobs:
       - run: flutter pub get
       - run: dart format --output=none --set-exit-if-changed lib test
       - run: flutter analyze
-      - run: flutter test
+      - run: flutter test --coverage
+      - name: Coverage floor
+        run: |
+          set -euo pipefail
+          total=$(awk -F: '
+            /^LF:/ { found += $2 }
+            /^LH:/ { hit += $2 }
+            END { if (found == 0) { print "0"; exit } printf "%.1f", 100 * hit / found }
+          ' coverage/lcov.info)
+          echo "line coverage: ${total}% (floor ${MIN_COVERAGE}%)"
+          awk -v total="$total" -v floor="$MIN_COVERAGE" 'BEGIN { exit !(total + 0 >= floor + 0) }' \
+            || { echo "::error::coverage ${total}% is below the ${MIN_COVERAGE}% floor"; exit 1; }
       - run: flutter build web --dart-define-from-file=config/dev.json.example
 
   pocketbase:
