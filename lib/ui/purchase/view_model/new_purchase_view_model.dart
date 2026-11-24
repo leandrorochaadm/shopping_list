@@ -5,6 +5,7 @@ import '../../../data/repositories/purchase/purchase_repository.dart';
 import '../../../data/repositories/shopping_list/shopping_list_repository.dart';
 import '../../../data/repositories/spending_cap/spending_cap_repository.dart';
 import '../../core/online_status.dart';
+import '../../../domain/models/calendar_day.dart';
 import '../../../domain/models/price_increase.dart';
 import '../../../domain/models/price_reference.dart';
 import '../../../domain/models/product_option.dart';
@@ -72,6 +73,17 @@ final class SaveFailed extends SaveOutcome {
 /// face of whoever just registered a store. Two `ref.watch` in the widget's
 /// build cost two lines and keep the loads independent.
 final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
+  /// The same seam as `PriceComparisonViewModel({DateTime? today})`: the fake's
+  /// seed has FIXED dates (August 2026), so a test that reads the real clock
+  /// stops seeing the seed once the rolling window moves past it. Tests reach
+  /// it with `newPurchaseViewModelProvider.overrideWith(
+  ///     () => NewPurchaseViewModel(today: DateTime(2026, 8, 28)))`.
+  ///
+  /// Rounded with `dayOf` (rule 9): the window is made of calendar days.
+  NewPurchaseViewModel({DateTime? today}) : today = dayOf(today ?? DateTime.now());
+
+  final DateTime today;
+
   /// Reentrancy guard (rule 14): the purchase stays on screen during the
   /// save, so the button stays tappable — and a double tap on `[ Salvar
   /// compra ]` would otherwise be two write attempts.
@@ -89,9 +101,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
     final options = repository.fetchProductOptions();
     // The clock enters the system HERE (rule 9). No `now()` and no
     // `current_date` in SQL (decision 7).
-    final history = repository.fetchRecentItems(
-      rollingWindowStart(DateTime.now()),
-    );
+    final history = repository.fetchRecentItems(rollingWindowStart(today));
 
     return rankOptions(await options, await history);
   }
@@ -117,9 +127,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
       final message = translateError(e, st, 'atualizar os produtos');
       // With nothing to fall back on the failure has to OCCUPY the field:
       // leaving it in AsyncLoading is a spinner that never resolves.
-      state = state.hasValue
-          ? AsyncData(state.value!)
-          : AsyncError<IList<ProductOption>>(e, st);
+      state = state.hasValue ? AsyncData(state.value!) : AsyncError<IList<ProductOption>>(e, st);
       return message;
     } finally {
       _running = false;
@@ -131,10 +139,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
   /// Returns `null` when the reentrancy guard barred a second tap — the
   /// screen shows nothing then, which is the same `return null` the rest of
   /// the project uses.
-  Future<SaveOutcome?> save({
-    required PurchaseDraft draft,
-    required DateTime today,
-  }) async {
+  Future<SaveOutcome?> save({required PurchaseDraft draft, required DateTime today}) async {
     if (_running) return null;
     _running = true;
     try {
@@ -171,9 +176,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
       //    writing, the smaller the chance the other phone touched it.
       final month = ReportPeriod.monthOf(purchase.date);
       final listRead = ref.read(shoppingListRepositoryProvider).fetchAll();
-      final capRead = ref
-          .read(spendingCapRepositoryProvider)
-          .fetchStatuses([month].lock);
+      final capRead = ref.read(spendingCapRepositoryProvider).fetchStatuses([month].lock);
       // Outside the window there is no question to ask, so the query does not
       // happen at all — "hoje ou ontem" is decided HERE, in Dart, over the
       // day the screen handed down (rule 9).
@@ -183,9 +186,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
                 .fetchSameDayTypes(
                   date: purchase.date,
                   registeredBy: purchase.registeredBy,
-                  productTypeIds: {
-                    for (final amount in purchase.amounts) amount.productTypeId,
-                  }.lock,
+                  productTypeIds: {for (final amount in purchase.amounts) amount.productTypeId}.lock,
                 )
           : Future.value(const IList<SameDayAlert>.empty());
 
@@ -199,11 +200,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
       //    crossing the catalog — a product deactivated on the other phone
       //    between typing and saving still writes the list off, which is the
       //    honest outcome: deactivating a product does not undo a purchase.
-      final writeOffs = planWriteOffs(
-        purchased: purchase.amounts,
-        listItems: listItems,
-        purchaseDate: purchase.date,
-      );
+      final writeOffs = planWriteOffs(purchased: purchase.amounts, listItems: listItems, purchaseDate: purchase.date);
 
       // 5. The cap rule, pure as well, over the month's total AFTER this
       //    purchase. It is the SAME function the correction, the deletion and
@@ -229,9 +226,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
               purchase: purchase,
               writeOffs: writeOffs,
               // Empty for a month with no cap: there is no row to touch.
-              capAlerts: evaluation.alerts == null
-                  ? const IList<CapAlerts>.empty()
-                  : [evaluation.alerts!].lock,
+              capAlerts: evaluation.alerts == null ? const IList<CapAlerts>.empty() : [evaluation.alerts!].lock,
             ),
           );
       if (!ref.mounted) return null;
@@ -284,10 +279,7 @@ final class NewPurchaseViewModel extends AsyncNotifier<IList<ProductOption>> {
 /// (P4).
 ///
 /// Pure, and public so the ViewModel test can exercise it without a container.
-IList<ProductOption> rankOptions(
-  IList<ProductOption> options,
-  IList<PurchaseHistoryEntry> history,
-) {
+IList<ProductOption> rankOptions(IList<ProductOption> options, IList<PurchaseHistoryEntry> history) {
   final counts = <String, int>{};
   final latest = <String, PurchaseHistoryEntry>{};
   // The two levels of the H15 average, summed in a single pass over the same
@@ -335,8 +327,7 @@ IList<ProductOption> rankOptions(
 
 /// `retry: null` on purpose: Riverpod 3 retries a failing provider ten times
 /// with a growing backoff, and on a screen the error has to be visible now.
-final newPurchaseViewModelProvider =
-    AsyncNotifierProvider<NewPurchaseViewModel, IList<ProductOption>>(
-      NewPurchaseViewModel.new,
-      retry: (retryCount, error) => null,
-    );
+final newPurchaseViewModelProvider = AsyncNotifierProvider<NewPurchaseViewModel, IList<ProductOption>>(
+  NewPurchaseViewModel.new,
+  retry: (retryCount, error) => null,
+);
