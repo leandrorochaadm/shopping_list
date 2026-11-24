@@ -18,6 +18,9 @@ import '../../../domain/models/product_type.dart';
 import '../../../domain/models/scale_label.dart';
 import '../../../domain/models/selling_choice.dart';
 import '../../../routing/routes.dart';
+import '../../barcode/view_model/barcode_lookup_view_model.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
+import '../../barcode/widgets/known_code_dialog.dart';
 import '../../core/widgets/message_view.dart';
 import '../view_model/catalog_view_model.dart';
 import 'new_brand_dialog.dart';
@@ -33,12 +36,7 @@ import 'scale_codes_section.dart';
 /// a moment ago are not in it. Going to fetch them would be a round trip in
 /// the middle of a purchase — and screen 4 already holds the four in hand.
 final class PickedProduct {
-  const PickedProduct({
-    required this.product,
-    required this.registration,
-    required this.type,
-    required this.brand,
-  });
+  const PickedProduct({required this.product, required this.registration, required this.type, required this.brand});
 
   final Product product;
   final ProductRegistration registration;
@@ -69,11 +67,7 @@ final class PickedProduct {
 /// A `final class` and not a record (rule 16): the same shape as
 /// [PickedProduct], which makes the trip back and lives right above.
 final class NewProductRequest {
-  const NewProductRequest({
-    this.returnsSelection = false,
-    this.registrationId,
-    this.initialBarcode,
-  });
+  const NewProductRequest({this.returnsSelection = false, this.registrationId, this.initialBarcode});
 
   final bool returnsSelection;
   final String? registrationId;
@@ -91,8 +85,7 @@ final class NewProductRequest {
           other.initialBarcode == initialBarcode;
 
   @override
-  int get hashCode =>
-      Object.hash(returnsSelection, registrationId, initialBarcode);
+  int get hashCode => Object.hash(returnsSelection, registrationId, initialBarcode);
 }
 
 /// Screen 4 — the product registration, in five levels.
@@ -101,12 +94,7 @@ final class NewProductRequest {
 /// ASKED of the domain: whether two packagings are the same amount, whether
 /// the selling mode allows a packaging list, what a valid measure is.
 class NewProductScreen extends ConsumerStatefulWidget {
-  const NewProductScreen({
-    this.returnsSelection = false,
-    this.registrationId,
-    this.initialBarcode,
-    super.key,
-  });
+  const NewProductScreen({this.returnsSelection = false, this.registrationId, this.initialBarcode, super.key});
 
   /// The code that goes on the first card of a NEW registration. Ignored when
   /// editing: that path opens with no card.
@@ -165,6 +153,76 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// holds the save until a code changes.
   String? _barcodeConflict;
 
+  /// Double-tap guard of the top `[▥]` (rule 14).
+  bool _reading = false;
+
+  bool get _canReadFirst => !_editing && _opened == null && !_saving;
+
+  /// The top `[▥]`: reads a code before anything else is filled in.
+  Future<void> _readFirst() async {
+    if (_reading) return;
+    setState(() => _reading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      while (true) {
+        final raw = await BarcodeReaderSheet.show(context);
+        if (!mounted || raw == null) return;
+        final outcome = await ref.read(barcodeLookupViewModelProvider.notifier).lookUp(raw);
+        if (!mounted) return;
+
+        switch (outcome) {
+          case null:
+            return;
+          case BarcodeUnknown(:final code):
+            if (_soldByWeight) {
+              messenger.showSnackBar(
+                const SnackBar(content: Text('Produto vendido a peso não leva código de barras.')),
+              );
+            } else if (_drafts.expand((d) => d.barcodes).contains(code)) {
+              messenger.showSnackBar(SnackBar(content: Text(barcodeConflictMessage(RepeatedOnScreen(code)))));
+            } else {
+              _putCodeInCard(code);
+            }
+            return;
+          case BarcodeFound(:final owner):
+            final choice = await KnownCodeDialog.show(context, owner);
+            if (!mounted) return;
+            switch (choice) {
+              case KnownCodeChoice.readAnother:
+                continue;
+              case KnownCodeChoice.edit:
+                context.push(Routes.newProduct, extra: NewProductRequest(registrationId: owner.registration.id));
+                return;
+              case null:
+                return;
+            }
+          case ScaleLabelRejected():
+            messenger.showSnackBar(SnackBar(content: Text(const UnknownScaleLabel().message)));
+            return;
+          case BarcodeLookupFailed(:final message):
+            messenger.showSnackBar(SnackBar(content: Text(message)));
+            return;
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _reading = false);
+    }
+  }
+
+  /// First card without a code, or a new card.
+  void _putCodeInCard(Barcode code) {
+    setState(() {
+      final index = _drafts.indexWhere((d) => d.barcodes.isEmpty);
+      if (index >= 0) {
+        final draft = _drafts[index];
+        _drafts = _drafts.replace(index, draft.copyWith(barcodes: draft.barcodes.add(code)));
+      } else {
+        _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++, unit: _baseUnit, barcodes: IList([code])));
+      }
+      _barcodeConflict = null;
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -174,12 +232,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     // the product already has its packagings, and a blank line would hold
     // the save button off for someone who only came to fix the description.
     if (!_editing) {
-      _drafts = _drafts.add(
-        PackagingDraft(
-          id: _nextDraftId++,
-          barcodes: [?widget.initialBarcode].lock,
-        ),
-      );
+      _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++, barcodes: [?widget.initialBarcode].lock));
     }
     _descriptionController.addListener(_onDescriptionTyped);
 
@@ -187,9 +240,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     if (registrationId != null) {
       // After the frame, because it touches the ViewModel and shows a
       // SnackBar — neither belongs inside an initState.
-      WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _openFromCatalog(registrationId),
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) => _openFromCatalog(registrationId));
     }
   }
 
@@ -202,9 +253,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// came to correct.
   Future<void> _openFromCatalog(String registrationId) async {
     final messenger = ScaffoldMessenger.of(context);
-    final outcome = await ref
-        .read(catalogViewModelProvider.notifier)
-        .openRegistration(registrationId);
+    final outcome = await ref.read(catalogViewModelProvider.notifier).openRegistration(registrationId);
     if (!mounted) return;
 
     switch (outcome) {
@@ -261,11 +310,9 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// The leaf of a product sold by weight that is already saved (the
   /// maintenance, or the registration opened by `[ Abrir e acrescentar
   /// embalagem ]`). With it, each scale code is written at once.
-  Product? get _savedLooseLeaf =>
-      _soldByWeight && _opened != null ? _existing.firstOrNull : null;
+  Product? get _savedLooseLeaf => _soldByWeight && _opened != null ? _existing.firstOrNull : null;
 
-  IList<ScaleCode> get _shownScaleCodes =>
-      _savedLooseLeaf?.scaleCodes ?? _scaleCodes;
+  IList<ScaleCode> get _shownScaleCodes => _savedLooseLeaf?.scaleCodes ?? _scaleCodes;
 
   /// `null` means it went in; otherwise the refusal, for under the field.
   Future<String?> _addScaleCode(ScaleCode code) async {
@@ -305,17 +352,12 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
 
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _writingScaleCode = true);
-    final error = await ref
-        .read(catalogViewModelProvider.notifier)
-        .removeScaleCode(productId: leaf.id!, code: code);
+    final error = await ref.read(catalogViewModelProvider.notifier).removeScaleCode(productId: leaf.id!, code: code);
     if (!mounted) return;
     setState(() {
       _writingScaleCode = false;
       if (error == null) {
-        _existing = _existing.replace(
-          0,
-          leaf.copyWith(scaleCodes: leaf.scaleCodes.remove(code)),
-        );
+        _existing = _existing.replace(0, leaf.copyWith(scaleCodes: leaf.scaleCodes.remove(code)));
       }
     });
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
@@ -337,11 +379,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     final typeId = _typeId;
     if (opened == null || typeId == null) return false;
     return opened
-        .copyWith(
-          productTypeId: typeId,
-          brandId: _brandId ?? '',
-          description: _descriptionController.text,
-        )
+        .copyWith(productTypeId: typeId, brandId: _brandId ?? '', description: _descriptionController.text)
         .changesIdentityOf(opened);
   }
 
@@ -349,18 +387,12 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   /// one it is filed under (it may have been deactivated after the fact).
   IList<ProductType> _typesOffered(CatalogOptions options) {
     if (!_editing) {
-      return options.types
-          .where(
-            (type) => _categoryId == null || type.categoryId == _categoryId,
-          )
-          .toIList();
+      return options.types.where((type) => _categoryId == null || type.categoryId == _categoryId).toIList();
     }
     final current = _typeOf(options);
     if (current == null) return options.types;
     final compatible = typesCompatibleWith(options.types, current.baseUnit);
-    return compatible.any((t) => t.id == current.id)
-        ? compatible
-        : compatible.add(current);
+    return compatible.any((t) => t.id == current.id) ? compatible : compatible.add(current);
   }
 
   ProductType? _typeOf(CatalogOptions options) {
@@ -371,28 +403,18 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   }
 
   /// The packagings this screen would save: the lines that parse, in order.
-  IList<Packaging> get _packagings => _soldByWeight
-      ? const IList.empty()
-      : _drafts
-            .map((draft) => draft.packaging)
-            .whereType<Packaging>()
-            .toIList();
+  IList<Packaging> get _packagings =>
+      _soldByWeight ? const IList.empty() : _drafts.map((draft) => draft.packaging).whereType<Packaging>().toIList();
 
   /// The same lines with the codes of each card, for the write.
   IList<PackagingWithBarcodes> get _packagingsWithBarcodes => _soldByWeight
       ? const IList.empty()
       : _drafts
             .where((draft) => draft.packaging != null)
-            .map(
-              (draft) => PackagingWithBarcodes(
-                packaging: draft.packaging!,
-                barcodes: draft.barcodes,
-              ),
-            )
+            .map((draft) => PackagingWithBarcodes(packaging: draft.packaging!, barcodes: draft.barcodes))
             .toIList();
 
-  IList<Barcode> get _barcodes =>
-      _packagingsWithBarcodes.expand((p) => p.barcodes).toIList();
+  IList<Barcode> get _barcodes => _packagingsWithBarcodes.expand((p) => p.barcodes).toIList();
 
   /// A line is a duplicate when another line — or a packaging ALREADY SAVED
   /// under this registration — holds the same amount. By content, not by
@@ -430,9 +452,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     // The identity is taken and this is not the "add a packaging" path.
     if (_conflict != null && !_locked) return false;
     if (_soldByWeight) return !_locked;
-    return _packagings.isNotEmpty &&
-        _packagings.length == _drafts.length &&
-        !_hasDuplicate;
+    return _packagings.isNotEmpty && _packagings.length == _drafts.length && !_hasDuplicate;
   }
 
   void _onTypeChanged(String? id) {
@@ -442,10 +462,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       if (_editing) {
         // The category belongs to the type: it follows the one chosen.
         final options = ref.read(catalogViewModelProvider).value;
-        _categoryId = options?.types
-            .where((t) => t.id == id)
-            .firstOrNull
-            ?.categoryId;
+        _categoryId = options?.types.where((t) => t.id == id).firstOrNull?.categoryId;
       }
       // The grandeza comes from the type, so a type change can leave the
       // saved mode with no word to go by: `Peso` under a type of litres.
@@ -512,9 +529,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     if (!registration.active) {
       final messenger = ScaffoldMessenger.of(context);
       setState(() => _saving = true);
-      final error = await ref
-          .read(catalogViewModelProvider.notifier)
-          .reactivateRegistration(registration);
+      final error = await ref.read(catalogViewModelProvider.notifier).reactivateRegistration(registration);
       if (!mounted) return;
       setState(() => _saving = false);
 
@@ -622,10 +637,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         case RegistrationEditFailed(:final message):
           error = message;
           written = const IList<Product>.empty();
-        case PackagingsFailedAfterEdit(
-          registration: final saved,
-          :final message,
-        ):
+        case PackagingsFailedAfterEdit(registration: final saved, :final message):
           if (!mounted) return;
           // The identity is written: it is the new original, so the retry
           // sends only the packagings.
@@ -638,10 +650,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       }
     } else {
       registration = opened;
-      final outcome = await notifier.addPackagings(
-        registrationId: opened.id!,
-        packagings: packagings,
-      );
+      final outcome = await notifier.addPackagings(registrationId: opened.id!, packagings: packagings);
       switch (outcome) {
         case null:
           if (!mounted) return;
@@ -666,12 +675,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     // failure this avoids.
     messenger.showSnackBar(
       SnackBar(
-        content: Text(
-          [
-            'Produto salvo.',
-            for (final owner in released) releasedBarcodeMessage(owner),
-          ].join('\n'),
-        ),
+        content: Text(['Produto salvo.', for (final owner in released) releasedBarcodeMessage(owner)].join('\n')),
       ),
     );
 
@@ -734,18 +738,14 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     return null;
   }
 
-  PickedProduct _option(
-    Product leaf,
-    ProductRegistration registration,
-    CatalogOptions options,
-    ProductType type,
-  ) => PickedProduct(
-    product: leaf,
-    registration: registration,
-    type: type,
-    // Null is "Sem marca" (decision B2) — a real answer.
-    brand: options.brands.where((brand) => brand.id == _brandId).firstOrNull,
-  );
+  PickedProduct _option(Product leaf, ProductRegistration registration, CatalogOptions options, ProductType type) =>
+      PickedProduct(
+        product: leaf,
+        registration: registration,
+        type: type,
+        // Null is "Sem marca" (decision B2) — a real answer.
+        brand: options.brands.where((brand) => brand.id == _brandId).firstOrNull,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -762,15 +762,21 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                 tooltip: 'Ir para a lista',
                 onPressed: () => context.go(Routes.shoppingList),
               ),
+        actions: [
+          if (_canReadFirst)
+            IconButton(
+              key: const ValueKey('top-scan'),
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Ler código',
+              onPressed: _reading ? null : _readFirst,
+            ),
+        ],
       ),
       // A Builder so the SnackBar finds a context BELOW the Scaffold.
       body: Builder(
         builder: (context) => switch (state) {
           AsyncLoading() => const Center(child: CircularProgressIndicator()),
-          AsyncError() => _RetryView(
-            onRetry: () =>
-                ref.read(catalogViewModelProvider.notifier).refresh(),
-          ),
+          AsyncError() => _RetryView(onRetry: () => ref.read(catalogViewModelProvider.notifier).refresh()),
           AsyncValue(:final value?) => _form(context, value),
         },
       ),
@@ -912,9 +918,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             Text(
               registrationConflictMessage(conflict.registration),
               key: const ValueKey('edit-conflict'),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.error,
-              ),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error),
             )
           else
             _ConflictWarning(
@@ -926,9 +930,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         if (_opened != null) ...[
           const SizedBox(height: 16),
           Text(
-            _editing
-                ? 'Editando um produto que já existe.'
-                : 'Acrescentando embalagem a um produto que já existe.',
+            _editing ? 'Editando um produto que já existe.' : 'Acrescentando embalagem a um produto que já existe.',
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ],
@@ -936,10 +938,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         // Quantity is what the PURCHASE asks for, not the registration.
         if (!_soldByWeight) ...[
           const Divider(height: 32),
-          Text(
-            'Embalagens deste produto',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('Embalagens deste produto', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             'Cada embalagem vira um produto, com preço e histórico próprios.',
@@ -978,11 +977,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               ),
             TextButton.icon(
               icon: const Icon(Icons.add),
-              label: Text(
-                _drafts.isEmpty
-                    ? 'Adicionar embalagem'
-                    : 'Adicionar outra embalagem',
-              ),
+              label: Text(_drafts.isEmpty ? 'Adicionar embalagem' : 'Adicionar outra embalagem'),
               // It is blocked while the identity is taken: a line built here
               // would be born inside a registration that will not be saved.
               onPressed: _saving || _conflict != null
@@ -1026,9 +1021,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
                     subtitle: product.barcodes.isEmpty
                         ? null
                         : Text(
-                            product.barcodes
-                                .map((code) => code.label)
-                                .join('\n'),
+                            product.barcodes.map((code) => code.label).join('\n'),
                             key: ValueKey('existing-barcodes-${product.id}'),
                           ),
                   ),
@@ -1041,10 +1034,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           ScaleCodesSection(
             key: const ValueKey('scale-codes'),
             codes: _shownScaleCodes,
-            enabled:
-                !_saving &&
-                !_writingScaleCode &&
-                (_conflict == null || _locked),
+            enabled: !_saving && !_writingScaleCode && (_conflict == null || _locked),
             onAdd: _addScaleCode,
             onRemove: _removeScaleCode,
           ),
@@ -1064,11 +1054,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           ),
           const SizedBox(height: 8),
         ],
-        FilledButton(
-          key: const ValueKey('save'),
-          onPressed: _canSave ? _save : null,
-          child: Text(_saveLabel),
-        ),
+        FilledButton(key: const ValueKey('save'), onPressed: _canSave ? _save : null, child: Text(_saveLabel)),
       ],
     );
   }
@@ -1102,9 +1088,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       if (!_identityChanged && _packagings.isEmpty) {
         // Sold by weight the packaging section is not on screen: asking for
         // one would point at something that does not exist.
-        return _soldByWeight
-            ? 'Mude algum campo.'
-            : 'Mude algum campo ou acrescente uma embalagem.';
+        return _soldByWeight ? 'Mude algum campo.' : 'Mude algum campo ou acrescente uma embalagem.';
       }
       return null;
     }
@@ -1116,9 +1100,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     if (incomplete == 0) {
       return _packagings.isEmpty ? 'Acrescente ao menos uma embalagem.' : null;
     }
-    return incomplete == 1
-        ? 'Falta completar 1 embalagem.'
-        : 'Faltam completar $incomplete embalagens.';
+    return incomplete == 1 ? 'Falta completar 1 embalagem.' : 'Faltam completar $incomplete embalagens.';
   }
 }
 
@@ -1152,21 +1134,13 @@ class _CategoryField extends StatelessWidget {
             for (final category in categories)
               DropdownMenuItem(
                 value: category.id,
-                child: Text(
-                  category.active
-                      ? category.name
-                      : '${category.name} (desativada)',
-                ),
+                child: Text(category.active ? category.name : '${category.name} (desativada)'),
               ),
           ],
           onChanged: enabled ? onChanged : null,
         ),
       ),
-      IconButton(
-        icon: const Icon(Icons.add),
-        tooltip: 'Nova categoria',
-        onPressed: enabled ? onCreate : null,
-      ),
+      IconButton(icon: const Icon(Icons.add), tooltip: 'Nova categoria', onPressed: enabled ? onCreate : null),
     ],
   );
 }
@@ -1197,18 +1171,10 @@ class _TypeField extends StatelessWidget {
         child: DropdownButtonFormField<String>(
           key: const ValueKey('field-type'),
           initialValue: value,
-          decoration: InputDecoration(
-            labelText: 'Tipo',
-            hintText: types.isEmpty ? 'Cadastre o primeiro' : null,
-          ),
+          decoration: InputDecoration(labelText: 'Tipo', hintText: types.isEmpty ? 'Cadastre o primeiro' : null),
           items: [
             for (final type in types)
-              DropdownMenuItem(
-                value: type.id,
-                child: Text(
-                  type.active ? type.name : '${type.name} (desativado)',
-                ),
-              ),
+              DropdownMenuItem(value: type.id, child: Text(type.active ? type.name : '${type.name} (desativado)')),
           ],
           onChanged: enabled ? onChanged : null,
         ),
@@ -1250,21 +1216,12 @@ class _BrandField extends StatelessWidget {
             // ground beef has no brand, and the null is what says so.
             const DropdownMenuItem(child: Text('Sem marca')),
             for (final brand in brands)
-              DropdownMenuItem(
-                value: brand.id,
-                child: Text(
-                  brand.active ? brand.name : '${brand.name} (desativada)',
-                ),
-              ),
+              DropdownMenuItem(value: brand.id, child: Text(brand.active ? brand.name : '${brand.name} (desativada)')),
           ],
           onChanged: enabled ? onChanged : null,
         ),
       ),
-      IconButton(
-        icon: const Icon(Icons.add),
-        tooltip: 'Nova marca',
-        onPressed: enabled ? onCreate : null,
-      ),
+      IconButton(icon: const Icon(Icons.add), tooltip: 'Nova marca', onPressed: enabled ? onCreate : null),
     ],
   );
 }
@@ -1302,13 +1259,10 @@ class _SellingModeField extends StatelessWidget {
           // is narrower than the word it has to write.
           segments: [
             for (final choice in SellingChoice.values)
-              if (choice.isAvailableFor(baseUnit))
-                ButtonSegment(value: choice, label: Text(choice.label)),
+              if (choice.isAvailableFor(baseUnit)) ButtonSegment(value: choice, label: Text(choice.label)),
           ],
           selected: {value},
-          onSelectionChanged: enabled
-              ? (selection) => onChanged(selection.first)
-              : null,
+          onSelectionChanged: enabled ? (selection) => onChanged(selection.first) : null,
         ),
       ),
     ],
@@ -1316,11 +1270,7 @@ class _SellingModeField extends StatelessWidget {
 }
 
 class _ConflictWarning extends StatelessWidget {
-  const _ConflictWarning({
-    required this.packagingCount,
-    required this.active,
-    required this.onOpen,
-  });
+  const _ConflictWarning({required this.packagingCount, required this.active, required this.onOpen});
 
   final int packagingCount;
 
@@ -1346,11 +1296,7 @@ class _ConflictWarning extends StatelessWidget {
             FilledButton.tonal(
               key: const ValueKey('open-conflict'),
               onPressed: onOpen,
-              child: Text(
-                active
-                    ? 'Abrir e acrescentar embalagem'
-                    : 'Reativar e acrescentar embalagem',
-              ),
+              child: Text(active ? 'Abrir e acrescentar embalagem' : 'Reativar e acrescentar embalagem'),
             ),
           ],
         ),
@@ -1376,15 +1322,10 @@ class _RetryView extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      const Expanded(
-        child: MessageView('Não foi possível carregar as listas do cadastro.'),
-      ),
+      const Expanded(child: MessageView('Não foi possível carregar as listas do cadastro.')),
       Padding(
         padding: const EdgeInsets.all(24),
-        child: FilledButton(
-          onPressed: onRetry,
-          child: const Text('Tentar de novo'),
-        ),
+        child: FilledButton(onPressed: onRetry, child: const Text('Tentar de novo')),
       ),
     ],
   );
