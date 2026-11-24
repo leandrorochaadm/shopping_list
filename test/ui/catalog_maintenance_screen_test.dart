@@ -5,12 +5,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/data/repositories/catalog/catalog_repository_local.dart';
 import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repository_local.dart';
 import 'package:shopping_list/data/services/api_exception.dart';
+import 'package:shopping_list/domain/models/barcode.dart';
+import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/category.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/routing/routes.dart';
 
 import '../helpers/auth.dart';
+import '../helpers/barcode_camera.dart';
+import '../helpers/barcode_owners.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/locale.dart';
@@ -39,14 +43,33 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   }
 }
 
+class _OwnerCatalog extends _SpyCatalog {
+  IMap<Barcode, BarcodeOwner> owners = const IMap.empty();
+  Object? failFind;
+  int findOwnersCalls = 0;
+
+  @override
+  Future<IMap<Barcode, BarcodeOwner>> findOwners(IList<Barcode> codes) async {
+    findOwnersCalls++;
+    final failure = failFind;
+    failFind = null;
+    if (failure != null) throw failure;
+    return owners.where((code, _) => codes.contains(code));
+  }
+}
+
 void main() {
   // Screen 3 is reachable from the router this test builds, and it draws a
   // date — `main()` does not run in a test.
   setUpAll(initializePtBr);
 
   late _SpyCatalog catalog;
+  late FakeBarcodeCamera scanCamera;
 
-  setUp(() => catalog = _SpyCatalog());
+  setUp(() {
+    catalog = _SpyCatalog();
+    scanCamera = FakeBarcodeCamera();
+  });
 
   Future<ProviderContainer> pumpCatalog(WidgetTester tester) async {
     tester.view.physicalSize = const Size(1200, 2400);
@@ -58,9 +81,7 @@ void main() {
         deviceUserOverride(),
         authOverride(),
         catalogOverride(repository: catalog),
-        shoppingListOverride(
-          repository: ShoppingListRepositoryLocal(latency: Duration.zero),
-        ),
+        shoppingListOverride(repository: ShoppingListRepositoryLocal(latency: Duration.zero)),
         ...purchaseOverrides(),
       ],
     );
@@ -68,9 +89,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(
-          routerConfig: container.read(appRouterProvider),
-        ),
+        child: MaterialApp.router(routerConfig: container.read(appRouterProvider)),
       ),
     );
     await tester.pumpAndSettle();
@@ -80,14 +99,183 @@ void main() {
     return container;
   }
 
+  Future<ProviderContainer> pumpScanning(WidgetTester tester, FakeBarcodeCamera camera) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer.test(
+      overrides: [
+        deviceUserOverride(),
+        authOverride(),
+        catalogOverride(repository: catalog),
+        shoppingListOverride(repository: ShoppingListRepositoryLocal(latency: Duration.zero)),
+        ...purchaseOverrides(),
+        camera.override,
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: container.read(appRouterProvider)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go(Routes.catalog);
+    await tester.pumpAndSettle();
+    return container;
+  }
+
+  Future<void> scanRaw(WidgetTester tester, FakeBarcodeCamera camera, String raw) async {
+    await tester.tap(find.byKey(const ValueKey('scan-entry')));
+    await tester.pumpAndSettle();
+    camera.read(raw);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> typeInReader(WidgetTester tester, String raw) async {
+    await tester.tap(find.byKey(const ValueKey('scan-entry')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.descendant(of: find.byKey(const ValueKey('reader-typed')), matching: find.byType(TextField)),
+      raw,
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('reader-use')));
+    await tester.pumpAndSettle();
+  }
+
+  final colaKey = Barcode.typed(colaCode);
+  final unknownMessage = 'Nenhum produto com o código ${Barcode.typed(colaCode).label}.';
+
+  testWidgets('scan opens screen 4 on the owner registration', (tester) async {
+    catalog = _OwnerCatalog()..owners = IMap({colaKey: colaOwner});
+    await pumpScanning(tester, scanCamera);
+
+    await scanRaw(tester, scanCamera, colaCode);
+
+    expect(find.text('Editar produto'), findsOneWidget);
+  });
+
+  testWidgets('scan of an unknown code offers to register it', (tester) async {
+    catalog = _OwnerCatalog();
+    await pumpScanning(tester, scanCamera);
+
+    await scanRaw(tester, scanCamera, colaCode);
+    expect(find.text(unknownMessage), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('unknown-code-register')));
+    await tester.pumpAndSettle();
+    expect(find.text('Novo produto'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('field-type')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Refrigerante').last);
+    await tester.pumpAndSettle();
+    expect(find.text('• $colaCode'), findsOneWidget);
+  });
+
+  testWidgets('closing the unknown code dialog does nothing', (tester) async {
+    catalog = _OwnerCatalog();
+    await pumpScanning(tester, scanCamera);
+
+    await scanRaw(tester, scanCamera, colaCode);
+    await tester.tap(find.byKey(const ValueKey('unknown-code-close')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Novo produto'), findsNothing);
+    expect(find.text('Manutenção do cadastro'), findsOneWidget);
+  });
+
+  testWidgets('scan refuses an unknown scale label and an invalid code', (tester) async {
+    catalog = _OwnerCatalog();
+    await pumpScanning(tester, scanCamera);
+
+    await scanRaw(tester, scanCamera, '2822521000004');
+    expect(find.text('Não conheço esta etiqueta.'), findsOneWidget);
+    expect(find.text('Novo produto'), findsNothing);
+
+    ScaffoldMessenger.of(tester.element(find.byType(Scaffold).first)).clearSnackBars();
+    await tester.pumpAndSettle();
+
+    await typeInReader(tester, '7894900011518');
+    expect(find.text('Código de barras inválido.'), findsOneWidget);
+    expect(find.text('Novo produto'), findsNothing);
+  });
+
+  testWidgets('scan shows the failure when the lookup fails', (tester) async {
+    final owned = _OwnerCatalog()..failFind = ApiException(503, 'down');
+    catalog = owned;
+    await pumpScanning(tester, scanCamera);
+
+    await scanRaw(tester, scanCamera, colaCode);
+
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.textContaining('ApiException'), findsNothing);
+    expect(find.text('Novo produto'), findsNothing);
+  });
+
+  testWidgets('scan stops when the catalog reload fails', (tester) async {
+    catalog = _OwnerCatalog()..owners = IMap({colaKey: colaOwner});
+    final container = await pumpScanning(tester, scanCamera);
+    container.read(catalogViewModelProvider);
+    await tester.pumpAndSettle();
+
+    catalog.failNextCall = ApiException(500, 'boom');
+    await scanRaw(tester, scanCamera, colaCode);
+
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('Editar produto'), findsNothing);
+  });
+
+  testWidgets('scan is disabled while loading', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final container = ProviderContainer.test(
+      overrides: [
+        deviceUserOverride(),
+        authOverride(),
+        catalogOverride(repository: CatalogRepositoryLocal(latency: const Duration(milliseconds: 50))),
+        shoppingListOverride(repository: ShoppingListRepositoryLocal(latency: Duration.zero)),
+        ...purchaseOverrides(),
+        scanCamera.override,
+      ],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(routerConfig: container.read(appRouterProvider)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    container.read(appRouterProvider).go(Routes.catalog);
+    await tester.pump();
+
+    final button = tester.widget<IconButton>(find.byKey(const ValueKey('scan-entry')));
+    expect(button.onPressed, isNull);
+
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('double tap on scan opens one reader', (tester) async {
+    catalog = _OwnerCatalog();
+    await pumpScanning(tester, scanCamera);
+
+    final scan = find.byKey(const ValueKey('scan-entry'));
+    await tester.tap(scan);
+    await tester.tap(scan);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('reader-close')), findsOneWidget);
+  });
+
   /// The dialog's own field. The screen's search box is a TextField too, and
   /// it comes FIRST in the tree — `find.byType(TextField).first` would type
   /// into the list behind the dialog and the test would pass for the wrong
   /// reason.
-  final dialogField = find.descendant(
-    of: find.byType(AlertDialog),
-    matching: find.byType(TextField),
-  );
+  final dialogField = find.descendant(of: find.byType(AlertDialog), matching: find.byType(TextField));
 
   Future<void> selectKind(WidgetTester tester, String label) async {
     await tester.tap(find.byKey(const ValueKey('field-kind')));
@@ -104,9 +292,7 @@ void main() {
     expect(find.text('Limpeza'), findsWidgets);
   });
 
-  testWidgets('the selector swaps catalogs without going to the database', (
-    tester,
-  ) async {
+  testWidgets('the selector swaps catalogs without going to the database', (tester) async {
     await pumpCatalog(tester);
 
     await selectKind(tester, 'Tipos de produto');
@@ -121,19 +307,14 @@ void main() {
     expect(find.text('12 × 350 ml'), findsOneWidget);
   });
 
-  testWidgets('the pencil of a packaging writes its codes at once', (
-    tester,
-  ) async {
+  testWidgets('the pencil of a packaging writes its codes at once', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Embalagens');
 
     await tester.tap(find.byTooltip('Editar 350 ml'));
     await tester.pumpAndSettle();
     await tester.enterText(
-      find.descendant(
-        of: find.byKey(const ValueKey('barcode')),
-        matching: find.byType(TextField),
-      ),
+      find.descendant(of: find.byKey(const ValueKey('barcode')), matching: find.byType(TextField)),
       '7894900011517',
     );
     await tester.pumpAndSettle();
@@ -150,9 +331,7 @@ void main() {
     expect(find.text('• 7894900011517'), findsOneWidget);
   });
 
-  testWidgets('the loose leaf is named after the grandeza of its type', (
-    tester,
-  ) async {
+  testWidgets('the loose leaf is named after the grandeza of its type', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Embalagens');
 
@@ -186,9 +365,7 @@ void main() {
     expect(find.text('Guaraná Antarctica'), findsOneWidget);
   });
 
-  testWidgets('a leaf reads as inactive when its REGISTRATION is', (
-    tester,
-  ) async {
+  testWidgets('a leaf reads as inactive when its REGISTRATION is', (tester) async {
     await pumpCatalog(tester);
 
     // Deactivate the registration through its own dialog…
@@ -231,9 +408,7 @@ void main() {
     expect(find.text('Bebidas e sucos'), findsOneWidget);
   });
 
-  testWidgets('renaming onto another row is refused, under the field', (
-    tester,
-  ) async {
+  testWidgets('renaming onto another row is refused, under the field', (tester) async {
     await pumpCatalog(tester);
 
     await tester.tap(find.byTooltip('Editar Bebidas'));
@@ -248,9 +423,7 @@ void main() {
     expect(find.text('Salvar'), findsOneWidget);
   });
 
-  testWidgets('deactivating a type in use warns with the number, and asks', (
-    tester,
-  ) async {
+  testWidgets('deactivating a type in use warns with the number, and asks', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Tipos de produto');
 
@@ -260,12 +433,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('toggle-active')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text(
-        'Papel higiênico está em 2 itens da lista — eles serão removidos.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('Papel higiênico está em 2 itens da lista — eles serão removidos.'), findsOneWidget);
 
     await tester.tap(find.text('Cancelar').last);
     await tester.pumpAndSettle();
@@ -273,9 +441,7 @@ void main() {
     expect(find.byKey(const ValueKey('toggle-active')), findsOneWidget);
   });
 
-  testWidgets('confirming it removes the items and deactivates the type', (
-    tester,
-  ) async {
+  testWidgets('confirming it removes the items and deactivates the type', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Tipos de produto');
 
@@ -293,9 +459,7 @@ void main() {
     expect(find.text('Papel higiênico'), findsOneWidget);
   });
 
-  testWidgets('a type with products cannot change its base unit', (
-    tester,
-  ) async {
+  testWidgets('a type with products cannot change its base unit', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Tipos de produto');
 
@@ -311,9 +475,7 @@ void main() {
     );
   });
 
-  testWidgets('a failed load occupies the screen, without the exception', (
-    tester,
-  ) async {
+  testWidgets('a failed load occupies the screen, without the exception', (tester) async {
     catalog.failNextCall = ApiException(500, 'boom');
     await pumpCatalog(tester);
 
@@ -403,9 +565,7 @@ void main() {
     expect(find.text('Hortifruti da esquina'), findsOneWidget);
   });
 
-  testWidgets('a name that already exists is refused under the field', (
-    tester,
-  ) async {
+  testWidgets('a name that already exists is refused under the field', (tester) async {
     await pumpCatalog(tester);
 
     await tester.tap(find.byKey(const ValueKey('create-entry')));
@@ -420,9 +580,7 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets('a deactivated name offers to reactivate, not to duplicate', (
-    tester,
-  ) async {
+  testWidgets('a deactivated name offers to reactivate, not to duplicate', (tester) async {
     await pumpCatalog(tester);
 
     // Deactivated HERE, in the maintenance's own state…
@@ -457,9 +615,7 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
   });
 
-  testWidgets('with Embalagens selected, + asks which product first', (
-    tester,
-  ) async {
+  testWidgets('with Embalagens selected, + asks which product first', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Embalagens');
 
@@ -485,32 +641,22 @@ void main() {
         authOverride(),
         // With latency the first frame has no value at all, which is the
         // state this case is about.
-        catalogOverride(
-          repository: CatalogRepositoryLocal(
-            latency: const Duration(milliseconds: 50),
-          ),
-        ),
-        shoppingListOverride(
-          repository: ShoppingListRepositoryLocal(latency: Duration.zero),
-        ),
+        catalogOverride(repository: CatalogRepositoryLocal(latency: const Duration(milliseconds: 50))),
+        shoppingListOverride(repository: ShoppingListRepositoryLocal(latency: Duration.zero)),
         ...purchaseOverrides(),
       ],
     );
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp.router(
-          routerConfig: container.read(appRouterProvider),
-        ),
+        child: MaterialApp.router(routerConfig: container.read(appRouterProvider)),
       ),
     );
     await tester.pumpAndSettle();
     container.read(appRouterProvider).go(Routes.catalog);
     await tester.pump();
 
-    final button = tester.widget<IconButton>(
-      find.byKey(const ValueKey('create-entry')),
-    );
+    final button = tester.widget<IconButton>(find.byKey(const ValueKey('create-entry')));
     expect(button.onPressed, isNull);
 
     await tester.pumpAndSettle();
@@ -534,9 +680,7 @@ void main() {
     expect(find.textContaining('ApiException'), findsNothing);
   });
 
-  testWidgets('the pencil hands back the id only for the packaging door', (
-    tester,
-  ) async {
+  testWidgets('the pencil hands back the id only for the packaging door', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Cadastros de produto');
 
@@ -548,10 +692,7 @@ void main() {
     await tester.tap(find.byTooltip('Editar Coca-Cola original'));
     await tester.pumpAndSettle();
     await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.text('Abrir e acrescentar embalagem'),
-      ),
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('Abrir e acrescentar embalagem')),
     );
     await tester.pumpAndSettle();
 
@@ -560,47 +701,37 @@ void main() {
     expect(find.text('Editar produto'), findsWidgets);
   });
 
-  testWidgets(
-    'the door to screen 4 is off while the dialog has unsaved changes',
-    (tester) async {
-      await pumpCatalog(tester);
-      await selectKind(tester, 'Cadastros de produto');
+  testWidgets('the door to screen 4 is off while the dialog has unsaved changes', (tester) async {
+    await pumpCatalog(tester);
+    await selectKind(tester, 'Cadastros de produto');
 
-      await tester.tap(find.byTooltip('Editar Coca-Cola original'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Editar Coca-Cola original'));
+    await tester.pumpAndSettle();
 
-      TextButton door() => tester.widget<TextButton>(
-        find.byKey(const ValueKey('add-packaging')),
-      );
-      expect(door().onPressed, isNotNull);
+    TextButton door() => tester.widget<TextButton>(find.byKey(const ValueKey('add-packaging')));
+    expect(door().onPressed, isNotNull);
 
-      await tester.enterText(dialogField, 'zero');
-      await tester.pump();
+    await tester.enterText(dialogField, 'zero');
+    await tester.pump();
 
-      // Leaving now would throw away what was typed, with no warning.
-      expect(door().onPressed, isNull);
-      expect(find.text('Salve ou desfaça as mudanças antes.'), findsOneWidget);
+    // Leaving now would throw away what was typed, with no warning.
+    expect(door().onPressed, isNull);
+    expect(find.text('Salve ou desfaça as mudanças antes.'), findsOneWidget);
 
-      // Undoing it opens the door again.
-      await tester.enterText(dialogField, 'original');
-      await tester.pump();
-      expect(door().onPressed, isNotNull);
-    },
-  );
+    // Undoing it opens the door again.
+    await tester.enterText(dialogField, 'original');
+    await tester.pump();
+    expect(door().onPressed, isNotNull);
+  });
 
-  testWidgets('coming back from screen 4 the list is up to date', (
-    tester,
-  ) async {
+  testWidgets('coming back from screen 4 the list is up to date', (tester) async {
     await pumpCatalog(tester);
     await selectKind(tester, 'Cadastros de produto');
 
     await tester.tap(find.byTooltip('Editar Coca-Cola original'));
     await tester.pumpAndSettle();
     await tester.tap(
-      find.descendant(
-        of: find.byType(AlertDialog),
-        matching: find.text('Abrir e acrescentar embalagem'),
-      ),
+      find.descendant(of: find.byType(AlertDialog), matching: find.text('Abrir e acrescentar embalagem')),
     );
     await tester.pumpAndSettle();
 

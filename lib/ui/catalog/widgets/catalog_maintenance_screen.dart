@@ -4,15 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:tekton_core/tekton_core.dart';
 
+import '../../../domain/models/barcode.dart';
 import '../../../domain/models/base_unit.dart';
 import '../../../domain/models/name_normalization.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/scale_label.dart';
 import '../../../domain/models/selling_choice.dart';
 import '../../../routing/routes.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
+import '../../barcode/view_model/barcode_lookup_view_model.dart';
+import '../../barcode/widgets/barcode_reader_sheet.dart';
+import '../../barcode/widgets/unknown_code_dialog.dart';
 import '../../core/widgets/message_view.dart';
 import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
@@ -39,12 +44,10 @@ class CatalogMaintenanceScreen extends ConsumerStatefulWidget {
   const CatalogMaintenanceScreen({super.key});
 
   @override
-  ConsumerState<CatalogMaintenanceScreen> createState() =>
-      _CatalogMaintenanceScreenState();
+  ConsumerState<CatalogMaintenanceScreen> createState() => _CatalogMaintenanceScreenState();
 }
 
-class _CatalogMaintenanceScreenState
-    extends ConsumerState<CatalogMaintenanceScreen> {
+class _CatalogMaintenanceScreenState extends ConsumerState<CatalogMaintenanceScreen> {
   final _searchController = TextEditingController();
 
   CatalogKind _kind = CatalogKind.category;
@@ -81,6 +84,14 @@ class _CatalogMaintenanceScreenState
               ),
         title: const Text('Manutenção do cadastro'),
         actions: [
+          Builder(
+            builder: (context) => IconButton(
+              key: const ValueKey('scan-entry'),
+              icon: const Icon(Icons.qr_code_scanner),
+              tooltip: 'Ler código',
+              onPressed: _busy || !state.hasValue ? null : () => _scanEntry(context),
+            ),
+          ),
           // A Builder, for the same reason the body already has one: it ties
           // the SnackBar to THIS screen's Scaffold, which is the convention
           // of `.claude/rules/ui-conventions.md`.
@@ -94,9 +105,7 @@ class _CatalogMaintenanceScreenState
               // Off while there is nothing loaded: the packaging door needs
               // the six lists in hand, and a `+` that silently does nothing
               // is the tap the person repeats.
-              onPressed: _busy || !state.hasValue
-                  ? null
-                  : () => _create(context),
+              onPressed: _busy || !state.hasValue ? null : () => _create(context),
             ),
           ),
         ],
@@ -116,8 +125,7 @@ class _CatalogMaintenanceScreenState
                     items: [
                       // A dropdown and not six segments: six of them do not
                       // fit a phone in portrait.
-                      for (final kind in CatalogKind.values)
-                        DropdownMenuItem(value: kind, child: Text(kind.label)),
+                      for (final kind in CatalogKind.values) DropdownMenuItem(value: kind, child: Text(kind.label)),
                     ],
                     onChanged: (kind) => setState(() => _kind = kind ?? _kind),
                   ),
@@ -125,10 +133,7 @@ class _CatalogMaintenanceScreenState
                   AppTextField(
                     key: const ValueKey('field-search'),
                     controller: _searchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Buscar',
-                      prefixIcon: Icon(Icons.search),
-                    ),
+                    decoration: const InputDecoration(labelText: 'Buscar', prefixIcon: Icon(Icons.search)),
                     // `?? ''`, and it is not decoration: the callback takes a
                     // `String?`, and the clear button fires it with '' before
                     // emptying the controller — a null here would leave the
@@ -142,8 +147,7 @@ class _CatalogMaintenanceScreenState
                     controlAffinity: ListTileControlAffinity.leading,
                     value: _showInactive,
                     title: const Text('Mostrar desativados'),
-                    onChanged: (value) =>
-                        setState(() => _showInactive = value ?? false),
+                    onChanged: (value) => setState(() => _showInactive = value ?? false),
                   ),
                 ],
               ),
@@ -153,20 +157,14 @@ class _CatalogMaintenanceScreenState
               child: RefreshIndicator(
                 onRefresh: () async {
                   final messenger = ScaffoldMessenger.of(context);
-                  final error = await ref
-                      .read(catalogMaintenanceViewModelProvider.notifier)
-                      .refresh();
+                  final error = await ref.read(catalogMaintenanceViewModelProvider.notifier).refresh();
                   if (error != null) {
                     messenger.showSnackBar(SnackBar(content: Text(error)));
                   }
                 },
                 child: switch (state) {
-                  AsyncLoading() when !state.hasValue => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                  AsyncError(:final error) when !state.hasValue => _ErrorBody(
-                    error: error,
-                  ),
+                  AsyncLoading() when !state.hasValue => const Center(child: CircularProgressIndicator()),
+                  AsyncError(:final error) when !state.hasValue => _ErrorBody(error: error),
                   _ => _list(context, state.value!),
                 },
               ),
@@ -192,9 +190,7 @@ class _CatalogMaintenanceScreenState
       // reload for the two doors to screen 4 would open it with the lists as
       // they were BEFORE this screen deactivated something — a registration
       // born under a category the person turned off ten seconds earlier.
-      final loaded = _kind == CatalogKind.store
-          ? await _reloadStores(messenger)
-          : await _reloadCatalog(messenger);
+      final loaded = _kind == CatalogKind.store ? await _reloadStores(messenger) : await _reloadCatalog(messenger);
       if (!mounted || !context.mounted || !loaded) return;
 
       final created = await _openDoorOf(context);
@@ -206,9 +202,7 @@ class _CatalogMaintenanceScreenState
       // The three states are separate: the dialogs above wrote in the
       // CatalogViewModel and in the StoreViewModel, and neither of them is
       // the six lists this screen draws.
-      final error = await ref
-          .read(catalogMaintenanceViewModelProvider.notifier)
-          .refresh();
+      final error = await ref.read(catalogMaintenanceViewModelProvider.notifier).refresh();
       if (!mounted) return;
       if (error != null) {
         messenger.showSnackBar(SnackBar(content: Text(error)));
@@ -278,15 +272,65 @@ class _CatalogMaintenanceScreenState
       await _openScreen4(context, registrationId: id);
       if (!mounted) return;
 
-      final error = await ref
-          .read(catalogMaintenanceViewModelProvider.notifier)
-          .refresh();
+      final error = await ref.read(catalogMaintenanceViewModelProvider.notifier).refresh();
       if (!mounted) return;
       if (error != null) {
         messenger.showSnackBar(SnackBar(content: Text(error)));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// The `[▥]` of the AppBar: finds the registration by its barcode to fix it,
+  /// or offers to register what nobody has. Same three obligations as
+  /// [_editRegistration].
+  Future<void> _scanEntry(BuildContext context) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final messenger = ScaffoldMessenger.of(context);
+      final raw = await BarcodeReaderSheet.show(context);
+      if (!mounted || !context.mounted || raw == null) return;
+
+      final outcome = await ref.read(barcodeLookupViewModelProvider.notifier).lookUp(raw);
+      if (!mounted || !context.mounted) return;
+
+      switch (outcome) {
+        case null:
+          return;
+        case BarcodeFound(:final owner):
+          await _reloadAndOpen(context, messenger, registrationId: owner.registration.id);
+        case BarcodeUnknown(:final code):
+          final register = await UnknownCodeDialog.show(context, 'Nenhum produto com o código ${code.label}.');
+          if (!mounted || !context.mounted || !register) return;
+          await _reloadAndOpen(context, messenger, initialBarcode: code);
+        case ScaleLabelRejected():
+          messenger.showSnackBar(SnackBar(content: Text(const UnknownScaleLabel().message)));
+        case BarcodeLookupFailed(:final message):
+          messenger.showSnackBar(SnackBar(content: Text(message)));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _reloadAndOpen(
+    BuildContext context,
+    ScaffoldMessengerState messenger, {
+    String? registrationId,
+    Barcode? initialBarcode,
+  }) async {
+    if (!await _reloadCatalog(messenger)) return;
+    if (!mounted || !context.mounted) return;
+
+    await _openScreen4(context, registrationId: registrationId, initialBarcode: initialBarcode);
+    if (!mounted) return;
+
+    final error = await ref.read(catalogMaintenanceViewModelProvider.notifier).refresh();
+    if (!mounted) return;
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
     }
   }
 
@@ -354,13 +398,10 @@ class _CatalogMaintenanceScreenState
   /// the catalog instead of returning to it. Screen 4 pops back on save
   /// (see `NewProductScreen._save`), and the `await` below is what resumes
   /// here afterwards.
-  Future<bool> _openScreen4(
-    BuildContext context, {
-    String? registrationId,
-  }) async {
+  Future<bool> _openScreen4(BuildContext context, {String? registrationId, Barcode? initialBarcode}) async {
     await context.push(
       Routes.newProduct,
-      extra: NewProductRequest(registrationId: registrationId),
+      extra: NewProductRequest(registrationId: registrationId, initialBarcode: initialBarcode),
     );
     // Screen 4 pops with nothing, so there is no answer to read: the reload
     // is unconditional, and a cancelled trip simply redraws the same list.
@@ -381,10 +422,7 @@ class _CatalogMaintenanceScreenState
         if (entry.active) _choiceOf(loaded, entry),
     ]..sort((a, b) => normalizeName(a.label).compareTo(normalizeName(b.label)));
 
-    final id = await PickRegistrationDialog.show(
-      context,
-      choices: choices.toIList(),
-    );
+    final id = await PickRegistrationDialog.show(context, choices: choices.toIList());
     if (!mounted || id == null) return false;
     if (!context.mounted) return false;
 
@@ -402,16 +440,10 @@ class _CatalogMaintenanceScreenState
   /// the type name when the registration has neither brand nor description,
   /// which is the ordinary shape of anything sold by weight. Appending the
   /// type blindly writes "Acém moído · Acém moído".
-  static RegistrationChoice _choiceOf(
-    CatalogMaintenanceState loaded,
-    ProductRegistration entry,
-  ) {
+  static RegistrationChoice _choiceOf(CatalogMaintenanceState loaded, ProductRegistration entry) {
     final title = _registrationTitle(loaded, entry);
     final type = _typeNameOf(loaded, entry.productTypeId);
-    return RegistrationChoice(
-      id: entry.id!,
-      label: title == type ? title : '$title · $type',
-    );
+    return RegistrationChoice(id: entry.id!, label: title == type ? title : '$title · $type');
   }
 
   Widget _list(BuildContext context, CatalogMaintenanceState loaded) {
@@ -429,12 +461,7 @@ class _CatalogMaintenanceScreenState
         for (final row in rows)
           ListTile(
             key: ValueKey('catalog-${row.id}'),
-            title: Text(
-              row.title,
-              style: row.active
-                  ? null
-                  : TextStyle(color: Theme.of(context).disabledColor),
-            ),
+            title: Text(row.title, style: row.active ? null : TextStyle(color: Theme.of(context).disabledColor)),
             subtitle: row.subtitle == null ? null : Text(row.subtitle!),
             trailing: IconButton(
               icon: const Icon(Icons.edit_outlined),
@@ -450,10 +477,7 @@ class _CatalogMaintenanceScreenState
   /// The chosen catalog, searched and filtered, in alphabetical order BY THE
   /// NORMALIZED NAME: `'Açougue'.compareTo('Bebidas')` compares code units,
   /// and the `ç` would land after the `z`.
-  IList<_CatalogRow> _rowsOf(
-    BuildContext context,
-    CatalogMaintenanceState loaded,
-  ) {
+  IList<_CatalogRow> _rowsOf(BuildContext context, CatalogMaintenanceState loaded) {
     final rows = switch (_kind) {
       CatalogKind.category => [
         for (final entry in loaded.categories)
@@ -461,12 +485,7 @@ class _CatalogMaintenanceScreenState
             id: entry.id!,
             title: entry.name,
             active: entry.active,
-            onEdit: () => CatalogEntryEditDialog.show(
-              context,
-              ref,
-              kind: CatalogKind.category,
-              entry: entry,
-            ),
+            onEdit: () => CatalogEntryEditDialog.show(context, ref, kind: CatalogKind.category, entry: entry),
           ),
       ],
       CatalogKind.productType => [
@@ -476,12 +495,7 @@ class _CatalogMaintenanceScreenState
             title: entry.name,
             subtitle: _typeSubtitle(loaded, entry),
             active: entry.active,
-            onEdit: () => ProductTypeEditDialog.show(
-              context,
-              ref,
-              type: entry,
-              categories: loaded.categories,
-            ),
+            onEdit: () => ProductTypeEditDialog.show(context, ref, type: entry, categories: loaded.categories),
           ),
       ],
       CatalogKind.brand => [
@@ -490,12 +504,7 @@ class _CatalogMaintenanceScreenState
             id: entry.id!,
             title: entry.name,
             active: entry.active,
-            onEdit: () => CatalogEntryEditDialog.show(
-              context,
-              ref,
-              kind: CatalogKind.brand,
-              entry: entry,
-            ),
+            onEdit: () => CatalogEntryEditDialog.show(context, ref, kind: CatalogKind.brand, entry: entry),
           ),
       ],
       CatalogKind.registration => [
@@ -518,11 +527,7 @@ class _CatalogMaintenanceScreenState
             // `active: true` — `handoff §H10` is explicit that deactivating
             // the product deactivates its leaves, and D7 does it on the READ.
             active: _leafIsActive(loaded, leaf),
-            onEdit: () => PackagingEditDialog.show(
-              context,
-              leaf: leaf,
-              baseUnit: _baseUnitOfLeaf(loaded, leaf),
-            ),
+            onEdit: () => PackagingEditDialog.show(context, leaf: leaf, baseUnit: _baseUnitOfLeaf(loaded, leaf)),
           ),
       ],
       CatalogKind.store => [
@@ -531,12 +536,7 @@ class _CatalogMaintenanceScreenState
             id: entry.id!,
             title: entry.name,
             active: entry.active,
-            onEdit: () => CatalogEntryEditDialog.show(
-              context,
-              ref,
-              kind: CatalogKind.store,
-              entry: entry,
-            ),
+            onEdit: () => CatalogEntryEditDialog.show(context, ref, kind: CatalogKind.store, entry: entry),
           ),
       ],
     };
@@ -554,38 +554,21 @@ class _CatalogMaintenanceScreenState
                   normalizeName(row.subtitle ?? '').contains(normalized),
             )
             .toList()
-          ..sort(
-            (a, b) => normalizeName(a.title).compareTo(normalizeName(b.title)),
-          );
+          ..sort((a, b) => normalizeName(a.title).compareTo(normalizeName(b.title)));
     return visible.toIList();
   }
 
-  static String? _typeSubtitle(
-    CatalogMaintenanceState loaded,
-    ProductType type,
-  ) {
-    final category = loaded.categories
-        .where((c) => c.id == type.categoryId)
-        .firstOrNull;
+  static String? _typeSubtitle(CatalogMaintenanceState loaded, ProductType type) {
+    final category = loaded.categories.where((c) => c.id == type.categoryId).firstOrNull;
     return '${category?.name ?? 'Sem categoria'} · ${type.baseUnit.priceLabel}';
   }
 
-  static String _registrationTitle(
-    CatalogMaintenanceState loaded,
-    ProductRegistration entry,
-  ) {
-    final brand = entry.brandId == null
-        ? null
-        : loaded.brands.where((b) => b.id == entry.brandId).firstOrNull;
-    final parts = <String>[
-      if (brand != null) brand.name,
-      if (entry.description.isNotEmpty) entry.description,
-    ];
+  static String _registrationTitle(CatalogMaintenanceState loaded, ProductRegistration entry) {
+    final brand = entry.brandId == null ? null : loaded.brands.where((b) => b.id == entry.brandId).firstOrNull;
+    final parts = <String>[if (brand != null) brand.name, if (entry.description.isNotEmpty) entry.description];
     // A registration with neither brand nor description IS the type itself —
     // "Acém moído", sold by weight, is exactly that case.
-    return parts.isEmpty
-        ? _typeNameOf(loaded, entry.productTypeId)
-        : parts.join(' ');
+    return parts.isEmpty ? _typeNameOf(loaded, entry.productTypeId) : parts.join(' ');
   }
 
   static String _typeNameOf(CatalogMaintenanceState loaded, String typeId) =>
@@ -599,9 +582,7 @@ class _CatalogMaintenanceScreenState
 
   static bool _leafIsActive(CatalogMaintenanceState loaded, Product leaf) {
     final registration = loaded.registrationOf(leaf);
-    return registration == null
-        ? leaf.active
-        : leaf.isEffectivelyActiveIn(registration);
+    return registration == null ? leaf.active : leaf.isEffectivelyActiveIn(registration);
   }
 
   /// The title of a leaf with no packaging: it is the loose product, and the
@@ -611,17 +592,10 @@ class _CatalogMaintenanceScreenState
       'Vendido por '
       '${SellingChoice.looseNameOf(_baseUnitOfLeaf(loaded, leaf)).toLowerCase()}';
 
-  static BaseUnit _baseUnitOfLeaf(
-    CatalogMaintenanceState loaded,
-    Product leaf,
-  ) {
+  static BaseUnit _baseUnitOfLeaf(CatalogMaintenanceState loaded, Product leaf) {
     final registration = loaded.registrationOf(leaf);
     if (registration == null) return BaseUnit.unit;
-    return loaded.types
-            .where((t) => t.id == registration.productTypeId)
-            .firstOrNull
-            ?.baseUnit ??
-        BaseUnit.unit;
+    return loaded.types.where((t) => t.id == registration.productTypeId).firstOrNull?.baseUnit ?? BaseUnit.unit;
   }
 }
 
@@ -629,13 +603,7 @@ class _CatalogMaintenanceScreenState
 /// is the screen's own shape for "a name, what is under it, and what the
 /// pencil opens".
 final class _CatalogRow {
-  const _CatalogRow({
-    required this.id,
-    required this.title,
-    required this.active,
-    required this.onEdit,
-    this.subtitle,
-  });
+  const _CatalogRow({required this.id, required this.title, required this.active, required this.onEdit, this.subtitle});
 
   final String id;
   final String title;
@@ -654,14 +622,11 @@ class _ErrorBody extends ConsumerWidget {
     physics: const AlwaysScrollableScrollPhysics(),
     children: [
       // The raw exception NEVER reaches the screen — it goes to debugPrint.
-      MessageView(
-        translateFailure(AppFailure.from(error), 'abrir os cadastros'),
-      ),
+      MessageView(translateFailure(AppFailure.from(error), 'abrir os cadastros')),
       Center(
         child: FilledButton(
           key: const ValueKey('retry-catalog'),
-          onPressed: () =>
-              ref.read(catalogMaintenanceViewModelProvider.notifier).refresh(),
+          onPressed: () => ref.read(catalogMaintenanceViewModelProvider.notifier).refresh(),
           child: const Text('Tentar de novo'),
         ),
       ),
