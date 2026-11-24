@@ -24,6 +24,8 @@ import 'package:shopping_list/domain/models/store.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
 import 'package:shopping_list/ui/catalog/widgets/packaging_row.dart';
+import 'package:shopping_list/ui/purchase/widgets/scale_store_dialog.dart';
+import 'package:shopping_list/ui/store/view_model/store_view_model.dart';
 import 'package:shopping_list/routing/router.dart';
 import 'package:shopping_list/routing/routes.dart';
 
@@ -1709,6 +1711,257 @@ void main() {
       expect(find.text('Produto vendido a peso não leva código de barras.'), findsOneWidget);
     });
   });
+
+  group('top read of a scale label', () {
+    const tamara = '2822521001605';
+    const other = '2004417001603';
+    final topScan = find.byKey(const ValueKey('top-scan'));
+    final storePanel = find.byKey(const ValueKey('scale-store-close'));
+    final strip = find.byKey(const ValueKey('label-store'));
+    final change = find.byKey(const ValueKey('label-store-change'));
+
+    Future<void> readLabel(WidgetTester tester, FakeBarcodeCamera camera, String raw) async {
+      await tapOn(tester, topScan);
+      camera.read(raw);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> pickStore(WidgetTester tester, String id) async {
+      await tester.tap(find.byKey(ValueKey('scale-store-$id')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> toLooseType(WidgetTester tester) async {
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('top read of a scale label asks the store and adds the code', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await tapOn(tester, find.text('Peso'));
+
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      expect(find.text('• Carrefour · ${ScaleLabel.parse(tamara)!.itemCode}'), findsOneWidget);
+      expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
+      expect(sellingField(tester).selected, {SellingChoice.weight});
+    });
+
+    testWidgets('a scale label turns the screen loose under a weight type', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      expect(sellingField(tester).selected, {SellingChoice.weight});
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('a scale label read before the type turns the screen loose when a weight type is chosen', (
+      tester,
+    ) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+
+      await toLooseType(tester);
+
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(sellingField(tester).selected, {SellingChoice.weight});
+    });
+
+    testWidgets('a pending scale code blocks saving under a counted type', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await choose(tester, const ValueKey('field-category'), 'Limpeza');
+      await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
+
+      expect(find.text(const UnexpectedScaleCode().message), findsOneWidget);
+      expect(saveButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('removing the pending scale code unblocks saving', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+      await choose(tester, const ValueKey('field-category'), 'Limpeza');
+      await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
+
+      await tapOn(tester, find.byKey(const ValueKey('scale-remove-store-1-2822521')));
+
+      expect(find.text(const UnexpectedScaleCode().message), findsNothing);
+      expect(find.byKey(const ValueKey('scale-codes')), findsNothing);
+    });
+
+    testWidgets('top read refuses a scale code already on the product', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await readLabel(tester, camera, tamara);
+
+      expect(find.text(const ScaleCodeAlreadyOnProduct().message), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('closing the store picker adds nothing', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await readLabel(tester, camera, tamara);
+
+      await tester.tap(storePanel);
+      await tester.pumpAndSettle();
+
+      expect(find.text('• Carrefour · 2822521'), findsNothing);
+      expect(strip, findsNothing);
+    });
+
+    testWidgets('scale label without stores asks to register a store', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera, stores: _NoActiveStores());
+
+      await readLabel(tester, camera, tamara);
+
+      expect(find.text('Cadastre um mercado antes.'), findsOneWidget);
+      expect(storePanel, findsNothing);
+    });
+
+    testWidgets('a scale label reloads the stores when they never loaded', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera, stores: _FlakyStores());
+
+      await readLabel(tester, camera, tamara);
+
+      expect(storePanel, findsOneWidget);
+    });
+
+    testWidgets('saving a scale code taken in that store shows the taken message', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera, repository: _ScaleTakenOnSave());
+      await toLooseType(tester);
+      await tapOn(tester, find.text('Peso'));
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.text(ScaleCode.takenMessage), findsOneWidget);
+    });
+
+    testWidgets('a second scale label reuses the remembered store', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await readLabel(tester, camera, other);
+
+      expect(storePanel, findsNothing);
+      expect(find.text('• Carrefour · 2004417'), findsOneWidget);
+    });
+
+    testWidgets('changing the label store moves the pending codes', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await tapOn(tester, change);
+      await pickStore(tester, 'store-2');
+
+      expect(find.text('Etiquetas do mercado: Feira do Bairro'), findsOneWidget);
+      expect(find.text('• Feira do Bairro · 2822521'), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsNothing);
+    });
+
+    testWidgets('closing the change store picker keeps the store', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await tapOn(tester, change);
+      await tester.tap(storePanel);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('double tap on change store opens one picker', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      await tester.ensureVisible(change);
+      await tester.pumpAndSettle();
+      await tester.tap(change);
+      await tester.tap(change, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ScaleStoreDialog), findsOneWidget);
+    });
+
+    testWidgets('a new screen 4 asks the store again', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final container = await pumpScreen(tester, camera: camera);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+      final router = container.read(appRouterProvider);
+
+      router.go(Routes.shoppingList);
+      await tester.pumpAndSettle();
+      router.go(Routes.newProduct);
+      await tester.pumpAndSettle();
+
+      expect(strip, findsNothing);
+      await readLabel(tester, camera, tamara);
+      expect(storePanel, findsOneWidget);
+    });
+
+    testWidgets('a deactivated remembered store is asked again', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final stores = _SwitchableStores();
+      final container = await pumpScreen(tester, camera: camera, stores: stores);
+      await toLooseType(tester);
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+
+      stores.carrefourOff = true;
+      // Not awaited: the fake clock only moves with the pumps below.
+      unawaited(container.read(storeViewModelProvider.notifier).refresh());
+      await tester.pumpAndSettle();
+      expect(strip, findsNothing);
+
+      await readLabel(tester, camera, other);
+
+      expect(find.byKey(const ValueKey('scale-store-store-2')), findsOneWidget);
+      expect(find.byKey(const ValueKey('scale-store-store-1')), findsNothing);
+    });
+  });
 }
 
 /// Records the scale codes that reach the save.
@@ -1996,4 +2249,24 @@ class _FlakyStores extends StoreRepositoryLocal {
     }
     return super.fetchAll();
   }
+}
+
+/// Every store is deactivated.
+class _NoActiveStores extends StoreRepositoryLocal {
+  _NoActiveStores() : super(latency: Duration.zero);
+
+  @override
+  Future<IList<Store>> fetchAll() async => (await super.fetchAll()).where((store) => !store.active).toIList();
+}
+
+/// Carrefour can be deactivated in the middle of a test.
+class _SwitchableStores extends StoreRepositoryLocal {
+  _SwitchableStores() : super(latency: Duration.zero);
+
+  bool carrefourOff = false;
+
+  @override
+  Future<IList<Store>> fetchAll() async => (await super.fetchAll())
+      .map((store) => carrefourOff && store.id == 'store-1' ? store.copyWith(active: false) : store)
+      .toIList();
 }

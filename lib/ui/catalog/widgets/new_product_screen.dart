@@ -17,11 +17,14 @@ import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/scale_label.dart';
 import '../../../domain/models/selling_choice.dart';
+import '../../../domain/models/store.dart';
 import '../../../routing/routes.dart';
 import '../../barcode/view_model/barcode_lookup_view_model.dart';
 import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../barcode/widgets/known_code_dialog.dart';
 import '../../core/widgets/message_view.dart';
+import '../../purchase/widgets/scale_store_dialog.dart';
+import '../../store/view_model/store_view_model.dart';
 import '../view_model/catalog_view_model.dart';
 import 'new_brand_dialog.dart';
 import 'new_category_dialog.dart';
@@ -158,6 +161,109 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
 
   bool get _canReadFirst => !_editing && _opened == null && !_saving;
 
+  static const _labelStoreTitle = 'De qual mercado é esta etiqueta?';
+  static const _noStoreMessage = 'Cadastre um mercado antes.';
+
+  /// The store the scale labels read on this screen belong to. Lives and dies
+  /// with this State.
+  String? _labelStoreId;
+
+  /// The stores, loading them again when they never arrived; null (with a
+  /// SnackBar) when that fails.
+  Future<IList<Store>?> _loadStores(ScaffoldMessengerState messenger) async {
+    var stores = ref.read(storeViewModelProvider).value;
+    if (stores == null) {
+      final error = await ref.read(storeViewModelProvider.notifier).refresh();
+      if (!mounted) return null;
+      if (error != null) {
+        messenger.showSnackBar(SnackBar(content: Text(error)));
+        return null;
+      }
+      stores = ref.read(storeViewModelProvider).value;
+    }
+    return stores;
+  }
+
+  Future<void> _readScaleLabel(String raw, ScaffoldMessengerState messenger) async {
+    final stores = await _loadStores(messenger);
+    if (!mounted || stores == null) return;
+    final active = stores.where((s) => s.active && s.id != null).toIList();
+    if (active.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text(_noStoreMessage)));
+      return;
+    }
+
+    var storeId = _labelStoreId;
+    if (storeId != null && !active.any((s) => s.id == storeId)) {
+      storeId = null;
+      _labelStoreId = null;
+    }
+    if (storeId == null) {
+      storeId = await ScaleStoreDialog.show(
+        context,
+        storeIds: active.map((s) => s.id!).toIList(),
+        stores: stores,
+        title: _labelStoreTitle,
+      );
+      if (!mounted || storeId == null) return;
+      final chosen = storeId;
+      setState(() => _labelStoreId = chosen);
+    }
+
+    final error = await _addScaleCode(ScaleCode.fromLabel(raw, storeId: storeId));
+    if (!mounted) return;
+    if (error != null) {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    setState(() => _sellingMode = SellingChoice.modeFor(_sellingMode, _baseUnit, hasScaleCodes: true));
+  }
+
+  /// The remembered store, while it is still among the active ones.
+  Store? _labelStoreOf(IList<Store>? stores) {
+    final id = _labelStoreId;
+    if (id == null || stores == null) return null;
+    return stores.where((s) => s.id == id && s.active).firstOrNull;
+  }
+
+  /// The `[Trocar]` of the strip: moves the codes not saved yet.
+  Future<void> _changeLabelStore() async {
+    if (_reading) return;
+    setState(() => _reading = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final stores = await _loadStores(messenger);
+      if (!mounted || stores == null) return;
+      final active = stores.where((s) => s.active && s.id != null).toIList();
+      if (active.isEmpty) {
+        messenger.showSnackBar(const SnackBar(content: Text(_noStoreMessage)));
+        return;
+      }
+      final next = await ScaleStoreDialog.show(
+        context,
+        storeIds: active.map((s) => s.id!).toIList(),
+        stores: stores,
+        title: _labelStoreTitle,
+      );
+      if (!mounted || next == null) return;
+      setState(() {
+        final previous = _labelStoreId;
+        if (previous != null) {
+          _scaleCodes = scaleCodesMovedTo(_scaleCodes, fromStoreId: previous, toStoreId: next);
+        }
+        _labelStoreId = next;
+      });
+    } finally {
+      if (mounted) setState(() => _reading = false);
+    }
+  }
+
+  /// A scale code read before the type (or under a counted type) is held, and
+  /// the save waits until it is taken out.
+  bool get _pendingScaleCodesBlock => !_editing && _scaleCodes.isNotEmpty && SellingChoice.bulkOf(_baseUnit) == null;
+
+  bool get _showsScaleCodes => (_soldByWeight && _typeId != null) || _pendingScaleCodesBlock;
+
   /// The top `[▥]`: reads a code before anything else is filled in.
   Future<void> _readFirst() async {
     if (_reading) return;
@@ -167,6 +273,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       while (true) {
         final raw = await BarcodeReaderSheet.show(context);
         if (!mounted || raw == null) return;
+        if (ScaleLabel.parse(raw) != null) {
+          await _readScaleLabel(raw, messenger);
+          return;
+        }
         final outcome = await ref.read(barcodeLookupViewModelProvider.notifier).lookUp(raw);
         if (!mounted) return;
 
@@ -444,6 +554,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   bool get _canSave {
     if (_saving || _typeId == null) return false;
     if (_barcodeConflict != null) return false;
+    if (_pendingScaleCodesBlock) return false;
     if (_editing) {
       if (_opened == null || _conflict != null) return false;
       if (_packagings.length != _drafts.length || _hasDuplicate) return false;
@@ -466,7 +577,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       }
       // The grandeza comes from the type, so a type change can leave the
       // saved mode with no word to go by: `Peso` under a type of litres.
-      _sellingMode = SellingChoice.of(_sellingMode, _baseUnit).mode;
+      _sellingMode = SellingChoice.modeFor(_sellingMode, _baseUnit, hasScaleCodes: _scaleCodes.isNotEmpty);
       // The magnitude of every line is the type's, so a type change carries
       // the new one down to the lines already typed.
       final unit = _baseUnit;
@@ -750,6 +861,8 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(catalogViewModelProvider);
+    // Watched only once a label store is remembered: no store load otherwise.
+    final labelStores = _labelStoreId == null ? null : ref.watch(storeViewModelProvider).value;
 
     return Scaffold(
       appBar: AppBar(
@@ -777,13 +890,13 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         builder: (context) => switch (state) {
           AsyncLoading() => const Center(child: CircularProgressIndicator()),
           AsyncError() => _RetryView(onRetry: () => ref.read(catalogViewModelProvider.notifier).refresh()),
-          AsyncValue(:final value?) => _form(context, value),
+          AsyncValue(:final value?) => _form(context, value, labelStores),
         },
       ),
     );
   }
 
-  Widget _form(BuildContext context, CatalogOptions options) {
+  Widget _form(BuildContext context, CatalogOptions options, IList<Store>? labelStores) {
     final type = _typeOf(options);
 
     return ListView(
@@ -792,6 +905,20 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
       children: [
+        if (_labelStoreOf(labelStores) case final store?) ...[
+          Row(
+            key: const ValueKey('label-store'),
+            children: [
+              Expanded(child: Text('Etiquetas do mercado: ${store.name}')),
+              TextButton(
+                key: const ValueKey('label-store-change'),
+                onPressed: _reading || _saving ? null : _changeLabelStore,
+                child: const Text('Trocar'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
         _CategoryField(
           categories: options.categories,
           value: _categoryId,
@@ -803,7 +930,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             _typeId = null;
             // And with no type there is no grandeza: the loose choice has no
             // word left, so the mode falls back to `Unidade`.
-            _sellingMode = SellingChoice.of(_sellingMode, null).mode;
+            _sellingMode = SellingChoice.modeFor(_sellingMode, null, hasScaleCodes: _scaleCodes.isNotEmpty);
             _conflict = null;
           }),
           onCreate: () async {
@@ -1029,7 +1156,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             ),
           ],
         ],
-        if (_soldByWeight && type != null) ...[
+        if (_showsScaleCodes) ...[
           const Divider(height: 32),
           ScaleCodesSection(
             key: const ValueKey('scale-codes'),
@@ -1047,7 +1174,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               // Red only for what IS a mistake. A screen that opens with an
               // empty line and paints "falta completar" in error colour is
               // scolding before anyone typed a character.
-              color: _hasDuplicate || _barcodeConflict != null
+              color: _hasDuplicate || _barcodeConflict != null || _pendingScaleCodesBlock
                   ? Theme.of(context).colorScheme.error
                   : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -1092,6 +1219,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       }
       return null;
     }
+    if (_pendingScaleCodesBlock && _typeId != null) return const UnexpectedScaleCode().message;
     if (_soldByWeight) return null;
     if (_typeId == null || (_conflict != null && !_locked)) return null;
     if (_hasDuplicate) return 'Há duas embalagens iguais na lista.';
