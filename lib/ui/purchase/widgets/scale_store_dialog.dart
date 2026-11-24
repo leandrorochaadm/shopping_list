@@ -6,24 +6,24 @@ import '../../../domain/models/store.dart';
 /// "Esta etiqueta existe em mais de um mercado. Qual?" — answers the id of the
 /// store tapped, or null.
 class ScaleStoreDialog extends StatefulWidget {
-  const ScaleStoreDialog({
-    super.key,
-    required this.storeIds,
-    required this.stores,
-  });
+  const ScaleStoreDialog({super.key, required this.storeIds, required this.stores, this.title = defaultTitle});
+
+  static const defaultTitle = 'Esta etiqueta existe em mais de um mercado. Qual?';
 
   static Future<String?> show(
     BuildContext context, {
     required IList<String> storeIds,
     required IList<Store> stores,
+    String title = defaultTitle,
   }) => showModalBottomSheet<String>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => ScaleStoreDialog(storeIds: storeIds, stores: stores),
+    builder: (context) => ScaleStoreDialog(storeIds: storeIds, stores: stores, title: title),
   );
 
   final IList<String> storeIds;
   final IList<Store> stores;
+  final String title;
 
   @override
   State<ScaleStoreDialog> createState() => _ScaleStoreDialogState();
@@ -53,12 +53,7 @@ class _ScaleStoreDialogState extends State<ScaleStoreDialog> {
           children: [
             Row(
               children: [
-                Expanded(
-                  child: Text(
-                    'Esta etiqueta existe em mais de um mercado. Qual?',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                ),
+                Expanded(child: Text(widget.title, style: Theme.of(context).textTheme.titleMedium)),
                 IconButton(
                   key: const ValueKey('scale-store-close'),
                   icon: const Icon(Icons.close),
@@ -74,11 +69,7 @@ class _ScaleStoreDialogState extends State<ScaleStoreDialog> {
                 children: [
                   for (final id in widget.storeIds)
                     if (byId[id] case final store?)
-                      ListTile(
-                        key: ValueKey('scale-store-$id'),
-                        title: Text(store.name),
-                        onTap: () => _closeWith(id),
-                      ),
+                      ListTile(key: ValueKey('scale-store-$id'), title: Text(store.name), onTap: () => _closeWith(id)),
                 ],
               ),
             ),

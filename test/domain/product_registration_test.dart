@@ -23,25 +23,16 @@ void main() {
     active: active,
   );
 
-  Packaging bottle(String size, BaseUnit unit) =>
-      Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
+  Packaging bottle(String size, BaseUnit unit) => Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
 
   group('identity — tipo + marca + descrição', () {
     test('is the same registration however the description was written', () {
-      expect(
-        cocaCola(
-          description: 'Zero',
-        ).hasSameIdentityAs(cocaCola(description: ' zero ')),
-        isTrue,
-      );
+      expect(cocaCola(description: 'Zero').hasSameIdentityAs(cocaCola(description: ' zero ')), isTrue);
     });
 
     test('treats an empty description as a value, not as missing', () {
       // It is what tells "Coca-Cola" from "Coca-Cola zero".
-      expect(
-        cocaCola().hasSameIdentityAs(cocaCola(description: 'Zero')),
-        isFalse,
-      );
+      expect(cocaCola().hasSameIdentityAs(cocaCola(description: 'Zero')), isFalse);
       expect(cocaCola().description, '');
       expect(cocaCola(description: '   ').description, '');
     });
@@ -57,11 +48,7 @@ void main() {
     });
 
     test('is a different registration under a different type', () {
-      final other = ProductRegistration(
-        productTypeId: 't2',
-        brandId: 'b1',
-        sellingMode: SellingMode.byPiece,
-      );
+      final other = ProductRegistration(productTypeId: 't2', brandId: 'b1', sellingMode: SellingMode.byPiece);
 
       expect(cocaCola().hasSameIdentityAs(other), isFalse);
     });
@@ -87,86 +74,49 @@ void main() {
     test('refuses a by-piece registration with no packaging', () {
       // Without one there is no way to convert what the receipt says into the
       // base unit.
-      expect(
-        () => cocaCola().checkPackagings(const IListConst([])),
-        throwsA(isA<MissingPackaging>()),
-      );
+      expect(() => cocaCola().checkPackagings(const IListConst([])), throwsA(isA<MissingPackaging>()));
     });
 
     test('accepts a by-piece registration with one packaging', () {
-      expect(
-        () => cocaCola().checkPackagings(
-          IList([bottle('350', BaseUnit.milliliter)]),
-        ),
-        returnsNormally,
-      );
+      expect(() => cocaCola().checkPackagings(IList([bottle('350', BaseUnit.milliliter)])), returnsNormally);
     });
 
     test('refuses a by-weight registration that carries packaging', () {
       // The list disappears from the screen when "a peso" is chosen, so a row
       // arriving here means state was kept that should have been dropped.
       expect(
-        () => cocaCola(
-          sellingMode: SellingMode.byWeight,
-        ).checkPackagings(IList([bottle('350', BaseUnit.milliliter)])),
+        () => cocaCola(sellingMode: SellingMode.byWeight).checkPackagings(IList([bottle('350', BaseUnit.milliliter)])),
         throwsA(isA<UnexpectedPackaging>()),
       );
     });
 
     test('accepts a by-weight registration with no packaging', () {
-      expect(
-        () => cocaCola(
-          sellingMode: SellingMode.byWeight,
-        ).checkPackagings(const IListConst([])),
-        returnsNormally,
-      );
+      expect(() => cocaCola(sellingMode: SellingMode.byWeight).checkPackagings(const IListConst([])), returnsNormally);
     });
 
     group('checkScaleCodes', () {
-      final codes = [
-        const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
-      ].lock;
+      final codes = [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock;
 
       test('refuses a scale code on a by-piece registration', () {
-        expect(
-          () => cocaCola().checkScaleCodes(codes),
-          throwsA(isA<UnexpectedScaleCode>()),
-        );
+        expect(() => cocaCola().checkScaleCodes(codes), throwsA(isA<UnexpectedScaleCode>()));
       });
 
       test('accepts a scale code on a by-weight registration', () {
-        expect(
-          () => cocaCola(
-            sellingMode: SellingMode.byWeight,
-          ).checkScaleCodes(codes),
-          returnsNormally,
-        );
+        expect(() => cocaCola(sellingMode: SellingMode.byWeight).checkScaleCodes(codes), returnsNormally);
       });
 
       test('accepts no scale code on a by-piece registration', () {
-        expect(
-          () => cocaCola().checkScaleCodes(const IList.empty()),
-          returnsNormally,
-        );
+        expect(() => cocaCola().checkScaleCodes(const IList.empty()), returnsNormally);
       });
 
       test('says what is wrong, in pt-BR', () {
-        expect(
-          const UnexpectedScaleCode().toString(),
-          contains(const UnexpectedScaleCode().message),
-        );
+        expect(const UnexpectedScaleCode().toString(), contains(const UnexpectedScaleCode().message));
       });
     });
 
     test('says what to do, in pt-BR', () {
-      expect(
-        const MissingPackaging().message,
-        'Informe ao menos uma embalagem para este produto.',
-      );
-      expect(
-        const UnexpectedPackaging().message,
-        'Produto vendido solto não tem embalagem.',
-      );
+      expect(const MissingPackaging().message, 'Informe ao menos uma embalagem para este produto.');
+      expect(const UnexpectedPackaging().message, 'Produto vendido solto não tem embalagem.');
       expect(const MissingPackaging().toString(), contains('embalagem'));
       expect(const UnexpectedPackaging().toString(), contains('solto'));
     });
@@ -174,15 +124,9 @@ void main() {
     test('survives the round trip through JSON, both modes', () {
       for (final mode in SellingMode.values) {
         final registration = cocaCola(id: '1', sellingMode: mode);
-        expect(
-          ProductRegistration.fromJson(registration.toJson()),
-          registration,
-        );
+        expect(ProductRegistration.fromJson(registration.toJson()), registration);
       }
-      expect(
-        () => SellingMode.fromJson('by_kilo'),
-        throwsA(isA<ArgumentError>()),
-      );
+      expect(() => SellingMode.fromJson('by_kilo'), throwsA(isA<ArgumentError>()));
     });
   });
 
@@ -219,10 +163,7 @@ void main() {
     });
 
     test('carries the packaging of a by-piece product', () {
-      final leaf = Product(
-        productRegistrationId: 'r1',
-        packaging: bottle('350', BaseUnit.milliliter),
-      );
+      final leaf = Product(productRegistrationId: 'r1', packaging: bottle('350', BaseUnit.milliliter));
 
       expect(leaf.isSoldByWeight, isFalse);
       expect(leaf.packaging!.totalContent, 350);
@@ -231,29 +172,16 @@ void main() {
     test('recognises the same packaging written two ways', () {
       final asLiters = Product(
         productRegistrationId: 'r1',
-        packaging: Packaging.typed(
-          pieceCount: '2',
-          pieceSize: '175',
-          baseUnit: BaseUnit.milliliter,
-        ),
+        packaging: Packaging.typed(pieceCount: '2', pieceSize: '175', baseUnit: BaseUnit.milliliter),
       );
-      final asMilliliters = Product(
-        productRegistrationId: 'r1',
-        packaging: bottle('350', BaseUnit.milliliter),
-      );
+      final asMilliliters = Product(productRegistrationId: 'r1', packaging: bottle('350', BaseUnit.milliliter));
 
       expect(asLiters.hasSameContentAs(asMilliliters), isTrue);
     });
 
     test('never confuses two leaves of different registrations', () {
-      final mine = Product(
-        productRegistrationId: 'r1',
-        packaging: bottle('350', BaseUnit.milliliter),
-      );
-      final theirs = Product(
-        productRegistrationId: 'r2',
-        packaging: bottle('350', BaseUnit.milliliter),
-      );
+      final mine = Product(productRegistrationId: 'r1', packaging: bottle('350', BaseUnit.milliliter));
+      final theirs = Product(productRegistrationId: 'r2', packaging: bottle('350', BaseUnit.milliliter));
 
       expect(mine.hasSameContentAs(theirs), isFalse);
     });
@@ -264,12 +192,7 @@ void main() {
 
       expect(one.hasSameContentAs(another), isTrue);
       expect(
-        one.hasSameContentAs(
-          Product(
-            productRegistrationId: 'r1',
-            packaging: bottle('350', BaseUnit.milliliter),
-          ),
-        ),
+        one.hasSameContentAs(Product(productRegistrationId: 'r1', packaging: bottle('350', BaseUnit.milliliter))),
         isFalse,
       );
     });
@@ -283,30 +206,24 @@ void main() {
       expect(leaf.deactivated().reactivated().active, isTrue);
     });
 
-    test(
-      'survives the round trip through JSON, with and without packaging',
-      () {
-        final withPackaging = Product(
-          id: 'p1',
-          productRegistrationId: 'r1',
-          packaging: bottle('350', BaseUnit.milliliter),
-        );
-        const withoutPackaging = Product(id: 'p2', productRegistrationId: 'r1');
+    test('survives the round trip through JSON, with and without packaging', () {
+      final withPackaging = Product(
+        id: 'p1',
+        productRegistrationId: 'r1',
+        packaging: bottle('350', BaseUnit.milliliter),
+      );
+      const withoutPackaging = Product(id: 'p2', productRegistrationId: 'r1');
 
-        expect(Product.fromJson(withPackaging.toJson()), withPackaging);
-        expect(Product.fromJson(withoutPackaging.toJson()), withoutPackaging);
-        expect(withoutPackaging.toJson()['total_content'], isNull);
-      },
-    );
+      expect(Product.fromJson(withPackaging.toJson()), withPackaging);
+      expect(Product.fromJson(withoutPackaging.toJson()), withoutPackaging);
+      expect(withoutPackaging.toJson()['total_content'], isNull);
+    });
 
     test('compares by every field it has', () {
       const leaf = Product(id: 'p1', productRegistrationId: 'r1');
 
       expect(leaf, const Product(id: 'p1', productRegistrationId: 'r1'));
-      expect(
-        leaf.hashCode,
-        const Product(id: 'p1', productRegistrationId: 'r1').hashCode,
-      );
+      expect(leaf.hashCode, const Product(id: 'p1', productRegistrationId: 'r1').hashCode);
       expect(leaf, isNot(leaf.deactivated()));
       expect(leaf, isNot(leaf.copyWith(packaging: bottle('1', BaseUnit.unit))));
     });
@@ -324,10 +241,7 @@ void main() {
     });
 
     test('only the description when there is no brand', () {
-      expect(
-        cocaCola(brandId: null, description: 'integral').labelWith(null),
-        'integral',
-      );
+      expect(cocaCola(brandId: null, description: 'integral').labelWith(null), 'integral');
     });
 
     test('"Sem marca" when there is neither, never a blank line', () {
@@ -339,24 +253,15 @@ void main() {
     final original = cocaCola(id: 'r1', description: 'acem');
 
     test('is false when nothing changed', () {
-      expect(
-        cocaCola(id: 'r1', description: 'acem').changesIdentityOf(original),
-        isFalse,
-      );
+      expect(cocaCola(id: 'r1', description: 'acem').changesIdentityOf(original), isFalse);
     });
 
     test('is true when only the type changed', () {
-      expect(
-        original.copyWith(productTypeId: 't2').changesIdentityOf(original),
-        isTrue,
-      );
+      expect(original.copyWith(productTypeId: 't2').changesIdentityOf(original), isTrue);
     });
 
     test('is true when only the brand changed', () {
-      expect(
-        original.copyWith(brandId: 'b2').changesIdentityOf(original),
-        isTrue,
-      );
+      expect(original.copyWith(brandId: 'b2').changesIdentityOf(original), isTrue);
     });
 
     test('is true when the brand was cleared', () {
@@ -366,10 +271,7 @@ void main() {
     });
 
     test('is true when only the description changed', () {
-      expect(
-        original.copyWith(description: 'moído').changesIdentityOf(original),
-        isTrue,
-      );
+      expect(original.copyWith(description: 'moído').changesIdentityOf(original), isTrue);
     });
 
     test('an accent fixed is an edit, though the same identity', () {
@@ -380,28 +282,35 @@ void main() {
 
     test('ignores active and selling mode — they are not identity', () {
       expect(original.deactivated().changesIdentityOf(original), isFalse);
-      expect(
-        original
-            .copyWith(sellingMode: SellingMode.byWeight)
-            .changesIdentityOf(original),
-        isFalse,
-      );
+      expect(original.copyWith(sellingMode: SellingMode.byWeight).changesIdentityOf(original), isFalse);
     });
   });
 
   group('registrationConflictMessage', () {
     test('says it exists when the one in the way is active', () {
-      expect(
-        registrationConflictMessage(cocaCola()),
-        'Já existe esse produto cadastrado.',
-      );
+      expect(registrationConflictMessage(cocaCola()), 'Já existe esse produto cadastrado.');
     });
 
     test('says it is deactivated when it is', () {
-      expect(
-        registrationConflictMessage(cocaCola(active: false)),
-        'Esse produto já existe, mas está desativado.',
-      );
+      expect(registrationConflictMessage(cocaCola(active: false)), 'Esse produto já existe, mas está desativado.');
+    });
+  });
+
+  group('SellingMode.takesScaleCodes', () {
+    final code = ScaleCode(storeId: 's1', itemCode: '1');
+
+    test('by weight takes scale codes', () => expect(SellingMode.byWeight.takesScaleCodes, isTrue));
+
+    test('by piece takes no scale codes', () => expect(SellingMode.byPiece.takesScaleCodes, isFalse));
+
+    test('checkScaleCodes refuses a scale code by piece', () {
+      expect(() => cocaCola().checkScaleCodes([code].lock), throwsA(isA<UnexpectedScaleCode>()));
+    });
+
+    test('checkScaleCodes accepts scale codes by weight and an empty list', () {
+      cocaCola(sellingMode: SellingMode.byWeight).checkScaleCodes([code].lock);
+      cocaCola(sellingMode: SellingMode.byWeight).checkScaleCodes(const IListConst([]));
+      cocaCola().checkScaleCodes(const IListConst([]));
     });
   });
 }
