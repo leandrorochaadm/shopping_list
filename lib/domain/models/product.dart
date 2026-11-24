@@ -24,9 +24,7 @@ final class Product {
   });
 
   factory Product.fromJson(Map<String, dynamic> json) {
-    final rows =
-        (json[barcodesKey] as List<dynamic>?)?.cast<Map<String, dynamic>>() ??
-        const <Map<String, dynamic>>[];
+    final rows = (json[barcodesKey] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? const <Map<String, dynamic>>[];
 
     return Product(
       id: json['id'] as String?,
@@ -35,8 +33,7 @@ final class Product {
       active: json['active'] as bool? ?? true,
       barcodes: [
         for (final row in rows)
-          if (!ScaleCode.isScaleCodeRow(row))
-            Barcode.fromJson(row[ScaleCode.codeKey] as String),
+          if (!ScaleCode.isScaleCodeRow(row)) Barcode.fromJson(row[ScaleCode.codeKey] as String),
       ].lock,
       scaleCodes: [
         for (final row in rows)
@@ -90,8 +87,7 @@ final class Product {
   /// `fetchProductOptions` already filters both flags in SQL and does not
   /// change. What asks this is the maintenance screen, and any list that
   /// loads leaves without that filter.
-  bool isEffectivelyActiveIn(ProductRegistration registration) =>
-      active && registration.active;
+  bool isEffectivelyActiveIn(ProductRegistration registration) => active && registration.active;
 
   /// Two leaves of the same registration are the same packaging when they
   /// hold the same amount — "1 × 0,35 L" and "1 × 350 ml" included. A
@@ -110,8 +106,7 @@ final class Product {
     return copyWith(barcodes: barcodes.add(code));
   }
 
-  Product withoutBarcode(Barcode code) =>
-      copyWith(barcodes: barcodes.remove(code));
+  Product withoutBarcode(Barcode code) => copyWith(barcodes: barcodes.remove(code));
 
   Product deactivated() => copyWith(active: false);
 
@@ -145,18 +140,10 @@ final class Product {
           other.scaleCodes == scaleCodes);
 
   @override
-  int get hashCode => Object.hash(
-    id,
-    productRegistrationId,
-    packaging,
-    active,
-    barcodes,
-    scaleCodes,
-  );
+  int get hashCode => Object.hash(id, productRegistrationId, packaging, active, barcodes, scaleCodes);
 
   @override
-  String toString() =>
-      'Product(${packaging?.label ?? 'a peso'}, active: $active)';
+  String toString() => 'Product(${packaging?.label ?? 'a peso'}, active: $active)';
 }
 
 /// The packaging already has this code.
@@ -188,4 +175,18 @@ IList<Barcode> packagingCodesWith(IList<Barcode> codes, String raw) {
   // `Barcode` is normalized: UPC-A and EAN-13 of one number are the same.
   if (codes.contains(code)) throw const BarcodeAlreadyOnPackaging();
   return codes.add(code);
+}
+
+/// Who holds a scale item code in each store: `storeId -> leaf`. Only the
+/// [ScaleCode]s of [leaves] whose `itemCode` equals [itemCode] count. It does
+/// not filter active ones — the caller does. A repeat in the same store (the
+/// database refuses it) keeps the first leaf.
+IMap<String, Product> scaleHoldersOf(String itemCode, Iterable<Product> leaves) {
+  final holders = <String, Product>{};
+  for (final leaf in leaves) {
+    for (final code in leaf.scaleCodes) {
+      if (code.itemCode == itemCode) holders.putIfAbsent(code.storeId, () => leaf);
+    }
+  }
+  return holders.lock;
 }

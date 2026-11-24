@@ -1,5 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 
 void main() {
@@ -216,6 +217,48 @@ void main() {
 
     test('scaleCodesMovedTo of nothing is nothing', () {
       expect(move([], 'store-1', 'store-2'), isEmpty);
+    });
+  });
+
+  group('scaleHoldersOf', () {
+    ScaleCode code(String store, String item) => ScaleCode(storeId: store, itemCode: item);
+    Product leaf(String id, [List<ScaleCode> codes = const []]) =>
+        Product(id: id, productRegistrationId: 'reg-$id', scaleCodes: codes.lock);
+
+    test('scaleHoldersOf answers nobody for no leaves', () {
+      expect(scaleHoldersOf('1', const []), const IMap<String, Product>.empty());
+    });
+
+    test('scaleHoldersOf skips a leaf without codes', () {
+      expect(scaleHoldersOf('1', [leaf('a')]).isEmpty, isTrue);
+    });
+
+    test('scaleHoldersOf maps one store to its leaf', () {
+      final a = leaf('a', [code('store-1', '1')]);
+      expect(scaleHoldersOf('1', [a]), {'store-1': a}.lock);
+    });
+
+    test('scaleHoldersOf maps two stores of the same leaf', () {
+      final a = leaf('a', [code('store-1', '1'), code('store-2', '1')]);
+      expect(scaleHoldersOf('1', [a]), {'store-1': a, 'store-2': a}.lock);
+    });
+
+    test('scaleHoldersOf maps one item code across leaves of different stores', () {
+      final a = leaf('a', [code('store-1', '1')]);
+      final b = leaf('b', [code('store-2', '1')]);
+      expect(scaleHoldersOf('1', [a, b]), {'store-1': a, 'store-2': b}.lock);
+    });
+
+    test('scaleHoldersOf leaves out another item code', () {
+      final a = leaf('a', [code('store-1', '2'), code('store-2', '1')]);
+      expect(scaleHoldersOf('1', [a]), {'store-2': a}.lock);
+      expect(scaleHoldersOf('3', [a]).isEmpty, isTrue);
+    });
+
+    test('scaleHoldersOf keeps the first leaf of a repeat in the same store', () {
+      final a = leaf('a', [code('store-1', '1')]);
+      final b = leaf('b', [code('store-1', '1')]);
+      expect(scaleHoldersOf('1', [a, b]), {'store-1': a}.lock);
     });
   });
 }

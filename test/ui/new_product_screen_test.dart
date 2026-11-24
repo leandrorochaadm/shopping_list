@@ -2125,6 +2125,37 @@ void main() {
       expect(find.text('• Carrefour · 2822521'), findsNothing);
     });
   });
+
+  group('initialScaleCode', () {
+    const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+
+    test('NewProductRequest compares initialScaleCode', () {
+      const a = NewProductRequest(initialScaleCode: scaleCode);
+      const b = NewProductRequest(initialScaleCode: scaleCode);
+      expect(a, b);
+      expect(a.hashCode, b.hashCode);
+      expect(
+        a,
+        isNot(
+          const NewProductRequest(
+            initialScaleCode: ScaleCode(storeId: 'store-2', itemCode: '2822521'),
+          ),
+        ),
+      );
+      expect(a, isNot(const NewProductRequest()));
+    });
+
+    testWidgets('initialScaleCode starts the remembered store', (tester) async {
+      await pumpScreen(tester, request: const NewProductRequest(initialScaleCode: scaleCode));
+
+      expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      expect(sellingField(tester).selected, {SellingChoice.weight});
+    });
+  });
 }
 
 /// Records the scale codes that reach the save.

@@ -70,7 +70,12 @@ final class PickedProduct {
 /// A `final class` and not a record (rule 16): the same shape as
 /// [PickedProduct], which makes the trip back and lives right above.
 final class NewProductRequest {
-  const NewProductRequest({this.returnsSelection = false, this.registrationId, this.initialBarcode});
+  const NewProductRequest({
+    this.returnsSelection = false,
+    this.registrationId,
+    this.initialBarcode,
+    this.initialScaleCode,
+  });
 
   final bool returnsSelection;
   final String? registrationId;
@@ -79,16 +84,21 @@ final class NewProductRequest {
   /// `#3a`, box mode): it goes on the FIRST card.
   final Barcode? initialBarcode;
 
+  /// The scale code read by whoever asked for a NEW registration: it goes to
+  /// the scale codes section, with its store remembered.
+  final ScaleCode? initialScaleCode;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is NewProductRequest &&
           other.returnsSelection == returnsSelection &&
           other.registrationId == registrationId &&
-          other.initialBarcode == initialBarcode;
+          other.initialBarcode == initialBarcode &&
+          other.initialScaleCode == initialScaleCode;
 
   @override
-  int get hashCode => Object.hash(returnsSelection, registrationId, initialBarcode);
+  int get hashCode => Object.hash(returnsSelection, registrationId, initialBarcode, initialScaleCode);
 }
 
 /// Screen 4 — the product registration, in five levels.
@@ -97,11 +107,21 @@ final class NewProductRequest {
 /// ASKED of the domain: whether two packagings are the same amount, whether
 /// the selling mode allows a packaging list, what a valid measure is.
 class NewProductScreen extends ConsumerStatefulWidget {
-  const NewProductScreen({this.returnsSelection = false, this.registrationId, this.initialBarcode, super.key});
+  const NewProductScreen({
+    this.returnsSelection = false,
+    this.registrationId,
+    this.initialBarcode,
+    this.initialScaleCode,
+    super.key,
+  });
 
   /// The code that goes on the first card of a NEW registration. Ignored when
   /// editing: that path opens with no card.
   final Barcode? initialBarcode;
+
+  /// The scale code that starts the scale codes section of a NEW registration.
+  /// Ignored when editing.
+  final ScaleCode? initialScaleCode;
 
   /// True when screen 3 opened it to register something it is about to buy:
   /// saving then POPS with the chosen leaf instead of navigating to the list.
@@ -343,6 +363,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     // the save button off for someone who only came to fix the description.
     if (!_editing) {
       _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++, barcodes: [?widget.initialBarcode].lock));
+      final scaleCode = widget.initialScaleCode;
+      if (scaleCode != null) {
+        _scaleCodes = IList([scaleCode]);
+        _labelStoreId = scaleCode.storeId;
+      }
     }
     _descriptionController.addListener(_onDescriptionTyped);
 

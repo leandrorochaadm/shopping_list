@@ -18,6 +18,7 @@ import '../../core/error_translation.dart';
 import '../../barcode/view_model/barcode_lookup_view_model.dart';
 import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../barcode/widgets/unknown_code_dialog.dart';
+import '../../purchase/widgets/scale_store_dialog.dart';
 import '../../core/widgets/message_view.dart';
 import '../../store/view_model/store_view_model.dart';
 import '../../store/widgets/new_store_dialog.dart';
@@ -293,6 +294,12 @@ class _CatalogMaintenanceScreenState extends ConsumerState<CatalogMaintenanceScr
       final raw = await BarcodeReaderSheet.show(context);
       if (!mounted || !context.mounted || raw == null) return;
 
+      final label = ScaleLabel.parse(raw);
+      if (label != null) {
+        await _scanScaleLabel(context, label, ref.read(catalogMaintenanceViewModelProvider).requireValue, messenger);
+        return;
+      }
+
       final outcome = await ref.read(barcodeLookupViewModelProvider.notifier).lookUp(raw);
       if (!mounted || !context.mounted) return;
 
@@ -315,16 +322,70 @@ class _CatalogMaintenanceScreenState extends ConsumerState<CatalogMaintenanceScr
     }
   }
 
+  /// A scale label read on the `[▥]`: opens its single holder, asks the store
+  /// when several hold it, and offers to register it when nobody does.
+  Future<void> _scanScaleLabel(
+    BuildContext context,
+    ScaleLabel label,
+    CatalogMaintenanceState loaded,
+    ScaffoldMessengerState messenger,
+  ) async {
+    final holders = loaded.activeScaleHoldersOf(label.itemCode);
+    if (holders.length == 1) {
+      await _reloadAndOpen(context, messenger, registrationId: holders.values.single.productRegistrationId);
+      return;
+    }
+    if (holders.length > 1) {
+      final storeId = await ScaleStoreDialog.show(
+        context,
+        storeIds: (holders.keys.toList()..sort()).toIList(),
+        stores: loaded.stores,
+      );
+      if (!mounted || !context.mounted || storeId == null) return;
+      await _reloadAndOpen(context, messenger, registrationId: holders[storeId]!.productRegistrationId);
+      return;
+    }
+
+    final register = await UnknownCodeDialog.show(context, 'Nenhum produto com esta etiqueta.');
+    if (!mounted || !context.mounted || !register) return;
+    final activeIds = [
+      for (final store in loaded.stores)
+        if (store.active && store.id != null) store.id!,
+    ];
+    if (activeIds.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Cadastre um mercado antes.')));
+      return;
+    }
+    final storeId = await ScaleStoreDialog.show(
+      context,
+      storeIds: activeIds.toIList(),
+      stores: loaded.stores,
+      title: 'De qual mercado é esta etiqueta?',
+    );
+    if (!mounted || !context.mounted || storeId == null) return;
+    await _reloadAndOpen(
+      context,
+      messenger,
+      initialScaleCode: ScaleCode(storeId: storeId, itemCode: label.itemCode),
+    );
+  }
+
   Future<void> _reloadAndOpen(
     BuildContext context,
     ScaffoldMessengerState messenger, {
     String? registrationId,
     Barcode? initialBarcode,
+    ScaleCode? initialScaleCode,
   }) async {
     if (!await _reloadCatalog(messenger)) return;
     if (!mounted || !context.mounted) return;
 
-    await _openScreen4(context, registrationId: registrationId, initialBarcode: initialBarcode);
+    await _openScreen4(
+      context,
+      registrationId: registrationId,
+      initialBarcode: initialBarcode,
+      initialScaleCode: initialScaleCode,
+    );
     if (!mounted) return;
 
     final error = await ref.read(catalogMaintenanceViewModelProvider.notifier).refresh();
@@ -398,10 +459,19 @@ class _CatalogMaintenanceScreenState extends ConsumerState<CatalogMaintenanceScr
   /// the catalog instead of returning to it. Screen 4 pops back on save
   /// (see `NewProductScreen._save`), and the `await` below is what resumes
   /// here afterwards.
-  Future<bool> _openScreen4(BuildContext context, {String? registrationId, Barcode? initialBarcode}) async {
+  Future<bool> _openScreen4(
+    BuildContext context, {
+    String? registrationId,
+    Barcode? initialBarcode,
+    ScaleCode? initialScaleCode,
+  }) async {
     await context.push(
       Routes.newProduct,
-      extra: NewProductRequest(registrationId: registrationId, initialBarcode: initialBarcode),
+      extra: NewProductRequest(
+        registrationId: registrationId,
+        initialBarcode: initialBarcode,
+        initialScaleCode: initialScaleCode,
+      ),
     );
     // Screen 4 pops with nothing, so there is no answer to read: the reload
     // is unconditional, and a cancelled trip simply redraws the same list.

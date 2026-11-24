@@ -87,16 +87,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: RouteNames.shoppingList,
         builder: (context, state) => const ShoppingListScreen(),
       ),
-      GoRoute(
-        path: Routes.welcome,
-        name: RouteNames.welcome,
-        builder: (context, state) => const WelcomeScreen(),
-      ),
-      GoRoute(
-        path: Routes.login,
-        name: RouteNames.login,
-        builder: (context, state) => const LoginScreen(),
-      ),
+      GoRoute(path: Routes.welcome, name: RouteNames.welcome, builder: (context, state) => const WelcomeScreen()),
+      GoRoute(path: Routes.login, name: RouteNames.login, builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: Routes.suggestions,
         name: RouteNames.suggestions,
@@ -118,8 +110,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: Routes.editPurchase,
         name: RouteNames.editPurchase,
-        builder: (context, state) =>
-            EditPurchaseScreen(purchaseId: state.pathParameters['id']!),
+        builder: (context, state) => EditPurchaseScreen(purchaseId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: Routes.purchaseHistory,
@@ -135,20 +126,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // that goes on the first card. Whoever
         // arrives from the menu passes nothing and falls to the default.
         builder: (context, state) {
-          final request =
-              state.extra as NewProductRequest? ?? const NewProductRequest();
+          final request = state.extra as NewProductRequest? ?? const NewProductRequest();
           return NewProductScreen(
             returnsSelection: request.returnsSelection,
             registrationId: request.registrationId,
             initialBarcode: request.initialBarcode,
+            initialScaleCode: request.initialScaleCode,
           );
         },
       ),
-      GoRoute(
-        path: Routes.reports,
-        name: RouteNames.reports,
-        builder: (context, state) => const ReportsScreen(),
-      ),
+      GoRoute(path: Routes.reports, name: RouteNames.reports, builder: (context, state) => const ReportsScreen()),
       GoRoute(
         path: Routes.remainingThisMonth,
         name: RouteNames.remainingThisMonth,
@@ -161,11 +148,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       // Minimal for now — only the device user label, which is an acceptance
       // criterion of H1. The spending cap arrives with H13.
-      GoRoute(
-        path: Routes.settings,
-        name: RouteNames.settings,
-        builder: (context, state) => const SettingsScreen(),
-      ),
+      GoRoute(path: Routes.settings, name: RouteNames.settings, builder: (context, state) => const SettingsScreen()),
       // The twelfth route, and the only one that is not one of the eleven
       // screens of `tecnico §3.4`: the S1 typing spike. It is registered here
       // because the measurement has to happen on the installed PWA, and

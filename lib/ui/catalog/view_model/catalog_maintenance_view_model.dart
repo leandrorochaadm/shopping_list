@@ -26,11 +26,7 @@ enum CatalogKind {
   category('Categorias', 'a categoria', 'Nova categoria'),
   productType('Tipos de produto', 'o tipo', 'Novo tipo'),
   brand('Marcas', 'a marca', 'Nova marca'),
-  registration(
-    'Cadastros de produto',
-    'o cadastro',
-    'Novo cadastro de produto',
-  ),
+  registration('Cadastros de produto', 'o cadastro', 'Novo cadastro de produto'),
   packaging('Embalagens', 'a embalagem', 'Nova embalagem'),
   store('Mercados', 'o mercado', 'Novo mercado');
 
@@ -100,17 +96,26 @@ final class CatalogMaintenanceState {
       for (final entry in registrations)
         if (entry.productTypeId == typeId) entry.id,
     };
-    return products
-        .where((leaf) => registrationIds.contains(leaf.productRegistrationId))
-        .length;
+    return products.where((leaf) => registrationIds.contains(leaf.productRegistrationId)).length;
   }
 
   /// The registration a leaf belongs to — what `isEffectivelyActiveIn` needs,
   /// and what the screen asks in order to grey out a leaf whose registration
   /// is the one that was deactivated.
-  ProductRegistration? registrationOf(Product leaf) => registrations
-      .where((entry) => entry.id == leaf.productRegistrationId)
-      .firstOrNull;
+  ProductRegistration? registrationOf(Product leaf) =>
+      registrations.where((entry) => entry.id == leaf.productRegistrationId).firstOrNull;
+
+  /// Who holds a scale item code, per store, among the ACTIVE leaves only: a
+  /// leaf with no registration, a deactivated leaf, or one whose registration
+  /// was deactivated stays out.
+  IMap<String, Product> activeScaleHoldersOf(String itemCode) {
+    final active = <Product>[];
+    for (final leaf in products) {
+      final registration = registrationOf(leaf);
+      if (registration != null && leaf.isEffectivelyActiveIn(registration)) active.add(leaf);
+    }
+    return scaleHoldersOf(itemCode, active);
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -124,8 +129,7 @@ final class CatalogMaintenanceState {
           other.stores == stores);
 
   @override
-  int get hashCode =>
-      Object.hash(categories, types, brands, registrations, products, stores);
+  int get hashCode => Object.hash(categories, types, brands, registrations, products, stores);
 }
 
 /// How adding a code to a packaging ended. Two outcomes, payload on success
@@ -161,8 +165,7 @@ final class BarcodeAddFailed extends BarcodeAddOutcome {
 /// improvised in an aisle.
 ///
 /// One ViewModel for the six catalogs, because the screen is one (decision 4).
-final class CatalogMaintenanceViewModel
-    extends AsyncNotifier<CatalogMaintenanceState> {
+final class CatalogMaintenanceViewModel extends AsyncNotifier<CatalogMaintenanceState> {
   /// Guards the WRITES. The one read this class has gets a flag of its own,
   /// for the same reason the CatalogViewModel's reads do: sharing would let a
   /// count in flight block the save button.
@@ -210,9 +213,7 @@ final class CatalogMaintenanceViewModel
       if (!ref.mounted) return null;
 
       final message = translateError(e, st, 'atualizar os cadastros');
-      state = state.hasValue
-          ? AsyncData(state.value!)
-          : AsyncError<CatalogMaintenanceState>(e, st);
+      state = state.hasValue ? AsyncData(state.value!) : AsyncError<CatalogMaintenanceState>(e, st);
       return message;
     } finally {
       _running = false;
@@ -241,11 +242,7 @@ final class CatalogMaintenanceViewModel
           final entry = _find(current.categories, id);
           if (entry == null) return _missing(kind);
           final renamed = entry.copyWith(name: Category(name: name).name);
-          final conflict = findNameConflict(
-            current.categories,
-            name,
-            ignoringId: id,
-          );
+          final conflict = findNameConflict(current.categories, name, ignoringId: id);
           if (conflict != null) return nameConflictMessage(conflict, kind.noun);
           return await _writeCategory(renamed);
 
@@ -253,11 +250,7 @@ final class CatalogMaintenanceViewModel
           final entry = _find(current.brands, id);
           if (entry == null) return _missing(kind);
           final renamed = entry.copyWith(name: Brand(name: name).name);
-          final conflict = findNameConflict(
-            current.brands,
-            name,
-            ignoringId: id,
-          );
+          final conflict = findNameConflict(current.brands, name, ignoringId: id);
           if (conflict != null) return nameConflictMessage(conflict, kind.noun);
           return await _writeBrand(renamed);
 
@@ -265,17 +258,9 @@ final class CatalogMaintenanceViewModel
           final entry = _find(current.types, id);
           if (entry == null) return _missing(kind);
           final renamed = entry.copyWith(
-            name: ProductType(
-              name: name,
-              categoryId: entry.categoryId,
-              baseUnit: entry.baseUnit,
-            ).name,
+            name: ProductType(name: name, categoryId: entry.categoryId, baseUnit: entry.baseUnit).name,
           );
-          final conflict = findNameConflict(
-            current.types,
-            name,
-            ignoringId: id,
-          );
+          final conflict = findNameConflict(current.types, name, ignoringId: id);
           if (conflict != null) return nameConflictMessage(conflict, kind.noun);
           return await _writeType(renamed);
 
@@ -283,11 +268,7 @@ final class CatalogMaintenanceViewModel
           final entry = _find(current.stores, id);
           if (entry == null) return _missing(kind);
           final renamed = entry.copyWith(name: Store(name: name).name);
-          final conflict = findNameConflict(
-            current.stores,
-            name,
-            ignoringId: id,
-          );
+          final conflict = findNameConflict(current.stores, name, ignoringId: id);
           if (conflict != null) return nameConflictMessage(conflict, kind.noun);
           return await _writeStore(renamed);
 
@@ -336,11 +317,7 @@ final class CatalogMaintenanceViewModel
   /// [purchaseCount] comes from `CatalogViewModel.purchaseCountsByType()`,
   /// which reads every type in one round trip; the product count is counted in
   /// memory, over the leaves `build()` already loaded.
-  Future<String?> changeBaseUnit(
-    String typeId,
-    BaseUnit baseUnit, {
-    required int purchaseCount,
-  }) async {
+  Future<String?> changeBaseUnit(String typeId, BaseUnit baseUnit, {required int purchaseCount}) async {
     if (_running) return null;
     _running = true;
     try {
@@ -350,10 +327,7 @@ final class CatalogMaintenanceViewModel
       final type = _find(current.types, typeId);
       if (type == null) return _missing(CatalogKind.productType);
 
-      if (!canChangeBaseUnit(
-        productCount: current.productCountOfType(typeId),
-        purchaseCount: purchaseCount,
-      )) {
+      if (!canChangeBaseUnit(productCount: current.productCountOfType(typeId), purchaseCount: purchaseCount)) {
         throw const BaseUnitLocked();
       }
       return await _writeType(type.copyWith(baseUnit: baseUnit));
@@ -404,16 +378,12 @@ final class CatalogMaintenanceViewModel
       // The duplicate guard of a registration is `hasSameIdentityAs`, over the
       // triple — and it has to ignore the row being edited, or correcting a
       // typo in its own description would report a conflict with itself.
-      final conflict = edited.conflictIn(
-        current.registrations.where((other) => other.id != id),
-      );
+      final conflict = edited.conflictIn(current.registrations.where((other) => other.id != id));
       if (conflict != null) {
         return registrationConflictMessage(conflict);
       }
 
-      final written = await ref
-          .read(catalogRepositoryProvider)
-          .updateRegistration(edited);
+      final written = await ref.read(catalogRepositoryProvider).updateRegistration(edited);
       if (!ref.mounted) return null;
 
       _replaceRegistration(written);
@@ -430,10 +400,7 @@ final class CatalogMaintenanceViewModel
   /// The "350 ml digitado como 35 ml" of the wireframe: one leaf's packaging,
   /// corrected. The collision guard is content, not name — a registration may
   /// only hold one leaf of a given size.
-  Future<String?> correctPackaging(
-    String productId,
-    Packaging packaging,
-  ) async {
+  Future<String?> correctPackaging(String productId, Packaging packaging) async {
     if (_running) return null;
     _running = true;
     try {
@@ -444,16 +411,12 @@ final class CatalogMaintenanceViewModel
       if (leaf == null) return _missing(CatalogKind.packaging);
 
       final corrected = leaf.copyWith(packaging: packaging);
-      final collides = current.products.any(
-        (other) => other.id != productId && other.hasSameContentAs(corrected),
-      );
+      final collides = current.products.any((other) => other.id != productId && other.hasSameContentAs(corrected));
       if (collides) {
         return 'Este cadastro já tem uma embalagem com esse conteúdo.';
       }
 
-      final written = await ref
-          .read(catalogRepositoryProvider)
-          .updateProduct(corrected);
+      final written = await ref.read(catalogRepositoryProvider).updateProduct(corrected);
       if (!ref.mounted) return null;
 
       _replaceProduct(written);
@@ -495,16 +458,9 @@ final class CatalogMaintenanceViewModel
         return BarcodeAddRefused(barcodeConflictMessage(conflict));
       }
 
-      final holder = inactiveHoldersOf(
-        codes,
-        owners,
-        ownProductId: productId,
-      )[code];
+      final holder = inactiveHoldersOf(codes, owners, ownProductId: productId)[code];
       if (holder != null) {
-        await repository.removeBarcode(
-          productId: holder.product.id!,
-          code: code,
-        );
+        await repository.removeBarcode(productId: holder.product.id!, code: code);
         if (!ref.mounted) return null;
       }
 
@@ -514,10 +470,7 @@ final class CatalogMaintenanceViewModel
       _replaceProduct(updated);
       // The list does not show the code on two leaves.
       if (holder != null) {
-        final holderLeaf = _findProduct(
-          state.value?.products ?? const IList.empty(),
-          holder.product.id!,
-        );
+        final holderLeaf = _findProduct(state.value?.products ?? const IList.empty(), holder.product.id!);
         if (holderLeaf != null) {
           _replaceProduct(holderLeaf.withoutBarcode(code));
         }
@@ -543,9 +496,7 @@ final class CatalogMaintenanceViewModel
       final leaf = _findProduct(current.products, productId);
       if (leaf == null) return _missing(CatalogKind.packaging);
 
-      await ref
-          .read(catalogRepositoryProvider)
-          .removeBarcode(productId: productId, code: code);
+      await ref.read(catalogRepositoryProvider).removeBarcode(productId: productId, code: code);
       if (!ref.mounted) return null;
 
       _replaceProduct(leaf.withoutBarcode(code));
@@ -576,39 +527,29 @@ final class CatalogMaintenanceViewModel
         case CatalogKind.category:
           final entry = _find(current.categories, id);
           if (entry == null) return _missing(kind);
-          return await _writeCategory(
-            active ? entry.reactivated() : entry.deactivated(),
-          );
+          return await _writeCategory(active ? entry.reactivated() : entry.deactivated());
 
         case CatalogKind.brand:
           final entry = _find(current.brands, id);
           if (entry == null) return _missing(kind);
-          return await _writeBrand(
-            active ? entry.reactivated() : entry.deactivated(),
-          );
+          return await _writeBrand(active ? entry.reactivated() : entry.deactivated());
 
         case CatalogKind.productType:
           final entry = _find(current.types, id);
           if (entry == null) return _missing(kind);
-          return await _writeType(
-            active ? entry.reactivated() : entry.deactivated(),
-          );
+          return await _writeType(active ? entry.reactivated() : entry.deactivated());
 
         case CatalogKind.store:
           final entry = _find(current.stores, id);
           if (entry == null) return _missing(kind);
-          return await _writeStore(
-            active ? entry.reactivated() : entry.deactivated(),
-          );
+          return await _writeStore(active ? entry.reactivated() : entry.deactivated());
 
         case CatalogKind.registration:
           final entry = _findRegistration(current.registrations, id);
           if (entry == null) return _missing(kind);
           final written = await ref
               .read(catalogRepositoryProvider)
-              .updateRegistration(
-                active ? entry.reactivated() : entry.deactivated(),
-              );
+              .updateRegistration(active ? entry.reactivated() : entry.deactivated());
           if (!ref.mounted) return null;
           _replaceRegistration(written);
           return null;
@@ -646,9 +587,7 @@ final class CatalogMaintenanceViewModel
     if (_counting) return null;
     _counting = true;
     try {
-      return await ref
-          .read(shoppingListRepositoryProvider)
-          .countOpenItemsOfType(typeId);
+      return await ref.read(shoppingListRepositoryProvider).countOpenItemsOfType(typeId);
     } on Object catch (e, st) {
       translateError(e, st, 'conferir a lista');
       return null;
@@ -663,10 +602,7 @@ final class CatalogMaintenanceViewModel
   ///
   /// [today] exists for the test: the screen passes nothing and the clock
   /// enters the system HERE (rule 9), never in a widget or an entity.
-  Future<String?> deactivateTypeAndRemoveItems(
-    String typeId, {
-    DateTime? today,
-  }) async {
+  Future<String?> deactivateTypeAndRemoveItems(String typeId, {DateTime? today}) async {
     if (_running) return null;
     _running = true;
     try {
@@ -676,17 +612,13 @@ final class CatalogMaintenanceViewModel
       final type = _find(current.types, typeId);
       if (type == null) return _missing(CatalogKind.productType);
 
-      final written = await ref
-          .read(catalogRepositoryProvider)
-          .updateType(type.deactivated());
+      final written = await ref.read(catalogRepositoryProvider).updateType(type.deactivated());
       if (!ref.mounted) return null;
 
       // The repository swallows the echo of every row it removed, on its own:
       // the writer here IS the list's repository, so the banner is its
       // problem and this ViewModel never sees it.
-      await ref
-          .read(shoppingListRepositoryProvider)
-          .removeOpenItemsOfType(typeId, dayOf(today ?? DateTime.now()));
+      await ref.read(shoppingListRepositoryProvider).removeOpenItemsOfType(typeId, dayOf(today ?? DateTime.now()));
       if (!ref.mounted) return null;
 
       _replaceType(written);
@@ -701,35 +633,23 @@ final class CatalogMaintenanceViewModel
   // ── The four writes, written once each ─────────────────────────────────
 
   Future<String?> _writeCategory(Category entry) async {
-    final written = await ref
-        .read(catalogRepositoryProvider)
-        .updateCategory(entry);
+    final written = await ref.read(catalogRepositoryProvider).updateCategory(entry);
     if (!ref.mounted) return null;
 
     final current = state.value;
     if (current != null) {
-      state = AsyncData(
-        current.copyWith(
-          categories: _replaced(current.categories, written, (e) => e.id),
-        ),
-      );
+      state = AsyncData(current.copyWith(categories: _replaced(current.categories, written, (e) => e.id)));
     }
     return null;
   }
 
   Future<String?> _writeBrand(Brand entry) async {
-    final written = await ref
-        .read(catalogRepositoryProvider)
-        .updateBrand(entry);
+    final written = await ref.read(catalogRepositoryProvider).updateBrand(entry);
     if (!ref.mounted) return null;
 
     final current = state.value;
     if (current != null) {
-      state = AsyncData(
-        current.copyWith(
-          brands: _replaced(current.brands, written, (e) => e.id),
-        ),
-      );
+      state = AsyncData(current.copyWith(brands: _replaced(current.brands, written, (e) => e.id)));
     }
     return null;
   }
@@ -748,11 +668,7 @@ final class CatalogMaintenanceViewModel
 
     final current = state.value;
     if (current != null) {
-      state = AsyncData(
-        current.copyWith(
-          stores: _replaced(current.stores, written, (e) => e.id),
-        ),
-      );
+      state = AsyncData(current.copyWith(stores: _replaced(current.stores, written, (e) => e.id)));
     }
     return null;
   }
@@ -760,60 +676,40 @@ final class CatalogMaintenanceViewModel
   void _replaceType(ProductType written) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(
-      current.copyWith(types: _replaced(current.types, written, (e) => e.id)),
-    );
+    state = AsyncData(current.copyWith(types: _replaced(current.types, written, (e) => e.id)));
   }
 
   void _replaceRegistration(ProductRegistration written) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(
-      current.copyWith(
-        registrations: _replaced(current.registrations, written, (e) => e.id),
-      ),
-    );
+    state = AsyncData(current.copyWith(registrations: _replaced(current.registrations, written, (e) => e.id)));
   }
 
   void _replaceProduct(Product written) {
     final current = state.value;
     if (current == null) return;
-    state = AsyncData(
-      current.copyWith(
-        products: _replaced(current.products, written, (e) => e.id),
-      ),
-    );
+    state = AsyncData(current.copyWith(products: _replaced(current.products, written, (e) => e.id)));
   }
 
-  static IList<T> _replaced<T>(
-    IList<T> list,
-    T written,
-    String? Function(T entry) idOf,
-  ) => list
-      .map((entry) => idOf(entry) == idOf(written) ? written : entry)
-      .toIList();
+  static IList<T> _replaced<T>(IList<T> list, T written, String? Function(T entry) idOf) =>
+      list.map((entry) => idOf(entry) == idOf(written) ? written : entry).toIList();
 
   static T? _find<T extends CatalogEntry>(IList<T> list, String id) =>
       list.where((entry) => entry.id == id).firstOrNull;
 
-  static ProductRegistration? _findRegistration(
-    IList<ProductRegistration> list,
-    String id,
-  ) => list.where((entry) => entry.id == id).firstOrNull;
-
-  static Product? _findProduct(IList<Product> list, String id) =>
+  static ProductRegistration? _findRegistration(IList<ProductRegistration> list, String id) =>
       list.where((entry) => entry.id == id).firstOrNull;
+
+  static Product? _findProduct(IList<Product> list, String id) => list.where((entry) => entry.id == id).firstOrNull;
 
   /// The row went away between the screen drawing it and the tap landing —
   /// the other phone deactivated it, or the list is stale.
-  static String _missing(CatalogKind kind) =>
-      'Não encontrei ${kind.noun}. Atualize a lista.';
+  static String _missing(CatalogKind kind) => 'Não encontrei ${kind.noun}. Atualize a lista.';
 }
 
 /// `retry: null` on purpose: Riverpod 3 retries a failing provider ten times
 /// with a growing backoff, and on a screen the error has to be visible now.
-final catalogMaintenanceViewModelProvider =
-    AsyncNotifierProvider<CatalogMaintenanceViewModel, CatalogMaintenanceState>(
-      CatalogMaintenanceViewModel.new,
-      retry: (retryCount, error) => null,
-    );
+final catalogMaintenanceViewModelProvider = AsyncNotifierProvider<CatalogMaintenanceViewModel, CatalogMaintenanceState>(
+  CatalogMaintenanceViewModel.new,
+  retry: (retryCount, error) => null,
+);

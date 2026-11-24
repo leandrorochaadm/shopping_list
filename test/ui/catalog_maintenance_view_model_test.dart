@@ -18,6 +18,7 @@ import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/domain/models/store.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_maintenance_view_model.dart';
 
@@ -74,9 +75,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<ProductRegistration> updateRegistration(
-    ProductRegistration registration,
-  ) async {
+  Future<ProductRegistration> updateRegistration(ProductRegistration registration) async {
     updateRegistrationCalls++;
     final failure = _take();
     if (failure != null) throw failure;
@@ -100,10 +99,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<void> addBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> addBarcode({required String productId, required Barcode code}) async {
     addBarcodeCalls++;
     final failure = _take();
     if (failure != null) throw failure;
@@ -111,10 +107,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<void> removeBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> removeBarcode({required String productId, required Barcode code}) async {
     removeBarcodeCalls++;
     final failure = _take();
     if (failure != null) throw failure;
@@ -145,10 +138,7 @@ class _SpyList extends ShoppingListRepositoryLocal {
   }
 
   @override
-  Future<IList<String>> removeOpenItemsOfType(
-    String productTypeId,
-    DateTime day,
-  ) async {
+  Future<IList<String>> removeOpenItemsOfType(String productTypeId, DateTime day) async {
     removeCalls++;
     removedDays.add(day);
     final failure = _take();
@@ -188,11 +178,9 @@ void main() {
     ],
   );
 
-  CatalogMaintenanceViewModel notifierOf(ProviderContainer c) =>
-      c.read(catalogMaintenanceViewModelProvider.notifier);
+  CatalogMaintenanceViewModel notifierOf(ProviderContainer c) => c.read(catalogMaintenanceViewModelProvider.notifier);
 
-  CatalogMaintenanceState valueOf(ProviderContainer c) =>
-      c.read(catalogMaintenanceViewModelProvider).value!;
+  CatalogMaintenanceState valueOf(ProviderContainer c) => c.read(catalogMaintenanceViewModelProvider).value!;
 
   // ── The load ───────────────────────────────────────────────────────────
 
@@ -217,10 +205,7 @@ void main() {
     catalog.failNextCall = ApiException(500, 'boom');
     final c = container();
 
-    await expectLater(
-      c.read(catalogMaintenanceViewModelProvider.future),
-      throwsA(isA<ApiException>()),
-    );
+    await expectLater(c.read(catalogMaintenanceViewModelProvider.future), throwsA(isA<ApiException>()));
     expect(c.read(catalogMaintenanceViewModelProvider).hasError, isTrue);
   });
 
@@ -251,16 +236,11 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    final error = await notifierOf(
-      c,
-    ).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas e sucos');
+    final error = await notifierOf(c).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas e sucos');
 
     expect(error, isNull);
     expect(catalog.updateCategoryCalls, 1);
-    expect(
-      valueOf(c).categories.where((e) => e.id == 'cat-1').single.name,
-      'Bebidas e sucos',
-    );
+    expect(valueOf(c).categories.where((e) => e.id == 'cat-1').single.name, 'Bebidas e sucos');
   });
 
   test('renaming to a name another row already has is refused', () async {
@@ -268,31 +248,21 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(
-      await notifierOf(
-        c,
-      ).renameNamed(CatalogKind.category, 'cat-1', '  limpeza '),
+      await notifierOf(c).renameNamed(CatalogKind.category, 'cat-1', '  limpeza '),
       'Já existe a categoria Limpeza.',
     );
     expect(catalog.updateCategoryCalls, 0);
   });
 
-  test(
-    'renaming a row to its own name, accent corrected, is allowed',
-    () async {
-      final c = container();
-      await c.read(catalogMaintenanceViewModelProvider.future);
+  test('renaming a row to its own name, accent corrected, is allowed', () async {
+    final c = container();
+    await c.read(catalogMaintenanceViewModelProvider.future);
 
-      // "Bebidas" normalizes to itself: without `ignoringId` the guard would
-      // report the very line being renamed (D8).
-      expect(
-        await notifierOf(
-          c,
-        ).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas'),
-        isNull,
-      );
-      expect(catalog.updateCategoryCalls, 1);
-    },
-  );
+    // "Bebidas" normalizes to itself: without `ignoringId` the guard would
+    // report the very line being renamed (D8).
+    expect(await notifierOf(c).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas'), isNull);
+    expect(catalog.updateCategoryCalls, 1);
+  });
 
   test('the conflict with a DEACTIVATED row offers to reactivate', () async {
     final c = container();
@@ -300,9 +270,7 @@ void main() {
 
     // 'Guaraná Antarctica' is the deactivated brand of the fake.
     expect(
-      await notifierOf(
-        c,
-      ).renameNamed(CatalogKind.brand, 'brand-1', 'guarana antarctica'),
+      await notifierOf(c).renameNamed(CatalogKind.brand, 'brand-1', 'guarana antarctica'),
       'O cadastro Guaraná Antarctica existe, mas está desativado.',
     );
   });
@@ -311,9 +279,7 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    final message = await notifierOf(
-      c,
-    ).renameNamed(CatalogKind.brand, 'brand-1', 'guarana antarctica');
+    final message = await notifierOf(c).renameNamed(CatalogKind.brand, 'brand-1', 'guarana antarctica');
 
     expect(message, isNot(contains('manutenção do cadastro')));
   });
@@ -322,10 +288,7 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    expect(
-      await notifierOf(c).renameNamed(CatalogKind.brand, 'brand-1', '   '),
-      'Informe um nome.',
-    );
+    expect(await notifierOf(c).renameNamed(CatalogKind.brand, 'brand-1', '   '), 'Informe um nome.');
     expect(catalog.updateBrandCalls, 0);
   });
 
@@ -333,23 +296,10 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    expect(
-      await notifierOf(
-        c,
-      ).renameNamed(CatalogKind.productType, 'type-1', 'Refrigerantes'),
-      isNull,
-    );
-    expect(
-      await notifierOf(
-        c,
-      ).renameNamed(CatalogKind.store, 'store-1', 'Carrefour Bairro'),
-      isNull,
-    );
+    expect(await notifierOf(c).renameNamed(CatalogKind.productType, 'type-1', 'Refrigerantes'), isNull);
+    expect(await notifierOf(c).renameNamed(CatalogKind.store, 'store-1', 'Carrefour Bairro'), isNull);
     expect(stores.updateCalls, 1);
-    expect(
-      valueOf(c).stores.where((e) => e.id == 'store-1').single.name,
-      'Carrefour Bairro',
-    );
+    expect(valueOf(c).stores.where((e) => e.id == 'store-1').single.name, 'Carrefour Bairro');
   });
 
   test('the two nameless catalogs are refused by name', () async {
@@ -357,9 +307,7 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(
-      await notifierOf(
-        c,
-      ).renameNamed(CatalogKind.registration, 'reg-1', 'qualquer'),
+      await notifierOf(c).renameNamed(CatalogKind.registration, 'reg-1', 'qualquer'),
       'Este cadastro não é editado por nome.',
     );
     expect(
@@ -383,9 +331,7 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     catalog.failNextCall = ApiException(500, 'boom');
-    final message = await notifierOf(
-      c,
-    ).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas geladas');
+    final message = await notifierOf(c).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas geladas');
 
     expect(message, isNotNull);
     expect(message, isNot(contains('ApiException')));
@@ -395,12 +341,8 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    final first = notifierOf(
-      c,
-    ).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas geladas');
-    final second = notifierOf(
-      c,
-    ).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas geladas');
+    final first = notifierOf(c).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas geladas');
+    final second = notifierOf(c).renameNamed(CatalogKind.category, 'cat-1', 'Bebidas geladas');
 
     expect(await Future.wait([first, second]), [isNull, isNull]);
     expect(catalog.updateCategoryCalls, 1);
@@ -413,10 +355,7 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(await notifierOf(c).reclassifyType('type-1', 'cat-3'), isNull);
-    expect(
-      valueOf(c).types.where((e) => e.id == 'type-1').single.categoryId,
-      'cat-3',
-    );
+    expect(valueOf(c).types.where((e) => e.id == 'type-1').single.categoryId, 'cat-3');
   });
 
   test('reclassifying into a deactivated category is refused', () async {
@@ -424,40 +363,24 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
     await notifierOf(c).setActive(CatalogKind.category, 'cat-3', false);
 
-    expect(
-      await notifierOf(c).reclassifyType('type-1', 'cat-3'),
-      'Escolha uma categoria ativa.',
-    );
+    expect(await notifierOf(c).reclassifyType('type-1', 'cat-3'), 'Escolha uma categoria ativa.');
   });
 
-  test(
-    'the base unit changes while the type has no product and no purchase',
-    () async {
-      final c = container();
-      await c.read(catalogMaintenanceViewModelProvider.future);
+  test('the base unit changes while the type has no product and no purchase', () async {
+    final c = container();
+    await c.read(catalogMaintenanceViewModelProvider.future);
 
-      // 'type-3' has no registration in the fake, so no leaf either.
-      expect(
-        await notifierOf(
-          c,
-        ).changeBaseUnit('type-3', BaseUnit.gram, purchaseCount: 0),
-        isNull,
-      );
-      expect(
-        valueOf(c).types.where((e) => e.id == 'type-3').single.baseUnit,
-        BaseUnit.gram,
-      );
-    },
-  );
+    // 'type-3' has no registration in the fake, so no leaf either.
+    expect(await notifierOf(c).changeBaseUnit('type-3', BaseUnit.gram, purchaseCount: 0), isNull);
+    expect(valueOf(c).types.where((e) => e.id == 'type-3').single.baseUnit, BaseUnit.gram);
+  });
 
   test('the base unit is locked once the type has a product', () async {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(
-      await notifierOf(
-        c,
-      ).changeBaseUnit('type-1', BaseUnit.gram, purchaseCount: 0),
+      await notifierOf(c).changeBaseUnit('type-1', BaseUnit.gram, purchaseCount: 0),
       'Este tipo já tem produtos ou compras. A unidade base não pode mais '
       'mudar.',
     );
@@ -468,9 +391,7 @@ void main() {
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(
-      await notifierOf(
-        c,
-      ).changeBaseUnit('type-3', BaseUnit.gram, purchaseCount: 7),
+      await notifierOf(c).changeBaseUnit('type-3', BaseUnit.gram, purchaseCount: 7),
       contains('não pode mais mudar'),
     );
   });
@@ -481,14 +402,8 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    expect(
-      await notifierOf(c).editRegistration('reg-1', description: 'zero'),
-      isNull,
-    );
-    expect(
-      valueOf(c).registrations.where((e) => e.id == 'reg-1').single.description,
-      'zero',
-    );
+    expect(await notifierOf(c).editRegistration('reg-1', description: 'zero'), isNull);
+    expect(valueOf(c).registrations.where((e) => e.id == 'reg-1').single.description, 'zero');
   });
 
   test('the registration guard is the triple identity, not a name', () async {
@@ -508,9 +423,7 @@ void main() {
     );
     await notifierOf(c).refresh();
 
-    final twin = valueOf(
-      c,
-    ).registrations.where((e) => e.description == 'zero').single;
+    final twin = valueOf(c).registrations.where((e) => e.description == 'zero').single;
 
     expect(
       await notifierOf(c).editRegistration(twin.id!, description: 'ORIGINAL'),
@@ -524,65 +437,39 @@ void main() {
 
     // Same triple, only the accents of the description differ: the guard has
     // to ignore the row being edited.
-    expect(
-      await notifierOf(c).editRegistration('reg-1', description: 'original'),
-      isNull,
-    );
+    expect(await notifierOf(c).editRegistration('reg-1', description: 'original'), isNull);
   });
 
-  test(
-    'moving a registration to a type of another base unit is refused',
-    () async {
-      final c = container();
-      await c.read(catalogMaintenanceViewModelProvider.future);
+  test('moving a registration to a type of another base unit is refused', () async {
+    final c = container();
+    await c.read(catalogMaintenanceViewModelProvider.future);
 
-      final message = await notifierOf(
-        c,
-      ).editRegistration('reg-1', typeId: 'type-2');
+    final message = await notifierOf(c).editRegistration('reg-1', typeId: 'type-2');
 
-      expect(message, contains('A medida não bate'));
-      expect(catalog.updateRegistrationCalls, 0);
-    },
-  );
+    expect(message, contains('A medida não bate'));
+    expect(catalog.updateRegistrationCalls, 0);
+  });
 
-  test(
-    'moving a registration between types of the same base unit works',
-    () async {
-      final c = container();
-      await c.read(catalogMaintenanceViewModelProvider.future);
+  test('moving a registration between types of the same base unit works', () async {
+    final c = container();
+    await c.read(catalogMaintenanceViewModelProvider.future);
 
-      await catalog.createType(
-        ProductType(
-          name: 'Suco',
-          categoryId: 'cat-1',
-          baseUnit: BaseUnit.milliliter,
-        ),
-      );
-      await notifierOf(c).refresh();
-      final juice = valueOf(c).types.where((t) => t.name == 'Suco').single;
+    await catalog.createType(ProductType(name: 'Suco', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter));
+    await notifierOf(c).refresh();
+    final juice = valueOf(c).types.where((t) => t.name == 'Suco').single;
 
-      expect(
-        await notifierOf(c).editRegistration('reg-1', typeId: juice.id),
-        isNull,
-      );
-      expect(
-        valueOf(
-          c,
-        ).registrations.where((e) => e.id == 'reg-1').single.productTypeId,
-        juice.id,
-      );
-    },
-  );
+    expect(await notifierOf(c).editRegistration('reg-1', typeId: juice.id), isNull);
+    expect(valueOf(c).registrations.where((e) => e.id == 'reg-1').single.productTypeId, juice.id);
+  });
 
   test('corrects a packaging typed wrong', () async {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
     expect(
-      await notifierOf(c).correctPackaging(
-        'prod-1',
-        Packaging(pieceCount: 1, pieceSize: 355, baseUnit: BaseUnit.milliliter),
-      ),
+      await notifierOf(
+        c,
+      ).correctPackaging('prod-1', Packaging(pieceCount: 1, pieceSize: 355, baseUnit: BaseUnit.milliliter)),
       isNull,
     );
     expect(
@@ -591,28 +478,20 @@ void main() {
     );
   });
 
-  test(
-    'a corrected packaging that collides with another leaf is refused',
-    () async {
-      final c = container();
-      await c.read(catalogMaintenanceViewModelProvider.future);
+  test('a corrected packaging that collides with another leaf is refused', () async {
+    final c = container();
+    await c.read(catalogMaintenanceViewModelProvider.future);
 
-      // 'prod-2' is 269 ml of the same registration; making 'prod-1' 269 ml
-      // would be the same shelf twice.
-      expect(
-        await notifierOf(c).correctPackaging(
-          'prod-1',
-          Packaging(
-            pieceCount: 1,
-            pieceSize: 269,
-            baseUnit: BaseUnit.milliliter,
-          ),
-        ),
-        'Este cadastro já tem uma embalagem com esse conteúdo.',
-      );
-      expect(catalog.updateProductCalls, 0);
-    },
-  );
+    // 'prod-2' is 269 ml of the same registration; making 'prod-1' 269 ml
+    // would be the same shelf twice.
+    expect(
+      await notifierOf(
+        c,
+      ).correctPackaging('prod-1', Packaging(pieceCount: 1, pieceSize: 269, baseUnit: BaseUnit.milliliter)),
+      'Este cadastro já tem uma embalagem com esse conteúdo.',
+    );
+    expect(catalog.updateProductCalls, 0);
+  });
 
   // ── Deactivating and reactivating ──────────────────────────────────────
 
@@ -620,59 +499,23 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    expect(
-      await notifierOf(c).setActive(CatalogKind.category, 'cat-1', false),
-      isNull,
-    );
-    expect(
-      valueOf(c).categories.where((e) => e.id == 'cat-1').single.active,
-      isFalse,
-    );
+    expect(await notifierOf(c).setActive(CatalogKind.category, 'cat-1', false), isNull);
+    expect(valueOf(c).categories.where((e) => e.id == 'cat-1').single.active, isFalse);
 
-    expect(
-      await notifierOf(c).setActive(CatalogKind.brand, 'brand-3', true),
-      isNull,
-    );
-    expect(
-      valueOf(c).brands.where((e) => e.id == 'brand-3').single.active,
-      isTrue,
-    );
+    expect(await notifierOf(c).setActive(CatalogKind.brand, 'brand-3', true), isNull);
+    expect(valueOf(c).brands.where((e) => e.id == 'brand-3').single.active, isTrue);
 
-    expect(
-      await notifierOf(c).setActive(CatalogKind.productType, 'type-3', false),
-      isNull,
-    );
-    expect(
-      valueOf(c).types.where((e) => e.id == 'type-3').single.active,
-      isFalse,
-    );
+    expect(await notifierOf(c).setActive(CatalogKind.productType, 'type-3', false), isNull);
+    expect(valueOf(c).types.where((e) => e.id == 'type-3').single.active, isFalse);
 
-    expect(
-      await notifierOf(c).setActive(CatalogKind.store, 'store-3', true),
-      isNull,
-    );
-    expect(
-      valueOf(c).stores.where((e) => e.id == 'store-3').single.active,
-      isTrue,
-    );
+    expect(await notifierOf(c).setActive(CatalogKind.store, 'store-3', true), isNull);
+    expect(valueOf(c).stores.where((e) => e.id == 'store-3').single.active, isTrue);
 
-    expect(
-      await notifierOf(c).setActive(CatalogKind.registration, 'reg-1', false),
-      isNull,
-    );
-    expect(
-      valueOf(c).registrations.where((e) => e.id == 'reg-1').single.active,
-      isFalse,
-    );
+    expect(await notifierOf(c).setActive(CatalogKind.registration, 'reg-1', false), isNull);
+    expect(valueOf(c).registrations.where((e) => e.id == 'reg-1').single.active, isFalse);
 
-    expect(
-      await notifierOf(c).setActive(CatalogKind.packaging, 'prod-1', false),
-      isNull,
-    );
-    expect(
-      valueOf(c).products.where((e) => e.id == 'prod-1').single.active,
-      isFalse,
-    );
+    expect(await notifierOf(c).setActive(CatalogKind.packaging, 'prod-1', false), isNull);
+    expect(valueOf(c).products.where((e) => e.id == 'prod-1').single.active, isFalse);
   });
 
   test('counts the open list items of a type', () async {
@@ -699,15 +542,10 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    final error = await notifierOf(
-      c,
-    ).deactivateTypeAndRemoveItems('type-3', today: DateTime(2026, 8, 30));
+    final error = await notifierOf(c).deactivateTypeAndRemoveItems('type-3', today: DateTime(2026, 8, 30));
 
     expect(error, isNull);
-    expect(
-      valueOf(c).types.where((e) => e.id == 'type-3').single.active,
-      isFalse,
-    );
+    expect(valueOf(c).types.where((e) => e.id == 'type-3').single.active, isFalse);
     expect(lists.removeCalls, 1);
     expect(lists.removedDays.single, DateTime(2026, 8, 30));
     expect(await lists.countOpenItemsOfType('type-3'), 0);
@@ -717,9 +555,7 @@ void main() {
     final c = container();
     await c.read(catalogMaintenanceViewModelProvider.future);
 
-    await notifierOf(
-      c,
-    ).deactivateTypeAndRemoveItems('type-3', today: DateTime(2026, 8, 30));
+    await notifierOf(c).deactivateTypeAndRemoveItems('type-3', today: DateTime(2026, 8, 30));
     await notifierOf(c).setActive(CatalogKind.productType, 'type-3', true);
 
     // Deliberately irreversible: the removal is a human gesture, and the
@@ -751,31 +587,12 @@ void main() {
     }) => CatalogMaintenanceState(
       categories: categories ?? IList([Category(id: 'c', name: 'Bebidas')]),
       types:
-          types ??
-          IList([
-            ProductType(
-              id: 't',
-              name: 'Refrigerante',
-              categoryId: 'c',
-              baseUnit: BaseUnit.milliliter,
-            ),
-          ]),
+          types ?? IList([ProductType(id: 't', name: 'Refrigerante', categoryId: 'c', baseUnit: BaseUnit.milliliter)]),
       brands: brands ?? IList([Brand(id: 'b', name: 'Coca-Cola')]),
       registrations:
           registrations ??
-          IList([
-            ProductRegistration(
-              id: 'r',
-              productTypeId: 't',
-              description: '',
-              sellingMode: SellingMode.byPiece,
-            ),
-          ]),
-      products:
-          products ??
-          const IList<Product>.empty().add(
-            const Product(id: 'p', productRegistrationId: 'r'),
-          ),
+          IList([ProductRegistration(id: 'r', productTypeId: 't', description: '', sellingMode: SellingMode.byPiece)]),
+      products: products ?? const IList<Product>.empty().add(const Product(id: 'p', productRegistrationId: 'r')),
       stores: stores ?? IList([Store(id: 's', name: 'Carrefour')]),
     );
 
@@ -788,10 +605,7 @@ void main() {
       expect(build(categories: const IList<Category>.empty()), isNot(build()));
       expect(build(types: const IList<ProductType>.empty()), isNot(build()));
       expect(build(brands: const IList<Brand>.empty()), isNot(build()));
-      expect(
-        build(registrations: const IList<ProductRegistration>.empty()),
-        isNot(build()),
-      );
+      expect(build(registrations: const IList<ProductRegistration>.empty()), isNot(build()));
       expect(build(products: const IList<Product>.empty()), isNot(build()));
       expect(build(stores: const IList<Store>.empty()), isNot(build()));
     });
@@ -799,10 +613,7 @@ void main() {
     test('copyWith keeps what it was not given', () {
       final state = build();
       expect(state.copyWith(), state);
-      expect(
-        state.copyWith(stores: const IList<Store>.empty()).categories,
-        state.categories,
-      );
+      expect(state.copyWith(stores: const IList<Store>.empty()).categories, state.categories);
     });
 
     test('counts the leaves of a type in memory', () {
@@ -813,18 +624,8 @@ void main() {
 
     test('finds the registration a leaf belongs to', () {
       final state = build();
-      expect(
-        state
-            .registrationOf(const Product(id: 'p', productRegistrationId: 'r'))!
-            .id,
-        'r',
-      );
-      expect(
-        state.registrationOf(
-          const Product(id: 'p', productRegistrationId: 'nope'),
-        ),
-        isNull,
-      );
+      expect(state.registrationOf(const Product(id: 'p', productRegistrationId: 'r'))!.id, 'r');
+      expect(state.registrationOf(const Product(id: 'p', productRegistrationId: 'nope')), isNull);
     });
   });
 
@@ -866,8 +667,7 @@ void main() {
       return c;
     }
 
-    Product leafInState(ProviderContainer c, String id) =>
-        valueOf(c).products.firstWhere((p) => p.id == id);
+    Product leafInState(ProviderContainer c, String id) => valueOf(c).products.firstWhere((p) => p.id == id);
 
     test('addBarcode writes and the leaf in the state shows it', () async {
       final c = await loaded();
@@ -885,10 +685,7 @@ void main() {
 
       final outcome = await notifierOf(c).addBarcode('prod-1', milk);
 
-      expect(
-        (outcome! as BarcodeAddRefused).message,
-        'Esse código já é do ${owner.label}.',
-      );
+      expect((outcome! as BarcodeAddRefused).message, 'Esse código já é do ${owner.label}.');
       expect(catalog.addBarcodeCalls, 1); // only the fixture above
     });
 
@@ -899,18 +696,13 @@ void main() {
 
       final outcome = await notifierOf(c).addBarcode('prod-1', milk);
 
-      expect(
-        (outcome! as BarcodeAddRefused).message,
-        'Esse código já está nesta embalagem.',
-      );
+      expect((outcome! as BarcodeAddRefused).message, 'Esse código já está nesta embalagem.');
       expect(catalog.findOwnersCalls, before);
     });
 
     test('addBarcode releases a deactivated owner without asking', () async {
       await catalog.addBarcode(productId: 'prod-2', code: milk);
-      final leaf = (await catalog.fetchProducts()).firstWhere(
-        (p) => p.id == 'prod-2',
-      );
+      final leaf = (await catalog.fetchProducts()).firstWhere((p) => p.id == 'prod-2');
       await catalog.updateProduct(leaf.deactivated());
       final c = await loaded();
 
@@ -927,10 +719,7 @@ void main() {
 
       final outcome = await notifierOf(c).addBarcode('prod-404', milk);
 
-      expect(
-        (outcome! as BarcodeAddRefused).message,
-        'Não encontrei a embalagem. Atualize a lista.',
-      );
+      expect((outcome! as BarcodeAddRefused).message, 'Não encontrei a embalagem. Atualize a lista.');
     });
 
     test('addBarcode translates a failure', () async {
@@ -969,10 +758,7 @@ void main() {
     test('removeBarcode on a leaf that went away', () async {
       final c = await loaded();
 
-      expect(
-        await notifierOf(c).removeBarcode('prod-404', milk),
-        'Não encontrei a embalagem. Atualize a lista.',
-      );
+      expect(await notifierOf(c).removeBarcode('prod-404', milk), 'Não encontrei a embalagem. Atualize a lista.');
     });
 
     test('removeBarcode translates a failure', () async {
@@ -998,6 +784,43 @@ void main() {
       // Success and the guard are both null: the call count tells them apart.
       expect(results, [null, null]);
       expect(catalog.removeBarcodeCalls, 1);
+    });
+  });
+
+  group('activeScaleHoldersOf', () {
+    const code = ScaleCode(storeId: 's', itemCode: '2822521');
+    ProductRegistration registration({bool active = true}) => ProductRegistration(
+      id: 'r',
+      productTypeId: 't',
+      description: '',
+      sellingMode: SellingMode.byWeight,
+      active: active,
+    );
+    CatalogMaintenanceState stateWith(Product leaf, {bool registrationActive = true, bool withRegistration = true}) =>
+        CatalogMaintenanceState(
+          categories: const IList<Category>.empty(),
+          types: const IList<ProductType>.empty(),
+          brands: const IList<Brand>.empty(),
+          registrations: withRegistration ? IList([registration(active: registrationActive)]) : const IList.empty(),
+          products: IList([leaf]),
+          stores: const IList<Store>.empty(),
+        );
+    final leaf = Product(id: 'p', productRegistrationId: 'r', scaleCodes: [code].lock);
+
+    test('an active leaf is a holder', () {
+      expect(stateWith(leaf).activeScaleHoldersOf('2822521'), {'s': leaf}.lock);
+    });
+
+    test('a deactivated leaf is not', () {
+      expect(stateWith(leaf.deactivated()).activeScaleHoldersOf('2822521').isEmpty, isTrue);
+    });
+
+    test('a leaf of a deactivated registration is not', () {
+      expect(stateWith(leaf, registrationActive: false).activeScaleHoldersOf('2822521').isEmpty, isTrue);
+    });
+
+    test('a leaf without a registration is not', () {
+      expect(stateWith(leaf, withRegistration: false).activeScaleHoldersOf('2822521').isEmpty, isTrue);
     });
   });
 }
