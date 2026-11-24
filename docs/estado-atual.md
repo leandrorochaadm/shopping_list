@@ -2,6 +2,30 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 24/11/2026 — cadastro pelo leitor** — **acréscimo fora das 19 histórias**
+(`temp/plan/plano-cadastro-pelo-leitor-2026-11-24.md`, executado em 7 passos de
+`temp/plan/cadastro-pelo-leitor/`): o `[▥]` agora também cadastra e corrige produto. Na Tela 4
+nova, ler o código o põe na embalagem ou avisa de quem ele já é; `[ Salvar e ler outro ]` grava e
+abre a câmera para o próximo; na manutenção do cadastro, a leitura abre o produto ou oferece
+cadastrar. A etiqueta de balança é lida nos dois lugares.
+
+- **(1) Domínio:** `SellingMode.takesScaleCodes`, `SellingChoice.modeFor`, `scaleCodesMovedTo`
+  (`scale_label.dart`), `scaleHoldersOf` (`product.dart`).
+- **(2) Telas:** novos `known_code_dialog.dart` e `unknown_code_dialog.dart`
+  (`lib/ui/barcode/widgets/`); alterados `new_product_screen.dart` (`[▥]`, etiqueta, mercado
+  lembrado, `[ Salvar e ler outro ]`, `initialScaleCode`), `catalog_maintenance_screen.dart`,
+  `catalog_maintenance_view_model.dart` (`activeScaleHoldersOf`), `scale_store_dialog.dart`
+  (`title`), `new_purchase_screen.dart` (passa a usar o `UnknownCodeDialog`),
+  `lib/routing/router.dart` (repassa `initialScaleCode`).
+- **Sem migration, sem repository, sem provider, sem rota nova.**
+- **Pendências:** conferir no PWA instalado a câmera lendo EAN-13 e a etiqueta no `[▥]` da Tela 4
+  e da manutenção; etiqueta de balança de outro mercado segue aberta; o modo caixa
+  (`checkout_screen.dart`) mantém o `_askToRegister` próprio.
+- **Testes tocados:** `test/domain/product_registration_test`, `selling_choice_test`,
+  `scale_label_test`; `test/ui/new_product_screen_test`, `catalog_maintenance_screen_test`,
+  `catalog_maintenance_view_model_test`, `scale_store_dialog_test`, `unknown_code_dialog_test`
+  (novo).
+
 **Atualizado em 10/10/2026 — M-c, M-d, M-e e M-f** — **acréscimo fora das 19 histórias**
 (`temp/plan/plano-codigo-de-barras-2026-10-10.md`, executado em 16 passos de
 `temp/plan/plano-codigo-de-barras-2026-10-10/`): o casal lê o **código de barras** da

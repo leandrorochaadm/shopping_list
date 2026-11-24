@@ -878,11 +878,21 @@ lançadas — isso é da natureza delas, não do sistema.
       põe o produto, sem a embalagem. Na **despensa**, marca a linha do tipo. Na
       **calculadora**, traz a embalagem para comparar e põe o item na compra.
       Código que ninguém tem oferece cadastrar, com o código já preenchido.
+      No **cadastro de produto**, ler primeiro põe o código na embalagem ou avisa
+      de quem ele já é ("Já cadastrado: …", com `Ler outro` e `Abrir para
+      editar`), e "Salvar e ler outro" grava e já abre a câmera para o próximo.
+      Na **manutenção do cadastro**, a leitura abre o produto para corrigir, ou
+      oferece cadastrar com o código preenchido. _Acrescentado em 24/11/2026._
     - **Etiqueta da balança:** o código do produto pesado é **de cada mercado**.
       Lida no lançamento, escolhe o produto e preenche o peso. Na primeira vez,
       pergunta qual produto é. Na lista e na despensa ela é recusada. Por ora, só
       o formato da etiqueta fotografada em 10/10/2026 (a tâmara do Irmãos
       Gonçalves).
+      Também é lida no **cadastro** (pergunta de qual mercado é e guarda o código
+      em "Códigos de balança"; a segunda etiqueta da mesma tela usa o mesmo
+      mercado, que pode ser trocado) e na **manutenção** (abre o produto ligado a
+      ela; ligada em vários mercados, pergunta qual; sem produto, oferece
+      cadastrar com ela preenchida). _Acrescentado em 24/11/2026._
     - **Modo caixa:** passar os produtos na câmera um atrás do outro, como no
       caixa do supermercado. Cada embalagem vira uma linha, e a mesma embalagem
       soma 1. O preço vem da última compra, marcado "preço anterior". Produto
@@ -912,6 +922,20 @@ lançadas — isso é da natureza delas, não do sistema.
       1 vez o leite de 1 litro dá duas linhas (2 e 1) com os últimos preços;
       "Concluir" mostra as duas em "Itens desta compra", e o salvar avisa dos
       preços não conferidos.
+    - _Pronto quando:_ na tela de produto novo, ler um código que ninguém tem o
+      põe na embalagem; ler o de um produto em uso mostra "Já cadastrado:" com o
+      nome dele e deixa ler outro ou abrir para editar (24/11/2026).
+    - _Pronto quando:_ "Salvar e ler outro" grava, limpa a tela e abre a câmera;
+      fechar a câmera deixa a tela em branco; o botão não aparece quando a tela
+      veio do lançamento ou da lista (24/11/2026).
+    - _Pronto quando:_ na manutenção, ler o código de um produto em uso abre
+      "Editar produto"; um código desconhecido pergunta "Nenhum produto com o
+      código …" e oferece cadastrar com ele preenchido (24/11/2026).
+    - _Pronto quando:_ no cadastro, a etiqueta da tâmara pergunta o mercado e
+      entra em "Códigos de balança"; lida antes do tipo, o salvar trava com "Só
+      produto vendido solto tem código de balança." se o tipo escolhido for
+      contado por unidade; na manutenção, abre o produto ligado, ou diz "Nenhum
+      produto com esta etiqueta." e oferece cadastrar (24/11/2026).
 
 **Ordem sugerida de construção.** Tudo continua na 1ª versão — o que segue é só a
 sequência, porque ela não é livre: a base compartilhada e a marcação de quem está
