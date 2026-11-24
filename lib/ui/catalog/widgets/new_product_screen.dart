@@ -659,7 +659,28 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     });
   }
 
-  Future<void> _save() async {
+  /// Whether `[ Salvar e ler outro ]` exists: only a brand-new registration
+  /// that stays on this screen.
+  bool get _canReadAnother => !_editing && _opened == null && !widget.returnsSelection;
+
+  /// Blanks the form for the next product. The label store stays. The caller
+  /// wraps it in `setState`.
+  void _resetForm() {
+    _categoryId = null;
+    _typeId = null;
+    _brandId = null;
+    _descriptionController.clear();
+    _sellingMode = SellingMode.byPiece;
+    // A NEW id: the card key must change so the controllers are born empty.
+    _drafts = IList([PackagingDraft(id: _nextDraftId++)]);
+    _conflict = null;
+    _barcodeConflict = null;
+    _scaleCodes = const IList.empty();
+    _descriptions = const IList.empty();
+  }
+
+  Future<void> _save({bool readAnother = false}) async {
+    if (_saving) return;
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
     final options = ref.read(catalogViewModelProvider).value;
@@ -789,6 +810,12 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         content: Text(['Produto salvo.', for (final owner in released) releasedBarcodeMessage(owner)].join('\n')),
       ),
     );
+
+    if (readAnother) {
+      setState(_resetForm);
+      await _readFirst();
+      return;
+    }
 
     if (!widget.returnsSelection) {
       // Whoever PUSHED this screen gets it back: the catalog maintenance
@@ -1182,6 +1209,14 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           const SizedBox(height: 8),
         ],
         FilledButton(key: const ValueKey('save'), onPressed: _canSave ? _save : null, child: Text(_saveLabel)),
+        if (_canReadAnother) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const ValueKey('save-and-read'),
+            onPressed: _canSave ? () => _save(readAnother: true) : null,
+            child: const Text('Salvar e ler outro'),
+          ),
+        ],
       ],
     );
   }

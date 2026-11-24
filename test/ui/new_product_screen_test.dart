@@ -1962,6 +1962,169 @@ void main() {
       expect(find.byKey(const ValueKey('scale-store-store-1')), findsNothing);
     });
   });
+
+  group('save and read another', () {
+    const tamara = '2822521001605';
+    final saveAndRead = find.byKey(const ValueKey('save-and-read'));
+    final cameraView = find.byKey(const ValueKey('fake-camera'));
+    final closeCamera = find.byKey(const ValueKey('reader-close'));
+
+    Future<void> readLabel(WidgetTester tester, FakeBarcodeCamera camera, String raw) async {
+      await tapOn(tester, find.byKey(const ValueKey('top-scan')));
+      camera.read(raw);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> pickStore(WidgetTester tester, String id) async {
+      await tester.tap(find.byKey(ValueKey('scale-store-$id')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> toLooseType(WidgetTester tester) async {
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> fillByPiece(WidgetTester tester) async {
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+    }
+
+    testWidgets('save and read another clears the form and opens the camera', (tester) async {
+      await pumpScreen(tester, camera: FakeBarcodeCamera());
+      await fillByPiece(tester);
+
+      await tapOn(tester, saveAndRead);
+
+      expect(find.text('Produto salvo.'), findsOneWidget);
+      expect(cameraView, findsOneWidget);
+      expect(find.text('Novo produto'), findsOneWidget);
+    });
+
+    testWidgets('save and read another also works for a product sold by weight', (tester) async {
+      await pumpScreen(tester, camera: FakeBarcodeCamera());
+      await toLooseType(tester);
+      await tapOn(tester, find.text('Peso'));
+
+      await tapOn(tester, saveAndRead);
+
+      expect(find.text('Produto salvo.'), findsOneWidget);
+      expect(cameraView, findsOneWidget);
+      await tapOn(tester, closeCamera);
+      expect(find.text('Escolha o tipo do produto primeiro.'), findsOneWidget);
+    });
+
+    testWidgets('closing the camera after save and read another leaves a blank form', (tester) async {
+      await pumpScreen(tester, camera: FakeBarcodeCamera());
+      await fillByPiece(tester);
+      await tapOn(tester, saveAndRead);
+
+      await tapOn(tester, closeCamera);
+
+      expect(find.text('Bebidas'), findsNothing);
+      expect(find.text('Escolha o tipo do produto primeiro.'), findsOneWidget);
+      await pickRefrigerante(tester);
+      expect(find.byKey(const ValueKey(1)), findsNothing);
+      expect(find.byKey(const ValueKey(2)), findsOneWidget);
+    });
+
+    testWidgets('the next read after saving fills the fresh card', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+      await tapOn(tester, saveAndRead);
+
+      camera.read(coffee);
+      await tester.pumpAndSettle();
+      await pickRefrigerante(tester);
+
+      expect(find.text('• $coffee'), findsOneWidget);
+      expect(find.text('• $cola'), findsNothing);
+    });
+
+    testWidgets('save and read another keeps the form when a code is taken', (tester) async {
+      final repository = _WithOwners(owners: {Barcode.typed(cola): cola2l});
+      await pumpScreen(tester, repository: repository, camera: FakeBarcodeCamera());
+      await fillByPiece(tester);
+      await includeTyped(tester, 1, cola);
+
+      await tapOn(tester, saveAndRead);
+
+      expect(find.text('Esse código já é do ${cola2l.label}.'), findsOneWidget);
+      expect(cameraView, findsNothing);
+      expect(repository.saved, isNull);
+    });
+
+    testWidgets('save and read another keeps the form when saving fails', (tester) async {
+      await pumpScreen(tester, repository: _RefusingRepository(), camera: FakeBarcodeCamera());
+      await fillByPiece(tester);
+
+      await tapOn(tester, saveAndRead);
+
+      expect(find.text('Sem conexão. Verifique a internet e tente de novo.'), findsOneWidget);
+      expect(find.text('Vai se chamar: 350 ml'), findsOneWidget);
+      expect(cameraView, findsNothing);
+    });
+
+    testWidgets('double tap on save and read another saves once', (tester) async {
+      final repository = _ScaleSpy();
+      await pumpScreen(tester, repository: repository, camera: FakeBarcodeCamera());
+      await fillByPiece(tester);
+      await tester.ensureVisible(saveAndRead);
+      await tester.pumpAndSettle();
+
+      await tester.tap(saveAndRead);
+      await tester.tap(saveAndRead);
+      await tester.pumpAndSettle();
+
+      expect(repository.saveCalls, 1);
+      expect(find.text('Produto salvo.'), findsOneWidget);
+    });
+
+    testWidgets('save and read another is hidden when returning a selection', (tester) async {
+      await pumpScreen(tester, request: const NewProductRequest(returnsSelection: true));
+
+      expect(saveAndRead, findsNothing);
+      expect(find.byKey(const ValueKey('save')), findsOneWidget);
+    });
+
+    testWidgets('save and read another is hidden while editing', (tester) async {
+      await pumpScreen(tester, request: const NewProductRequest(registrationId: 'reg-1'));
+
+      expect(saveAndRead, findsNothing);
+      expect(find.text('Salvar alterações'), findsOneWidget);
+    });
+
+    testWidgets('save and read another is disabled while saving is blocked', (tester) async {
+      await pumpScreen(tester);
+
+      await tester.ensureVisible(saveAndRead);
+      expect(tester.widget<OutlinedButton>(saveAndRead).onPressed, isNull);
+    });
+
+    testWidgets('save and read another clears the pending scale codes but keeps the label store', (tester) async {
+      final camera = FakeBarcodeCamera();
+      final repository = _ScaleSpy();
+      await pumpScreen(tester, repository: repository, camera: camera);
+      await toLooseType(tester);
+      await tapOn(tester, find.text('Peso'));
+      await readLabel(tester, camera, tamara);
+      await pickStore(tester, 'store-1');
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+
+      await tapOn(tester, saveAndRead);
+
+      expect(repository.savedScaleCodes, [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock);
+      await tapOn(tester, closeCamera);
+      expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsNothing);
+    });
+  });
 }
 
 /// Records the scale codes that reach the save.
