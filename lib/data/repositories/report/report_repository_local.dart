@@ -105,128 +105,42 @@ class ReportRepositoryLocal implements ReportRepository {
     //    is what makes the coffee divide by three with a single purchase
     //    inside the closed window.
     _line(DateTime(2026, 3, 10), _coffee, quantity: 1000, cents: 3200),
-    _line(
-      DateTime(2026, 5, 5),
-      _softDrink,
-      brandId: 'brand-1',
-      brandName: 'Coca-Cola',
-      quantity: 4200,
-      cents: 6100,
-    ),
+    _line(DateTime(2026, 5, 5), _softDrink, brandId: 'brand-1', brandName: 'Coca-Cola', quantity: 4200, cents: 6100),
     _line(DateTime(2026, 5, 12), _beef, quantity: 12000, cents: 38400),
-    _line(
-      DateTime(2026, 6, 5),
-      _softDrink,
-      brandId: 'brand-1',
-      brandName: 'Coca-Cola',
-      quantity: 4200,
-      cents: 6150,
-    ),
+    _line(DateTime(2026, 6, 5), _softDrink, brandId: 'brand-1', brandName: 'Coca-Cola', quantity: 4200, cents: 6150),
     // The FIRST purchase of the washing powder: it is what makes its divisor
     // two instead of three.
-    _line(
-      DateTime(2026, 6, 5),
-      _powder,
-      brandId: 'brand-2',
-      brandName: 'Omo',
-      quantity: 8000,
-      cents: 16000,
-    ),
+    _line(DateTime(2026, 6, 5), _powder, brandId: 'brand-2', brandName: 'Omo', quantity: 8000, cents: 16000),
     _line(DateTime(2026, 6, 10), _beef, quantity: 10000, cents: 32000),
     // The only coffee inside the closed window — 2 kg over three months, which
     // is the 0,7 kg of `wireframes §Tela 2`.
     _line(DateTime(2026, 6, 20), _coffee, quantity: 2000, cents: 6600),
-    _line(
-      DateTime(2026, 7, 10),
-      _powder,
-      brandId: 'brand-2',
-      brandName: 'Omo',
-      quantity: 8000,
-      cents: 16000,
-    ),
+    _line(DateTime(2026, 7, 10), _powder, brandId: 'brand-2', brandName: 'Omo', quantity: 8000, cents: 16000),
     // ── Requirement 4, first example: 5 kg at R$ 30 and 1 kg at R$ 42 make
     //    6 kg at R$ 32,00/kg — and NOT the R$ 36 an average of averages gives.
     _line(DateTime(2026, 8, 10), _beef, quantity: 5000, cents: 15000),
     _line(DateTime(2026, 8, 18), _beef, quantity: 1000, cents: 4200),
     // ── Requirement 4, second example: one type adding up two brands.
-    _line(
-      DateTime(2026, 8, 12),
-      _powder,
-      brandId: 'brand-2',
-      brandName: 'Omo',
-      quantity: 4300,
-      cents: 8600,
-    ),
-    _line(
-      DateTime(2026, 8, 20),
-      _powder,
-      brandId: 'brand-4',
-      brandName: 'Tixan',
-      quantity: 2500,
-      cents: 5000,
-    ),
-    _line(
-      DateTime(2026, 8, 18),
-      _softDrink,
-      brandId: 'brand-1',
-      brandName: 'Coca-Cola',
-      quantity: 4200,
-      cents: 6200,
-    ),
+    _line(DateTime(2026, 8, 12), _powder, brandId: 'brand-2', brandName: 'Omo', quantity: 4300, cents: 8600),
+    _line(DateTime(2026, 8, 20), _powder, brandId: 'brand-4', brandName: 'Tixan', quantity: 2500, cents: 5000),
+    _line(DateTime(2026, 8, 18), _softDrink, brandId: 'brand-1', brandName: 'Coca-Cola', quantity: 4200, cents: 6200),
     // A type with no brand in a category that also holds a branded one: it is
     // what makes decision D-a visible while developing.
     _line(DateTime(2026, 8, 5), _paper, quantity: 12, cents: 3600),
     // ── The month before, so `‹ Julho` answers something different instead of
     //    looking broken.
-    _line(
-      DateTime(2026, 7, 30),
-      _softDrink,
-      brandId: 'brand-1',
-      brandName: 'Coca-Cola',
-      quantity: 4200,
-      cents: 5990,
-    ),
+    _line(DateTime(2026, 7, 30), _softDrink, brandId: 'brand-1', brandName: 'Coca-Cola', quantity: 4200, cents: 5990),
     _line(DateTime(2026, 7, 15), _beef, quantity: 2000, cents: 6000),
   ];
 
-  static const _softDrink = _Type(
-    'type-1',
-    'Refrigerante',
-    'cat-1',
-    'Bebidas',
-    BaseUnit.milliliter,
-  );
-  static const _beef = _Type(
-    'type-2',
-    'Acém moído',
-    'cat-2',
-    'Carnes',
-    BaseUnit.gram,
-  );
-  static const _paper = _Type(
-    'type-3',
-    'Papel higiênico',
-    'cat-3',
-    'Limpeza',
-    BaseUnit.unit,
-  );
-  static const _powder = _Type(
-    'type-4',
-    'Sabão em pó',
-    'cat-3',
-    'Limpeza',
-    BaseUnit.gram,
-  );
+  static const _softDrink = _Type('type-1', 'Refrigerante', 'cat-1', 'Bebidas', BaseUnit.milliliter);
+  static const _beef = _Type('type-2', 'Acém moído', 'cat-2', 'Carnes', BaseUnit.gram);
+  static const _paper = _Type('type-3', 'Papel higiênico', 'cat-3', 'Limpeza', BaseUnit.unit);
+  static const _powder = _Type('type-4', 'Sabão em pó', 'cat-3', 'Limpeza', BaseUnit.gram);
   // Born with H17, in `CatalogRepositoryLocal` too: it is the type of the
   // written story of `requisitos §8` — bought before the window and once
   // inside it, so it divides by three and is suggested at 0,7 kg.
-  static const _coffee = _Type(
-    'type-5',
-    'Café',
-    'cat-4',
-    'Mercearia',
-    BaseUnit.gram,
-  );
+  static const _coffee = _Type('type-5', 'Café', 'cat-4', 'Mercearia', BaseUnit.gram);
 
   static ReportLine _line(
     DateTime day,
@@ -273,14 +187,7 @@ class ReportRepositoryLocal implements ReportRepository {
     _quote(_crate, _streetMarket, DateTime(2026, 8, 12), 4200, 5670),
     _quote(_crate, _grocery, DateTime(2026, 8, 18), 4200, 6200),
     _quote(_can, _carrefour, DateTime(2026, 8, 20), 350, 525),
-    _quote(
-      _beefLeaf,
-      _streetMarket,
-      DateTime(2026, 8, 10),
-      1500,
-      4500,
-      meat: true,
-    ),
+    _quote(_beefLeaf, _streetMarket, DateTime(2026, 8, 10), 1500, 4500, meat: true),
     _quote(_beefLeaf, _carrefour, DateTime(2026, 8, 5), 2000, 6800, meat: true),
   ];
 
@@ -296,22 +203,14 @@ class ReportRepositoryLocal implements ReportRepository {
     categoryId: meat ? 'cat-2' : 'cat-1',
     categoryName: meat ? 'Carnes' : 'Bebidas',
     store: store,
-    price: PriceReference(
-      paid: Money(cents),
-      quantityInBaseUnit: quantity,
-      purchasedOn: day,
-    ),
+    price: PriceReference(paid: Money(cents), quantityInBaseUnit: quantity, purchasedOn: day),
   );
 
   static final _carrefour = Store(id: 'store-1', name: 'Carrefour');
   static final _streetMarket = Store(id: 'store-2', name: 'Feira do Bairro');
   // Deactivated in `StoreRepositoryLocal`, and it has to arrive deactivated
   // here too: the `==` of PriceQuote depends on it.
-  static final _grocery = Store(
-    id: 'store-3',
-    name: 'Mercearia do Zé',
-    active: false,
-  );
+  static final _grocery = Store(id: 'store-3', name: 'Mercearia do Zé', active: false);
 
   static final _drinksType = ProductType(
     id: 'type-1',
@@ -319,12 +218,7 @@ class ReportRepositoryLocal implements ReportRepository {
     categoryId: 'cat-1',
     baseUnit: BaseUnit.milliliter,
   );
-  static final _beefType = ProductType(
-    id: 'type-2',
-    name: 'Acém moído',
-    categoryId: 'cat-2',
-    baseUnit: BaseUnit.gram,
-  );
+  static final _beefType = ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram);
   static final _cokeBrand = Brand(id: 'brand-1', name: 'Coca-Cola');
 
   /// The three leaves, with the SAME ids `CatalogRepositoryLocal` gives them.
@@ -334,18 +228,9 @@ class ReportRepositoryLocal implements ReportRepository {
     product: Product(
       id: 'prod-4',
       productRegistrationId: 'reg-1',
-      packaging: Packaging(
-        pieceCount: 12,
-        pieceSize: 350,
-        baseUnit: BaseUnit.milliliter,
-      ),
+      packaging: Packaging(pieceCount: 12, pieceSize: 350, baseUnit: BaseUnit.milliliter),
     ),
-    registration: ProductRegistration(
-      id: 'reg-1',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      sellingMode: SellingMode.byPiece,
-    ),
+    registration: ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1'),
     type: _drinksType,
     brand: _cokeBrand,
   );
@@ -353,28 +238,15 @@ class ReportRepositoryLocal implements ReportRepository {
     product: Product(
       id: 'prod-1',
       productRegistrationId: 'reg-1',
-      packaging: Packaging(
-        pieceCount: 1,
-        pieceSize: 350,
-        baseUnit: BaseUnit.milliliter,
-      ),
+      packaging: Packaging(pieceCount: 1, pieceSize: 350, baseUnit: BaseUnit.milliliter),
     ),
-    registration: ProductRegistration(
-      id: 'reg-1',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      sellingMode: SellingMode.byPiece,
-    ),
+    registration: ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1'),
     type: _drinksType,
     brand: _cokeBrand,
   );
   static final _beefLeaf = ProductOption(
     product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
-    registration: ProductRegistration(
-      id: 'reg-2',
-      productTypeId: 'type-2',
-      sellingMode: SellingMode.byWeight,
-    ),
+    registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
     type: _beefType,
   );
 
@@ -385,9 +257,7 @@ class ReportRepositoryLocal implements ReportRepository {
     // The window filters, and NOTHING else: no ordering and no reduction, the
     // same as the `select` of the real thing. Whoever chooses the most recent
     // purchase of each store is `buildComparison`, in the domain.
-    return _quotes
-        .where((quote) => !quote.purchasedOn.isBefore(since))
-        .toIList();
+    return _quotes.where((quote) => !quote.purchasedOn.isBefore(since)).toIList();
   }
 
   @override
@@ -395,12 +265,7 @@ class ReportRepositoryLocal implements ReportRepository {
     await Future<void>.delayed(latency);
 
     // Closed at both ends, exactly like `between` in the query.
-    final lines = _lines
-        .where(
-          (line) =>
-              !line.day.isBefore(period.from) && !line.day.isAfter(period.to),
-        )
-        .toList();
+    final lines = _lines.where((line) => !line.day.isBefore(period.from) && !line.day.isAfter(period.to)).toList();
 
     final categories = <String, CategorySpending>{};
     for (final line in lines) {
@@ -420,8 +285,7 @@ class ReportRepositoryLocal implements ReportRepository {
         categoryId: line.categoryId,
         name: line.productTypeName,
         baseUnit: line.baseUnit,
-        quantityInBaseUnit:
-            (current?.quantityInBaseUnit ?? 0) + line.quantityInBaseUnit,
+        quantityInBaseUnit: (current?.quantityInBaseUnit ?? 0) + line.quantityInBaseUnit,
         spent: (current?.spent ?? Money.zero) + line.paid,
       );
     }
@@ -436,8 +300,7 @@ class ReportRepositoryLocal implements ReportRepository {
         productTypeId: line.productTypeId,
         brandId: line.brandId,
         name: line.brandName,
-        quantityInBaseUnit:
-            (current?.quantityInBaseUnit ?? 0) + line.quantityInBaseUnit,
+        quantityInBaseUnit: (current?.quantityInBaseUnit ?? 0) + line.quantityInBaseUnit,
         spent: (current?.spent ?? Money.zero) + line.paid,
       );
     }
@@ -456,13 +319,7 @@ class ReportRepositoryLocal implements ReportRepository {
 /// The chain a line hangs from, written once so the seed above reads as a
 /// list of purchases and not as a list of ids.
 final class _Type {
-  const _Type(
-    this.id,
-    this.name,
-    this.categoryId,
-    this.categoryName,
-    this.baseUnit,
-  );
+  const _Type(this.id, this.name, this.categoryId, this.categoryName, this.baseUnit);
 
   final String id;
   final String name;

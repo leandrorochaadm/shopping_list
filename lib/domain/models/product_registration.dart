@@ -47,7 +47,8 @@ final class ProductRegistration {
     required String productTypeId,
     String? brandId,
     String description = '',
-    required SellingMode sellingMode,
+    // Optional since part 7; removed with the field in part 8.
+    SellingMode sellingMode = SellingMode.byPiece,
     bool active = true,
   }) => ProductRegistration._(
     id: id,

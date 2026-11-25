@@ -313,4 +313,10 @@ void main() {
       cocaCola().checkScaleCodes(const IListConst([]));
     });
   });
+  test('defaults the selling mode to by piece when omitted', () {
+    final omitted = ProductRegistration(productTypeId: 'type-1');
+    final explicit = ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
+    expect(omitted, explicit);
+    expect(omitted.hashCode, explicit.hashCode);
+  });
 }

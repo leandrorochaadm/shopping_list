@@ -82,12 +82,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     categoryId: 'cat-1',
     baseUnit: BaseUnit.milliliter,
   );
-  static final _beef = ProductType(
-    id: 'type-2',
-    name: 'Acém moído',
-    categoryId: 'cat-2',
-    baseUnit: BaseUnit.gram,
-  );
+  static final _beef = ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram);
   static final _coke = Brand(id: 'brand-1', name: 'Coca-Cola');
 
   static final _softDrink = ProductRegistration(
@@ -95,7 +90,6 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     productTypeId: 'type-1',
     brandId: 'brand-1',
     description: 'original',
-    sellingMode: SellingMode.byPiece,
   );
   static final _groundBeef = ProductRegistration(
     id: 'reg-2',
@@ -203,18 +197,8 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
       required List<PurchaseItem> items,
       List<ListWriteOff> trail = const [],
     }) {
-      final purchase = Purchase(
-        id: id,
-        date: date,
-        storeId: storeId,
-        registeredBy: registeredBy,
-        items: items.lock,
-      );
-      return PurchaseDetail(
-        purchase: purchase,
-        items: items.lock,
-        trail: trail.lock,
-      );
+      final purchase = Purchase(id: id, date: date, storeId: storeId, registeredBy: registeredBy, items: items.lock);
+      return PurchaseDetail(purchase: purchase, items: items.lock, trail: trail.lock);
     }
 
     return [
@@ -226,22 +210,8 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
         date: DateTime(2026, 8, 28),
         storeId: 'store-1',
         registeredBy: 'Leandro',
-        items: [
-          PurchaseItem(
-            id: 'pi-1',
-            option: crate,
-            quantity: 1,
-            paid: const Money(6200),
-          ),
-        ],
-        trail: [
-          off(
-            purchaseItem: 'pi-1',
-            item: 'item-3',
-            amount: 4200,
-            clearedNotFound: true,
-          ),
-        ],
+        items: [PurchaseItem(id: 'pi-1', option: crate, quantity: 1, paid: const Money(6200))],
+        trail: [off(purchaseItem: 'pi-1', item: 'item-3', amount: 4200, clearedNotFound: true)],
       ),
       // 2. A PARTIAL write-off: `item-1` asked for 6 kg and this took 2 —
       //    the line stays on the list with 4 left.
@@ -250,14 +220,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
         date: DateTime(2026, 8, 27),
         storeId: 'store-2',
         registeredBy: 'esposa',
-        items: [
-          PurchaseItem(
-            id: 'pi-2',
-            option: _groundBeefOption,
-            quantity: 2000,
-            paid: const Money(4500),
-          ),
-        ],
+        items: [PurchaseItem(id: 'pi-2', option: _groundBeefOption, quantity: 2000, paid: const Money(4500))],
         trail: [off(purchaseItem: 'pi-2', item: 'item-1', amount: 2000)],
       ),
       // 3. …and twenty-three more, so the second page exists. They write
@@ -268,14 +231,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
           date: DateTime(2026, 8, 26).subtract(Duration(days: i - 3)),
           storeId: i.isEven ? 'store-1' : 'store-2',
           registeredBy: i.isEven ? 'Leandro' : 'esposa',
-          items: [
-            PurchaseItem(
-              id: 'pi-$i',
-              option: bottle,
-              quantity: 1,
-              paid: Money(500 + i * 10),
-            ),
-          ],
+          items: [PurchaseItem(id: 'pi-$i', option: bottle, quantity: 1, paid: Money(500 + i * 10))],
         ),
     ];
   }
@@ -286,20 +242,11 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     type: _beef,
   );
 
-  static ProductOption _byPiece(
-    String id,
-    int pieceCount,
-    int pieceSize,
-    BaseUnit unit,
-  ) => ProductOption(
+  static ProductOption _byPiece(String id, int pieceCount, int pieceSize, BaseUnit unit) => ProductOption(
     product: Product(
       id: id,
       productRegistrationId: 'reg-1',
-      packaging: Packaging(
-        pieceCount: pieceCount,
-        pieceSize: pieceSize,
-        baseUnit: unit,
-      ),
+      packaging: Packaging(pieceCount: pieceCount, pieceSize: pieceSize, baseUnit: unit),
     ),
     registration: _softDrink,
     type: _drinks,
@@ -326,9 +273,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   @override
   Future<IList<PurchaseHistoryEntry>> fetchRecentItems(DateTime since) async {
     await Future<void>.delayed(latency);
-    return _history
-        .where((entry) => !entry.purchasedOn.isBefore(since))
-        .toIList();
+    return _history.where((entry) => !entry.purchasedOn.isBefore(since)).toIList();
   }
 
   @override
@@ -337,9 +282,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
 
     // The fake's half of `on conflict (id) do nothing`: the same purchase
     // arriving twice is registered once and says so.
-    final already = saved.any(
-      (entry) => entry.purchase.id == submission.purchase.id,
-    );
+    final already = saved.any((entry) => entry.purchase.id == submission.purchase.id);
     if (already) return true;
 
     saved.add(submission);
@@ -359,10 +302,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   }
 
   @override
-  Future<PurchaseHistoryPage> fetchPage({
-    required int offset,
-    required int limit,
-  }) async {
+  Future<PurchaseHistoryPage> fetchPage({required int offset, required int limit}) async {
     await Future<void>.delayed(latency);
     // Newest first, and the tiebreaker is the id — the same stable order the
     // real query gets from `created_at`, without which a purchase on the
@@ -383,9 +323,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   @override
   Future<PurchaseDetail> fetchDetail(String purchaseId) async {
     await Future<void>.delayed(latency);
-    final found = _purchases
-        .where((entry) => entry.purchase.id == purchaseId)
-        .firstOrNull;
+    final found = _purchases.where((entry) => entry.purchase.id == purchaseId).firstOrNull;
     if (found == null) {
       throw ArgumentError.value(purchaseId, 'purchaseId', 'purchase not found');
     }
@@ -406,14 +344,8 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
       ..clear()
       ..addAll(restored);
 
-    final index = _purchases.indexWhere(
-      (entry) => entry.purchase.id == purchase.id,
-    );
-    final next = PurchaseDetail(
-      purchase: purchase,
-      items: purchase.items,
-      trail: writeOffs,
-    );
+    final index = _purchases.indexWhere((entry) => entry.purchase.id == purchase.id);
+    final next = PurchaseDetail(purchase: purchase, items: purchase.items, trail: writeOffs);
     if (index >= 0) {
       _purchases[index] = next;
     } else {
@@ -462,13 +394,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     }
     if (!productTypeIds.contains(_sameDayTypeId)) return const IList.empty();
 
-    return [
-      SameDayAlert(
-        productTypeId: _sameDayTypeId,
-        typeName: _sameDayTypeName,
-        purchasedOn: date,
-      ),
-    ].lock;
+    return [SameDayAlert(productTypeId: _sameDayTypeId, typeName: _sameDayTypeName, purchasedOn: date)].lock;
   }
 
   /// The soft drink — the type every leaf of the picker but the beef hangs
@@ -491,9 +417,5 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
   /// The very stores `StoreRepositoryLocal` has: two fakes telling different
   /// stories would make the history and the picker disagree in debug for a
   /// reason that is only the fake's.
-  static const _storeNames = {
-    'store-1': 'Carrefour',
-    'store-2': 'Feira do Bairro',
-    'store-3': 'Mercearia do Zé',
-  };
+  static const _storeNames = {'store-1': 'Carrefour', 'store-2': 'Feira do Bairro', 'store-3': 'Mercearia do Zé'};
 }

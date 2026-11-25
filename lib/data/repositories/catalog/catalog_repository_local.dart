@@ -69,15 +69,9 @@ class CatalogRepositoryLocal implements CatalogRepository {
   ];
 
   final List<ProductRegistration> _registrations = [
-    ProductRegistration(
-      id: 'reg-1',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      description: 'original',
-      sellingMode: SellingMode.byPiece,
-    ),
+    ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1', description: 'original'),
     ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: '', sellingMode: SellingMode.byWeight),
-    ProductRegistration(id: 'reg-3', productTypeId: 'type-6', description: '', sellingMode: SellingMode.byPiece),
+    ProductRegistration(id: 'reg-3', productTypeId: 'type-6', description: ''),
   ];
 
   late final List<Product> _products = [
@@ -273,12 +267,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
     await Future<void>.delayed(latency);
     // The same comparison the real unique index makes: normalized description,
     // and a null brand counting as a value.
-    final candidate = ProductRegistration(
-      productTypeId: productTypeId,
-      brandId: brandId,
-      description: description,
-      sellingMode: SellingMode.byPiece,
-    );
+    final candidate = ProductRegistration(productTypeId: productTypeId, brandId: brandId, description: description);
     return candidate.conflictIn(_registrations);
   }
 

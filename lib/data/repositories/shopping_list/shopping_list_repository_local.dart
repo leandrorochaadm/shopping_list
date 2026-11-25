@@ -26,10 +26,8 @@ import 'shopping_list_repository.dart';
 /// Not `final`: the ViewModel tests extend it with a spy that fails the next
 /// call, which is how both error paths get exercised without mocktail.
 class ShoppingListRepositoryLocal implements ShoppingListRepository {
-  ShoppingListRepositoryLocal({
-    Iterable<ShoppingListItem>? initial,
-    this.latency = const Duration(milliseconds: 400),
-  }) : _items = [...initial ?? _seed()];
+  ShoppingListRepositoryLocal({Iterable<ShoppingListItem>? initial, this.latency = const Duration(milliseconds: 400)})
+    : _items = [...initial ?? _seed()];
 
   /// Roughly what the real thing costs, so the loading state is exercised
   /// while developing instead of being discovered on the phone. Tests pass
@@ -58,12 +56,7 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
       // the `[!]` shows up in debug without anyone tapping anything.
       ShoppingListItem(
         id: 'item-1',
-        type: ProductType(
-          id: 'type-2',
-          name: 'Acém moído',
-          categoryId: 'cat-2',
-          baseUnit: BaseUnit.gram,
-        ),
+        type: ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram),
         category: meat,
         quantity: 6000,
         enteredOn: DateTime(2026, 8, 26),
@@ -73,12 +66,7 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
       // the base migration was corrected to accept.
       ShoppingListItem(
         id: 'item-2',
-        type: ProductType(
-          id: 'type-3',
-          name: 'Papel higiênico',
-          categoryId: 'cat-3',
-          baseUnit: BaseUnit.unit,
-        ),
+        type: ProductType(id: 'type-3', name: 'Papel higiênico', categoryId: 'cat-3', baseUnit: BaseUnit.unit),
         category: cleaning,
         enteredOn: DateTime(2026, 8, 27),
       ),
@@ -90,19 +78,13 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
       // twice (M-a): one line asks for Coca-Cola, the other for any.
       ShoppingListItem(
         id: 'item-3',
-        type: ProductType(
-          id: 'type-1',
-          name: 'Refrigerante',
-          categoryId: 'cat-1',
-          baseUnit: BaseUnit.milliliter,
-        ),
+        type: ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
         category: drinks,
         preferredRegistration: ProductRegistration(
           id: 'reg-1',
           productTypeId: 'type-1',
           brandId: 'brand-1',
           description: 'original',
-          sellingMode: SellingMode.byPiece,
         ),
         preferredRegistrationBrand: Brand(id: 'brand-1', name: 'Coca-Cola'),
         quantity: 4200,
@@ -113,12 +95,7 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
       // a purchase, untouched — nothing is written about it at all.
       ShoppingListItem(
         id: 'item-4',
-        type: ProductType(
-          id: 'type-3',
-          name: 'Papel higiênico',
-          categoryId: 'cat-3',
-          baseUnit: BaseUnit.unit,
-        ),
+        type: ProductType(id: 'type-3', name: 'Papel higiênico', categoryId: 'cat-3', baseUnit: BaseUnit.unit),
         category: cleaning,
         quantity: 4,
         enteredOn: DateTime(2026, 8, 20),
@@ -128,12 +105,7 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
       // says a purchase dated earlier does not touch it.
       ShoppingListItem(
         id: 'item-5',
-        type: ProductType(
-          id: 'type-1',
-          name: 'Refrigerante',
-          categoryId: 'cat-1',
-          baseUnit: BaseUnit.milliliter,
-        ),
+        type: ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
         category: drinks,
         quantity: 2000,
         enteredOn: DateTime(2026, 9, 15),
@@ -173,16 +145,11 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
   @override
   Future<int> countOpenItemsOfType(String productTypeId) async {
     await Future<void>.delayed(latency);
-    return _items
-        .where((item) => item.isOpen && item.type.id == productTypeId)
-        .length;
+    return _items.where((item) => item.isOpen && item.type.id == productTypeId).length;
   }
 
   @override
-  Future<IList<String>> removeOpenItemsOfType(
-    String productTypeId,
-    DateTime day,
-  ) async {
+  Future<IList<String>> removeOpenItemsOfType(String productTypeId, DateTime day) async {
     await Future<void>.delayed(latency);
     final removed = <String>[];
     for (var i = 0; i < _items.length; i++) {
@@ -203,9 +170,7 @@ class ShoppingListRepositoryLocal implements ShoppingListRepository {
     await Future<void>.delayed(latency);
     // The id is born on the phone, so the fake keeps whatever arrived — the
     // fallback is only for a test that builds an item by hand.
-    final created = item.id == null
-        ? item.copyWith(id: 'item-${_nextId++}')
-        : item;
+    final created = item.id == null ? item.copyWith(id: 'item-${_nextId++}') : item;
     _items.add(created);
     return created;
   }
