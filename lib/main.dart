@@ -50,17 +50,13 @@ Future<void> main() async {
     // — which go_router runs synchronously — ask whether this phone already
     // has a label. openBox is also refused in a private window, and the right
     // outcome for that is this screen, never a white one.
-    deviceUserBox = await Hive.openBox<String>(
-      DeviceUserRepositoryHive.boxName,
-    );
+    deviceUserBox = await Hive.openBox<String>(DeviceUserRepositoryHive.boxName);
     // The second box, opened in the SAME try: a phone that denies IndexedDB
     // denies both, and the purchase draft is the half of the app that exists
     // for the moment the network does not. Discovering the refusal from
     // inside screen 3, with eighteen items typed, is the one outcome worth
     // avoiding at any cost.
-    purchaseDraftBox = await Hive.openBox<String>(
-      PurchaseDraftRepositoryHive.boxName,
-    );
+    purchaseDraftBox = await Hive.openBox<String>(PurchaseDraftRepositoryHive.boxName);
     await PurchaseDraftRepositoryHive.discardLegacyDraft(purchaseDraftBox);
     // The third box, in the SAME try: a browser that denies IndexedDB denies
     // all three, and without the session box no login survives closing the app.
@@ -74,16 +70,19 @@ Future<void> main() async {
   final config = AppConfig.fromEnvironment();
   final List<Override> overrides;
   final bool usingFakes;
-  switch (resolveStartup(
-    configured: config.missingKeys.isEmpty,
-    debug: kDebugMode,
-  )) {
+  switch (resolveStartup(configured: config.missingKeys.isEmpty, debug: kDebugMode)) {
     case StartupPlan.remote:
       final PocketBase pb;
       try {
         pb = PocketBase(
           config.pocketBaseUrl,
           authStore: buildAuthStore(authBox),
+          // One persistent connection for the app's whole life: without it
+          // every call opens its own, with its own DNS lookup and TLS
+          // handshake, and on a shaky phone network one failed lookup out of
+          // the pantry's four parallel reads took the screen down after ~40 s.
+          // It lives as long as the app, so nobody calls pb.close().
+          reuseHTTPClient: true,
         );
         await restoreSession(pb);
       } on Object catch (e, st) {
@@ -94,10 +93,7 @@ Future<void> main() async {
         runApp(const MisconfiguredApp.startupFailed());
         return;
       }
-      overrides = [
-        pocketBaseProvider.overrideWithValue(pb),
-        ...overridesRemote,
-      ];
+      overrides = [pocketBaseProvider.overrideWithValue(pb), ...overridesRemote];
       usingFakes = false;
     case StartupPlan.fakes:
       overrides = overridesLocal;
@@ -140,9 +136,7 @@ class ShoppingListApp extends ConsumerWidget {
     // repainted to show one SnackBar.
     ref.listen(pendingPurchaseSubmitterProvider, (_, status) {
       if (status != PendingSubmission.sent) return;
-      _messengerKey.currentState?.showSnackBar(
-        const SnackBar(content: Text('A compra pendente foi salva.')),
-      );
+      _messengerKey.currentState?.showSnackBar(const SnackBar(content: Text('A compra pendente foi salva.')));
     });
 
     return MaterialApp.router(
@@ -162,9 +156,6 @@ class ShoppingListApp extends ConsumerWidget {
   }
 
   // topStart because the debug checked-mode banner already owns topEnd.
-  static Widget _fakeDataBanner(BuildContext context, Widget? child) => Banner(
-    message: 'DADOS FAKE',
-    location: BannerLocation.topStart,
-    child: child ?? const SizedBox.shrink(),
-  );
+  static Widget _fakeDataBanner(BuildContext context, Widget? child) =>
+      Banner(message: 'DADOS FAKE', location: BannerLocation.topStart, child: child ?? const SizedBox.shrink());
 }
