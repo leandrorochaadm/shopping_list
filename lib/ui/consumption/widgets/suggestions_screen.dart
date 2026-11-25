@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/monthly_average.dart';
 import '../../../domain/models/pantry_scan.dart';
+import '../../../domain/models/shopping_list.dart';
 import '../../../domain/models/shopping_list_item.dart';
 import '../../../routing/routes.dart';
 import '../../barcode/view_model/barcode_lookup_view_model.dart';
@@ -251,6 +252,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
                   _ => _Body(
                     lines: state.value!,
                     onTheList: _onTheList(),
+                    listItems: ref.watch(shoppingListViewModelProvider).value ?? const IList<ShoppingListItem>.empty(),
                     selected: _selected,
                     adding: _adding,
                     lineKeyOf: _lineKeyOf,
@@ -317,6 +319,7 @@ class _Body extends StatelessWidget {
   const _Body({
     required this.lines,
     required this.onTheList,
+    required this.listItems,
     required this.selected,
     required this.adding,
     required this.lineKeyOf,
@@ -325,6 +328,7 @@ class _Body extends StatelessWidget {
 
   final IList<MonthlyAverage> lines;
   final IMap<String, ShoppingListItem> onTheList;
+  final IList<ShoppingListItem> listItems;
   final Set<String> selected;
   final bool adding;
   final GlobalKey Function(String typeId) lineKeyOf;
@@ -373,6 +377,7 @@ class _Body extends StatelessWidget {
     final typeId = line.type.id;
     final tile = _SuggestionTile(
       line: line,
+      title: typeLabelWithOpenItems(listItems, line.type),
       // Null because a type with no id has not been written yet.
       listItem: typeId == null ? null : onTheList[typeId],
       selected: selected.contains(typeId),
@@ -427,6 +432,7 @@ class _AddSelectedButton extends StatelessWidget {
 class _SuggestionTile extends StatelessWidget {
   const _SuggestionTile({
     required this.line,
+    required this.title,
     required this.listItem,
     required this.selected,
     required this.enabled,
@@ -434,6 +440,7 @@ class _SuggestionTile extends StatelessWidget {
   });
 
   final MonthlyAverage line;
+  final String title;
   final ShoppingListItem? listItem;
   final bool selected;
   final bool enabled;
@@ -446,7 +453,7 @@ class _SuggestionTile extends StatelessWidget {
 
     return CheckboxListTile(
       key: typeId == null ? null : ValueKey('suggestion-$typeId'),
-      title: Text(line.type.name),
+      title: Text(title),
       subtitle: switch (listItem) {
         // The `{–}` of the wireframe, in its two shapes. The one marked "não
         // encontrei" is still on the list, so it is locked all the same.

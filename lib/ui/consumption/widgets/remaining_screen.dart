@@ -278,7 +278,7 @@ class _RemainingTile extends ConsumerWidget {
 
     return ListTile(
       key: typeId == null ? null : ValueKey('remaining-$typeId'),
-      title: Text(line.type.name),
+      title: Text(typeLabelWithOpenItems(items, line.type)),
       // What the list is asking for, and it may differ from the number above
       // on purpose: the leite asks 6 L on the list while the average says they
       // consume 8 L. It is the reader who decides which to follow.

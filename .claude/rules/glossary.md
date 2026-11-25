@@ -100,6 +100,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | passo do arredondamento | `averageStepOf` / `roundToAverageStep` | uma casa decimal da unidade de **leitura** — 100 g, 100 ml, 1 un, 10 cm. **Nunca transforma positivo em zero** |
 | a sub-linha da Tela 6 | `listStatusLabel` | as quatro formas de "o que a lista está pedindo", mais o sufixo do "não encontrei" |
 | o item aberto de um tipo | `findOpenItemOfType` | o mais antigo quando há mais de um. É onde "editando o item que já existe, nunca criando um segundo" é decidido |
+| rótulo do tipo nas telas 2 e 6 | `typeLabelWithOpenItems` | tipo + descrições dos produtos **ativos** de todas as linhas abertas, **sem marca**. Descrição vazia não entra; repetida entra uma vez |
 | calculadora de custo proporcional | `proportional_cost.dart` | o painel `#3a`. **Não** `CostCalculator`: o que existe é a regra, e ela não é um objeto que calcula |
 | linha da calculadora | `CostLine` | folha + marcada + preço + custo + diferença + `★`. **Não confundir com `ComparisonLine`**, que é a linha de MERCADO da H16 |
 | as duas listas do painel | `CostCandidates` | o recorte da janela **mais a folha em lançamento e as folhas lidas** (`shown`) e o tipo inteiro (`all`). `canCompare` é a regra do botão da Tela 3 |

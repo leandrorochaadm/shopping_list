@@ -3,6 +3,7 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'category.dart';
 import 'name_normalization.dart';
 import 'product_registration.dart';
+import 'product_type.dart';
 import 'shopping_list_item.dart';
 
 /// One category and its items, already in the order the screen draws them.
@@ -79,13 +80,39 @@ int _compare(String name, String otherName, String tie, String otherTie) {
 /// the `#1a` panel creates more than one line per type on purpose, and without a tiebreak which item the dialog opens would change on
 /// every fetch. `enteredOn` first, the id second — two items can enter on the
 /// same day.
-ShoppingListItem? findOpenItemOfType(IList<ShoppingListItem> items, String typeId) {
-  final candidates = items.where((item) => item.isOpen && item.type.id == typeId).toList()
-    ..sort((a, b) {
+ShoppingListItem? findOpenItemOfType(IList<ShoppingListItem> items, String typeId) =>
+    _openItemsOfType(items, typeId).firstOrNull;
+
+/// The open items of [typeId], oldest first (decision E-i).
+List<ShoppingListItem> _openItemsOfType(IList<ShoppingListItem> items, String typeId) =>
+    items.where((item) => item.isOpen && item.type.id == typeId).toList()..sort((a, b) {
       final byDay = a.enteredOn.compareTo(b.enteredOn);
       return byDay != 0 ? byDay : (a.id ?? '').compareTo(b.id ?? '');
     });
-  return candidates.firstOrNull;
+
+/// What screens 2 and 6 write for [type]: its name plus the descriptions of
+/// the ACTIVE products ALL its open lines ask for — 'Leite integral,
+/// desnatado'. One screen line stands for every list line of the type (M-a),
+/// so naming only one of them would read as the only one asked for.
+///
+/// - **No brand**: the line is the type's, and the description is what tells
+///   the products apart there.
+/// - A product deactivated or moved away is skipped, as in
+///   [ShoppingListItem.effectivePreferredRegistration].
+/// - An empty description adds nothing, and a repeated one (same description
+///   under two brands) is written once.
+/// - Order is the lines' own: oldest first.
+String typeLabelWithOpenItems(IList<ShoppingListItem> items, ProductType type) {
+  final typeId = type.id;
+  if (typeId == null) return type.name;
+  final descriptions = <String>[];
+  for (final item in _openItemsOfType(items, typeId)) {
+    final description = item.effectivePreferredRegistration?.description ?? '';
+    if (description.isEmpty) continue;
+    if (descriptions.any((d) => normalizeName(d) == normalizeName(description))) continue;
+    descriptions.add(description);
+  }
+  return descriptions.isEmpty ? type.name : '${type.name} ${descriptions.join(', ')}';
 }
 
 /// The registrations OTHER open lines of [typeId] already ask for — what the

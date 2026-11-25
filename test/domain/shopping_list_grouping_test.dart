@@ -173,6 +173,137 @@ void main() {
     });
   });
 
+  group('typeLabelWithOpenItems', () {
+    final milk = ProductType(id: 'type-1', name: 'Leite', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
+    ProductRegistration registrationOf(
+      String id,
+      String description, {
+      String? brandId,
+      bool active = true,
+      String typeId = 'type-1',
+    }) =>
+        ProductRegistration(id: id, productTypeId: typeId, brandId: brandId, description: description, active: active);
+    ShoppingListItem itemOf({
+      required String id,
+      ProductRegistration? registration,
+      Brand? brand,
+      DateTime? enteredOn,
+      DateTime? fulfilledOn,
+      ProductType? type,
+    }) => ShoppingListItem(
+      id: id,
+      type: type ?? milk,
+      category: Category(id: 'cat-1', name: 'Laticínios'),
+      preferredRegistration: registration,
+      preferredRegistrationBrand: brand,
+      enteredOn: enteredOn ?? DateTime(2026, 8, 28),
+      fulfilledOn: fulfilledOn,
+    );
+
+    test('a type not on the list is just its name', () {
+      expect(typeLabelWithOpenItems(const IList<ShoppingListItem>.empty(), milk), 'Leite');
+    });
+
+    test('a line with no product is just the type name', () {
+      expect(typeLabelWithOpenItems([itemOf(id: 'item-1')].lock, milk), 'Leite');
+    });
+
+    test('writes the description and never the brand', () {
+      final brand = Brand(id: 'brand-1', name: 'Italac');
+      final item = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', 'integral', brandId: 'brand-1'),
+        brand: brand,
+      );
+
+      expect(typeLabelWithOpenItems([item].lock, milk), 'Leite integral');
+    });
+
+    test('names every open line of the type, oldest first (M-a, E-i)', () {
+      final newer = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', 'desnatado'),
+        enteredOn: DateTime(2026, 8, 28),
+      );
+      final older = itemOf(
+        id: 'item-2',
+        registration: registrationOf('reg-2', 'integral'),
+        enteredOn: DateTime(2026, 8, 20),
+      );
+
+      expect(typeLabelWithOpenItems([newer, older].lock, milk), 'Leite integral, desnatado');
+    });
+
+    test('a deactivated product falls off', () {
+      final item = itemOf(id: 'item-1', registration: registrationOf('reg-1', 'integral', active: false));
+
+      expect(typeLabelWithOpenItems([item].lock, milk), 'Leite');
+    });
+
+    test('a product moved to another type falls off', () {
+      final item = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', 'integral', typeId: 'type-9'),
+      );
+
+      expect(typeLabelWithOpenItems([item].lock, milk), 'Leite');
+    });
+
+    test('a product whose brand was deactivated falls off', () {
+      final brand = Brand(id: 'brand-1', name: 'Italac', active: false);
+      final item = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', 'integral', brandId: 'brand-1'),
+        brand: brand,
+      );
+
+      expect(typeLabelWithOpenItems([item].lock, milk), 'Leite');
+    });
+
+    test('an empty description adds nothing', () {
+      final item = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', '', brandId: 'brand-1'),
+      );
+
+      expect(typeLabelWithOpenItems([item].lock, milk), 'Leite');
+    });
+
+    test('the same description under two brands is written once', () {
+      final a = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', 'integral', brandId: 'brand-1'),
+      );
+      final b = itemOf(
+        id: 'item-2',
+        registration: registrationOf('reg-2', 'Integral', brandId: 'brand-2'),
+      );
+
+      expect(typeLabelWithOpenItems([a, b].lock, milk), 'Leite integral');
+    });
+
+    test('a line already bought or of another type does not count', () {
+      final closed = itemOf(
+        id: 'item-1',
+        registration: registrationOf('reg-1', 'integral'),
+        fulfilledOn: DateTime(2026, 8, 29),
+      );
+      final other = itemOf(
+        id: 'item-2',
+        registration: registrationOf('reg-2', 'zero', typeId: 'type-5'),
+        type: ProductType(id: 'type-5', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
+      );
+
+      expect(typeLabelWithOpenItems([closed, other].lock, milk), 'Leite');
+    });
+
+    test('a type with no id is just its name', () {
+      final unsaved = ProductType(name: 'Leite', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
+
+      expect(typeLabelWithOpenItems([itemOf(id: 'item-1')].lock, unsaved), 'Leite');
+    });
+  });
+
   group('takenRegistrationsOfType — the guard of M-a', () {
     final milk = ProductType(id: 'type-1', name: 'Leite', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
     final italac = ProductRegistration(id: 'reg-italac', productTypeId: 'type-1', brandId: 'brand-1');

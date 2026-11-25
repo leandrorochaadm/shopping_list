@@ -12,6 +12,7 @@ import 'package:shopping_list/domain/models/barcode.dart';
 import 'package:shopping_list/domain/models/barcode_owner.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/category.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/report_period.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
@@ -89,8 +90,11 @@ ShoppingListItem _listItem({
   required String name,
   bool notFound = false,
   DateTime? fulfilledOn,
+  String? id,
+  ProductRegistration? registration,
 }) => ShoppingListItem(
-  id: 'item-$typeId',
+  id: id ?? 'item-$typeId',
+  preferredRegistration: registration,
   type: ProductType(id: typeId, name: name, categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
   category: _drinks,
   enteredOn: DateTime(2026, 8, 20),
@@ -198,6 +202,41 @@ void main() {
     // The others stay tappable.
     final free = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-5')));
     expect(free.onChanged, isNotNull);
+  });
+
+  testWidgets('the title names the ACTIVE products every line of the type asks for, no brand', (tester) async {
+    // Two lines of the same type (M-a); the deactivated product falls off.
+    await pumpScreen(
+      tester,
+      list: _SpyList(
+        initial: [
+          _listItem(
+            typeId: 'type-1',
+            name: 'Refrigerante',
+            id: 'item-a',
+            registration: ProductRegistration(
+              id: 'reg-1',
+              productTypeId: 'type-1',
+              brandId: 'brand-1',
+              description: 'zero',
+            ),
+          ),
+          _listItem(
+            typeId: 'type-1',
+            name: 'Refrigerante',
+            id: 'item-b',
+            registration: ProductRegistration(
+              id: 'reg-2',
+              productTypeId: 'type-1',
+              description: 'laranja',
+              active: false,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Refrigerante zero'), findsOneWidget);
   });
 
   testWidgets('the one marked "não encontrei" is locked too, and says so', (tester) async {

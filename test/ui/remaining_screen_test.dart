@@ -10,6 +10,7 @@ import 'package:shopping_list/data/repositories/shopping_list/shopping_list_repo
 import 'package:shopping_list/data/services/api_exception.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/category.dart';
+import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/report_period.dart';
 import 'package:shopping_list/domain/models/shopping_list_item.dart';
@@ -84,9 +85,11 @@ ShoppingListItem _listItem({
   bool notFound = false,
   DateTime? enteredOn,
   String id = 'item-1',
+  ProductRegistration? registration,
 }) => ShoppingListItem(
   id: id,
   type: type,
+  preferredRegistration: registration,
   category: _drinks,
   quantity: quantity,
   writtenOffQuantity: writtenOffQuantity,
@@ -226,6 +229,45 @@ void main() {
 
     expect(find.text('faltam 2 kg'), findsOneWidget);
     expect(find.text('na lista: restam 2 de 6 kg'), findsOneWidget);
+  });
+
+  testWidgets('the title names the ACTIVE products every line of the type asks for, no brand', (tester) async {
+    // Two lines of the same type (M-a): one screen line stands for both. The
+    // deactivated one falls off, as it does in the write-off.
+    await pumpScreen(
+      tester,
+      list: _SpyList(
+        initial: [
+          _listItem(
+            type: _beef,
+            id: 'item-1',
+            registration: ProductRegistration(
+              id: 'reg-1',
+              productTypeId: 'type-2',
+              brandId: 'brand-1',
+              description: 'de primeira',
+            ),
+          ),
+          _listItem(
+            type: _beef,
+            id: 'item-2',
+            registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: 'resfriado'),
+          ),
+          _listItem(
+            type: _beef,
+            id: 'item-3',
+            registration: ProductRegistration(
+              id: 'reg-3',
+              productTypeId: 'type-2',
+              description: 'congelado',
+              active: false,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text('Acém moído de primeira, resfriado'), findsOneWidget);
   });
 
   testWidgets('a type NOT on the list has no sub-line', (tester) async {
