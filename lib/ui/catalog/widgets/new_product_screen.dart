@@ -339,6 +339,20 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     }
   }
 
+  /// `[ Adicionar outra embalagem ]`. The codes of a card still incomplete go
+  /// down to the new card: the code read is the packaging about to be
+  /// typed, and it is the NEW card the person is about to fill. A complete
+  /// card keeps its codes. The caller wraps it in `setState`.
+  void _addDraft() {
+    final moved = _drafts.where((d) => d.packaging == null).expand((d) => d.barcodes).toIList();
+    _drafts = _drafts
+        .map((d) => d.packaging == null && d.barcodes.isNotEmpty ? d.copyWith(barcodes: const IList.empty()) : d)
+        .toIList()
+        // The magnitude is the type's; there is nothing to choose on the line.
+        .add(PackagingDraft(id: _nextDraftId++, unit: _baseUnit, barcodes: moved));
+    if (moved.isNotEmpty) _barcodeConflict = null;
+  }
+
   /// First card without a code, or a new card.
   void _putCodeInCard(Barcode code) {
     setState(() {
@@ -645,7 +659,11 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           description: _descriptionController.text,
           excludingId: _editing ? _opened?.id : null,
         );
-    if (!mounted) return;
+    // A stale answer: the registration was opened while this one was on its
+    // way. On the web the tap on `[ Abrir e acrescentar embalagem ]` blurs
+    // the description first, so a check is still in flight when the screen
+    // opens — writing its conflict back would disable every packaging line.
+    if (!mounted || _locked) return;
     setState(() => _conflict = conflict);
   }
 
@@ -1159,17 +1177,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               label: Text(_drafts.isEmpty ? 'Adicionar embalagem' : 'Adicionar outra embalagem'),
               // It is blocked while the identity is taken: a line built here
               // would be born inside a registration that will not be saved.
-              onPressed: _saving || _conflict != null
-                  ? null
-                  : () => setState(() {
-                      final draft = PackagingDraft(
-                        id: _nextDraftId++,
-                        // The magnitude is the type's; there is nothing to
-                        // choose on the line.
-                        unit: _baseUnit,
-                      );
-                      _drafts = _drafts.add(draft);
-                    }),
+              onPressed: _saving || _conflict != null ? null : () => setState(_addDraft),
             ),
           ],
           // What is already registered comes AFTER the lines being typed: the

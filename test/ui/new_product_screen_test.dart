@@ -378,6 +378,30 @@ void main() {
     expect(find.text('Acrescentando embalagem a um produto que já existe.'), findsOneWidget);
   });
 
+  testWidgets('keeps the packaging lines open when a check lands after opening', (tester) async {
+    // On the web the tap on the button blurs the description first, so an
+    // identity check is still on its way when the registration opens. Its
+    // answer must not bring the conflict back and disable every line.
+    final repository = _GatedIdentity();
+    await pumpScreen(tester, repository: repository);
+
+    await choose(tester, const ValueKey('field-category'), 'Bebidas');
+    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+    await choose(tester, const ValueKey('field-brand'), 'Coca-Cola');
+    await type(tester, const ValueKey('field-description'), 'original');
+    await leaveField(tester);
+
+    final gate = repository.gate = Completer<void>();
+    await tester.showKeyboard(find.byKey(const ValueKey('field-description')));
+    await leaveField(tester);
+    await tapOn(tester, find.text('Abrir e acrescentar embalagem'));
+    gate.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Acrescentando embalagem a um produto que já existe.'), findsOneWidget);
+    expect(tester.widget<PackagingRow>(find.byType(PackagingRow)).enabled, isTrue);
+  });
+
   testWidgets('refuses a packaging the registration already has', (tester) async {
     await pumpScreen(tester);
 
@@ -842,9 +866,30 @@ void main() {
       await pickRefrigerante(tester);
 
       expect(find.text('• $cola'), findsOneWidget);
+    });
+
+    testWidgets('a new card takes the code of a card still incomplete', (tester) async {
+      await pumpScreen(tester, request: NewProductRequest(initialBarcode: Barcode.typed(cola)));
+      await pickRefrigerante(tester);
 
       await tapOn(tester, find.text('Adicionar outra embalagem'));
-      expect(find.text('Nenhum código.'), findsOneWidget);
+
+      final rows = tester.widgetList<PackagingRow>(find.byType(PackagingRow)).toList();
+      expect(rows.first.draft.barcodes, isEmpty);
+      expect(rows.last.draft.barcodes, [Barcode.typed(cola)]);
+      expect(find.text('• $cola'), findsOneWidget);
+    });
+
+    testWidgets('a complete card keeps its code when another is added', (tester) async {
+      await pumpScreen(tester, request: NewProductRequest(initialBarcode: Barcode.typed(cola)));
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+
+      final rows = tester.widgetList<PackagingRow>(find.byType(PackagingRow)).toList();
+      expect(rows.first.draft.barcodes, [Barcode.typed(cola)]);
+      expect(rows.last.draft.barcodes, isEmpty);
     });
 
     testWidgets('saves 0, 1 and 3 codes, each on its own card', (tester) async {
@@ -2463,4 +2508,22 @@ class _SwitchableStores extends StoreRepositoryLocal {
   Future<IList<Store>> fetchAll() async => (await super.fetchAll())
       .map((store) => carrefourOff && store.id == 'store-1' ? store.copyWith(active: false) : store)
       .toIList();
+}
+
+/// Holds `findRegistration` until [gate] completes, so a check can land
+/// after the registration was opened.
+class _GatedIdentity extends CatalogRepositoryLocal {
+  _GatedIdentity() : super(latency: Duration.zero);
+
+  Completer<void>? gate;
+
+  @override
+  Future<ProductRegistration?> findRegistration({
+    required String productTypeId,
+    String? brandId,
+    required String description,
+  }) async {
+    await gate?.future;
+    return super.findRegistration(productTypeId: productTypeId, brandId: brandId, description: description);
+  }
 }
