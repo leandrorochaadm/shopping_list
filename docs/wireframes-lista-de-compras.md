@@ -1458,8 +1458,6 @@ O frango, que é o caso que pede o campo:
 │  Tipo: ▼ refrigerante   [+Novo]↻  *  │
 │  Unidade: litro (vem do tipo)     *  │
 │                                      │
-│  Vendido: (Peso)(•Unidade)(Volume)*  │
-│                                      │
 │  Marca: ▼ Coca-Cola   [+Novo]↻    *  │
 │  Descrição: original              *  │
 │  ────────────────────────────        │
@@ -1467,6 +1465,7 @@ O frango, que é o caso que pede o campo:
 │  Cada embalagem vira um produto,     │
 │  com preço e histórico próprios.     │
 │ ┌──────────────────────────────────┐ │
+│ │ (•Embalagem)( A granel )      *  │ │
 │ │ Quantas peças?  Quanto tem cada? │ │
 │ │  [    1   ]  ×  [  350   ] ml    │ │
 │ │  Vai se chamar: 350 ml  [Remover]│ │
@@ -1563,23 +1562,14 @@ O frango, que é o caso que pede o campo:
   segundo "Coca-Cola 350ml" partiria o histórico de preço em dois, como
   "Carrefur" partiria o do mercado, e nenhum rename depois junta o que nasceu
   separado.
-- `*` **O campo tem TRÊS palavras — `Peso`, `Unidade`, `Volume` — e só a
-  grandeza do tipo fica clicável ao lado de `Unidade`** (decisão de
-  01/09/2026, divergência **H-a**). `Peso` e `Volume` são a mesma marcação de
-  produto solto, e quem os separa é a unidade base do tipo: num tipo medido em
-  quilo o clicável é `Peso`, num tipo medido em litro é `Volume`, e num tipo
-  contado por unidade sobra só `Unidade`. A palavra antiga, "A peso", não
-  nomeava o azeite a granel, que é medido em **litro**. No banco continuam
-  existindo **dois** modos, não três.
-- `*` **`Peso` ou `Volume` faz a lista de embalagens sumir da tela** — não fica
-  linha nenhuma, e o botão volta a ser `[ Salvar produto ]`. Quem informa a
-  quantidade é o lançamento, não o cadastro. É o caso do acém moído e da
-  mussarela do balcão. **A marcação vale em qualquer unidade base** (decisão de
-  26/08/2026): ela diz que não há embalagem a contar, não que a grandeza seja o
-  quilo. Num tipo medido em litro — azeite a granel —, o lançamento pede
-  "Volume (L)"; num medido em unidade, "Quantidade (un)". Presa ao quilo, ela
-  deixaria esses produtos sem caminho: sem embalagem para cadastrar e sem tipo de
-  outra grandeza onde caber.
+- `*` **Cada cartão escolhe `Embalagem` ou `A granel`** (24/11/2026, divergência N-a, que
+  revoga H-a, H-b e J-d). O cartão granel não pede peças nem medida — mostra
+  `Vendido por kg` (ou `L`, `m`, `un`, da unidade base do tipo) — e guarda os códigos de
+  balança; não aceita código de barras. No máximo um granel por produto: com um granel na
+  tela ou já cadastrado, `A granel` fica desligado nos outros cartões. Cartão com código de
+  barras não vira granel; cartão granel com etiqueta não volta a embalagem. Granel + 500 g
+  salva como `[ Salvar 2 produtos ]`. Vale em qualquer unidade base, inclusive a contada
+  (Ovos por un).
 - `*` **A marca é escolhida de uma lista das já cadastradas**, com `[+Novo]↻` ao
   lado para cadastrar uma na hora, num diálogo de um campo só — igual ao mercado
   da Tela 3, e pelo mesmo motivo: a marca agrupa e compara preço, e "Omo" e "OMO"
@@ -1665,8 +1655,9 @@ O frango, que é o caso que pede o campo:
 - **Produto que já existe, aberto pela manutenção do cadastro (requisito 16,
   atrás do `≡`)** — decisão **M-b**, de 01/10/2026: o título vira **"Editar
   produto"**, a frase de topo diz **"Editando um produto que já existe."**, e
-  **Descrição, Marca e Tipo vêm preenchidos e editáveis**; **Categoria e Vendido
-  vêm preenchidos e travados**. O Tipo só oferece tipos medidos na mesma unidade,
+  **Descrição, Marca e Tipo vêm preenchidos e editáveis**; **Categoria vem
+  preenchida e travada**. O granel já cadastrado aparece em "Já cadastradas", com os
+  códigos de balança logo abaixo, gravados na hora. O Tipo só oferece tipos medidos na mesma unidade,
   e a Categoria acompanha o tipo escolhido. A lista de embalagens começa **vazia**
   (`[ + Adicionar embalagem ]` cria a primeira linha) e as que existem aparecem
   abaixo, recolhidas — é o caso "comprou o Omo de 2,3 kg tendo só o de 500 g". O
@@ -1691,8 +1682,6 @@ O frango, que é o caso que pede o campo:
 │  Categoria: ▼ Bebidas   [+Novo]↻     │
 │  Tipo: ▼ refrigerante   [+Novo]↻     │
 │  Unidade: litro (vem do tipo)        │
-│                                      │
-│  Vendido: (Peso)(•Unidade)(Volume)   │
 │                                      │
 │  Marca: ▼ Coca-Cola   [+Novo]↻       │
 │  Descrição: original                 │
@@ -1743,8 +1732,8 @@ O frango, que é o caso que pede o campo:
 
   - `*` A frase aparece **ao tocar em salvar**, acima do botão, como as outras
     travas, e nada é gravado.
-- **Vendido a peso: códigos de balança** — no lugar da lista de embalagens, que
-  some no `Peso`/`Volume`:
+- **Cartão a granel: códigos de balança** — dentro do cartão `A granel`, no lugar das
+  peças e da medida:
 
 ```
 ┌──────────────────────────────────────┐
@@ -1752,16 +1741,19 @@ O frango, que é o caso que pede o campo:
 ├──────────────────────────────────────┤
 │  Categoria: ▼ Hortifrúti  [+Novo]↻   │
 │  Tipo: ▼ tâmara          [+Novo]↻    │
-│  Vendido: (•Peso)(Unidade)           │
 │  Marca: ▼ Sem marca     [+Novo]↻     │
 │  Descrição: com casca                │
 │  ────────────────────────────        │
-│  Códigos de balança (opcional)  *    │
-│  Cada mercado tem o seu código.      │
-│  Mercado: ▼ Irmãos Gonçalves         │
-│  [                ] [▥]↻ [ + ]↻      │
-│  • Irmãos Gonçalves · 2822521 [ x ]↻ │
-│  • Carrefour · 2004417        [ x ]↻ │
+│ ┌──────────────────────────────────┐ │
+│ │ (Embalagem)(•A granel)           │ │
+│ │ Vendido por kg                   │ │
+│ │ Códigos de balança (opcional) *  │ │
+│ │ Cada mercado tem o seu código.   │ │
+│ │ Mercado: ▼ Irmãos Gonçalves      │ │
+│ │ [             ] [▥]↻ [ + ]↻      │ │
+│ │ • Irmãos Gonçalves·2822521[x]↻   │ │
+│ │ • Carrefour · 2004417     [x]↻   │ │
+│ └──────────────────────────────────┘ │
 │                                      │
 │  [      Salvar produto      ]→3      │
 └──────────────────────────────────────┘

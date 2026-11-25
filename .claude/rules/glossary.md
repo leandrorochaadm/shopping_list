@@ -30,8 +30,6 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | unidade base | `BaseUnit` | enum: `gram`, `milliliter`, `unit`, `centimeter`. É a unidade **pequena e inteira** de cada grandeza, e a única — não existe mais escolher entre "g" e "kg" |
 | grandeza | `magnitude` | Peso, Volume, Contagem e **Tamanho**. Uma por `BaseUnit`, e é o que o cadastro do tipo escolhe |
 | unidade de leitura e de preço | `priceLabel` / `unitsPerLargeUnit` | `kg`, `L`, `un`, `m`. O preço é sempre nela; a quantidade só sobe para ela quando alcança o fator |
-| vendido a peso / por peça | `SellingMode.byWeight` / `.byPiece` | decide o que o lançamento pergunta |
-| as quatro palavras do campo **Vendido** | `SellingChoice` | `Peso`, `Unidade`, `Volume` e `Tamanho`. Peso, Volume e Tamanho são o **mesmo** `by_weight`, e quem os separa é a unidade base do tipo. O único lugar onde o par (`SellingMode`, `BaseUnit`) vira UMA escolha. O campo oferece **só as palavras da grandeza** — as quatro não cabem nos 390 pt do iPhone 12 |
 | valor por kg (o da etiqueta) | `pricePerLargeUnit` | o preço de UMA unidade de leitura, DIGITÁVEL na Tela 3. `pricePerLargeUnitOf` e `paidAtPricePerLargeUnit` são os dois sentidos da conversão com o valor total pago; o campo só existe no vendido a peso |
 | quem foi digitado por último | `PriceSource` | `none`/`total`/`unitPrice`. Diz qual dos dois campos de dinheiro da Tela 3 é a FONTE, e por consequência qual dos dois a quantidade recalcula |
 | custo proporcional / preço por unidade base | `costPerBaseUnit` | preço ÷ conteúdo total |
@@ -182,12 +180,14 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | avisos do teto no servidor | `fetchStoredCapAlerts` / `addCapAlertSteps` | o par leitura/gravação de `spending_cap_alert`; usado pela compra e pelo teto |
 | aviso "já cadastrado" da Tela 4 | `KnownCodeDialog` / `KnownCodeChoice` | `readAnother` e `edit`; fechar por fora é `null`. Enum só do app, sem `apiValue` |
 | "Nenhum produto com…" | `UnknownCodeDialog` | usado pela Tela 3 e pela manutenção (código e etiqueta). `true` é "Cadastrar produto" |
-| o modo aceita código de balança | `SellingMode.takesScaleCodes` | só `byWeight`; é o que `checkScaleCodes` pergunta |
-| modo da tela com código de balança pendente | `SellingChoice.modeFor` | vira `byWeight` só quando o tipo tem palavra de solto (`bulkOf`); senão é o `of` de sempre |
 | quem tem a etiqueta, por mercado | `scaleHoldersOf` / `activeScaleHoldersOf` | `storeId → folha`. A primeira mora em `lib/domain/models/product.dart` e não filtra ativo; a segunda, no `CatalogMaintenanceState`, só olha folha ativa de cadastro ativo |
 | código de balança que abre a Tela 4 | `initialScaleCode` | campo do `NewProductRequest`; também já lembra o mercado |
 | trocar o mercado dos códigos ainda não salvos | `scaleCodesMovedTo` | mantém a ordem; repetido fica um só |
 | mercado lembrado das etiquetas | `_labelStoreId` | temporário, só no `State` da Tela 4; o "Salvar e ler outro" não o limpa |
+| a granel | `Product.isLoose` | a folha sem embalagem (`packaging == null`); `ProductOption.isLoose` lê a folha. Substitui o modo de venda do cadastro (**N-a**); o nome antigo ainda existe no código como apelido até a limpeza pendente em `docs/estado-atual.md` |
+| regra das folhas novas | `checkNewLeaves` / `activeLooseOf` | o que um salvar pode criar: sem embalagem e sem granel → `MissingPackaging`; etiqueta sem granel → `UnexpectedScaleCode`; segundo granel **ativo** → `LooseAlreadyExists` |
+| granel já existe | `LooseAlreadyExists` | "Esse produto já tem granel." Granel desativado não conta |
+| cartão Embalagem / A granel | `PackagingDraft.loose` / `withLoose` | o cartão da Tela 4; o granel não vira `Packaging` |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso

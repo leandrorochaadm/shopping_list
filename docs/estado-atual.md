@@ -2,6 +2,43 @@
 
 Recortado do `CLAUDE.md` em 03/09/2026, palavra por palavra. **Atualizar a cada entrega.**
 
+**Atualizado em 25/11/2026 — granel no cadastro (N-a)** — **acréscimo fora das 19 histórias**
+(`temp/plan/plano-granel-no-cadastro-2026-11-24.md`, executado em 9 partes de
+`temp/plan/plano-granel-no-cadastro-2026-11-24/`): o cadastro deixou de declarar "Vendido:
+Peso/Unidade". Na Tela 4 cada cartão é **Embalagem** ou **A granel**, com no máximo um granel
+ativo por cadastro, e a coluna `selling_mode` saiu do banco. As decisões H-a, H-b, J-d e o "Vendido
+segue travado" da M-b estão revogadas pela **N-a** (`docs/decisoes-divergencias.md`).
+
+- **(1) Domínio:** `Product.isLoose`/`takesScaleCodes`/`acceptsBarcodes`/`checkScaleCode`
+  (`product.dart`); `checkNewLeaves`, `activeLooseOf`, `LooseAlreadyExists`, `MissingPackaging`,
+  `UnexpectedScaleCode` (`registration_leaves.dart`); `ProductOption.isLoose` lê a folha;
+  `ProductRegistration.fromJson` tolera a falta de `selling_mode`.
+- **(2) Dados:** o repository do catálogo recebe `loose`/`scaleCodes` (`saveRegistrationWithProducts`,
+  `addPackagings`); o remote não manda `selling_mode`; `tool/pb_seed.py` sem a coluna.
+- **(3) ViewModel:** `CatalogViewModel.save/addPackagings/editRegistration` com `loose`/`existing` e
+  `checkNewLeaves`; `addScaleCode(leaf:)`; `BarcodeLookupViewModel.linkScaleCode(option:)`.
+- **(4) Tela 4:** cartão Embalagem/A granel no `PackagingRow` (`PackagingDraft.loose`, `withLoose`,
+  `isComplete`); a tela monta cartões granel + embalagens, `_savedLooseLeaf` = `activeLooseOf(_existing)`,
+  substituição da folha pelo id.
+- **(5) Banco:** `pocketbase/pb_migrations/1792800400_drop_selling_mode.js` (up apaga a coluna; down
+  recria preenchida).
+- **Pendências** (ficam no código, sem servidor que as leia; os testes protegidos ainda leem a API
+  antiga, e a limpeza é um plano próprio): `enum SellingMode`, campo `sellingMode` (opcional, padrão
+  `byPiece`) e `toJson` ainda escrevendo `selling_mode`; `isSoldByWeight` como apelido em cadastro,
+  `Product` e `ProductOption`; `checkPackagings`, `checkScaleCodes`, `SellingMode.takesScaleCodes`,
+  `UnexpectedPackaging`; `lib/domain/models/selling_choice.dart` + teste; o campo Vendido
+  (`_SellingModeField`) e o calço `_legacyModeFor` na Tela 4; ramos `loose == null` do
+  `CatalogViewModel`; formas `registration`/`productId` de `addScaleCode`/`linkScaleCode`; frase
+  antiga de `UnexpectedScaleCode` (`'Só produto vendido solto tem código de balança.'`; a planejada é
+  `'Só o granel tem código de balança.'`); sufixo `'(peso)'` no rótulo do `ProductOption` (o novo é
+  `'por kg'`); `_looseTitle` `'Vendido por peso'` em `catalog_maintenance_screen.dart`;
+  `initialScaleCode` abrindo cartão granel. Conferir no PWA instalado o caso do bug: Café sem marca
+  com granel gravado aceita o pacote de 300 g com o código lido.
+- **ORDEM DE DEPLOY:** a migration `1792800400_drop_selling_mode.js` vai na **mesma tag** do app. O
+  app antigo lê `selling_mode` com `as String` e quebra depois dela: publicar e abrir o app novo nos
+  **dois iPhones** logo após o deploy. O down da migration recria a coluna preenchida (`by_weight` no
+  cadastro em que todas as folhas estão sem `total_content`, `by_piece` nos demais).
+
 **Atualizado em 24/11/2026 — cadastro pelo leitor** — **acréscimo fora das 19 histórias**
 (`temp/plan/plano-cadastro-pelo-leitor-2026-11-24.md`, executado em 7 passos de
 `temp/plan/cadastro-pelo-leitor/`): o `[▥]` agora também cadastra e corrige produto. Na Tela 4
@@ -9,7 +46,7 @@ nova, ler o código o põe na embalagem ou avisa de quem ele já é; `[ Salvar e
 abre a câmera para o próximo; na manutenção do cadastro, a leitura abre o produto ou oferece
 cadastrar. A etiqueta de balança é lida nos dois lugares.
 
-- **(1) Domínio:** `SellingMode.takesScaleCodes`, `SellingChoice.modeFor`, `scaleCodesMovedTo`
+- **(1) Domínio:** `SellingMode.takesScaleCodes`, `SellingChoice.modeFor` (substituídos por `Product.takesScaleCodes` e pelo cartão granel na N-a), `scaleCodesMovedTo`
   (`scale_label.dart`), `scaleHoldersOf` (`product.dart`).
 - **(2) Telas:** novos `known_code_dialog.dart` e `unknown_code_dialog.dart`
   (`lib/ui/barcode/widgets/`); alterados `new_product_screen.dart` (`[▥]`, etiqueta, mercado
@@ -95,7 +132,7 @@ sem parar, com o preço da última compra marcado "preço anterior".
 (`temp/plan/plano-editar-cadastro-na-tela-4-2026-10-01.md`): a Tela 4 aberta pela
 manutenção (lápis → `[ Abrir e acrescentar embalagem ]`) vira **"Editar produto"**, com
 **Descrição, Marca e Tipo editáveis** e um único `[ Salvar alterações ]` que grava a
-identidade e as embalagens novas; Categoria e Vendido seguem travados, o Tipo só oferece
+identidade e as embalagens novas; Categoria e Vendido seguem travados (o Vendido saiu na N-a, 24/11/2026), o Tipo só oferece
 tipos da mesma unidade base e a lista de embalagens começa vazia. O caminho do cadastro
 barrado por repetição continua travado. **(1)** Domínio: `checkTypeMove` (em
 `catalog_maintenance.dart`), `ProductRegistration.changesIdentityOf` e
@@ -158,7 +195,7 @@ a `ValueKey('new-purchase')` foi junto para o botão. Sem rota, sem domínio, se
 
 **Atualizado em 09/09/2026**, ao fim da Entrega 16 — **acréscimo fora das 19
 histórias**, pedido pelo usuário em 09/09/2026: a Tela 3 ganhou o campo **Valor por kg**,
-e ele é o preço da etiqueta do açougue. **Só aparece no vendido a peso** (peso, volume e
+e ele é o preço da etiqueta do açougue. **Só aparece no vendido a peso** (desde a N-a, na folha a granel) (peso, volume e
 tamanho): vendido por peça o preço já é o da embalagem, e um segundo campo de dinheiro
 seria só mais um campo para preencher. O rótulo é dinâmico — 'Valor por kg', 'Valor por L',
 'Valor por m' —, saindo de `BaseUnit.priceLabel`, o único portal para a unidade de
@@ -214,7 +251,7 @@ escolher entre 'kg' e 'g'. **Todo campo de quantidade e de conteúdo passou a `d
 (os de valor pago continuam decimais), `AmountTooPrecise` virou `AmountMustBeWhole`, e a
 leitura ficou **adaptativa**: `900 g`, `1,5 kg`, `1,25 L`, `30 m`. `SellingChoice` ganhou
 `length` ("Tamanho") e o `SegmentedButton` do campo **Vendido** passou a montar **só as
-palavras da grandeza** — quatro segmentos espremem o rótulo para 35 pt nos 390 pt do
+palavras da grandeza** (campo revogado pela N-a, 24/11/2026) — quatro segmentos espremem o rótulo para 35 pt nos 390 pt do
 iPhone 12. Uma migration nova (`20260907120000_base_unit_centimeter.sql`) converte os
 rótulos gravados e amplia os dois `check`; **nenhum inteiro gravado mudou**. Decisão
 congelada **26** e divergências **J-a** a **J-e** registradas.

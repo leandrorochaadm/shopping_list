@@ -294,7 +294,7 @@ lançadas — isso é da natureza delas, não do sistema.
      lançamento. É onde a escolha da prateleira vira registro.
    - O **mercado é escolhido de uma lista** dos que já estão cadastrados; se for
      um lugar novo, ele cadastra na hora, ali mesmo, sem sair do lançamento.
-   - Produto marcado como vendido solto — *Peso* ou *Volume* — não tem peças:
+   - Produto **a granel** (o cartão granel do cadastro) não tem peças:
      ele digita direto a quantidade do cupom (1,250 kg). **O rótulo do campo
      vem da unidade base do tipo** (decisão de 26/08/2026): "Peso (kg)" no acém
      moído, "Volume (L)" no azeite a granel. Sem isso, "a peso" só serviria em
@@ -309,6 +309,9 @@ lançadas — isso é da natureza delas, não do sistema.
      números são os mesmos — 12 × conteúdo 1 dá 12 —, o que muda é o caminho:
      ganha-se um passo de cadastro e perde-se o `(un)` do rótulo, que a linha
      da embalagem logo acima já diz. É o preço de a grandeza nomear o botão.
+     **Volta a valer em 24/11/2026 (divergência N-a):** o granel é um cartão da lista de
+     embalagens e vale em qualquer unidade base; o ovo avulso pode ser granel ("Quantidade
+     (un)", "Ovos por un") ou embalagem de `1 un`.
    - O preço vem preenchido a partir do **preço por unidade base** (o quilo, o
      litro) da última compra daquele produto, e o sistema recalcula o total
      conforme a quantidade — assim a sugestão continua valendo mesmo quando ele
@@ -932,9 +935,8 @@ lançadas — isso é da natureza delas, não do sistema.
       "Editar produto"; um código desconhecido pergunta "Nenhum produto com o
       código …" e oferece cadastrar com ele preenchido (24/11/2026).
     - _Pronto quando:_ no cadastro, a etiqueta da tâmara pergunta o mercado e
-      entra em "Códigos de balança"; lida antes do tipo, o salvar trava com "Só
-      produto vendido solto tem código de balança." se o tipo escolhido for
-      contado por unidade; na manutenção, abre o produto ligado, ou diz "Nenhum
+      entra em "Códigos de balança"; lida pelo `[▥]` do topo, a etiqueta cria
+      (ou ocupa) o cartão A granel, em qualquer unidade base (24/11/2026, N-a); na manutenção, abre o produto ligado, ou diz "Nenhum
       produto com esta etiqueta." e oferece cadastrar (24/11/2026).
 
 **Ordem sugerida de construção.** Tudo continua na 1ª versão — o que segue é só a
@@ -1224,16 +1226,20 @@ Os dois usam a **mesma lista** e podem estar no mercado em momentos diferentes.
   caminho: sem embalagem para cadastrar e sem tipo de outra grandeza onde caber,
   e o único jeito de lançá-lo seria somar volume dentro de um tipo medido em
   peso. É a mesma régua do título da calculadora, que já troca entre "custo por
-  kg", "por litro" e "por unidade" conforme o tipo.
+  kg", "por litro" e "por unidade" conforme o tipo. Com a N-a (24/11/2026) o terceiro
+  rótulo, "Quantidade (un)", volta: o granel vale também no tipo contado.
 - **Ter marca e ser vendido a peso são coisas independentes.** É a **falta da
   marca** que faz a comparação de preço subir para o tipo do produto, não o fato
   de o produto ir na balança. Sem essa separação, a mussarela Tirolez seria
   comparada com a mussarela mais barata do balcão e todo alerta de preço dela
   seria falso.
-- **É o cadastro que declara se o produto é vendido a peso ou por peça**, e não
-  a ausência de marca e embalagem. Sem essa marcação explícita, o ovo vendido à
-  dúzia — que também não tem marca nem peso de peça — seria tratado como carne e o
-  lançamento pediria quilos.
+- **É a embalagem que diz se a compra é a granel ou embalada**, não a ausência de marca:
+  cada cartão do cadastro é `Embalagem` ou `A granel`, e o mesmo cadastro pode ter os dois —
+  o café em pacote de 300 g e o café a granel do mesmo balcão. No máximo um granel por
+  produto. (24/11/2026, divergência N-a; antes o cadastro inteiro era marcado como vendido
+  a peso ou por peça.) Sem essa escolha explícita no cartão, o ovo vendido à dúzia — que
+  também não tem marca nem peso de peça — seria tratado como carne e o lançamento pediria
+  quilos.
 - **O mercado é escolhido de uma lista de mercados cadastrados**, nunca digitado
   livre: mercado escrito diferente parte o histórico em dois lugares e destrói a
   comparação de preço, que é uma das três dores originais. Mercado novo pode ser
@@ -1803,17 +1809,11 @@ lançamento e não custa digitação nenhuma nos 2 minutos.
 - **Mercado**: qualquer lugar onde a compra foi feita — supermercado, feira,
   açougue, hortifrúti; é o que permite comparar preços de um lugar com outro.
   Fica cadastrado e é escolhido de uma lista no lançamento, nunca digitado solto.
-- **Vendido por peso / por volume / por unidade**: como o produto é comprado,
-  marcado no cadastro. *Peso* e *Volume* são o mesmo produto solto — o que não
-  vem em embalagem fechada e sai no cupom já na unidade base —, e o que os
-  separa é a unidade base do tipo: o quilo do acém, do tomate e do pão é
-  *Peso*; o litro do azeite a granel é *Volume*. *Unidade* é o que tem
-  embalagem fechada (Omo 500g, lata 350 ml). É essa marcação que decide se o
-  lançamento pede a quantidade do cupom ou a quantidade de embalagens; **qual
-  grandeza ele digita vem da unidade base do tipo**, e é ela que dá o rótulo do
-  campo. **O campo tinha duas palavras — "A peso" e "Por peça" — até
-  01/09/2026**, e "a peso" não nomeava o azeite a granel, que é medido em
-  litro; no cadastro guardado continuam existindo **dois** modos, não três.
+- **A granel / embalagem**: como cada embalagem do produto é comprada, escolhido no cartão do
+  cadastro. A granel é o que não vem em embalagem fechada e sai no cupom já na unidade base —
+  o preço é sempre por kg, L, m ou un; embalagem é o que tem peças e medida (Omo 500 g, lata
+  350 ml). Um produto pode ter os dois, com um granel só. Até 24/11/2026 o cadastro inteiro era
+  marcado no campo Vendido (`Peso`/`Volume`/`Tamanho`/`Unidade`); revogado pela divergência N-a.
 - **Não encontrei**: marcação do item que estava na lista mas não tinha no
   mercado; ele continua na lista para a próxima ida. **Marcada e desmarcada no
   diálogo do item**, e não na caixa da linha (decisão de 26/08/2026), e cai
