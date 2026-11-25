@@ -70,7 +70,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
 
   final List<ProductRegistration> _registrations = [
     ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1', description: 'original'),
-    ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: '', sellingMode: SellingMode.byWeight),
+    ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: ''),
     ProductRegistration(id: 'reg-3', productTypeId: 'type-6', description: ''),
   ];
 

@@ -23,12 +23,8 @@ void main() {
     barcodes: codes.lock,
   );
 
-  ProductRegistration newRegistration([String description = 'novo']) => ProductRegistration(
-    productTypeId: 'type-1',
-    brandId: 'brand-1',
-    description: description,
-    sellingMode: SellingMode.byPiece,
-  );
+  ProductRegistration newRegistration([String description = 'novo']) =>
+      ProductRegistration(productTypeId: 'type-1', brandId: 'brand-1', description: description);
 
   setUp(() => repository = CatalogRepositoryLocal(latency: Duration.zero));
 
@@ -95,11 +91,7 @@ void main() {
       const code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
 
       final saved = await repository.saveRegistrationWithProducts(
-        registration: ProductRegistration(
-          productTypeId: 'type-2',
-          description: 'novo',
-          sellingMode: SellingMode.byWeight,
-        ),
+        registration: ProductRegistration(productTypeId: 'type-2', description: 'novo'),
         packagings: const IList.empty(),
         scaleCodes: [code].lock,
       );

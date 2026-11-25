@@ -91,11 +91,7 @@ class PurchaseRepositoryLocal implements PurchaseRepository {
     brandId: 'brand-1',
     description: 'original',
   );
-  static final _groundBeef = ProductRegistration(
-    id: 'reg-2',
-    productTypeId: 'type-2',
-    sellingMode: SellingMode.byWeight,
-  );
+  static final _groundBeef = ProductRegistration(id: 'reg-2', productTypeId: 'type-2');
 
   static List<PurchaseHistoryEntry> _seedHistory() => [
     // A crate: 12 × 350 ml for R$ 62,00 — the case where a rounded price per

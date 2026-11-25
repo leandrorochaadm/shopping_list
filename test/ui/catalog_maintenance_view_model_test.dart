@@ -413,12 +413,7 @@ void main() {
     // A second registration with the same type, brand and description as
     // 'reg-1' — editing it into that identity has to be refused.
     await catalog.saveRegistrationWithProducts(
-      registration: ProductRegistration(
-        productTypeId: 'type-1',
-        brandId: 'brand-1',
-        description: 'zero',
-        sellingMode: SellingMode.byPiece,
-      ),
+      registration: ProductRegistration(productTypeId: 'type-1', brandId: 'brand-1', description: 'zero'),
       packagings: const IList<PackagingWithBarcodes>.empty(),
     );
     await notifierOf(c).refresh();
@@ -589,9 +584,7 @@ void main() {
       types:
           types ?? IList([ProductType(id: 't', name: 'Refrigerante', categoryId: 'c', baseUnit: BaseUnit.milliliter)]),
       brands: brands ?? IList([Brand(id: 'b', name: 'Coca-Cola')]),
-      registrations:
-          registrations ??
-          IList([ProductRegistration(id: 'r', productTypeId: 't', description: '', sellingMode: SellingMode.byPiece)]),
+      registrations: registrations ?? IList([ProductRegistration(id: 'r', productTypeId: 't', description: '')]),
       products: products ?? const IList<Product>.empty().add(const Product(id: 'p', productRegistrationId: 'r')),
       stores: stores ?? IList([Store(id: 's', name: 'Carrefour')]),
     );
@@ -789,13 +782,8 @@ void main() {
 
   group('activeScaleHoldersOf', () {
     const code = ScaleCode(storeId: 's', itemCode: '2822521');
-    ProductRegistration registration({bool active = true}) => ProductRegistration(
-      id: 'r',
-      productTypeId: 't',
-      description: '',
-      sellingMode: SellingMode.byWeight,
-      active: active,
-    );
+    ProductRegistration registration({bool active = true}) =>
+        ProductRegistration(id: 'r', productTypeId: 't', description: '', active: active);
     CatalogMaintenanceState stateWith(Product leaf, {bool registrationActive = true, bool withRegistration = true}) =>
         CatalogMaintenanceState(
           categories: const IList<Category>.empty(),

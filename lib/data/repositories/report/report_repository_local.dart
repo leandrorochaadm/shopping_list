@@ -246,7 +246,7 @@ class ReportRepositoryLocal implements ReportRepository {
   );
   static final _beefLeaf = ProductOption(
     product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
-    registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
+    registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2'),
     type: _beefType,
   );
 

@@ -37,11 +37,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   static final inactive = Product(
     id: 'prod-8',
     productRegistrationId: 'reg-1',
-    packaging: Packaging(
-      pieceCount: 1,
-      pieceSize: 600,
-      baseUnit: BaseUnit.milliliter,
-    ),
+    packaging: Packaging(pieceCount: 1, pieceSize: 600, baseUnit: BaseUnit.milliliter),
     active: false,
   );
 
@@ -67,10 +63,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
       {for (final code in codes) code: ?owners[code]}.lock;
 
   @override
-  Future<void> addBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> addBarcode({required String productId, required Barcode code}) async {
     final failure = failNextCodeWrite;
     failNextCodeWrite = null;
     if (failure != null) throw failure;
@@ -80,10 +73,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<void> removeBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> removeBarcode({required String productId, required Barcode code}) async {
     final failure = failNextCodeWrite;
     failNextCodeWrite = null;
     if (failure != null) throw failure;
@@ -92,8 +82,7 @@ class _SpyCatalog extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<IList<Product>> fetchProducts() async =>
-      (await super.fetchProducts()).addAll([counted, inactive]);
+  Future<IList<Product>> fetchProducts() async => (await super.fetchProducts()).addAll([counted, inactive]);
 
   @override
   Future<Product> updateProduct(Product product) async {
@@ -113,29 +102,15 @@ void main() {
 
   /// The four leaves of the fake all hang from 'reg-1', which is what makes
   /// the collision guard reachable: 'prod-1' is 1 × 350 ml.
-  Product leafOf(
-    String id, {
-    required int pieceCount,
-    required int pieceSize,
-    required BaseUnit unit,
-  }) => Product(
+  Product leafOf(String id, {required int pieceCount, required int pieceSize, required BaseUnit unit}) => Product(
     id: id,
     productRegistrationId: 'reg-1',
-    packaging: Packaging(
-      pieceCount: pieceCount,
-      pieceSize: pieceSize,
-      baseUnit: unit,
-    ),
+    packaging: Packaging(pieceCount: pieceCount, pieceSize: pieceSize, baseUnit: unit),
   );
 
   /// 'prod-2', the 269 ml of the fake: the leaf every correction here starts
   /// from, since it is the one that can be typed onto another one.
-  final leaf269 = leafOf(
-    'prod-2',
-    pieceCount: 1,
-    pieceSize: 269,
-    unit: BaseUnit.milliliter,
-  );
+  final leaf269 = leafOf('prod-2', pieceCount: 1, pieceSize: 269, unit: BaseUnit.milliliter);
 
   final countField = find.byKey(const ValueKey('field-piece-count'));
   final sizeField = find.byKey(const ValueKey('field-piece-size'));
@@ -151,11 +126,7 @@ void main() {
     product: Product(
       id: 'prod-3',
       productRegistrationId: 'reg-1',
-      packaging: Packaging(
-        pieceCount: 1,
-        pieceSize: 2000,
-        baseUnit: BaseUnit.milliliter,
-      ),
+      packaging: Packaging(pieceCount: 1, pieceSize: 2000, baseUnit: BaseUnit.milliliter),
       active: active,
     ),
     registration: ProductRegistration(
@@ -163,36 +134,24 @@ void main() {
       productTypeId: 'type-1',
       brandId: 'brand-1',
       description: 'original',
-      sellingMode: SellingMode.byPiece,
     ),
-    type: ProductType(
-      id: 'type-1',
-      name: 'Refrigerante',
-      categoryId: 'cat-1',
-      baseUnit: BaseUnit.milliliter,
-    ),
+    type: ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
     brand: Brand(id: 'brand-1', name: 'Coca-Cola'),
   );
 
   Future<void> include(WidgetTester tester, String raw) async {
-    await tester.enterText(
-      find.descendant(of: barcodeField, matching: find.byType(TextField)),
-      raw,
-    );
+    await tester.enterText(find.descendant(of: barcodeField, matching: find.byType(TextField)), raw);
     await tester.pumpAndSettle();
     await tester.tap(barcodeAdd);
     await tester.pumpAndSettle();
   }
 
-  String errorText(WidgetTester tester) =>
-      tester.widget<Text>(find.byKey(const ValueKey('barcode-error'))).data!;
+  String errorText(WidgetTester tester) => tester.widget<Text>(find.byKey(const ValueKey('barcode-error'))).data!;
 
   /// The `TextField` an `AppTextField` builds: the key is on the wrapper.
-  Finder fieldIn(Finder field) =>
-      find.descendant(of: field, matching: find.byType(TextField));
+  Finder fieldIn(Finder field) => find.descendant(of: field, matching: find.byType(TextField));
 
-  String textOf(WidgetTester tester, Finder field) =>
-      tester.widget<TextField>(fieldIn(field)).controller!.text;
+  String textOf(WidgetTester tester, Finder field) => tester.widget<TextField>(fieldIn(field)).controller!.text;
 
   Future<void> pumpDialog(
     WidgetTester tester, {
@@ -225,20 +184,12 @@ void main() {
                 return Column(
                   children: [
                     TextButton(
-                      onPressed: () => PackagingEditDialog.show(
-                        context,
-                        leaf: leaf,
-                        baseUnit: baseUnit,
-                      ),
+                      onPressed: () => PackagingEditDialog.show(context, leaf: leaf, baseUnit: baseUnit),
                       child: const Text('abrir'),
                     ),
                     if (other != null)
                       TextButton(
-                        onPressed: () => PackagingEditDialog.show(
-                          context,
-                          leaf: other,
-                          baseUnit: baseUnit,
-                        ),
+                        onPressed: () => PackagingEditDialog.show(context, leaf: other, baseUnit: baseUnit),
                         child: const Text('abrir outra'),
                       ),
                   ],
@@ -255,19 +206,12 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('opens written in the base unit, as a whole number', (
-    tester,
-  ) async {
+  testWidgets('opens written in the base unit, as a whole number', (tester) async {
     // 'prod-3' holds 2000 ml: the field reads '2000', never '2'. The large
     // unit belongs to the reading, not to the typing.
     await pumpDialog(
       tester,
-      leaf: leafOf(
-        'prod-3',
-        pieceCount: 1,
-        pieceSize: 2000,
-        unit: BaseUnit.milliliter,
-      ),
+      leaf: leafOf('prod-3', pieceCount: 1, pieceSize: 2000, unit: BaseUnit.milliliter),
       baseUnit: BaseUnit.milliliter,
     );
 
@@ -279,9 +223,7 @@ void main() {
     expect(find.text(CatalogEntryEditDialog.footnote), findsOneWidget);
   });
 
-  testWidgets('there is no measure to choose: the type already answered', (
-    tester,
-  ) async {
+  testWidgets('there is no measure to choose: the type already answered', (tester) async {
     await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     // The field simply says which unit it is typed in. No dropdown, so a
@@ -297,10 +239,7 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(
-      catalog.writes.single.packaging,
-      Packaging(pieceCount: 1, pieceSize: 500, baseUnit: BaseUnit.milliliter),
-    );
+    expect(catalog.writes.single.packaging, Packaging(pieceCount: 1, pieceSize: 500, baseUnit: BaseUnit.milliliter));
     expect(find.byType(AlertDialog), findsNothing);
   });
 
@@ -313,19 +252,14 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Este cadastro já tem uma embalagem com esse conteúdo.'),
-      findsOneWidget,
-    );
+    expect(find.text('Este cadastro já tem uma embalagem com esse conteúdo.'), findsOneWidget);
     // Still open: the answer is about what was just typed, so it belongs
     // beside it and not in a SnackBar.
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(catalog.writes, isEmpty);
   });
 
-  testWidgets('the guard is CONTENT: 2 × 175 ml is the 350 ml leaf', (
-    tester,
-  ) async {
+  testWidgets('the guard is CONTENT: 2 × 175 ml is the 350 ml leaf', (tester) async {
     await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     await tester.enterText(countField, '2');
@@ -335,16 +269,11 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Este cadastro já tem uma embalagem com esse conteúdo.'),
-      findsOneWidget,
-    );
+    expect(find.text('Este cadastro já tem uma embalagem com esse conteúdo.'), findsOneWidget);
     expect(catalog.writes, isEmpty);
   });
 
-  testWidgets('a package with no pieces never reaches the repository', (
-    tester,
-  ) async {
+  testWidgets('a package with no pieces never reaches the repository', (tester) async {
     await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     await tester.enterText(countField, '0');
@@ -354,10 +283,7 @@ void main() {
     // The sentence is the DOMAIN's, and it is the one about pieces: the
     // mask writes nothing malformed any more, so what used to be refused by
     // the text parser now reaches `Packaging` and is refused by the rule.
-    expect(
-      find.text('A embalagem precisa ter pelo menos uma peça.'),
-      findsOneWidget,
-    );
+    expect(find.text('A embalagem precisa ter pelo menos uma peça.'), findsOneWidget);
     expect(catalog.writes, isEmpty);
   });
 
@@ -371,19 +297,12 @@ void main() {
 
     // The mask keeps the digits and writes the comma itself: 25 millilitres.
     expect(textOf(tester, sizeField), '0,025');
-    expect(
-      tester.widget<TextField>(fieldIn(sizeField)).keyboardType,
-      TextInputType.number,
-    );
+    expect(tester.widget<TextField>(fieldIn(sizeField)).keyboardType, TextInputType.number);
   });
 
   testWidgets('a type measured in units has no measure field: the piece IS '
       'the unit', (tester) async {
-    await pumpDialog(
-      tester,
-      leaf: _SpyCatalog.counted,
-      baseUnit: BaseUnit.unit,
-    );
+    await pumpDialog(tester, leaf: _SpyCatalog.counted, baseUnit: BaseUnit.unit);
 
     expect(find.text('Quantas unidades?'), findsOneWidget);
     expect(find.text('Quantas peças?'), findsNothing);
@@ -393,10 +312,7 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(
-      catalog.writes.single.packaging,
-      Packaging(pieceCount: 6, pieceSize: 1, baseUnit: BaseUnit.unit),
-    );
+    expect(catalog.writes.single.packaging, Packaging(pieceCount: 6, pieceSize: 1, baseUnit: BaseUnit.unit));
   });
 
   testWidgets('deactivating writes and closes', (tester) async {
@@ -410,14 +326,8 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('a leaf that is off reads Reativar, and comes back', (
-    tester,
-  ) async {
-    await pumpDialog(
-      tester,
-      leaf: _SpyCatalog.inactive,
-      baseUnit: BaseUnit.milliliter,
-    );
+  testWidgets('a leaf that is off reads Reativar, and comes back', (tester) async {
+    await pumpDialog(tester, leaf: _SpyCatalog.inactive, baseUnit: BaseUnit.milliliter);
 
     expect(find.text('Reativar'), findsOneWidget);
     await tester.tap(toggleButton);
@@ -435,17 +345,12 @@ void main() {
     await tester.tap(toggleButton);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('O servidor está indisponível. Tente de novo em instantes.'),
-      findsOneWidget,
-    );
+    expect(find.text('O servidor está indisponível. Tente de novo em instantes.'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.textContaining('ApiException'), findsNothing);
   });
 
-  testWidgets('a failed save goes under the field, without the exception', (
-    tester,
-  ) async {
+  testWidgets('a failed save goes under the field, without the exception', (tester) async {
     await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
     catalog.failNextWrite = ApiException(500, 'boom');
@@ -453,10 +358,7 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('O servidor está indisponível. Tente de novo em instantes.'),
-      findsOneWidget,
-    );
+    expect(find.text('O servidor está indisponível. Tente de novo em instantes.'), findsOneWidget);
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.textContaining('ApiException'), findsNothing);
   });
@@ -511,31 +413,21 @@ void main() {
       expect(find.text('Nenhum código.'), findsOneWidget);
     });
 
-    testWidgets('a typed code goes in with + right away, without Salvar', (
-      tester,
-    ) async {
+    testWidgets('a typed code goes in with + right away, without Salvar', (tester) async {
       await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
       await include(tester, cola);
 
       expect(catalog.added, ['prod-2']);
       expect(find.text('• ${colaCode.label}'), findsOneWidget);
-      expect(
-        tester.widget<TextField>(fieldIn(barcodeField)).controller!.text,
-        isEmpty,
-      );
+      expect(tester.widget<TextField>(fieldIn(barcodeField)).controller!.text, isEmpty);
       expect(find.byType(AlertDialog), findsOneWidget);
       expect(catalog.writes, isEmpty);
     });
 
     testWidgets('a camera read goes straight in', (tester) async {
       final camera = FakeBarcodeCamera();
-      await pumpDialog(
-        tester,
-        leaf: leaf269,
-        baseUnit: BaseUnit.milliliter,
-        camera: camera,
-      );
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter, camera: camera);
 
       await tester.tap(find.byKey(const ValueKey('barcode-scan')));
       await tester.pumpAndSettle();
@@ -557,18 +449,8 @@ void main() {
     });
 
     testWidgets('the removed code can go into another leaf', (tester) async {
-      final leaf350 = leafOf(
-        'prod-1',
-        pieceCount: 1,
-        pieceSize: 350,
-        unit: BaseUnit.milliliter,
-      );
-      await pumpDialog(
-        tester,
-        leaf: leaf269,
-        baseUnit: BaseUnit.milliliter,
-        other: leaf350,
-      );
+      final leaf350 = leafOf('prod-1', pieceCount: 1, pieceSize: 350, unit: BaseUnit.milliliter);
+      await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter, other: leaf350);
       await include(tester, cola);
       await removeCola(tester);
       await tester.tap(find.text('Cancelar'));
@@ -582,9 +464,7 @@ void main() {
       expect(find.byKey(const ValueKey('barcode-error')), findsNothing);
     });
 
-    testWidgets('a code of an active leaf is refused under the field', (
-      tester,
-    ) async {
+    testWidgets('a code of an active leaf is refused under the field', (tester) async {
       final active = ownerOf();
       catalog.owners[colaCode] = active;
       await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
@@ -634,29 +514,18 @@ void main() {
 
       expect(catalog.removed, ['prod-3']);
       expect(catalog.added, ['prod-2']);
-      expect(
-        tester.widget<Text>(find.byKey(const ValueKey('barcode-notice'))).data,
-        releasedBarcodeMessage(inactive),
-      );
+      expect(tester.widget<Text>(find.byKey(const ValueKey('barcode-notice'))).data, releasedBarcodeMessage(inactive));
     });
 
-    testWidgets('a failed write goes to a SnackBar and the dialog stays', (
-      tester,
-    ) async {
+    testWidgets('a failed write goes to a SnackBar and the dialog stays', (tester) async {
       await pumpDialog(tester, leaf: leaf269, baseUnit: BaseUnit.milliliter);
 
       catalog.failNextCodeWrite = ApiException(500, 'boom');
       await include(tester, cola);
 
-      expect(
-        find.text('O servidor está indisponível. Tente de novo em instantes.'),
-        findsOneWidget,
-      );
+      expect(find.text('O servidor está indisponível. Tente de novo em instantes.'), findsOneWidget);
       expect(find.byType(AlertDialog), findsOneWidget);
-      expect(
-        tester.widget<TextField>(fieldIn(barcodeField)).controller!.text,
-        cola,
-      );
+      expect(tester.widget<TextField>(fieldIn(barcodeField)).controller!.text, cola);
       expect(find.textContaining('ApiException'), findsNothing);
     });
 
@@ -667,10 +536,7 @@ void main() {
       catalog.failNextCodeWrite = ApiException(500, 'boom');
       await removeCola(tester);
 
-      expect(
-        find.text('O servidor está indisponível. Tente de novo em instantes.'),
-        findsOneWidget,
-      );
+      expect(find.text('O servidor está indisponível. Tente de novo em instantes.'), findsOneWidget);
       expect(find.text('• ${colaCode.label}'), findsOneWidget);
     });
 

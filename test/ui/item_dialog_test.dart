@@ -98,29 +98,17 @@ final _original = ProductRegistration(
   productTypeId: 'type-1',
   brandId: 'brand-1',
   description: 'original',
-  sellingMode: SellingMode.byPiece,
 );
 
 const _zeroId = 'reg-zero';
 
-final _zero = ProductRegistration(
-  id: _zeroId,
-  productTypeId: 'type-1',
-  brandId: 'brand-1',
-  description: 'zero',
-  sellingMode: SellingMode.byPiece,
-);
+final _zero = ProductRegistration(id: _zeroId, productTypeId: 'type-1', brandId: 'brand-1', description: 'zero');
 
 final _coke = Brand(id: 'brand-1', name: 'Coca-Cola');
 
 final _drinks = Category(id: 'cat-1', name: 'Bebidas');
 
-final _softDrink = ProductType(
-  id: 'type-1',
-  name: 'Refrigerante',
-  categoryId: 'cat-1',
-  baseUnit: BaseUnit.milliliter,
-);
+final _softDrink = ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
 
 ShoppingListItem _item({
   String id = 'item-1',
@@ -158,10 +146,8 @@ void main() {
         child: MaterialApp(
           home: Scaffold(
             body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => ItemDialog.show(context, line),
-                child: const Text('abrir'),
-              ),
+              builder: (context) =>
+                  TextButton(onPressed: () => ItemDialog.show(context, line), child: const Text('abrir')),
             ),
           ),
         ),
@@ -213,43 +199,31 @@ void main() {
     return repository;
   }
 
-  testWidgets('opens with the stored quantity written in the base unit', (
-    tester,
-  ) async {
+  testWidgets('opens with the stored quantity written in the base unit', (tester) async {
     await pumpDialog(tester, item: _item(quantity: 6000));
 
     // The field is still TYPED in the base unit — 6000 keystrokes of digit —
     // but it is READ in the large one: "6,000" with "L" beside it.
     final field = tester.widget<TextField>(
-      find.descendant(
-        of: find.byKey(const ValueKey('field-quantity')),
-        matching: find.byType(TextField),
-      ),
+      find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
     );
     expect(field.controller!.text, '6,000');
     expect(find.text('L'), findsOneWidget);
     expect(find.text('Refrigerante'), findsOneWidget);
   });
 
-  testWidgets('opens empty when the item never asked for a quantity', (
-    tester,
-  ) async {
+  testWidgets('opens empty when the item never asked for a quantity', (tester) async {
     await pumpDialog(tester, item: _item());
 
     final field = tester.widget<TextField>(
-      find.descendant(
-        of: find.byKey(const ValueKey('field-quantity')),
-        matching: find.byType(TextField),
-      ),
+      find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
     );
     // Empty, and NOT '0,000': nothing asked for is not zero asked for.
     expect(field.controller!.text, '');
     expect(find.text('Vazio: sai na primeira compra.'), findsOneWidget);
   });
 
-  testWidgets('offers the products of THIS type, and "Qualquer um"', (
-    tester,
-  ) async {
+  testWidgets('offers the products of THIS type, and "Qualquer um"', (tester) async {
     await pumpDialog(tester, catalog: _SpyCatalog(withZero: true));
 
     // Four leaves of the Coca-Cola original and one of the zero hang under
@@ -310,10 +284,7 @@ void main() {
   testWidgets('saves the quantity and the not-found mark', (tester) async {
     final repository = await pumpDialog(tester);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('field-quantity')),
-      '2500',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-quantity')), '2500');
     await tester.tap(find.byKey(const ValueKey('field-not-found')));
     await tester.pumpAndSettle();
 
@@ -327,9 +298,7 @@ void main() {
     expect(repository.written.single.notFound, isTrue);
   });
 
-  testWidgets('clearing the field puts the item back to no quantity', (
-    tester,
-  ) async {
+  testWidgets('clearing the field puts the item back to no quantity', (tester) async {
     final repository = await pumpDialog(tester);
 
     await tester.enterText(find.byKey(const ValueKey('field-quantity')), '');
@@ -341,9 +310,7 @@ void main() {
     expect(repository.written.single.quantity, isNull);
   });
 
-  testWidgets('a quantity that is not a quantity stays under the field', (
-    tester,
-  ) async {
+  testWidgets('a quantity that is not a quantity stays under the field', (tester) async {
     final repository = await pumpDialog(tester);
 
     // Zero is what the mask still lets through, and the dialog refuses it.
@@ -363,25 +330,17 @@ void main() {
 
     // The mask keeps the digits and writes the comma itself: '1,25abc' has
     // three of them, and 125 millilitres read as '0,125'.
-    await tester.enterText(
-      find.byKey(const ValueKey('field-quantity')),
-      '1,25abc',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-quantity')), '1,25abc');
     await tester.pumpAndSettle();
 
     final field = tester.widget<TextField>(
-      find.descendant(
-        of: find.byKey(const ValueKey('field-quantity')),
-        matching: find.byType(TextField),
-      ),
+      find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
     );
     expect(field.controller!.text, '0,125');
     expect(field.keyboardType, TextInputType.number);
   });
 
-  testWidgets('a failed save keeps the dialog open and shows the SnackBar', (
-    tester,
-  ) async {
+  testWidgets('a failed save keeps the dialog open and shows the SnackBar', (tester) async {
     final list = _SpyList(initial: [_item(quantity: 6000)]);
     await pumpDialog(tester, list: list);
 
@@ -395,9 +354,7 @@ void main() {
     expect(find.text('Salvar'), findsOneWidget);
   });
 
-  testWidgets('removing asks first, and cancelling writes nothing', (
-    tester,
-  ) async {
+  testWidgets('removing asks first, and cancelling writes nothing', (tester) async {
     final repository = await pumpDialog(tester);
 
     await tester.tap(find.text('Remover da lista'));
@@ -412,9 +369,7 @@ void main() {
     expect(find.text('Salvar'), findsOneWidget);
   });
 
-  testWidgets('confirming the removal takes the line off the list', (
-    tester,
-  ) async {
+  testWidgets('confirming the removal takes the line off the list', (tester) async {
     final repository = await pumpDialog(tester);
 
     await tester.tap(find.text('Remover da lista'));
@@ -451,27 +406,20 @@ void main() {
     expect(repository.written, isEmpty);
   });
 
-  testWidgets('packagings that did not load leave the dialog usable', (
-    tester,
-  ) async {
+  testWidgets('packagings that did not load leave the dialog usable', (tester) async {
     final catalog = _SpyCatalog()..failNextLeaves = NetworkException('x');
     final repository = await pumpDialog(tester, catalog: catalog);
 
     // No brands, no packagings — and the quantity still saves, which is the
     // whole reason `leavesOfType` answers with an empty list on failure.
-    await tester.enterText(
-      find.byKey(const ValueKey('field-quantity')),
-      '4000',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-quantity')), '4000');
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
 
     expect(repository.written.single.quantity, 4000);
   });
 
-  testWidgets('a product that is not among the leaves is kept, not cleared', (
-    tester,
-  ) async {
+  testWidgets('a product that is not among the leaves is kept, not cleared', (tester) async {
     // The leaves did not load, so the stored registration has no item of its
     // own in the dropdown. Showing a value with no matching item is what trips
     // the DropdownButton assertion and takes the whole dialog down — and
@@ -517,24 +465,16 @@ void main() {
       expect(find.text('Remover da lista'), findsOneWidget);
     });
 
-    testWidgets('the creating mode ADDS a new line with what was typed', (
-      tester,
-    ) async {
+    testWidgets('the creating mode ADDS a new line with what was typed', (tester) async {
       final repository = await pumpForType(tester, missing: 2000);
 
       // It opened with the missing amount already in, in the base unit.
       final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('field-quantity')),
-          matching: find.byType(TextField),
-        ),
+        find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
       );
       expect(field.controller!.text, '2,000');
 
-      await tester.enterText(
-        find.byKey(const ValueKey('field-quantity')),
-        '3000',
-      );
+      await tester.enterText(find.byKey(const ValueKey('field-quantity')), '3000');
       await tester.tap(find.text('Salvar'));
       await tester.pumpAndSettle();
 
@@ -547,18 +487,13 @@ void main() {
       expect(find.byType(ItemDialog), findsNothing);
     });
 
-    testWidgets('the creating mode with an empty field adds no quantity', (
-      tester,
-    ) async {
+    testWidgets('the creating mode with an empty field adds no quantity', (tester) async {
       // The bottom band of screen 6 opens with `missing: null`, and an item
       // with no quantity leaves the list on the first purchase of the type.
       final repository = await pumpForType(tester);
 
       final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('field-quantity')),
-          matching: find.byType(TextField),
-        ),
+        find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
       );
       expect(field.controller!.text, '');
 
@@ -575,10 +510,7 @@ void main() {
       await pumpForType(tester, existing: _item(quantity: 6000), missing: 8000);
 
       final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('field-quantity')),
-          matching: find.byType(TextField),
-        ),
+        find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
       );
       expect(field.controller!.text, '8,000');
     });
@@ -587,10 +519,7 @@ void main() {
       await pumpForType(tester, existing: _item(quantity: 6000));
 
       final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('field-quantity')),
-          matching: find.byType(TextField),
-        ),
+        find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
       );
       expect(field.controller!.text, '6,000');
     });
@@ -617,24 +546,17 @@ void main() {
       // With a quantity already on the line there is no rule to change.
       await pumpForType(tester, existing: _item(quantity: 6000), missing: 2000);
       expect(find.textContaining('confirmar passa a pedir'), findsNothing);
-      expect(
-        find.text('Vazio: sai na primeira compra.'),
-        findsOneWidget,
-      );
+      expect(find.text('Vazio: sai na primeira compra.'), findsOneWidget);
     });
 
-    testWidgets('and it does not appear in the creating mode either', (
-      tester,
-    ) async {
+    testWidgets('and it does not appear in the creating mode either', (tester) async {
       // There is no item on the list, so there is no rule of any line to
       // change.
       await pumpForType(tester, missing: 2000);
       expect(find.textContaining('confirmar passa a pedir'), findsNothing);
     });
 
-    testWidgets('the creating mode KEEPS the product chosen (M-a)', (
-      tester,
-    ) async {
+    testWidgets('the creating mode KEEPS the product chosen (M-a)', (tester) async {
       // E-k discarded it; M-a revoked E-k — with the write-off by product, a
       // second line of milk saved without it would be worth any milk.
       final repository = await pumpForType(tester, missing: 2000);
@@ -651,11 +573,8 @@ void main() {
       expect(repository.added.single.preferredRegistrationBrand, _coke);
     });
 
-    testWidgets('a failing add keeps the dialog open and says why', (
-      tester,
-    ) async {
-      final repository = _SpyList(initial: const [])
-        ..failNextWrite = ApiException(500, 'boom');
+    testWidgets('a failing add keeps the dialog open and says why', (tester) async {
+      final repository = _SpyList(initial: const [])..failNextWrite = ApiException(500, 'boom');
       await pumpForType(tester, missing: 2000, list: repository);
 
       await tester.tap(find.text('Salvar'));
@@ -669,9 +588,7 @@ void main() {
   });
 
   group('the same product never sits on the list twice (M-a)', () {
-    testWidgets('an option another line asks for is greyed out, and says so', (
-      tester,
-    ) async {
+    testWidgets('an option another line asks for is greyed out, and says so', (tester) async {
       final other = _item(id: 'item-9', registration: _original, brand: _coke);
       await pumpForType(
         tester,
@@ -682,10 +599,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('field-registration')));
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Coca-Cola original · já está na lista'),
-        findsWidgets,
-      );
+      expect(find.text('Coca-Cola original · já está na lista'), findsWidgets);
       final option = tester.widget<DropdownMenuItem<String>>(
         find
             .ancestor(
@@ -698,14 +612,8 @@ void main() {
       expect(find.text('Coca-Cola zero'), findsWidgets);
     });
 
-    testWidgets('the line being edited never blocks its own option', (
-      tester,
-    ) async {
-      final line = _item(
-        quantity: 6000,
-        registration: _original,
-        brand: _coke,
-      );
+    testWidgets('the line being edited never blocks its own option', (tester) async {
+      final line = _item(quantity: 6000, registration: _original, brand: _coke);
       await pumpDialog(tester, item: line);
 
       await tester.tap(find.byKey(const ValueKey('field-registration')));
@@ -714,9 +622,7 @@ void main() {
       expect(find.textContaining('já está na lista'), findsNothing);
     });
 
-    testWidgets('"Qualquer um" taken: the field opens empty, Salvar waits', (
-      tester,
-    ) async {
+    testWidgets('"Qualquer um" taken: the field opens empty, Salvar waits', (tester) async {
       final other = _item(id: 'item-9');
       final repository = await pumpForType(
         tester,
@@ -724,13 +630,8 @@ void main() {
         catalog: _SpyCatalog(withZero: true),
       );
 
-      expect(
-        find.text('Escolha um produto que ainda não está na lista.'),
-        findsOneWidget,
-      );
-      final save = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Salvar'),
-      );
+      expect(find.text('Escolha um produto que ainda não está na lista.'), findsOneWidget);
+      final save = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Salvar'));
       expect(save.onPressed, isNull);
 
       await tester.tap(find.byKey(const ValueKey('field-registration')));
@@ -743,9 +644,7 @@ void main() {
       expect(repository.added.single.preferredRegistration, _zero);
     });
 
-    testWidgets('everything taken: the field says so, and Salvar stays off', (
-      tester,
-    ) async {
+    testWidgets('everything taken: the field says so, and Salvar stays off', (tester) async {
       await pumpForType(
         tester,
         list: _SpyList(
@@ -756,13 +655,8 @@ void main() {
         ),
       );
 
-      expect(
-        find.text('Todos os produtos deste tipo já estão na lista.'),
-        findsOneWidget,
-      );
-      final save = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, 'Salvar'),
-      );
+      expect(find.text('Todos os produtos deste tipo já estão na lista.'), findsOneWidget);
+      final save = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'Salvar'));
       expect(save.onPressed, isNull);
     });
   });

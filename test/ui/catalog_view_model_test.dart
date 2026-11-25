@@ -551,12 +551,7 @@ void main() {
       final outcome = await container
           .read(catalogViewModelProvider.notifier)
           .save(
-            registration: ProductRegistration(
-              productTypeId: 'type-1',
-              brandId: 'brand-1',
-              description: 'zero',
-              sellingMode: SellingMode.byPiece,
-            ),
+            registration: ProductRegistration(productTypeId: 'type-1', brandId: 'brand-1', description: 'zero'),
             packagings: plain([
               bottle('350', BaseUnit.milliliter),
               bottle('269', BaseUnit.milliliter),
@@ -585,7 +580,7 @@ void main() {
       final outcome = await container
           .read(catalogViewModelProvider.notifier)
           .save(
-            registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
+            registration: ProductRegistration(productTypeId: 'type-2'),
             packagings: const IList.empty(),
             loose: true,
           );
@@ -605,7 +600,7 @@ void main() {
         await container
             .read(catalogViewModelProvider.notifier)
             .save(
-              registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+              registration: ProductRegistration(productTypeId: 'type-1'),
               packagings: const IList.empty(),
             )
             .then(_saveMessage),
@@ -643,7 +638,7 @@ void main() {
         await container
             .read(catalogViewModelProvider.notifier)
             .save(
-              registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+              registration: ProductRegistration(productTypeId: 'type-1'),
               packagings: plain([bottle('350', BaseUnit.milliliter)]),
             )
             .then(_saveMessage),
@@ -657,7 +652,7 @@ void main() {
       await container.read(catalogViewModelProvider.future);
 
       final notifier = container.read(catalogViewModelProvider.notifier);
-      final registration = ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
+      final registration = ProductRegistration(productTypeId: 'type-1');
       final packagings = plain([bottle('350', BaseUnit.milliliter)]);
 
       await Future.wait([
@@ -702,19 +697,8 @@ void main() {
   });
 
   group('editRegistration', () {
-    final cola = ProductRegistration(
-      id: 'reg-1',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      description: 'original',
-      sellingMode: SellingMode.byPiece,
-    );
-    final groundBeef = ProductRegistration(
-      id: 'reg-2',
-      productTypeId: 'type-2',
-      description: '',
-      sellingMode: SellingMode.byWeight,
-    );
+    final cola = ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1', description: 'original');
+    final groundBeef = ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: '');
 
     Future<(_SpyRepository, CatalogViewModel)> ready() async {
       final repository = _SpyRepository();
@@ -800,12 +784,7 @@ void main() {
     test('refuses an identity another registration holds', () async {
       final (repository, notifier) = await ready();
       await repository.saveRegistrationWithProducts(
-        registration: ProductRegistration(
-          productTypeId: 'type-1',
-          brandId: 'brand-1',
-          description: 'zero',
-          sellingMode: SellingMode.byPiece,
-        ),
+        registration: ProductRegistration(productTypeId: 'type-1', brandId: 'brand-1', description: 'zero'),
         packagings: [PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter))].lock,
       );
 
@@ -818,12 +797,7 @@ void main() {
     test('says when the registration in the way is deactivated', () async {
       final (repository, notifier) = await ready();
       final saved = await repository.saveRegistrationWithProducts(
-        registration: ProductRegistration(
-          productTypeId: 'type-1',
-          brandId: 'brand-1',
-          description: 'zero',
-          sellingMode: SellingMode.byPiece,
-        ),
+        registration: ProductRegistration(productTypeId: 'type-1', brandId: 'brand-1', description: 'zero'),
         packagings: [PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter))].lock,
       );
       await repository.updateRegistration(saved.registration.deactivated());
@@ -1002,7 +976,7 @@ void main() {
 
     test('RegistrationConflict equality covers every field', () {
       RegistrationConflict conflict({String regId = 'reg-1', String leafId = 'prod-1'}) => RegistrationConflict(
-        registration: ProductRegistration(id: regId, productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(id: regId, productTypeId: 'type-1'),
         products: [Product(id: leafId, productRegistrationId: 'reg-1')].lock,
       );
 
@@ -1140,17 +1114,13 @@ void main() {
     }
 
     ProductRegistration byWeight({String description = ''}) =>
-        ProductRegistration(productTypeId: 'type-2', description: description, sellingMode: SellingMode.byWeight);
+        ProductRegistration(productTypeId: 'type-2', description: description);
 
     test('save writes the codes of each card', () async {
       final (_, notifier) = await ready();
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(
-          productTypeId: 'type-1',
-          description: 'novo',
-          sellingMode: SellingMode.byPiece,
-        ),
+        registration: ProductRegistration(productTypeId: 'type-1', description: 'novo'),
         packagings: [
           PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter), barcodes: [milk].lock),
           PackagingWithBarcodes(packaging: bottle('600', BaseUnit.milliliter), barcodes: [soda].lock),
@@ -1180,7 +1150,7 @@ void main() {
       final (repository, notifier) = await ready();
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type-1'),
         packagings: plain([bottle('350', BaseUnit.milliliter)]),
         scaleCodes: [scaleCode].lock,
       );
@@ -1213,7 +1183,7 @@ void main() {
       repository.failNextCall = ApiException(409, 'duplicate key');
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type-1'),
         packagings: plain([bottle('350', BaseUnit.milliliter)]),
       );
 
@@ -1240,7 +1210,6 @@ void main() {
         productTypeId: 'type-1',
         brandId: 'brand-1',
         description: 'original',
-        sellingMode: SellingMode.byPiece,
       );
 
       final outcome = await notifier.editRegistration(
@@ -1336,19 +1305,8 @@ void main() {
 
   group('loose leaf', () {
     const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
-    final cola = ProductRegistration(
-      id: 'reg-1',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      description: 'original',
-      sellingMode: SellingMode.byPiece,
-    );
-    final beef = ProductRegistration(
-      id: 'reg-2',
-      productTypeId: 'type-2',
-      description: '',
-      sellingMode: SellingMode.byWeight,
-    );
+    final cola = ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1', description: 'original');
+    final beef = ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: '');
 
     Future<(_SpyRepository, CatalogViewModel)> ready() async {
       final repository = _SpyRepository();
@@ -1364,7 +1322,7 @@ void main() {
       final (repository, notifier) = await ready();
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type-2'),
         packagings: const IList.empty(),
         loose: true,
       );
@@ -1377,7 +1335,7 @@ void main() {
       final (repository, notifier) = await ready();
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type-2'),
         packagings: const IList.empty(),
         loose: false,
       );
@@ -1390,7 +1348,7 @@ void main() {
       final (repository, notifier) = await ready();
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type-1'),
         packagings: plain([bottle('350', BaseUnit.milliliter)]),
         loose: false,
         scaleCodes: [scaleCode].lock,

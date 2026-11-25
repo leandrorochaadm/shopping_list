@@ -52,7 +52,6 @@ void main() {
       productTypeId: 'type-1',
       brandId: 'brand-1',
       description: 'original',
-      sellingMode: SellingMode.byPiece,
     ),
     type: ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
     brand: Brand(id: 'brand-1', name: 'Coca-Cola'),
@@ -625,7 +624,7 @@ void main() {
       container
           .read(catalogViewModelProvider.notifier)
           .save(
-            registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+            registration: ProductRegistration(productTypeId: 'type-1'),
             packagings: [
               PackagingWithBarcodes(
                 packaging: Packaging.typed(pieceCount: '1', pieceSize: '350', baseUnit: BaseUnit.milliliter),
@@ -936,7 +935,7 @@ void main() {
   group('PickedProduct', () {
     PickedProduct picked({String leafId = 'prod-1', Brand? brand}) => PickedProduct(
       product: Product(id: leafId, productRegistrationId: 'reg-1'),
-      registration: ProductRegistration(id: 'reg-1', productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+      registration: ProductRegistration(id: 'reg-1', productTypeId: 'type-1'),
       type: ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
       brand: brand,
     );
@@ -2505,13 +2504,7 @@ class _RecordingRepository extends CatalogRepositoryLocal {
     required String description,
   }) async {
     if (holdsZero && description.trim() == 'zero') {
-      return ProductRegistration(
-        id: 'reg-9',
-        productTypeId: productTypeId,
-        brandId: brandId,
-        description: 'zero',
-        sellingMode: SellingMode.byPiece,
-      );
+      return ProductRegistration(id: 'reg-9', productTypeId: productTypeId, brandId: brandId, description: 'zero');
     }
     return super.findRegistration(productTypeId: productTypeId, brandId: brandId, description: description);
   }
@@ -2545,7 +2538,7 @@ class _StuckRepository extends CatalogRepositoryLocal {
 
   void release() => _held.complete(
     SavedRegistration(
-      registration: ProductRegistration(id: 'reg-100', productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+      registration: ProductRegistration(id: 'reg-100', productTypeId: 'type-1'),
       products: const IList.empty(),
     ),
   );

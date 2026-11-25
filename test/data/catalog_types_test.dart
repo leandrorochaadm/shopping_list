@@ -12,27 +12,16 @@ import 'package:shopping_list/domain/models/product_registration.dart';
 /// field is silent — Riverpod simply stops filtering the update.
 void main() {
   ProductRegistration registration({String id = 'reg-1', String type = 't1'}) =>
-      ProductRegistration(
-        id: id,
-        productTypeId: type,
-        sellingMode: SellingMode.byPiece,
-      );
+      ProductRegistration(id: id, productTypeId: type);
 
   Product leaf({String id = 'prod-1', int pieceSize = 350}) => Product(
     id: id,
     productRegistrationId: 'reg-1',
-    packaging: Packaging(
-      pieceCount: 1,
-      pieceSize: pieceSize,
-      baseUnit: BaseUnit.milliliter,
-    ),
+    packaging: Packaging(pieceCount: 1, pieceSize: pieceSize, baseUnit: BaseUnit.milliliter),
   );
 
   group('SavedRegistration', () {
-    SavedRegistration saved({
-      String regId = 'reg-1',
-      String leafId = 'prod-1',
-    }) => SavedRegistration(
+    SavedRegistration saved({String regId = 'reg-1', String leafId = 'prod-1'}) => SavedRegistration(
       registration: registration(id: regId),
       products: [leaf(id: leafId)].lock,
     );
@@ -46,18 +35,11 @@ void main() {
   });
 
   group('PackagingWithBarcodes', () {
-    Packaging size(int pieceSize) => Packaging(
-      pieceCount: 1,
-      pieceSize: pieceSize,
-      baseUnit: BaseUnit.milliliter,
-    );
+    Packaging size(int pieceSize) => Packaging(pieceCount: 1, pieceSize: pieceSize, baseUnit: BaseUnit.milliliter);
     final code = Barcode.typed('7894900011517');
 
     PackagingWithBarcodes card({int pieceSize = 350, IList<Barcode>? codes}) =>
-        PackagingWithBarcodes(
-          packaging: size(pieceSize),
-          barcodes: codes ?? [code].lock,
-        );
+        PackagingWithBarcodes(packaging: size(pieceSize), barcodes: codes ?? [code].lock);
 
     test('equality covers every field', () {
       expect(card(), card());
@@ -76,11 +58,10 @@ void main() {
   });
 
   group('TypeLeaf', () {
-    TypeLeaf pair({String leafId = 'prod-1', String regId = 'reg-1'}) =>
-        TypeLeaf(
-          product: leaf(id: leafId),
-          registration: registration(id: regId),
-        );
+    TypeLeaf pair({String leafId = 'prod-1', String regId = 'reg-1'}) => TypeLeaf(
+      product: leaf(id: leafId),
+      registration: registration(id: regId),
+    );
 
     test('equality covers every field', () {
       expect(pair(), pair());

@@ -30,18 +30,9 @@ const _expandQuery =
     'list_write_off_via_shopping_list_item_id';
 const _openFilter = 'fulfilled_on = "" && removed_on = ""';
 
-ShoppingListItem _item({
-  int? quantity,
-  ProductRegistration? registration,
-  bool picked = false,
-}) => ShoppingListItem(
+ShoppingListItem _item({int? quantity, ProductRegistration? registration, bool picked = false}) => ShoppingListItem(
   id: _itemId,
-  type: ProductType(
-    id: _typeId,
-    name: 'Leite',
-    categoryId: _categoryId,
-    baseUnit: BaseUnit.milliliter,
-  ),
+  type: ProductType(id: _typeId, name: 'Leite', categoryId: _categoryId, baseUnit: BaseUnit.milliliter),
   category: Category(id: _categoryId, name: 'Bebidas'),
   preferredRegistration: registration,
   quantity: quantity,
@@ -76,37 +67,29 @@ Map<String, dynamic> _itemRecord({
           'base_unit': 'milliliter',
           'active': true,
           'expand': {
-            'category_id': recordJson(_categoryId, {
-              'name': 'Bebidas',
-              'active': true,
-            }),
+            'category_id': recordJson(_categoryId, {'name': 'Bebidas', 'active': true}),
           },
         }),
       },
 );
 
-Map<String, dynamic> _registrationRecord({String brandId = _brandId}) =>
-    recordJson(_registrationId, {
-      'product_type_id': _typeId,
-      'brand_id': brandId,
-      'description': 'integral',
-      'selling_mode': 'by_piece',
-      'active': true,
-      if (brandId.isNotEmpty)
-        'expand': {
-          'brand_id': recordJson(_brandId, {'name': 'Italac', 'active': true}),
-        },
-    });
+Map<String, dynamic> _registrationRecord({String brandId = _brandId}) => recordJson(_registrationId, {
+  'product_type_id': _typeId,
+  'brand_id': brandId,
+  'description': 'integral',
+  'selling_mode': 'by_piece',
+  'active': true,
+  if (brandId.isNotEmpty)
+    'expand': {
+      'brand_id': recordJson(_brandId, {'name': 'Italac', 'active': true}),
+    },
+});
 
 Map<String, dynamic> _typeExpand() =>
-    (_itemRecord()['expand'] as Map<String, dynamic>)['product_type_id']
-        as Map<String, dynamic>;
+    (_itemRecord()['expand'] as Map<String, dynamic>)['product_type_id'] as Map<String, dynamic>;
 
 RecordSubscriptionEvent _event(String action, {String? id = _otherId}) =>
-    RecordSubscriptionEvent(
-      action: action,
-      record: id == null ? null : RecordModel.fromJson({'id': id}),
-    );
+    RecordSubscriptionEvent(action: action, record: id == null ? null : RecordModel.fromJson({'id': id}));
 
 http.Response _echoBatch(http.Request request) {
   final requests = (jsonDecode(request.body) as Map)['requests'] as List;
@@ -121,31 +104,26 @@ http.Response _echoBatch(http.Request request) {
 
 final _is409 = isA<ApiException>().having((e) => e.statusCode, 'status', 409);
 
-Map<String, dynamic> _body(http.Request request) =>
-    jsonDecode(request.body) as Map<String, dynamic>;
+Map<String, dynamic> _body(http.Request request) => jsonDecode(request.body) as Map<String, dynamic>;
 
 void main() {
   late List<http.Request> requests;
 
-  ShoppingListRepositoryRemote build(
-    FutureOr<http.Response> Function(http.Request) handler, {
-    bool signedIn = true,
-  }) => ShoppingListRepositoryRemote(
-    testPocketBase(
-      MockClient((request) async {
-        requests.add(request);
-        return handler(request);
-      }),
-      signedIn: signedIn,
-    ),
-  );
+  ShoppingListRepositoryRemote build(FutureOr<http.Response> Function(http.Request) handler, {bool signedIn = true}) =>
+      ShoppingListRepositoryRemote(
+        testPocketBase(
+          MockClient((request) async {
+            requests.add(request);
+            return handler(request);
+          }),
+          signedIn: signedIn,
+        ),
+      );
 
-  ShoppingListRepositoryRemote answering(http.Response response) =>
-      build((_) => response);
+  ShoppingListRepositoryRemote answering(http.Response response) => build((_) => response);
 
   /// A repository whose every write fails, so only the echo bookkeeping stays.
-  ShoppingListRepositoryRemote failing() =>
-      ShoppingListRepositoryRemote(testPocketBase(offlineClient()));
+  ShoppingListRepositoryRemote failing() => ShoppingListRepositoryRemote(testPocketBase(offlineClient()));
 
   setUp(() => requests = []);
 
@@ -248,9 +226,7 @@ void main() {
     });
 
     test('an empty set does not touch the client', () async {
-      final items = await answering(
-        listJson([]),
-      ).fetchItemsByIds(const <String>[]);
+      final items = await answering(listJson([])).fetchItemsByIds(const <String>[]);
 
       expect(items, isEmpty);
       expect(requests, isEmpty);
@@ -258,18 +234,13 @@ void main() {
 
     test('splits the ids in blocks of 50 without repeating any', () async {
       final repository = answering(listJson([]));
-      final ids = [
-        for (var i = 0; i < 120; i++) 'id${i.toString().padLeft(12, '0')}',
-      ];
+      final ids = [for (var i = 0; i < 120; i++) 'id${i.toString().padLeft(12, '0')}'];
 
       await repository.fetchItemsByIds([...ids, ...ids.take(5)]);
 
       expect(requests, hasLength(3));
       final perRequest = [
-        for (final r in requests)
-          RegExp(
-            'id\\d{12}',
-          ).allMatches(r.url.queryParameters['filter']!).map((m) => m[0]!),
+        for (final r in requests) RegExp('id\\d{12}').allMatches(r.url.queryParameters['filter']!).map((m) => m[0]!),
       ];
       expect(perRequest.map((l) => l.length).toList()..sort(), [20, 50, 50]);
       final all = perRequest.expand((l) => l).toList();
@@ -280,9 +251,7 @@ void main() {
 
   group('countOpenItemsOfType', () {
     test('reads the total, not the page', () async {
-      final repository = answering(
-        listJson([_itemRecord()], perPage: 1, totalItems: 3),
-      );
+      final repository = answering(listJson([_itemRecord()], perPage: 1, totalItems: 3));
 
       expect(await repository.countOpenItemsOfType(_typeId), 3);
       final query = requests.single.url.queryParameters;
@@ -325,11 +294,7 @@ void main() {
 
     test('add sends the registration and the quantity', () async {
       final repository = answering(recordResponse(_itemRecord()));
-      final registration = ProductRegistration(
-        id: _registrationId,
-        productTypeId: _typeId,
-        sellingMode: SellingMode.byPiece,
-      );
+      final registration = ProductRegistration(id: _registrationId, productTypeId: _typeId);
 
       await repository.add(_item(quantity: 1000, registration: registration));
 
@@ -346,10 +311,7 @@ void main() {
       expect(saved.picked, isTrue);
       final request = requests.single;
       expect(request.method, 'PATCH');
-      expect(
-        request.url.path,
-        '/api/collections/shopping_list_item/records/$_itemId',
-      );
+      expect(request.url.path, '/api/collections/shopping_list_item/records/$_itemId');
       expect(request.url.queryParameters['expand'], _expandQuery);
       final body = _body(request);
       expect(body, isNot(contains('user')));
@@ -364,13 +326,8 @@ void main() {
 
       expect(requests, hasLength(1));
       expect(requests.single.method, 'PATCH');
-      expect(
-        requests.single.url.path,
-        '/api/collections/shopping_list_item/records/$_itemId',
-      );
-      expect(_body(requests.single), {
-        'removed_on': '2026-08-28 00:00:00.000Z',
-      });
+      expect(requests.single.url.path, '/api/collections/shopping_list_item/records/$_itemId');
+      expect(_body(requests.single), {'removed_on': '2026-08-28 00:00:00.000Z'});
     });
   });
 
@@ -378,18 +335,12 @@ void main() {
     test('swallows the echo of every row it removed', () async {
       final repository = build((request) {
         if (request.method == 'POST') return _echoBatch(request);
-        return listJson([
-          recordJson(_itemId, {}),
-          recordJson(_otherItemId, {}),
-        ]);
+        return listJson([recordJson(_itemId, {}), recordJson(_otherItemId, {})]);
       });
       final emitted = <ListChangeKind>[];
       repository.watchChanges().listen(emitted.add);
 
-      final ids = await repository.removeOpenItemsOfType(
-        _typeId,
-        DateTime(2026, 8, 28),
-      );
+      final ids = await repository.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28));
 
       expect(ids.toList(), [_itemId, _otherItemId]);
       final get = requests.first;
@@ -417,10 +368,7 @@ void main() {
     test('does nothing when no item is open', () async {
       final repository = answering(listJson([]));
 
-      final ids = await repository.removeOpenItemsOfType(
-        _typeId,
-        DateTime(2026, 8, 28),
-      );
+      final ids = await repository.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28));
 
       expect(ids, isEmpty);
       expect(requests.where((r) => r.url.path == '/api/batch'), isEmpty);
@@ -431,10 +379,7 @@ void main() {
         if (request.method == 'POST') {
           return batchErrorJson(index: 1, status: 400);
         }
-        return listJson([
-          recordJson(_itemId, {}),
-          recordJson(_otherItemId, {}),
-        ]);
+        return listJson([recordJson(_itemId, {}), recordJson(_otherItemId, {})]);
       });
 
       await expectLater(
@@ -452,17 +397,15 @@ void main() {
       },
     );
 
-    final calls =
-        <String, Future<Object?> Function(ShoppingListRepositoryRemote)>{
-          'fetchAll': (r) => r.fetchAll(),
-          'fetchItemsByIds': (r) => r.fetchItemsByIds([_itemId]),
-          'countOpenItemsOfType': (r) => r.countOpenItemsOfType(_typeId),
-          'removeOpenItemsOfType': (r) =>
-              r.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28)),
-          'add': (r) => r.add(_item()),
-          'update': (r) => r.update(_item()),
-          'remove': (r) => r.remove(_item(), DateTime(2026, 8, 28)),
-        };
+    final calls = <String, Future<Object?> Function(ShoppingListRepositoryRemote)>{
+      'fetchAll': (r) => r.fetchAll(),
+      'fetchItemsByIds': (r) => r.fetchItemsByIds([_itemId]),
+      'countOpenItemsOfType': (r) => r.countOpenItemsOfType(_typeId),
+      'removeOpenItemsOfType': (r) => r.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28)),
+      'add': (r) => r.add(_item()),
+      'update': (r) => r.update(_item()),
+      'remove': (r) => r.remove(_item(), DateTime(2026, 8, 28)),
+    };
 
     for (final entry in calls.entries) {
       test('${entry.key} translates the failure', () async {
@@ -474,27 +417,17 @@ void main() {
 
         await expectLater(
           entry.value(repository),
-          throwsA(
-            isA<ApiException>().having((e) => e.statusCode, 'status', 401),
-          ),
+          throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 401)),
         );
         expect(requests, isEmpty);
       });
     }
 
     test('offline is a NetworkException', () async {
-      final repository = ShoppingListRepositoryRemote(
-        testPocketBase(offlineClient()),
-      );
+      final repository = ShoppingListRepositoryRemote(testPocketBase(offlineClient()));
 
-      await expectLater(
-        repository.fetchAll(),
-        throwsA(isA<NetworkException>()),
-      );
-      await expectLater(
-        repository.add(_item()),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(repository.fetchAll(), throwsA(isA<NetworkException>()));
+      await expectLater(repository.add(_item()), throwsA(isA<NetworkException>()));
       await expectLater(
         repository.removeOpenItemsOfType(_typeId, DateTime(2026, 8, 28)),
         throwsA(isA<NetworkException>()),
@@ -504,10 +437,7 @@ void main() {
     test('an item of another owner or already gone is a 404', () async {
       final repository = answering(errorJson(404));
 
-      await expectLater(
-        repository.update(_item()),
-        throwsA(isA<ApiException>().having((e) => e.statusCode, 's', 404)),
-      );
+      await expectLater(repository.update(_item()), throwsA(isA<ApiException>().having((e) => e.statusCode, 's', 404)));
     });
   });
 
@@ -555,10 +485,7 @@ void main() {
 
     test('the echo of OUR OWN write says nothing', () async {
       await listen();
-      await expectLater(
-        repository.add(_item()),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(repository.add(_item()), throwsA(isA<NetworkException>()));
 
       repository.onEvent(_event('create', id: _itemId));
       await pumpEventQueue();
@@ -569,10 +496,7 @@ void main() {
     test('two writes to the same row swallow two echoes', () async {
       await listen();
       for (var i = 0; i < 2; i++) {
-        await expectLater(
-          repository.update(_item()),
-          throwsA(isA<NetworkException>()),
-        );
+        await expectLater(repository.update(_item()), throwsA(isA<NetworkException>()));
       }
 
       for (var i = 0; i < 3; i++) {
@@ -597,10 +521,7 @@ void main() {
 
     test('a row this phone never wrote comes through', () async {
       await listen();
-      await expectLater(
-        repository.remove(_item(), DateTime(2026, 8, 28)),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(repository.remove(_item(), DateTime(2026, 8, 28)), throwsA(isA<NetworkException>()));
 
       repository.onEvent(_event('update'));
       await pumpEventQueue();
@@ -672,8 +593,5 @@ void main() {
   });
 }
 
-http.Response recordResponse(Map<String, dynamic> json) => http.Response(
-  jsonEncode(json),
-  200,
-  headers: {'content-type': 'application/json; charset=utf-8'},
-);
+http.Response recordResponse(Map<String, dynamic> json) =>
+    http.Response(jsonEncode(json), 200, headers: {'content-type': 'application/json; charset=utf-8'});

@@ -52,7 +52,6 @@ void main() {
     productTypeId: 'type0000000001',
     brandId: 'brand000000001',
     description: 'zero',
-    sellingMode: SellingMode.byPiece,
   );
 
   Map<String, dynamic> registrationRow(String id, {String brand = ''}) => recordJson(id, {
@@ -335,7 +334,7 @@ void main() {
       final repository = repositoryAnswering(json(registrationRow(_regId)));
 
       final updated = await repository.updateRegistration(
-        ProductRegistration(id: _regId, productTypeId: 'type0000000001', sellingMode: SellingMode.byPiece),
+        ProductRegistration(id: _regId, productTypeId: 'type0000000001'),
       );
 
       expect(updated.brandId, isNull);
@@ -435,7 +434,7 @@ void main() {
       const scale = ScaleCode(storeId: _storeId, itemCode: '2000123');
 
       final saved = await repository.saveRegistrationWithProducts(
-        registration: ProductRegistration(productTypeId: 'type0000000001', sellingMode: SellingMode.byWeight),
+        registration: ProductRegistration(productTypeId: 'type0000000001'),
         packagings: const IList.empty(),
         scaleCodes: [scale].lock,
       );
@@ -533,7 +532,7 @@ void main() {
 
     test('adds the loose leaf when asked, after the packagings', () async {
       final saved = await echoing().saveRegistrationWithProducts(
-        registration: ProductRegistration(productTypeId: 'type0000000001', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type0000000001'),
         packagings: [
           PackagingWithBarcodes(packaging: packaging, barcodes: [code].lock),
         ].lock,
@@ -586,7 +585,7 @@ void main() {
 
     test('ignores scale codes when no loose leaf is asked', () async {
       await echoing().saveRegistrationWithProducts(
-        registration: ProductRegistration(productTypeId: 'type0000000001', sellingMode: SellingMode.byPiece),
+        registration: ProductRegistration(productTypeId: 'type0000000001'),
         packagings: [PackagingWithBarcodes(packaging: packaging)].lock,
         scaleCodes: [scale].lock,
       );
