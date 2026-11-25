@@ -2201,6 +2201,285 @@ void main() {
       expect(sellingField(tester).selected, {SellingChoice.weight});
     });
   });
+
+  group('loose card — part 6', () {
+    const tamara = '2822521001605';
+
+    Finder kind(int id) => find.byKey(ValueKey('kind-$id'));
+    Finder looseOption(int id) => find.descendant(of: kind(id), matching: find.text('A granel'));
+
+    bool looseEnabled(WidgetTester tester, int id) =>
+        tester.widget<SegmentedButton<bool>>(kind(id)).segments.firstWhere((segment) => segment.value).enabled;
+
+    Future<void> goLoose(WidgetTester tester, int id) async => tapOn(tester, looseOption(id));
+
+    Future<void> pickAcem(WidgetTester tester) async {
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      await leaveField(tester);
+    }
+
+    // The bug path: the identity of `reg-2` (loose leaf only) is typed and the
+    // registration is opened to add a packaging.
+    Future<void> openAcem(WidgetTester tester) async {
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await leaveField(tester);
+      await tapOn(tester, find.text('Abrir e acrescentar embalagem'));
+    }
+
+    Future<void> addScale(WidgetTester tester, String raw) async {
+      await choose(tester, const ValueKey('scale-store'), 'Carrefour');
+      await type(tester, const ValueKey('scale-code'), raw);
+      await tapOn(tester, find.byKey(const ValueKey('scale-add')));
+    }
+
+    testWidgets('saves packagings without a loose leaf', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(tester, repository: spy);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(spy.savedLoose, isFalse);
+      expect(spy.savedPackagings, hasLength(1));
+    });
+
+    testWidgets('saves a loose-only registration', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(tester, repository: spy);
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(spy.savedLoose, isTrue);
+      expect(spy.savedPackagings, isEmpty);
+    });
+
+    testWidgets('saves a packaging and the loose leaf together', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(tester, repository: spy);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      await goLoose(tester, 2);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(spy.savedLoose, isTrue);
+      expect(spy.savedPackagings, hasLength(1));
+    });
+
+    testWidgets('offers the loose card on a unit type', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+
+      expect(looseEnabled(tester, 1), isTrue);
+    });
+
+    testWidgets('adds a packaging to a registration that only had the loose leaf', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(tester, repository: spy);
+      await openAcem(tester);
+      await type(tester, const ValueKey('size-1'), '500');
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(spy.addedLoose, isFalse);
+      expect(spy.addedPackagings, hasLength(1));
+    });
+
+    testWidgets('disables the loose option when the registration already has one', (tester) async {
+      await pumpScreen(tester);
+      await openAcem(tester);
+
+      expect(looseEnabled(tester, 1), isFalse);
+    });
+
+    testWidgets('allows a single loose card on screen', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      await goLoose(tester, 2);
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+
+      expect(looseEnabled(tester, 2), isTrue);
+      expect(looseEnabled(tester, 3), isFalse);
+    });
+
+    testWidgets('keeps the barcode card out of the loose option', (tester) async {
+      await pumpScreen(tester);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+      await includeTyped(tester, 1, cola);
+
+      expect(looseEnabled(tester, 1), isFalse);
+    });
+
+    testWidgets('keeps the pending scale code on the loose card', (tester) async {
+      await pumpScreen(tester);
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+      await addScale(tester, tamara);
+
+      expect(find.byKey(const ValueKey('scale-codes')), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(find.byKey(const ValueKey('loose-caption-1')), findsOneWidget);
+    });
+
+    testWidgets('allows a 1 kg packaging next to the loose leaf', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(tester, repository: spy);
+      await pickAcem(tester);
+      await type(tester, const ValueKey('size-1'), '1000');
+      await tapOn(tester, find.text('Adicionar outra embalagem'));
+      await goLoose(tester, 2);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(spy.savedLoose, isTrue);
+      expect(spy.savedPackagings, hasLength(1));
+    });
+
+    testWidgets('asks for a card when every card was removed', (tester) async {
+      await pumpScreen(tester);
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+      await tapOn(tester, find.text('Remover').first);
+
+      expect(saveButton(tester).onPressed, isNull);
+    });
+
+    testWidgets('removing the loose card drops its scale codes', (tester) async {
+      await pumpScreen(tester);
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+      await addScale(tester, tamara);
+      await tapOn(tester, find.text('Remover').first);
+
+      expect(find.text('• Carrefour · 2822521'), findsNothing);
+    });
+
+    testWidgets('writes the scale code on the saved loose leaf, not the first leaf', (tester) async {
+      final spy = _LooseNextToPackagings();
+      await pumpScreen(
+        tester,
+        repository: spy,
+        request: const NewProductRequest(registrationId: 'reg-2'),
+      );
+      await addScale(tester, tamara);
+
+      expect(spy.addedCodes.map((e) => e.$1), everyElement('prod-5'));
+    });
+
+    testWidgets('edits by adding only the loose leaf', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(
+        tester,
+        repository: spy,
+        request: const NewProductRequest(registrationId: 'reg-1'),
+      );
+      await tapOn(tester, find.text('Adicionar embalagem'));
+      await goLoose(tester, 1);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(spy.addedLoose, isTrue);
+    });
+
+    testWidgets('reading a scale label on top creates the loose card', (tester) async {
+      final camera = FakeBarcodeCamera();
+      await pumpScreen(tester, camera: camera);
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+
+      await tapOn(tester, find.byKey(const ValueKey('top-scan')));
+      camera.read('02822521001605261107');
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('scale-store-store-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const ValueKey('loose-caption-2')), findsOneWidget);
+    });
+
+    Future<PickedProduct?> Function() openPushed(WidgetTester tester, ProviderContainer container) {
+      final router = container.read(appRouterProvider);
+      PickedProduct? result;
+      unawaited(
+        router
+            .push<PickedProduct>(Routes.newProduct, extra: const NewProductRequest(returnsSelection: true))
+            .then((value) => result = value),
+      );
+      return () async => result;
+    }
+
+    testWidgets('returns the loose leaf to the purchase when it is the last card', (tester) async {
+      final container = await pumpScreen(tester);
+      final result = openPushed(tester, container);
+      await tester.pumpAndSettle();
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect((await result())?.product.isLoose, isTrue);
+    });
+
+    testWidgets('returns the packaging leaf when it is the last card', (tester) async {
+      final container = await pumpScreen(tester);
+      final result = openPushed(tester, container);
+      await tester.pumpAndSettle();
+      await pickRefrigerante(tester);
+      await type(tester, const ValueKey('size-1'), '350');
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      final picked = await result();
+      expect(picked?.product.isLoose, isFalse);
+      expect(picked?.product.packaging, isNotNull);
+    });
+
+    testWidgets('keeps the loose card when saving fails', (tester) async {
+      await pumpScreen(tester, repository: _RefusingRepository());
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.byKey(const ValueKey('loose-caption-1')), findsOneWidget);
+    });
+
+    testWidgets('double tap on save with a loose card saves once', (tester) async {
+      final spy = _LooseSpy();
+      await pumpScreen(tester, repository: spy);
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+
+      final save = find.byKey(const ValueKey('save'));
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.tap(save, warnIfMissed: false);
+      await tester.pumpAndSettle();
+
+      expect(spy.saveCalls, 1);
+    });
+
+    testWidgets('a taken scale code on the loose card is refused on save', (tester) async {
+      await pumpScreen(tester, repository: _ScaleTakenOnSave());
+      await pickAcem(tester);
+      await goLoose(tester, 1);
+      await addScale(tester, tamara);
+
+      await tapOn(tester, find.byKey(const ValueKey('save')));
+
+      expect(find.byKey(const ValueKey('loose-caption-1')), findsOneWidget);
+      expect(find.text('Produto salvo.'), findsNothing);
+    });
+  });
 }
 
 /// Records the scale codes that reach the save.
@@ -2535,5 +2814,80 @@ class _GatedIdentity extends CatalogRepositoryLocal {
   }) async {
     await gate?.future;
     return super.findRegistration(productTypeId: productTypeId, brandId: brandId, description: description);
+  }
+}
+
+/// Records what the screen sends to `saveRegistrationWithProducts` and
+/// `addPackagings`, the loose flag included.
+class _LooseSpy extends CatalogRepositoryLocal {
+  _LooseSpy() : super(latency: Duration.zero);
+
+  int saveCalls = 0;
+  bool? savedLoose;
+  IList<PackagingWithBarcodes>? savedPackagings;
+  bool? addedLoose;
+  IList<PackagingWithBarcodes>? addedPackagings;
+
+  @override
+  Future<SavedRegistration> saveRegistrationWithProducts({
+    required ProductRegistration registration,
+    required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    saveCalls++;
+    savedLoose = loose;
+    savedPackagings = packagings;
+    return super.saveRegistrationWithProducts(
+      registration: registration,
+      packagings: packagings,
+      loose: loose,
+      scaleCodes: scaleCodes,
+    );
+  }
+
+  @override
+  Future<IList<Product>> addPackagings({
+    required String registrationId,
+    required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+  }) {
+    addedLoose = loose;
+    addedPackagings = packagings;
+    return super.addPackagings(
+      registrationId: registrationId,
+      packagings: packagings,
+      loose: loose,
+      scaleCodes: scaleCodes,
+    );
+  }
+}
+
+/// `reg-2` comes back with a packaging leaf BEFORE the loose `prod-5`, so a
+/// scale code written on "the first leaf" lands on the wrong product.
+class _LooseNextToPackagings extends _LooseSpy {
+  final addedCodes = <(String, ScaleCode)>[];
+
+  @override
+  Future<IList<Product>> fetchProductsOf(String registrationId) async {
+    final leaves = await super.fetchProductsOf(registrationId);
+    if (registrationId != 'reg-2') return leaves;
+    return leaves
+        .insert(
+          0,
+          Product(
+            id: 'prod-50',
+            productRegistrationId: 'reg-2',
+            packaging: Packaging(pieceCount: 1, pieceSize: 1000, baseUnit: BaseUnit.gram),
+          ),
+        )
+        .toIList();
+  }
+
+  @override
+  Future<void> addScaleCode({required String productId, required ScaleCode code}) {
+    addedCodes.add((productId, code));
+    return super.addScaleCode(productId: productId, code: code);
   }
 }
