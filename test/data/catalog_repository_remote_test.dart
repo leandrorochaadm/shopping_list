@@ -766,7 +766,7 @@ void main() {
     test('updateRegistration does not write selling_mode', () async {
       final repository = repositoryAnswering(json(registrationRow(_regId)));
 
-      await repository.updateRegistration(registration.copyWith(id: _regId, sellingMode: SellingMode.byWeight));
+      await repository.updateRegistration(registration.copyWith(id: _regId));
 
       final body = bodyOf(requests.single);
       expect(body.containsKey('selling_mode'), isFalse);
@@ -786,7 +786,7 @@ void main() {
       );
 
       await repository.saveRegistrationWithProducts(
-        registration: registration.copyWith(sellingMode: SellingMode.byWeight),
+        registration: registration,
         packagings: [PackagingWithBarcodes(packaging: packaging, barcodes: <Barcode>[].lock)].lock,
       );
 
@@ -800,7 +800,8 @@ void main() {
 
       final result = await repository.fetchRegistrations();
 
-      expect(result.single.sellingMode, SellingMode.byPiece);
+      expect(result.single.id, _regId);
+      expect(result.single.toJson().containsKey('selling_mode'), isFalse);
     });
   });
 }

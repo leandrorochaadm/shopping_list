@@ -779,7 +779,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         productTypeId: typeId,
         brandId: _brandId,
         description: _descriptionController.text,
-        sellingMode: SellingMode.byPiece, // Removed with the field in step 4.
       );
       final outcome = await notifier.save(
         registration: registration,

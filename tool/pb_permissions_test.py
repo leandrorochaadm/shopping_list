@@ -141,7 +141,7 @@ def _extra(name: str, variant: int) -> dict[str, object]:
         "brand": {"name": f"brand {variant}", "active": True},
         "store": {"name": f"store {variant}", "active": True},
         "product_type": {"name": f"type {variant}", "base_unit": "gram", "active": True},
-        "product_registration": {"description": "", "selling_mode": "by_piece", "active": True},
+        "product_registration": {"description": "", "active": True},
         "product": {
             "piece_count": 1,
             "piece_size": 1000,

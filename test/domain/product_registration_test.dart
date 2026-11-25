@@ -6,20 +6,8 @@ import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 
 void main() {
-  ProductRegistration cocaCola({
-    String? id,
-    String? brandId = 'b1',
-    String description = '',
-    SellingMode sellingMode = SellingMode.byPiece,
-    bool active = true,
-  }) => ProductRegistration(
-    id: id,
-    productTypeId: 't1',
-    brandId: brandId,
-    description: description,
-    sellingMode: sellingMode,
-    active: active,
-  );
+  ProductRegistration cocaCola({String? id, String? brandId = 'b1', String description = '', bool active = true}) =>
+      ProductRegistration(id: id, productTypeId: 't1', brandId: brandId, description: description, active: active);
 
   Packaging bottle(String size, BaseUnit unit) => Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
 
@@ -46,7 +34,7 @@ void main() {
     });
 
     test('is a different registration under a different type', () {
-      final other = ProductRegistration(productTypeId: 't2', brandId: 'b1', sellingMode: SellingMode.byPiece);
+      final other = ProductRegistration(productTypeId: 't2', brandId: 'b1');
 
       expect(cocaCola().hasSameIdentityAs(other), isFalse);
     });
@@ -78,12 +66,20 @@ void main() {
       expect(const MissingPackaging().toString(), contains('embalagem'));
     });
 
-    test('survives the round trip through JSON, both modes', () {
-      for (final mode in SellingMode.values) {
-        final registration = cocaCola(id: '1', sellingMode: mode);
+    test('survives the round trip through JSON', () {
+      for (final registration in [
+        cocaCola(id: '1'),
+        cocaCola(id: '2', brandId: null, description: 'zero', active: false),
+      ]) {
         expect(ProductRegistration.fromJson(registration.toJson()), registration);
       }
-      expect(() => SellingMode.fromJson('by_kilo'), throwsA(isA<ArgumentError>()));
+    });
+
+    test('does not write selling_mode', () {
+      final json = cocaCola(id: '1').toJson();
+
+      expect(json.containsKey('selling_mode'), isFalse);
+      expect(json.keys.toSet(), {'id', 'product_type_id', 'brand_id', 'description', 'active'});
     });
   });
 
@@ -101,11 +97,19 @@ void main() {
     });
 
     test('compares by every field it has', () {
-      expect(cocaCola(id: '1'), cocaCola(id: '1'));
-      expect(cocaCola(id: '1').hashCode, cocaCola(id: '1').hashCode);
-      expect(cocaCola(id: '1'), isNot(cocaCola(id: '2')));
-      expect(cocaCola(id: '1'), isNot(cocaCola(id: '1').deactivated()));
-      expect(cocaCola().toString(), contains('by_piece'));
+      final base = cocaCola(id: '1', description: 'zero');
+      final same = cocaCola(id: '1', description: 'zero');
+
+      expect(base, same);
+      expect(base.hashCode, same.hashCode);
+      expect(base, isNot(base.copyWith(id: '2')));
+      expect(base, isNot(base.copyWith(productTypeId: 't2')));
+      expect(base, isNot(base.copyWith(brandId: 'b2')));
+      expect(base, isNot(base.copyWith(brandId: '')));
+      expect(base, isNot(base.copyWith(description: 'diet')));
+      expect(base, isNot(base.deactivated()));
+      expect(base.toString(), contains('active: true'));
+      expect(base.toString(), isNot(contains('by_piece')));
     });
   });
 
@@ -237,9 +241,8 @@ void main() {
       expect(fixed.hasSameIdentityAs(original), isTrue);
     });
 
-    test('ignores active and selling mode — they are not identity', () {
+    test('ignores active — it is not identity', () {
       expect(original.deactivated().changesIdentityOf(original), isFalse);
-      expect(original.copyWith(sellingMode: SellingMode.byWeight).changesIdentityOf(original), isFalse);
     });
   });
 
@@ -253,13 +256,6 @@ void main() {
     });
   });
 
-  test('defaults the selling mode to by piece when omitted', () {
-    final omitted = ProductRegistration(productTypeId: 'type-1');
-    final explicit = ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
-    expect(omitted, explicit);
-    expect(omitted.hashCode, explicit.hashCode);
-  });
-
   group('selling_mode column dropped', () {
     final expected = ProductRegistration(id: 'reg1', productTypeId: 'type-1', brandId: 'brand-1', description: 'zero');
 
@@ -268,6 +264,8 @@ void main() {
 
       expect(ProductRegistration.fromJson(raw), expected);
       expect(ProductRegistration.fromJson({...raw, 'selling_mode': null}), expected);
+      expect(ProductRegistration.fromJson({...raw, 'selling_mode': 'by_weight'}), expected);
+      expect(ProductRegistration.fromJson({...raw, 'selling_mode': 'by_kilo'}), expected);
     });
 
     test('reads a row that still carries selling_mode', () {

@@ -3,30 +3,6 @@ import 'name_normalization.dart';
 
 export 'registration_leaves.dart' show MissingPackaging, UnexpectedScaleCode;
 
-/// How the product is bought — and it is a property of the REGISTRATION, not
-/// of the type (decision B4).
-///
-/// The wireframe puts it on screen 4 between Unit and Brand, and it holds in
-/// any base unit: bulk olive oil is measured in litres and is still sold by
-/// weight. Hanging it on the type would force "mussarela em pacote" and
-/// "mussarela do balcão" into two different types, splitting the per-type
-/// total that every report is built on.
-enum SellingMode {
-  byWeight,
-  byPiece;
-
-  static SellingMode fromJson(String value) => switch (value) {
-    'by_weight' => SellingMode.byWeight,
-    'by_piece' => SellingMode.byPiece,
-    _ => throw ArgumentError.value(value, 'selling_mode'),
-  };
-
-  String toJson() => switch (this) {
-    SellingMode.byWeight => 'by_weight',
-    SellingMode.byPiece => 'by_piece',
-  };
-}
-
 /// **`tipo + marca + descrição`** — the thing that must not repeat, and where
 /// the duplicate guard answers the user.
 ///
@@ -38,16 +14,12 @@ final class ProductRegistration {
     required String productTypeId,
     String? brandId,
     String description = '',
-    // Optional: the server no longer has the column (dropped by migration 1792800400). The field stays only until
-    // the old tests are rewritten.
-    SellingMode sellingMode = SellingMode.byPiece,
     bool active = true,
   }) => ProductRegistration._(
     id: id,
     productTypeId: productTypeId,
     brandId: brandId,
     description: description.trim(),
-    sellingMode: sellingMode,
     active: active,
   );
 
@@ -56,7 +28,6 @@ final class ProductRegistration {
     required this.productTypeId,
     required this.brandId,
     required this.description,
-    required this.sellingMode,
     required this.active,
   });
 
@@ -65,10 +36,6 @@ final class ProductRegistration {
     productTypeId: json['product_type_id'] as String,
     brandId: json['brand_id'] as String?,
     description: json['description'] as String? ?? '',
-    sellingMode: switch (json['selling_mode']) {
-      final String raw => SellingMode.fromJson(raw),
-      _ => SellingMode.byPiece,
-    },
     active: json['active'] as bool? ?? true,
   );
 
@@ -82,8 +49,6 @@ final class ProductRegistration {
   /// Never null, always trimmed, possibly ''.
   final String description;
 
-  final SellingMode sellingMode;
-
   final bool active;
 
   Map<String, dynamic> toJson() => {
@@ -91,7 +56,6 @@ final class ProductRegistration {
     'product_type_id': productTypeId,
     'brand_id': brandId,
     'description': description,
-    'selling_mode': sellingMode.toJson(),
     'active': active,
   };
 
@@ -143,7 +107,6 @@ final class ProductRegistration {
     String? productTypeId,
     String? brandId,
     String? description,
-    SellingMode? sellingMode,
     bool? active,
   }) => ProductRegistration(
     id: id ?? this.id,
@@ -152,7 +115,6 @@ final class ProductRegistration {
     // wants "Sem marca" passes an empty string.
     brandId: brandId == null ? this.brandId : (brandId.isEmpty ? null : brandId),
     description: description ?? this.description,
-    sellingMode: sellingMode ?? this.sellingMode,
     active: active ?? this.active,
   );
 
@@ -164,16 +126,15 @@ final class ProductRegistration {
           other.productTypeId == productTypeId &&
           other.brandId == brandId &&
           other.description == description &&
-          other.sellingMode == sellingMode &&
           other.active == active);
 
   @override
-  int get hashCode => Object.hash(id, productTypeId, brandId, description, sellingMode, active);
+  int get hashCode => Object.hash(id, productTypeId, brandId, description, active);
 
   @override
   String toString() =>
       'ProductRegistration(type: $productTypeId, brand: $brandId, '
-      '"$description", ${sellingMode.toJson()}, active: $active)';
+      '"$description", active: $active)';
 }
 
 /// The sentence of the registration duplicate guard. Deactivated or not
