@@ -23,12 +23,7 @@ import 'product_field.dart';
 /// already knows which line it opened, so a sealed type of two branches would
 /// name what the callback already says.
 class PurchaseItemEditDialog extends StatefulWidget {
-  const PurchaseItemEditDialog({
-    required this.item,
-    required this.options,
-    required this.onRemove,
-    super.key,
-  });
+  const PurchaseItemEditDialog({required this.item, required this.options, required this.onRemove, super.key});
 
   static Future<PurchaseItem?> show(
     BuildContext context, {
@@ -37,11 +32,7 @@ class PurchaseItemEditDialog extends StatefulWidget {
     required VoidCallback onRemove,
   }) => showDialog<PurchaseItem>(
     context: context,
-    builder: (context) => PurchaseItemEditDialog(
-      item: item,
-      options: options,
-      onRemove: onRemove,
-    ),
+    builder: (context) => PurchaseItemEditDialog(item: item, options: options, onRemove: onRemove),
   );
 
   final PurchaseItem item;
@@ -58,12 +49,8 @@ class PurchaseItemEditDialog extends StatefulWidget {
 
 class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
   late ProductOption _option = widget.item.option;
-  late final _quantityController = TextEditingController(
-    text: _quantityTextOf(widget.item),
-  );
-  late final _valueController = TextEditingController(
-    text: UnitSpec.currency.format(widget.item.paid.cents),
-  );
+  late final _quantityController = TextEditingController(text: _quantityTextOf(widget.item));
+  late final _valueController = TextEditingController(text: UnitSpec.currency.format(widget.item.paid.cents));
 
   String? _error;
 
@@ -77,25 +64,18 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
   /// The mask of the quantity field, and the ONE place the choice is made:
   /// sold by weight it is the magnitude of the type, sold by piece it is a
   /// plain count of packages.
-  UnitSpec get _quantitySpec =>
-      _option.isSoldByWeight ? specOf(_option.baseUnit) : countSpec;
+  UnitSpec get _quantitySpec => _option.isLoose ? specOf(_option.baseUnit) : countSpec;
 
   /// What the field opens written with: the amount for something weighed,
   /// the plain package count otherwise.
-  static String _quantityTextOf(PurchaseItem item) =>
-      (item.option.isSoldByWeight ? specOf(item.option.baseUnit) : countSpec)
-          .format(
-            item.option.isSoldByWeight
-                ? item.quantityInBaseUnit
-                : item.quantity,
-          );
+  static String _quantityTextOf(PurchaseItem item) => (item.option.isLoose ? specOf(item.option.baseUnit) : countSpec)
+      .format(item.option.isLoose ? item.quantityInBaseUnit : item.quantity);
 
   /// Swapping the product may swap how the line is measured — a crate counted
   /// by piece for beef sold by weight. The typed quantity is kept, because
   /// the number on the receipt did not change; what changes is how it is
   /// read, and the label above the field says so.
-  void _onProductChosen(ProductOption option) =>
-      setState(() => _option = option);
+  void _onProductChosen(ProductOption option) => setState(() => _option = option);
 
   void _submit() {
     // The value comes off the mask already in cents, so nothing here goes
@@ -138,11 +118,7 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ProductField(
-            options: widget.options,
-            initial: widget.item.option,
-            onSelected: _onProductChosen,
-          ),
+          ProductField(options: widget.options, initial: widget.item.option, onSelected: _onProductChosen),
           const SizedBox(height: 12),
           AppTextField.unit(
             key: const ValueKey('field-quantity'),
@@ -173,15 +149,8 @@ class _PurchaseItemEditDialogState extends State<PurchaseItemEditDialog> {
         },
         child: const Text('Remover item'),
       ),
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancelar'),
-      ),
-      FilledButton(
-        key: const ValueKey('save-item'),
-        onPressed: _submit,
-        child: const Text('Salvar'),
-      ),
+      TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+      FilledButton(key: const ValueKey('save-item'), onPressed: _submit, child: const Text('Salvar')),
     ],
   );
 }

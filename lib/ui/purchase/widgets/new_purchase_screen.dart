@@ -150,7 +150,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// changing shape at the moment a product is chosen.
   UnitSpec get _quantitySpec {
     final option = _option;
-    if (option == null || !option.isSoldByWeight) return countSpec;
+    if (option == null || !option.isLoose) return countSpec;
     return specOf(option.baseUnit);
   }
 
@@ -331,9 +331,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       _priceSource = _PriceSource.total;
     });
     _productController.text = item.label;
-    _quantityController.text = _quantitySpec.format(
-      item.option.isSoldByWeight ? item.quantityInBaseUnit : item.quantity,
-    );
+    _quantityController.text = _quantitySpec.format(item.option.isLoose ? item.quantityInBaseUnit : item.quantity);
     _valueController.text = UnitSpec.currency.format(item.paid.cents);
     _recomputePrices();
   }
@@ -845,7 +843,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                 // is what is compared at the counter. Sold by piece the price
                 // already IS the package's, and a second money field would
                 // only be one more thing to fill in.
-                if (_option case final option? when option.isSoldByWeight)
+                if (_option case final option? when option.isLoose)
                   AdaptiveFieldSpec(
                     label: 'Valor por ${option.baseUnit.priceLabel}',
                     widestValue: _widestMoney(_unitPriceController),

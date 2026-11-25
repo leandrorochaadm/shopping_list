@@ -49,11 +49,7 @@ final class PurchaseItem {
   }) {
     if (quantity <= 0) throw const InvalidQuantity();
     if (paid.cents < 0) {
-      throw ArgumentError.value(
-        paid.cents,
-        'paid',
-        'a purchase line cannot cost less than zero',
-      );
+      throw ArgumentError.value(paid.cents, 'paid', 'a purchase line cannot cost less than zero');
     }
     return PurchaseItem._(
       // Born on the phone, like the purchase's own key: the write-offs point
@@ -109,9 +105,8 @@ final class PurchaseItem {
   bool get isPriceUnconfirmed => priceOrigin == PriceOrigin.lastPurchase;
 
   /// The only way the origin changes (rule 7): `lastPurchase` -> `typed`.
-  PurchaseItem confirmedPrice() => isPriceUnconfirmed
-      ? PurchaseItem(id: id, option: option, quantity: quantity, paid: paid)
-      : this;
+  PurchaseItem confirmedPrice() =>
+      isPriceUnconfirmed ? PurchaseItem(id: id, option: option, quantity: quantity, paid: paid) : this;
 
   String get productId => option.product.id!;
 
@@ -134,9 +129,7 @@ final class PurchaseItem {
 
   /// The Quantidade column of the row: '1' for a crate, '1,5 kg' for
   /// something weighed — where the bare number would say '1500'.
-  String get quantityLabel => option.isSoldByWeight
-      ? baseUnit.formatQuantity(quantityInBaseUnit)
-      : '$quantity';
+  String get quantityLabel => option.isLoose ? baseUnit.formatQuantity(quantityInBaseUnit) : '$quantity';
 
   /// ONLY the table's columns — this is what travels inside `p_items` to
   /// `create_purchase`. The `purchase_id` is not here: it is the same for
@@ -157,11 +150,7 @@ final class PurchaseItem {
     _priceOriginKey: priceOrigin.apiValue,
   };
 
-  PurchaseItem copyWith({
-    ProductOption? option,
-    int? quantity,
-    Money? paid,
-  }) => PurchaseItem(
+  PurchaseItem copyWith({ProductOption? option, int? quantity, Money? paid}) => PurchaseItem(
     // The id SURVIVES the edit: `[ed]` corrects a line, it does not create a
     // second one, and the write-off trail points at this id.
     id: id,
@@ -185,8 +174,7 @@ final class PurchaseItem {
           other.priceOrigin == priceOrigin);
 
   @override
-  int get hashCode =>
-      Object.hash(id, option, quantity, quantityInBaseUnit, paid, priceOrigin);
+  int get hashCode => Object.hash(id, option, quantity, quantityInBaseUnit, paid, priceOrigin);
 
   @override
   String toString() => 'PurchaseItem($label, $quantityLabel, ${paid.cents})';

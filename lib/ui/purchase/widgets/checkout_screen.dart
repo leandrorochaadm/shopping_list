@@ -28,19 +28,14 @@ import 'scale_store_dialog.dart';
 /// waiting for a price and [unregistered] the codes left as "Produto não
 /// cadastrado": both stay out of the purchase.
 @visibleForTesting
-String checkoutLeftOutMessage({
-  required int withoutPrice,
-  required int unregistered,
-}) {
+String checkoutLeftOutMessage({required int withoutPrice, required int unregistered}) {
   if (unregistered == 0) {
     return withoutPrice == 1
         ? '1 item sem preço não entrou na compra.'
         : '$withoutPrice itens sem preço não entraram na compra.';
   }
   final total = withoutPrice + unregistered;
-  return total == 1
-      ? '1 item não entrou na compra.'
-      : '$total itens não entraram na compra.';
+  return total == 1 ? '1 item não entrou na compra.' : '$total itens não entraram na compra.';
 }
 
 /// A packaging read that still waits for its price. Screen state, outside the
@@ -107,8 +102,7 @@ class CheckoutScreen extends ConsumerStatefulWidget {
   ConsumerState<CheckoutScreen> createState() => _CheckoutScreenState();
 }
 
-class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
-    with SingleTickerProviderStateMixin {
+class _CheckoutScreenState extends ConsumerState<CheckoutScreen> with SingleTickerProviderStateMixin {
   static const _cameraHeight = 220.0;
 
   Future<void> _last = Future<void>.value();
@@ -124,10 +118,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   // An animation and not a Timer: `pumpAndSettle` waits for it, and a Timer
   // left pending would fail the test.
-  late final _flash = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 150),
-  );
+  late final _flash = AnimationController(vsync: this, duration: const Duration(milliseconds: 150));
   final _scroll = ScrollController();
 
   @override
@@ -140,8 +131,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     super.dispose();
   }
 
-  IList<Store> get _stores =>
-      ref.read(storeViewModelProvider).value ?? const IList<Store>.empty();
+  IList<Store> get _stores => ref.read(storeViewModelProvider).value ?? const IList<Store>.empty();
 
   // putItem/removeItem/setStore return null WITHOUT writing while another write
   // runs (rule 14 inside _mutate), and the state only changes after the save.
@@ -156,9 +146,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         // A job that throws would leave _last failed: every later read would
         // be skipped in silence, and the await in _conclude would rethrow.
         if (mounted) {
-          messenger.showSnackBar(
-            SnackBar(content: Text(translateError(e, st, 'ler o código'))),
-          );
+          messenger.showSnackBar(SnackBar(content: Text(translateError(e, st, 'ler o código'))));
         }
       }
     });
@@ -172,23 +160,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   Future<void> _handleScan(String raw, {String? storeId}) async {
     final draft = ref.read(purchaseDraftViewModelProvider);
-    final resolution = resolveScan(
-      raw,
-      widget.options(),
-      storeId: storeId ?? draft.storeId,
-    );
+    final resolution = resolveScan(raw, widget.options(), storeId: storeId ?? draft.storeId);
     await _apply(resolution, raw);
   }
 
   Future<void> _apply(ScanResolution resolution, String raw) async {
     final messenger = ScaffoldMessenger.of(context);
-    final adopted = ref
-        .read(purchaseDraftViewModelProvider)
-        .storeAdoptedFrom(resolution);
+    final adopted = ref.read(purchaseDraftViewModelProvider).storeAdoptedFrom(resolution);
     if (adopted != null) {
-      final error = await ref
-          .read(purchaseDraftViewModelProvider.notifier)
-          .setStore(adopted);
+      final error = await ref.read(purchaseDraftViewModelProvider.notifier).setStore(adopted);
       if (!mounted) return;
       if (error != null) {
         messenger.showSnackBar(SnackBar(content: Text(error)));
@@ -204,9 +184,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         // the next read sees the old items.
         await _put(item);
       case QuantityIncreased() && final step:
-        _feedback(
-          '✓ ${step.item.label}  ${formatMoney(step.addedPaid(items))}',
-        );
+        _feedback('✓ ${step.item.label}  ${formatMoney(step.addedPaid(items))}');
         await _put(step.item);
       case NeedsPrice() && final need:
         _addPending(need);
@@ -214,26 +192,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
       case CheckoutNoMatch(:final code):
         await _askToRegister(code, raw);
       case CheckoutScaleUnlinked(:final itemCode, :final weightInGrams):
-        await _linkLabel(
-          ScaleUnlinked(itemCode: itemCode, weightInGrams: weightInGrams),
-        );
+        await _linkLabel(ScaleUnlinked(itemCode: itemCode, weightInGrams: weightInGrams));
       case CheckoutScaleInManyStores(:final storeIds):
         _asking = true;
-        final chosen = await ScaleStoreDialog.show(
-          context,
-          storeIds: storeIds,
-          stores: _stores,
-        );
+        final chosen = await ScaleStoreDialog.show(context, storeIds: storeIds, stores: _stores);
         _asking = false;
         if (!mounted || chosen == null) return;
         // With the store given, `resolveScan` answers `ScaleMatch`, and the
         // step above adopts the store.
         await _handleScan(raw, storeId: chosen);
       case CheckoutUnknownLabel():
-        setState(
-          () => _lastRead =
-              'Não conheço esta etiqueta. Escolha o produto pela lista.',
-        );
+        setState(() => _lastRead = 'Não conheço esta etiqueta. Escolha o produto pela lista.');
       case CheckoutInvalid():
         setState(() => _lastRead = 'Código de barras inválido.');
     }
@@ -241,9 +210,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   Future<void> _put(PurchaseItem item) async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await ref
-        .read(purchaseDraftViewModelProvider.notifier)
-        .putItem(item);
+    final error = await ref.read(purchaseDraftViewModelProvider.notifier).putItem(item);
     if (!mounted) return;
     // `_mutate` swaps the state even on error: the line stays on screen.
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
@@ -251,9 +218,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   Future<void> _remove(String id) async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await ref
-        .read(purchaseDraftViewModelProvider.notifier)
-        .removeItem(id);
+    final error = await ref.read(purchaseDraftViewModelProvider.notifier).removeItem(id);
     if (!mounted) return;
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
   }
@@ -274,15 +239,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
         return;
       }
     }
-    setState(
-      () => _pending.add(
-        _PendingLine(
-          key: _nextKey++,
-          need: need,
-          price: TextEditingController(),
-        ),
-      ),
-    );
+    setState(() => _pending.add(_PendingLine(key: _nextKey++, need: need, price: TextEditingController())));
     // So the new field is on screen.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _scroll.hasClients) {
@@ -296,9 +253,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
   }
 
   void _confirmPrice(_PendingLine line) {
-    final item = line.need.pricedAt(
-      Money(UnitSpec.currency.parse(line.price.text)),
-    );
+    final item = line.need.pricedAt(Money(UnitSpec.currency.parse(line.price.text)));
     if (item == null) {
       setState(() => line.error = 'Informe um valor válido.');
       return;
@@ -416,9 +371,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 
   Future<void> _confirmItemPrice(String itemId) async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await ref
-        .read(purchaseDraftViewModelProvider.notifier)
-        .confirmPrice(itemId);
+    final error = await ref.read(purchaseDraftViewModelProvider.notifier).confirmPrice(itemId);
     if (!mounted) return;
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
   }
@@ -442,12 +395,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        content: Text(
-          checkoutLeftOutMessage(
-            withoutPrice: _pending.length,
-            unregistered: _unregistered.length,
-          ),
-        ),
+        content: Text(checkoutLeftOutMessage(withoutPrice: _pending.length, unregistered: _unregistered.length)),
         actions: [
           TextButton(
             key: const ValueKey('checkout-exit-back'),
@@ -507,14 +455,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                   builder: (context, child) => DecoratedBox(
                     position: DecorationPosition.foreground,
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        width: 4,
-                        color: Color.lerp(
-                          Colors.transparent,
-                          Colors.green,
-                          _flash.value,
-                        )!,
-                      ),
+                      border: Border.all(width: 4, color: Color.lerp(Colors.transparent, Colors.green, _flash.value)!),
                     ),
                     child: child,
                   ),
@@ -552,8 +493,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
                       PurchaseItemRow(
                         item: item,
                         onEdit: () => _edit(item),
-                        onConfirmPrice: () =>
-                            _enqueue(() => _confirmItemPrice(item.id)),
+                        onConfirmPrice: () => _enqueue(() => _confirmItemPrice(item.id)),
                       ),
                     for (final line in _pending)
                       _PendingPriceRow(
@@ -574,9 +514,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
           ),
         ),
         // Gone with the keyboard, like the footer of screen 3.
-        bottomNavigationBar: widget.keyboardUp
-            ? null
-            : _CheckoutFooter(count: draft.items.length, total: draft.total),
+        bottomNavigationBar: widget.keyboardUp ? null : _CheckoutFooter(count: draft.items.length, total: draft.total),
       ),
     );
   }
@@ -585,11 +523,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen>
 /// The line of a packaging with no earlier purchase: the price is typed right
 /// here. A field in a repeatable line is exception 1 of `ui-conventions.md`.
 class _PendingPriceRow extends StatelessWidget {
-  const _PendingPriceRow({
-    required this.line,
-    required this.onConfirm,
-    super.key,
-  });
+  const _PendingPriceRow({required this.line, required this.onConfirm, super.key});
 
   final _PendingLine line;
   final VoidCallback onConfirm;
@@ -597,7 +531,7 @@ class _PendingPriceRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final option = line.need.option;
-    final spec = option.isSoldByWeight ? specOf(option.baseUnit) : countSpec;
+    final spec = option.isLoose ? specOf(option.baseUnit) : countSpec;
     final quantity = spec.format(line.need.quantity);
 
     return Padding(
@@ -628,10 +562,7 @@ class _PendingPriceRow extends StatelessWidget {
               ),
             ],
           ),
-          Text(
-            'sem compra anterior',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
+          Text('sem compra anterior', style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );

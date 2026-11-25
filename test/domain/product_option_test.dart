@@ -16,24 +16,9 @@ import 'package:shopping_list/domain/models/scale_label.dart';
 import '../helpers/purchase.dart' as fixtures;
 
 void main() {
-  final softDrink = ProductType(
-    id: 'type-1',
-    name: 'Refrigerante',
-    categoryId: 'cat-1',
-    baseUnit: BaseUnit.milliliter,
-  );
-  final beef = ProductType(
-    id: 'type-2',
-    name: 'Acém moído',
-    categoryId: 'cat-2',
-    baseUnit: BaseUnit.gram,
-  );
-  final paper = ProductType(
-    id: 'type-3',
-    name: 'Papel higiênico',
-    categoryId: 'cat-3',
-    baseUnit: BaseUnit.unit,
-  );
+  final softDrink = ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
+  final beef = ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram);
+  final paper = ProductType(id: 'type-3', name: 'Papel higiênico', categoryId: 'cat-3', baseUnit: BaseUnit.unit);
   final coke = Brand(id: 'brand-1', name: 'Coca-Cola');
 
   ProductOption byPiece({
@@ -50,11 +35,7 @@ void main() {
     product: Product(
       id: id,
       productRegistrationId: 'reg-1',
-      packaging: Packaging(
-        pieceCount: pieceCount,
-        pieceSize: pieceSize,
-        baseUnit: unit,
-      ),
+      packaging: Packaging(pieceCount: pieceCount, pieceSize: pieceSize, baseUnit: unit),
     ),
     registration: ProductRegistration(
       id: 'reg-1',
@@ -71,28 +52,15 @@ void main() {
 
   final groundBeef = ProductOption(
     product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
-    registration: ProductRegistration(
-      id: 'reg-2',
-      productTypeId: 'type-2',
-      sellingMode: SellingMode.byWeight,
-    ),
+    registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
     type: beef,
   );
 
   group('label', () {
     test('joins brand, description and packaging, skipping what is absent', () {
+      expect(byPiece(id: 'p1', brand: coke, pieceCount: 12).label, 'Coca-Cola 12 × 350 ml');
       expect(
-        byPiece(id: 'p1', brand: coke, pieceCount: 12).label,
-        'Coca-Cola 12 × 350 ml',
-      );
-      expect(
-        byPiece(
-          id: 'p2',
-          brand: coke,
-          description: 'zero',
-          pieceSize: 2000,
-          unit: BaseUnit.milliliter,
-        ).label,
+        byPiece(id: 'p2', brand: coke, description: 'zero', pieceSize: 2000, unit: BaseUnit.milliliter).label,
         'Coca-Cola zero 2 L',
       );
       // No brand and no description: the packaging alone. The type is the
@@ -109,45 +77,26 @@ void main() {
 
   group('selectedLabel', () {
     test('puts the type in front of brand, description and packaging', () {
+      expect(byPiece(id: 'p1', brand: coke, pieceCount: 12).selectedLabel, 'Refrigerante Coca-Cola 12 × 350 ml');
       expect(
-        byPiece(id: 'p1', brand: coke, pieceCount: 12).selectedLabel,
-        'Refrigerante Coca-Cola 12 × 350 ml',
-      );
-      expect(
-        byPiece(
-          id: 'p2',
-          brand: coke,
-          description: 'zero',
-          pieceSize: 2000,
-        ).selectedLabel,
+        byPiece(id: 'p2', brand: coke, description: 'zero', pieceSize: 2000).selectedLabel,
         'Refrigerante Coca-Cola zero 2 L',
       );
     });
 
-    test(
-      'with no brand and no description, the type carries the packaging',
-      () {
-        expect(byPiece(id: 'p3').selectedLabel, 'Refrigerante 350 ml');
-      },
-    );
+    test('with no brand and no description, the type carries the packaging', () {
+      expect(byPiece(id: 'p3').selectedLabel, 'Refrigerante 350 ml');
+    });
 
-    test(
-      'does NOT repeat the type the loose product is already named after',
-      () {
-        // 'Acém moído Acém moído (peso)' is what stacking the two getters
-        // would read — the type belongs in there once.
-        expect(groundBeef.selectedLabel, 'Acém moído (peso)');
-      },
-    );
+    test('does NOT repeat the type the loose product is already named after', () {
+      // 'Acém moído Acém moído (peso)' is what stacking the two getters
+      // would read — the type belongs in there once.
+      expect(groundBeef.selectedLabel, 'Acém moído (peso)');
+    });
   });
 
   group('matches', () {
-    final option = byPiece(
-      id: 'p1',
-      brand: coke,
-      description: 'zero',
-      pieceCount: 12,
-    );
+    final option = byPiece(id: 'p1', brand: coke, description: 'zero', pieceCount: 12);
 
     test('matches a stretch, ignoring case, blanks and accents', () {
       for (final query in ['coca', 'COCA', 'cocá', '  Coca ', 'ca-co']) {
@@ -206,22 +155,14 @@ void main() {
 
       final bulkOil = ProductOption(
         product: const Product(id: 'p9', productRegistrationId: 'reg-9'),
-        registration: ProductRegistration(
-          id: 'reg-9',
-          productTypeId: 'type-1',
-          sellingMode: SellingMode.byWeight,
-        ),
+        registration: ProductRegistration(id: 'reg-9', productTypeId: 'type-1', sellingMode: SellingMode.byWeight),
         type: softDrink,
       );
       expect(bulkOil.quantityLabel, 'Volume');
 
       final looseRolls = ProductOption(
         product: const Product(id: 'p8', productRegistrationId: 'reg-8'),
-        registration: ProductRegistration(
-          id: 'reg-8',
-          productTypeId: 'type-3',
-          sellingMode: SellingMode.byWeight,
-        ),
+        registration: ProductRegistration(id: 'reg-8', productTypeId: 'type-3', sellingMode: SellingMode.byWeight),
         type: paper,
       );
       expect(looseRolls.quantityLabel, 'Quantidade');
@@ -238,17 +179,8 @@ void main() {
     });
 
     test('a tie in count goes to the most recently bought', () {
-      final recent = byPiece(
-        id: 'p1',
-        purchaseCount: 3,
-        lastPurchasedOn: DateTime(2026, 8, 20),
-      );
-      final older = byPiece(
-        id: 'p2',
-        pieceSize: 269,
-        purchaseCount: 3,
-        lastPurchasedOn: DateTime(2026, 7, 1),
-      );
+      final recent = byPiece(id: 'p1', purchaseCount: 3, lastPurchasedOn: DateTime(2026, 8, 20));
+      final older = byPiece(id: 'p2', pieceSize: 269, purchaseCount: 3, lastPurchasedOn: DateTime(2026, 7, 1));
 
       expect(compareForPicker(recent, older), lessThan(0));
     });
@@ -293,10 +225,7 @@ void main() {
       expect(groups.last.header, softDrink.name);
       // Inside the group, the most bought first — and NOT interleaved with
       // the beef, which a flat sort would have done.
-      expect(
-        groups.last.options.map((option) => option.purchaseCount).toList(),
-        [4, 1],
-      );
+      expect(groups.last.options.map((option) => option.purchaseCount).toList(), [4, 1]);
     });
 
     test('an empty catalog groups into nothing', () {
@@ -304,86 +233,61 @@ void main() {
     });
   });
 
-  test(
-    'withHistory attaches the count and the reference, keeping the rest',
-    () {
-      final reference = PriceReference(
-        paid: const Money(6200),
-        quantityInBaseUnit: 12000,
-        purchasedOn: DateTime(2026, 8, 18),
-      );
-      final average = PriceBaseline(
-        paid: const Money(12190),
-        quantityInBaseUnit: 8400,
-      );
-      final ranked = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
-        purchaseCount: 4,
-        lastPurchasedOn: DateTime(2026, 8, 18),
-        priceReference: reference,
-        baseline: average,
-      );
+  test('withHistory attaches the count and the reference, keeping the rest', () {
+    final reference = PriceReference(
+      paid: const Money(6200),
+      quantityInBaseUnit: 12000,
+      purchasedOn: DateTime(2026, 8, 18),
+    );
+    final average = PriceBaseline(paid: const Money(12190), quantityInBaseUnit: 8400);
+    final ranked = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
+      purchaseCount: 4,
+      lastPurchasedOn: DateTime(2026, 8, 18),
+      priceReference: reference,
+      baseline: average,
+    );
 
-      expect(ranked.purchaseCount, 4);
-      expect(ranked.priceReference, reference);
-      expect(ranked.baseline, average);
-      expect(ranked.label, 'Coca-Cola 12 × 350 ml');
-      expect(ranked.baseUnit, BaseUnit.milliliter);
-      expect(ranked.id, 'p1');
-      expect(ranked.isSoldByWeight, isFalse);
-    },
-  );
+    expect(ranked.purchaseCount, 4);
+    expect(ranked.priceReference, reference);
+    expect(ranked.baseline, average);
+    expect(ranked.label, 'Coca-Cola 12 × 350 ml');
+    expect(ranked.baseUnit, BaseUnit.milliliter);
+    expect(ranked.id, 'p1');
+    expect(ranked.isSoldByWeight, isFalse);
+  });
 
   group('priceIncreaseFor (H15)', () {
     // 12 × 350 ml, so a crate is 4200 ml; the window paid R$ 121,90 for two
     // of them — R$ 14,51 a litre.
-    ProductOption withAverage() =>
-        byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
-          purchaseCount: 2,
-          baseline: PriceBaseline(
-            paid: const Money(12190),
-            quantityInBaseUnit: 8400,
-          ),
-        );
+    ProductOption withAverage() => byPiece(
+      id: 'p1',
+      brand: coke,
+      pieceCount: 12,
+    ).withHistory(purchaseCount: 2, baseline: PriceBaseline(paid: const Money(12190), quantityInBaseUnit: 8400));
 
     test('the View ASKS the leaf, and the leaf answers the percentage', () {
-      final increase = withAverage().priceIncreaseFor(
-        paid: const Money(7000),
-        quantityInBaseUnit: 4200,
-      );
+      final increase = withAverage().priceIncreaseFor(paid: const Money(7000), quantityInBaseUnit: 4200);
 
       expect(increase!.message, 'Subiu 15% sobre a média');
     });
 
     test('the suggested value of the same window does not alert', () {
-      expect(
-        withAverage().priceIncreaseFor(
-          paid: const Money(6200),
-          quantityInBaseUnit: 4200,
-        ),
-        isNull,
-      );
+      expect(withAverage().priceIncreaseFor(paid: const Money(6200), quantityInBaseUnit: 4200), isNull);
     });
 
     test('a leaf with no baseline stays quiet', () {
-      expect(
-        byPiece(
-          id: 'p1',
-        ).priceIncreaseFor(paid: const Money(7000), quantityInBaseUnit: 4200),
-        isNull,
-      );
+      expect(byPiece(id: 'p1').priceIncreaseFor(paid: const Money(7000), quantityInBaseUnit: 4200), isNull);
     });
   });
 
   test('toJson leaves the baseline out, like the rest of the history', () {
     // The draft in Hive must not grow: the baseline is what the last three
     // months say, not what this option IS.
-    final option = byPiece(id: 'p1', brand: coke, pieceCount: 12).withHistory(
-      purchaseCount: 3,
-      baseline: PriceBaseline(
-        paid: const Money(6200),
-        quantityInBaseUnit: 4200,
-      ),
-    );
+    final option = byPiece(
+      id: 'p1',
+      brand: coke,
+      pieceCount: 12,
+    ).withHistory(purchaseCount: 3, baseline: PriceBaseline(paid: const Money(6200), quantityInBaseUnit: 4200));
 
     expect(option.toJson().containsKey('baseline'), isFalse);
     expect(ProductOption.fromJson(option.toJson()).baseline, isNull);
@@ -448,10 +352,7 @@ void main() {
       isNot(
         option.withHistory(
           purchaseCount: 0,
-          baseline: PriceBaseline(
-            paid: const Money(1000),
-            quantityInBaseUnit: 1000,
-          ),
+          baseline: PriceBaseline(paid: const Money(1000), quantityInBaseUnit: 1000),
         ),
       ),
     );
@@ -459,11 +360,10 @@ void main() {
   });
 
   group('ProductGroup', () {
-    ProductGroup group({String? header, String optionId = 'p1'}) =>
-        ProductGroup(
-          header: header ?? softDrink.name,
-          options: [byPiece(id: optionId)].lock,
-        );
+    ProductGroup group({String? header, String optionId = 'p1'}) => ProductGroup(
+      header: header ?? softDrink.name,
+      options: [byPiece(id: optionId)].lock,
+    );
 
     test('equality covers every field, so the picker does not rebuild', () {
       expect(group(), group());
@@ -485,10 +385,7 @@ void main() {
     const store1Code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
     const store2Code = ScaleCode(storeId: 'store-2', itemCode: '2822521');
 
-    final withBarcode = fixtures.optionByPiece(
-      id: 'a',
-      barcodes: [cokeCode].lock,
-    );
+    final withBarcode = fixtures.optionByPiece(id: 'a', barcodes: [cokeCode].lock);
     final withUpc = fixtures.optionByPiece(id: 'b', barcodes: [upcCode].lock);
     final plain = fixtures.optionByPiece(id: 'c');
 
@@ -507,37 +404,21 @@ void main() {
     });
 
     test('findOptionByBarcode finds the EAN-13 leaf by its UPC-A', () {
-      final ean = fixtures.optionByPiece(
-        id: 'd',
-        barcodes: [Barcode.typed('0012345678905')].lock,
-      );
+      final ean = fixtures.optionByPiece(id: 'd', barcodes: [Barcode.typed('0012345678905')].lock);
       expect(findOptionByBarcode([plain, ean].lock, upcCode), ean);
     });
 
     group('findOptionsByScaleCode', () {
-      final inStore1 = fixtures.optionByWeight(
-        id: 'w1',
-        scaleCodes: [store1Code].lock,
-      );
-      final inStore2 = fixtures.optionByWeight(
-        id: 'w2',
-        scaleCodes: [store2Code].lock,
-      );
+      final inStore1 = fixtures.optionByWeight(id: 'w1', scaleCodes: [store1Code].lock);
+      final inStore2 = fixtures.optionByWeight(id: 'w2', scaleCodes: [store2Code].lock);
 
       test('with a store, only the one of that store', () {
-        final found = findOptionsByScaleCode(
-          [inStore1, inStore2, plain].lock,
-          '2822521',
-          storeId: 'store-2',
-        );
+        final found = findOptionsByScaleCode([inStore1, inStore2, plain].lock, '2822521', storeId: 'store-2');
         expect(found, [inStore2].lock);
       });
 
       test('without a store, the ones of every store, in order', () {
-        final found = findOptionsByScaleCode(
-          [inStore2, plain, inStore1].lock,
-          '2822521',
-        );
+        final found = findOptionsByScaleCode([inStore2, plain, inStore1].lock, '2822521');
         expect(found, [inStore2, inStore1].lock);
       });
 
@@ -546,14 +427,7 @@ void main() {
       });
 
       test('a code that exists only in another store gives an empty list', () {
-        expect(
-          findOptionsByScaleCode(
-            [inStore1].lock,
-            '2822521',
-            storeId: 'store-2',
-          ),
-          isEmpty,
-        );
+        expect(findOptionsByScaleCode([inStore1].lock, '2822521', storeId: 'store-2'), isEmpty);
       });
     });
 
@@ -591,15 +465,45 @@ void main() {
     });
 
     test('toJson leaves the codes out, like the history', () {
-      final option = fixtures.optionByPiece(
-        id: 'a',
-        barcodes: [cokeCode].lock,
-        scaleCodes: [store1Code].lock,
-      );
+      final option = fixtures.optionByPiece(id: 'a', barcodes: [cokeCode].lock, scaleCodes: [store1Code].lock);
 
       final back = ProductOption.fromJson(option.toJson());
       expect(back.product.barcodes, isEmpty);
       expect(back.product.scaleCodes, isEmpty);
+    });
+  });
+
+  group('isLoose (granel na folha)', () {
+    final packagedUnderByWeight = ProductOption(
+      product: Product(
+        id: 'p6',
+        productRegistrationId: 'reg-6',
+        packaging: Packaging(pieceCount: 12, pieceSize: 350, baseUnit: BaseUnit.milliliter),
+      ),
+      registration: ProductRegistration(id: 'reg-6', productTypeId: 'type-1', sellingMode: SellingMode.byWeight),
+      type: softDrink,
+    );
+    final looseUnderByPiece = ProductOption(
+      product: const Product(id: 'p7', productRegistrationId: 'reg-7'),
+      registration: ProductRegistration(id: 'reg-7', productTypeId: 'type-2', sellingMode: SellingMode.byPiece),
+      type: beef,
+    );
+
+    test('reads the leaf, not the registration', () {
+      expect(packagedUnderByWeight.isLoose, isFalse);
+      expect(packagedUnderByWeight.toBaseUnit(1), 4200);
+      expect(packagedUnderByWeight.quantityLabel, 'Quantidade');
+    });
+
+    test('a leaf with no packaging is loose whatever the registration says', () {
+      expect(looseUnderByPiece.isLoose, isTrue);
+      expect(looseUnderByPiece.toBaseUnit(1500), 1500);
+      expect(looseUnderByPiece.quantityLabel, 'Peso');
+    });
+
+    test('isSoldByWeight mirrors isLoose', () {
+      expect(packagedUnderByWeight.isSoldByWeight, packagedUnderByWeight.isLoose);
+      expect(looseUnderByPiece.isSoldByWeight, looseUnderByPiece.isLoose);
     });
   });
 }

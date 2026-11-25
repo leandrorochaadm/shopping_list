@@ -18,9 +18,7 @@ final class PackagingMatch extends ScanResolution {
   final ProductOption option;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is PackagingMatch && other.option == option);
+  bool operator ==(Object other) => identical(this, other) || (other is PackagingMatch && other.option == option);
 
   @override
   int get hashCode => option.hashCode;
@@ -31,25 +29,16 @@ final class PackagingMatch extends ScanResolution {
 
 /// A store scale label linked to a product.
 final class ScaleMatch extends ScanResolution {
-  const ScaleMatch({
-    required this.option,
-    required this.storeId,
-    required this.quantity,
-  });
+  const ScaleMatch({required this.option, required this.storeId, required this.quantity});
 
   /// The one place that decides whether the label's weight becomes the
   /// quantity: only a weight-sold leaf of a gram type takes it.
-  factory ScaleMatch.ofLabel({
-    required ProductOption option,
-    required String storeId,
-    required int weightInGrams,
-  }) => ScaleMatch(
-    option: option,
-    storeId: storeId,
-    quantity: option.isSoldByWeight && option.baseUnit == BaseUnit.gram
-        ? weightInGrams
-        : null,
-  );
+  factory ScaleMatch.ofLabel({required ProductOption option, required String storeId, required int weightInGrams}) =>
+      ScaleMatch(
+        option: option,
+        storeId: storeId,
+        quantity: option.isLoose && option.baseUnit == BaseUnit.gram ? weightInGrams : null,
+      );
 
   final ProductOption option;
   final String storeId;
@@ -60,10 +49,7 @@ final class ScaleMatch extends ScanResolution {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ScaleMatch &&
-          other.option == option &&
-          other.storeId == storeId &&
-          other.quantity == quantity);
+      (other is ScaleMatch && other.option == option && other.storeId == storeId && other.quantity == quantity);
 
   @override
   int get hashCode => Object.hash(option, storeId, quantity);
@@ -84,9 +70,7 @@ final class ScaleInManyStores extends ScanResolution {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ScaleInManyStores &&
-          other.itemCode == itemCode &&
-          other.storeIds == storeIds);
+      (other is ScaleInManyStores && other.itemCode == itemCode && other.storeIds == storeIds);
 
   @override
   int get hashCode => Object.hash(itemCode, storeIds);
@@ -105,18 +89,12 @@ final class ScaleUnlinked extends ScanResolution {
   /// The label the person just linked in "Qual produto é este?", read as if
   /// it had been linked all along.
   ScaleMatch linkedTo(ProductOption option, String storeId) =>
-      ScaleMatch.ofLabel(
-        option: option,
-        storeId: storeId,
-        weightInGrams: weightInGrams,
-      );
+      ScaleMatch.ofLabel(option: option, storeId: storeId, weightInGrams: weightInGrams);
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ScaleUnlinked &&
-          other.itemCode == itemCode &&
-          other.weightInGrams == weightInGrams);
+      (other is ScaleUnlinked && other.itemCode == itemCode && other.weightInGrams == weightInGrams);
 
   @override
   int get hashCode => Object.hash(itemCode, weightInGrams);
@@ -146,8 +124,7 @@ final class NoMatch extends ScanResolution {
   final Barcode code;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) || (other is NoMatch && other.code == code);
+  bool operator ==(Object other) => identical(this, other) || (other is NoMatch && other.code == code);
 
   @override
   int get hashCode => code.hashCode;
@@ -175,20 +152,14 @@ final class InvalidScan extends ScanResolution {
 ///
 /// With [storeId] the scale codes are searched in that store only; without it,
 /// in every store, and a code linked in more than one is [ScaleInManyStores].
-ScanResolution resolveScan(
-  String raw,
-  IList<ProductOption> options, {
-  String? storeId,
-}) {
+ScanResolution resolveScan(String raw, IList<ProductOption> options, {String? storeId}) {
   final label = ScaleLabel.parse(raw);
   if (label != null) return _resolveScale(label, options, storeId);
 
   try {
     final code = Barcode.typed(raw);
     final option = findOptionByBarcode(options, code);
-    return option == null
-        ? NoMatch(code: code)
-        : PackagingMatch(option: option);
+    return option == null ? NoMatch(code: code) : PackagingMatch(option: option);
   } on InStoreBarcode {
     return const UnknownLabel();
   } on InvalidBarcode {
@@ -196,40 +167,23 @@ ScanResolution resolveScan(
   }
 }
 
-ScanResolution _resolveScale(
-  ScaleLabel label,
-  IList<ProductOption> options,
-  String? storeId,
-) {
-  final matches = findOptionsByScaleCode(
-    options,
-    label.itemCode,
-    storeId: storeId,
-  );
+ScanResolution _resolveScale(ScaleLabel label, IList<ProductOption> options, String? storeId) {
+  final matches = findOptionsByScaleCode(options, label.itemCode, storeId: storeId);
   if (matches.isEmpty) {
-    return ScaleUnlinked(
-      itemCode: label.itemCode,
-      weightInGrams: label.weightInGrams,
-    );
+    return ScaleUnlinked(itemCode: label.itemCode, weightInGrams: label.weightInGrams);
   }
 
   final stores = {
     for (final option in matches)
       for (final code in option.product.scaleCodes)
-        if (code.itemCode == label.itemCode &&
-            (storeId == null || code.storeId == storeId))
-          code.storeId,
+        if (code.itemCode == label.itemCode && (storeId == null || code.storeId == storeId)) code.storeId,
   }.toList()..sort();
   if (stores.length > 1) {
     return ScaleInManyStores(itemCode: label.itemCode, storeIds: stores.lock);
   }
 
   final option = matches.first;
-  return ScaleMatch.ofLabel(
-    option: option,
-    storeId: stores.single,
-    weightInGrams: label.weightInGrams,
-  );
+  return ScaleMatch.ofLabel(option: option, storeId: stores.single, weightInGrams: label.weightInGrams);
 }
 
 /// The leaves "Qual produto é este?" offers: only the weight-sold ones have a
@@ -239,8 +193,7 @@ IList<ProductOption> scaleLinkCandidatesOf(IList<ProductOption> options) {
   final seen = <String>{};
   final kept = [
     for (final option in options)
-      if (option.id != null && option.isSoldByWeight && seen.add(option.id!))
-        option,
+      if (option.id != null && option.isLoose && seen.add(option.id!)) option,
   ]..sort(compareForPicker);
   return kept.lock;
 }

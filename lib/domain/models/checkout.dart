@@ -18,8 +18,7 @@ final class ItemAdded extends CheckoutStep {
   final PurchaseItem item;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) || (other is ItemAdded && other.item == item);
+  bool operator ==(Object other) => identical(this, other) || (other is ItemAdded && other.item == item);
 
   @override
   int get hashCode => item.hashCode;
@@ -35,9 +34,7 @@ final class QuantityIncreased extends CheckoutStep {
   final PurchaseItem item;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is QuantityIncreased && other.item == item);
+  bool operator ==(Object other) => identical(this, other) || (other is QuantityIncreased && other.item == item);
 
   @override
   int get hashCode => item.hashCode;
@@ -64,10 +61,7 @@ final class NeedsPrice extends CheckoutStep {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is NeedsPrice &&
-          other.option == option &&
-          other.quantity == quantity);
+      identical(this, other) || (other is NeedsPrice && other.option == option && other.quantity == quantity);
 
   @override
   int get hashCode => Object.hash(option, quantity);
@@ -76,7 +70,7 @@ final class NeedsPrice extends CheckoutStep {
   /// waiting line, as [QuantityIncreased] does with the one that entered. Other
   /// leaf, or a scale label (each weight is a line): `null`.
   NeedsPrice? joining(NeedsPrice next) {
-    if (option.id != next.option.id || option.isSoldByWeight) return null;
+    if (option.id != next.option.id || option.isLoose) return null;
     return NeedsPrice(option: option, quantity: quantity + next.quantity);
   }
 
@@ -88,7 +82,7 @@ final class NeedsPrice extends CheckoutStep {
     return PurchaseItem(
       option: option,
       quantity: quantity,
-      paid: option.isSoldByWeight ? price : Money(price.cents * quantity),
+      paid: option.isLoose ? price : Money(price.cents * quantity),
     );
   }
 
@@ -102,9 +96,7 @@ final class CheckoutNoMatch extends CheckoutStep {
   final Barcode code;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is CheckoutNoMatch && other.code == code);
+  bool operator ==(Object other) => identical(this, other) || (other is CheckoutNoMatch && other.code == code);
 
   @override
   int get hashCode => code.hashCode;
@@ -114,10 +106,7 @@ final class CheckoutNoMatch extends CheckoutStep {
 }
 
 final class CheckoutScaleUnlinked extends CheckoutStep {
-  const CheckoutScaleUnlinked({
-    required this.itemCode,
-    required this.weightInGrams,
-  });
+  const CheckoutScaleUnlinked({required this.itemCode, required this.weightInGrams});
 
   final String itemCode;
   final int weightInGrams;
@@ -125,9 +114,7 @@ final class CheckoutScaleUnlinked extends CheckoutStep {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is CheckoutScaleUnlinked &&
-          other.itemCode == itemCode &&
-          other.weightInGrams == weightInGrams);
+      (other is CheckoutScaleUnlinked && other.itemCode == itemCode && other.weightInGrams == weightInGrams);
 
   @override
   int get hashCode => Object.hash(itemCode, weightInGrams);
@@ -137,10 +124,7 @@ final class CheckoutScaleUnlinked extends CheckoutStep {
 }
 
 final class CheckoutScaleInManyStores extends CheckoutStep {
-  const CheckoutScaleInManyStores({
-    required this.itemCode,
-    required this.storeIds,
-  });
+  const CheckoutScaleInManyStores({required this.itemCode, required this.storeIds});
 
   final String itemCode;
   final IList<String> storeIds;
@@ -148,9 +132,7 @@ final class CheckoutScaleInManyStores extends CheckoutStep {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is CheckoutScaleInManyStores &&
-          other.itemCode == itemCode &&
-          other.storeIds == storeIds);
+      (other is CheckoutScaleInManyStores && other.itemCode == itemCode && other.storeIds == storeIds);
 
   @override
   int get hashCode => Object.hash(itemCode, storeIds);
@@ -187,18 +169,17 @@ final class CheckoutInvalid extends CheckoutStep {
 
 /// The rule of checkout mode: each read becomes a step of the cart. Pure — it
 /// does not touch the draft; whoever saves the line is the screen.
-CheckoutStep checkoutScan(
-  ScanResolution resolution,
-  IList<PurchaseItem> items,
-) => switch (resolution) {
+CheckoutStep checkoutScan(ScanResolution resolution, IList<PurchaseItem> items) => switch (resolution) {
   PackagingMatch(:final option) => _packaging(option, items),
   ScaleMatch(:final option, :final quantity) =>
     quantity == null
         ? const CheckoutUnknownLabel()
         // A scale label is ALWAYS a new line, never a sum.
         : _priced(option, quantity),
-  ScaleInManyStores(:final itemCode, :final storeIds) =>
-    CheckoutScaleInManyStores(itemCode: itemCode, storeIds: storeIds),
+  ScaleInManyStores(:final itemCode, :final storeIds) => CheckoutScaleInManyStores(
+    itemCode: itemCode,
+    storeIds: storeIds,
+  ),
   ScaleUnlinked(:final itemCode, :final weightInGrams) => CheckoutScaleUnlinked(
     itemCode: itemCode,
     weightInGrams: weightInGrams,
@@ -212,9 +193,7 @@ CheckoutStep _packaging(ProductOption option, IList<PurchaseItem> items) {
   // The packaging is the LEAF: a can and a pack of the same registration are
   // different lines. A packaged leaf is always sold by piece, so +1 is one
   // package.
-  final existing = items
-      .where((item) => item.option.id == option.id)
-      .firstOrNull;
+  final existing = items.where((item) => item.option.id == option.id).firstOrNull;
   if (existing != null) {
     final next = existing.quantity + 1;
     return QuantityIncreased(
@@ -242,5 +221,4 @@ CheckoutStep _priced(ProductOption option, int quantity) {
 
 // Same formula as `PriceReference.estimateFor`:
 // floor(v + 0.5) == (2·numerator + denominator) ~/ (2·denominator).
-Money _scaled(Money paid, {required int from, required int to}) =>
-    Money((paid.cents * to * 2 + from) ~/ (from * 2));
+Money _scaled(Money paid, {required int from, required int to}) => Money((paid.cents * to * 2 + from) ~/ (from * 2));

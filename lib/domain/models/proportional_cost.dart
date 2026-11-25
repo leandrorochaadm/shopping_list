@@ -31,8 +31,7 @@ const int costTieThreshold = 1;
 ///
 /// **It is the only place that answers this.** The View asks (rule 11); it
 /// does not look at `packaging == null` inside a `build()`.
-bool acceptsTypedContentOf(ProductOption option) =>
-    option.isSoldByWeight || option.product.packaging == null;
+bool acceptsTypedContentOf(ProductOption option) => option.isLoose;
 
 /// How much content **one** typed price buys, in the base unit.
 ///
@@ -53,7 +52,7 @@ bool acceptsTypedContentOf(ProductOption option) =>
 /// while nobody says otherwise.
 int contentPricedOf(ProductOption option, {int? typedContent}) {
   final packaging = option.product.packaging;
-  if (option.isSoldByWeight || packaging == null) {
+  if (option.isLoose || packaging == null) {
     // The guard costs one line and is the only division by zero that would
     // take the whole panel down: `parseAmount` never returns zero, and a line
     // with no valid content does not even reach here (see `rankCosts`).
@@ -78,7 +77,7 @@ int contentPricedOf(ProductOption option, {int? typedContent}) {
 Money? openingPriceOf(ProductOption option) {
   final reference = option.priceReference;
   if (reference == null) return null;
-  return option.isSoldByWeight
+  return option.isLoose
       ? Money(reference.costPerBaseUnit(option.baseUnit))
       : reference.estimateFor(contentPricedOf(option));
 }
@@ -130,17 +129,14 @@ final class CostCandidates {
     }
     return CostCandidates(
       // A leaf registered just now is not in `all` yet.
-      all: all.any((candidate) => candidate.id == id)
-          ? all
-          : all.add(option).sort(compareForPicker),
+      all: all.any((candidate) => candidate.id == id) ? all : all.add(option).sort(compareForPicker),
       shown: shown.add(option).sort(compareForPicker),
     );
   }
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is CostCandidates && other.all == all && other.shown == shown);
+      identical(this, other) || (other is CostCandidates && other.all == all && other.shown == shown);
 
   @override
   int get hashCode => Object.hash(all, shown);
@@ -173,10 +169,7 @@ CostCandidates costCandidatesOf({
   // panel keeps one text controller PER ID, and a leaf with no id would have
   // nowhere to write its price. A leaf with no id has also never been
   // written, has no history, and cannot be the one a purchase points at.
-  final all = options
-      .where((option) => option.id != null && option.type.id == typeId)
-      .toIList()
-      .sort(compareForPicker);
+  final all = options.where((option) => option.id != null && option.type.id == typeId).toIList().sort(compareForPicker);
   final recent = all.where((option) => option.priceReference != null).toIList();
 
   // With fewer than two bought inside the window the cut cuts nothing: the
@@ -191,10 +184,7 @@ CostCandidates costCandidatesOf({
   // passed the filter above, and the panel would die on
   // `_priceControllers[line.option.id]!`, which would have created no
   // controller for it.
-  final shown =
-      launching == null ||
-          recent.contains(launching) ||
-          !all.contains(launching)
+  final shown = launching == null || recent.contains(launching) || !all.contains(launching)
       ? recent
       : recent.add(launching).sort(compareForPicker);
 
@@ -269,30 +259,16 @@ final class CostLine {
           other.isBest == isBest);
 
   @override
-  int get hashCode => Object.hash(
-    option,
-    selected,
-    price,
-    costPerBaseUnit,
-    savingPercent,
-    isBest,
-  );
+  int get hashCode => Object.hash(option, selected, price, costPerBaseUnit, savingPercent, isBest);
 
   @override
-  String toString() =>
-      'CostLine(${option.label}, $costPerBaseUnit, best: $isBest)';
+  String toString() => 'CostLine(${option.label}, $costPerBaseUnit, best: $isBest)';
 }
 
 /// What the whole panel draws: the lines in the right order, who won, where
 /// `[ Usar… ]` points, and the sentence of the footer.
 final class CostRanking {
-  const CostRanking({
-    required this.lines,
-    required this.headline,
-    this.best,
-    this.usable,
-    this.missingPriceOf,
-  });
+  const CostRanking({required this.lines, required this.headline, this.best, this.usable, this.missingPriceOf});
 
   /// Every line of the panel, **ordered**: first the ones that compete, from
   /// the lowest to the highest cost per base unit; then the ticked ones still
@@ -331,8 +307,7 @@ final class CostRanking {
           other.missingPriceOf == missingPriceOf);
 
   @override
-  int get hashCode =>
-      Object.hash(lines, headline, best, usable, missingPriceOf);
+  int get hashCode => Object.hash(lines, headline, best, usable, missingPriceOf);
 
   @override
   String toString() => 'CostRanking(${lines.length} lines, best: ${best?.id})';
@@ -342,11 +317,7 @@ final class CostRanking {
 /// on screen 3 (packages, or the smallest unit when sold by weight) and the
 /// total paid.
 final class CostPick {
-  const CostPick({
-    required this.option,
-    required this.quantity,
-    required this.paid,
-  });
+  const CostPick({required this.option, required this.quantity, required this.paid});
 
   final ProductOption option;
   final int quantity;
@@ -355,10 +326,7 @@ final class CostPick {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is CostPick &&
-          other.option == option &&
-          other.quantity == quantity &&
-          other.paid == paid);
+      (other is CostPick && other.option == option && other.quantity == quantity && other.paid == paid);
 
   @override
   int get hashCode => Object.hash(option, quantity, paid);
@@ -372,11 +340,7 @@ final class CostPick {
 /// [typedContent] follows the contract of `rankCosts`: a `null` value is the
 /// cleared field, and an absent key is nobody having typed (the "1 kg" the
 /// field opens with, F-m).
-CostPick? costPickOf(
-  CostRanking ranking,
-  IMap<String, Money> prices,
-  IMap<String, int?> typedContent,
-) {
+CostPick? costPickOf(CostRanking ranking, IMap<String, Money> prices, IMap<String, int?> typedContent) {
   final option = ranking.usable;
   final id = option?.id;
   if (option == null || id == null) return null;
@@ -387,11 +351,7 @@ CostPick? costPickOf(
     return CostPick(option: option, quantity: 1, paid: price);
   }
   if (!typedContent.containsKey(id)) {
-    return CostPick(
-      option: option,
-      quantity: option.baseUnit.unitsPerLargeUnit,
-      paid: price,
-    );
+    return CostPick(option: option, quantity: option.baseUnit.unitsPerLargeUnit, paid: price);
   }
   final typed = typedContent[id];
   if (typed == null || typed <= 0) return null;
@@ -410,8 +370,7 @@ final class AlreadyShown extends ScanAdmission {
   final String id;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) || (other is AlreadyShown && other.id == id);
+  bool operator ==(Object other) => identical(this, other) || (other is AlreadyShown && other.id == id);
 
   @override
   int get hashCode => id.hashCode;
@@ -428,9 +387,7 @@ final class AddedToShown extends ScanAdmission {
   final ProductOption option;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is AddedToShown && other.option == option);
+  bool operator ==(Object other) => identical(this, other) || (other is AddedToShown && other.option == option);
 
   @override
   int get hashCode => option.hashCode;
@@ -446,9 +403,7 @@ final class OtherType extends ScanAdmission {
   final ProductType scannedType;
 
   @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is OtherType && other.scannedType == scannedType);
+  bool operator ==(Object other) => identical(this, other) || (other is OtherType && other.scannedType == scannedType);
 
   @override
   int get hashCode => scannedType.hashCode;
@@ -461,8 +416,7 @@ final class OtherType extends ScanAdmission {
 /// from another read of the options and its history may differ.
 ScanAdmission admitScan(CostCandidates candidates, ProductOption scanned) {
   // Every leaf of `all` is of one type, by construction of `costCandidatesOf`.
-  if (candidates.all.isEmpty ||
-      scanned.type.id != candidates.all.first.type.id) {
+  if (candidates.all.isEmpty || scanned.type.id != candidates.all.first.type.id) {
     return OtherType(scannedType: scanned.type);
   }
   if (candidates.shown.any((option) => option.id == scanned.id)) {
@@ -526,9 +480,7 @@ CostRanking rankCosts({
       aside.add(option);
     } else if (price == null || price.cents <= 0) {
       waiting.add(option);
-    } else if (acceptsTypedContentOf(option) &&
-        hasTypedContent &&
-        typedContent == null) {
+    } else if (acceptsTypedContentOf(option) && hasTypedContent && typedContent == null) {
       // Ticked, with a price, and the quantity field empty or invalid: it
       // waits. Falling back to one kilo here would show a plausible and wrong
       // cost, which is the worst outcome a calculator has.
@@ -556,12 +508,8 @@ CostRanking rankCosts({
   ProductOption? usable = leader?.option;
   String? missingPriceOf;
   if (pickedId != null) {
-    final pickedContender = competing
-        .where((contender) => contender.option.id == pickedId)
-        .firstOrNull;
-    final pickedWaiting = waiting
-        .where((option) => option.id == pickedId)
-        .firstOrNull;
+    final pickedContender = competing.where((contender) => contender.option.id == pickedId).firstOrNull;
+    final pickedWaiting = waiting.where((option) => option.id == pickedId).firstOrNull;
     if (pickedContender != null) {
       usable = pickedContender.option;
     } else if (pickedWaiting != null) {
@@ -569,9 +517,7 @@ CostRanking rankCosts({
       final price = prices[pickedId];
       // A ticked line with a price but no content waits WITHOUT a sentence:
       // the empty field on the line is already the warning.
-      missingPriceOf = price == null || price.cents <= 0
-          ? pickedWaiting.label
-          : null;
+      missingPriceOf = price == null || price.cents <= 0 ? pickedWaiting.label : null;
     }
   }
   // The tie is between the FIRST and the SECOND: below the cut nobody is
@@ -587,9 +533,7 @@ CostRanking rankCosts({
         costPerBaseUnit: contender.costPerBaseUnit(baseUnit),
         // On the leader there is never a difference to show; on the others,
         // only when it reaches the cut (F-d).
-        savingPercent: leader == null || identical(contender, leader)
-            ? null
-            : _savingPercent(contender, leader),
+        savingPercent: leader == null || identical(contender, leader) ? null : _savingPercent(contender, leader),
         isBest: !tied && identical(contender, leader),
       ),
     for (final option in waiting) CostLine(option: option, selected: true),
@@ -617,9 +561,7 @@ CostRanking rankCosts({
       // ones `[ Ver todas do tipo ]` still hides. Asking the whole map would
       // let a hidden leaf with a price swap "Digite os preços" for "Preencha
       // o preço de duas opções" on a screen where nothing has a price.
-      anyPrice: options.any(
-        (option) => option.id != null && prices[option.id!] != null,
-      ),
+      anyPrice: options.any((option) => option.id != null && prices[option.id!] != null),
       baseUnit: baseUnit,
     ),
   );
@@ -629,11 +571,7 @@ CostRanking rankCosts({
 /// content. Private because it is [rankCosts]'s machinery and does not leave
 /// this file.
 final class _Contender {
-  const _Contender({
-    required this.option,
-    required this.cents,
-    required this.content,
-  });
+  const _Contender({required this.option, required this.cents, required this.content});
 
   final ProductOption option;
   final int cents;

@@ -42,9 +42,7 @@ final class ProductOption {
     return ProductOption(
       product: Product.fromJson(json),
       registration: ProductRegistration.fromJson(registration),
-      type: ProductType.fromJson(
-        registration['product_type'] as Map<String, dynamic>,
-      ),
+      type: ProductType.fromJson(registration['product_type'] as Map<String, dynamic>),
       // Null is "Sem marca" (decision B2) — a real answer, not missing data,
       // which is why the embed comes without `!inner`.
       brand: brand == null ? null : Brand.fromJson(brand),
@@ -64,11 +62,7 @@ final class ProductOption {
   /// every load. The product's codes stay out too, for the same reason.
   Map<String, dynamic> toJson() => {
     ...product.toJson(),
-    'product_registration': {
-      ...registration.toJson(),
-      'product_type': type.toJson(),
-      'brand': brand?.toJson(),
-    },
+    'product_registration': {...registration.toJson(), 'product_type': type.toJson(), 'brand': brand?.toJson()},
   };
 
   final Product product;
@@ -106,7 +100,11 @@ final class ProductOption {
 
   BaseUnit get baseUnit => type.baseUnit;
 
-  bool get isSoldByWeight => registration.isSoldByWeight;
+  /// Whether the leaf is loose (bulk). The leaf decides: `packaging == null`.
+  bool get isLoose => product.isLoose;
+
+  /// Another name for [isLoose].
+  bool get isSoldByWeight => isLoose;
 
   /// 'Coca-Cola 12 × 350 ml', 'Coca-Cola zero 2 L', 'Acém moído (peso)'.
   ///
@@ -120,8 +118,7 @@ final class ProductOption {
   /// and the group header already says it — except when nothing else is left,
   /// which is the weight-sold product with no brand and no description: there
   /// the type name IS the name of the thing.
-  String get label =>
-      _join(_identifyingParts.isEmpty ? [type.name] : _identifyingParts);
+  String get label => _join(_identifyingParts.isEmpty ? [type.name] : _identifyingParts);
 
   /// 'Refrigerante Coca-Cola 12 × 350 ml', 'Acém moído (peso)'.
   ///
@@ -146,11 +143,8 @@ final class ProductOption {
   ];
 
   /// The loose suffix goes on last, and on both labels.
-  String _join(List<String> parts) => [
-    ...parts,
-    if (isSoldByWeight)
-      '(${SellingChoice.looseNameOf(baseUnit).toLowerCase()})',
-  ].join(' ');
+  String _join(List<String> parts) =>
+      [...parts, if (isLoose) '(${SellingChoice.looseNameOf(baseUnit).toLowerCase()})'].join(' ');
 
   /// The C1 search: it matches a STRETCH of the name, ignoring case, blanks
   /// and accents — `normalizeName` on both sides, then `contains`.
@@ -172,14 +166,8 @@ final class ProductOption {
   ///
   /// [quantityInBaseUnit] is what [toBaseUnit] already converted — the screen
   /// never hands the raw typed number over.
-  PriceIncrease? priceIncreaseFor({
-    required Money paid,
-    required int quantityInBaseUnit,
-  }) => evaluatePriceIncrease(
-    baseline: baseline,
-    paid: paid,
-    quantityInBaseUnit: quantityInBaseUnit,
-  );
+  PriceIncrease? priceIncreaseFor({required Money paid, required int quantityInBaseUnit}) =>
+      evaluatePriceIncrease(baseline: baseline, paid: paid, quantityInBaseUnit: quantityInBaseUnit);
 
   /// Turns what was typed into the type's base unit — and this is the only
   /// place that conversion exists.
@@ -191,7 +179,7 @@ final class ProductOption {
   /// centimetres and passes straight through.
   int toBaseUnit(int typedQuantity) {
     final packaging = product.packaging;
-    if (isSoldByWeight || packaging == null) return typedQuantity;
+    if (isLoose || packaging == null) return typedQuantity;
     return typedQuantity * packaging.totalContent;
   }
 
@@ -203,7 +191,7 @@ final class ProductOption {
   /// writes it ('1,250 kg'), so a label saying '(g)' beside a value ending in
   /// 'kg' named two different units for the same number.
   String get quantityLabel {
-    if (!isSoldByWeight) return 'Quantidade';
+    if (!isLoose) return 'Quantidade';
     return switch (baseUnit) {
       BaseUnit.gram => 'Peso',
       BaseUnit.milliliter => 'Volume',
@@ -245,16 +233,8 @@ final class ProductOption {
           other.baseline == baseline);
 
   @override
-  int get hashCode => Object.hash(
-    product,
-    registration,
-    type,
-    brand,
-    purchaseCount,
-    lastPurchasedOn,
-    priceReference,
-    baseline,
-  );
+  int get hashCode =>
+      Object.hash(product, registration, type, brand, purchaseCount, lastPurchasedOn, priceReference, baseline);
 
   @override
   String toString() => 'ProductOption($label, bought $purchaseCount)';
@@ -298,10 +278,7 @@ final class ProductGroup {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ProductGroup &&
-          other.header == header &&
-          other.options == options;
+      identical(this, other) || other is ProductGroup && other.header == header && other.options == options;
 
   @override
   int get hashCode => Object.hash(header, options);
@@ -332,15 +309,10 @@ IList<ProductGroup> groupForPicker(IList<ProductOption> options) {
     ..sort((a, b) {
       final best = compareForPicker(byType[a]!.first, byType[b]!.first);
       if (best != 0) return best;
-      return normalizeName(
-        types[a]!.name,
-      ).compareTo(normalizeName(types[b]!.name));
+      return normalizeName(types[a]!.name).compareTo(normalizeName(types[b]!.name));
     });
 
-  return [
-    for (final key in keys)
-      ProductGroup(header: types[key]!.name, options: byType[key]!.toIList()),
-  ].toIList();
+  return [for (final key in keys) ProductGroup(header: types[key]!.name, options: byType[key]!.toIList())].toIList();
 }
 
 /// The option whose packaging has [code], or null. The database index keeps it
@@ -357,16 +329,10 @@ ProductOption? findOptionByBarcode(IList<ProductOption> options, Barcode code) {
 
 /// The options with a scale code equal to [itemCode] — in [storeId] only, or in
 /// every store when it is null. Keeps the order of [options].
-IList<ProductOption> findOptionsByScaleCode(
-  IList<ProductOption> options,
-  String itemCode, {
-  String? storeId,
-}) => [
+IList<ProductOption> findOptionsByScaleCode(IList<ProductOption> options, String itemCode, {String? storeId}) => [
   for (final option in options)
     if (option.product.scaleCodes.any(
-      (code) =>
-          code.itemCode == itemCode &&
-          (storeId == null || code.storeId == storeId),
+      (code) => code.itemCode == itemCode && (storeId == null || code.storeId == storeId),
     ))
       option,
 ].toIList();
