@@ -15,6 +15,9 @@ import '../../core/unit_specs.dart';
 /// exist in an invalid state, and a line being typed is invalid most of the
 /// time — "35" on the way to "350". So the draft holds the raw text and hands
 /// over a [Packaging] only once it parses.
+///
+/// It is outside the domain, and its value equality exists for the
+/// `IList<PackagingDraft>` of the screen.
 final class PackagingDraft {
   const PackagingDraft({
     required this.id,
@@ -22,6 +25,7 @@ final class PackagingDraft {
     this.pieceSize = '',
     this.unit,
     this.barcodes = const IList.empty(),
+    this.loose = false,
   });
 
   /// Stable across rebuilds so Flutter does not confuse two rows when one in
@@ -36,19 +40,25 @@ final class PackagingDraft {
   /// The codes printed on this packaging, already accepted by the card.
   final IList<Barcode> barcodes;
 
-  /// The parsed line, or null while it is incomplete or invalid.
+  /// A loose card has no pieces and no measure: it never becomes a [Packaging].
+  final bool loose;
+
+  /// Whether the card can be saved: a loose card always, a packaging card
+  /// once it parses.
+  bool get isComplete => loose || packaging != null;
+
+  /// The parsed line, or null while it is incomplete or invalid (always null
+  /// on a loose card).
   ///
   /// The text is read by the MASK, which is the only thing that could have
   /// written it; what refuses a zero or a blank is still the domain, in the
   /// [Packaging] constructor.
   Packaging? get packaging {
     final unit = this.unit;
-    if (unit == null) return null;
+    if (loose || unit == null) return null;
     try {
       return Packaging(
-        pieceCount: (unit == BaseUnit.unit ? specOf(unit) : countSpec).parse(
-          pieceCount,
-        ),
+        pieceCount: (unit == BaseUnit.unit ? specOf(unit) : countSpec).parse(pieceCount),
         // A type counted by unit has no measure of its own: the piece IS the
         // unit, so the count is the whole amount.
         pieceSize: unit == BaseUnit.unit ? 1 : specOf(unit).parse(pieceSize),
@@ -62,18 +72,15 @@ final class PackagingDraft {
     }
   }
 
-  PackagingDraft copyWith({
-    String? pieceCount,
-    String? pieceSize,
-    BaseUnit? unit,
-    IList<Barcode>? barcodes,
-  }) => PackagingDraft(
-    id: id,
-    pieceCount: pieceCount ?? this.pieceCount,
-    pieceSize: pieceSize ?? this.pieceSize,
-    unit: unit ?? this.unit,
-    barcodes: barcodes ?? this.barcodes,
-  );
+  PackagingDraft copyWith({String? pieceCount, String? pieceSize, BaseUnit? unit, IList<Barcode>? barcodes}) =>
+      PackagingDraft(
+        id: id,
+        pieceCount: pieceCount ?? this.pieceCount,
+        pieceSize: pieceSize ?? this.pieceSize,
+        unit: unit ?? this.unit,
+        barcodes: barcodes ?? this.barcodes,
+        loose: loose,
+      );
 
   /// Changing the TYPE changes the magnitude of the line, so the unit has to
   /// be replaced — and `copyWith(unit: null)` cannot do it, because null there
@@ -84,15 +91,39 @@ final class PackagingDraft {
     pieceSize: pieceSize,
     unit: unit,
     barcodes: barcodes,
+    loose: loose,
   );
+
+  /// Turning loose gives the card back its initial count and measure, so the
+  /// card that returns to packaging is born like a new one.
+  PackagingDraft withLoose(bool loose) => PackagingDraft(
+    id: id,
+    pieceCount: loose ? '1' : pieceCount,
+    pieceSize: loose ? '' : pieceSize,
+    unit: unit,
+    barcodes: barcodes,
+    loose: loose,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PackagingDraft &&
+          other.id == id &&
+          other.pieceCount == pieceCount &&
+          other.pieceSize == pieceSize &&
+          other.unit == unit &&
+          other.barcodes == barcodes &&
+          other.loose == loose;
+
+  @override
+  int get hashCode => Object.hash(id, pieceCount, pieceSize, unit, barcodes, loose);
 
   /// Lets the refusals of [packagingCodesWith] through: the rule is the
   /// domain's, the draft only keeps the answer.
-  PackagingDraft withBarcode(String raw) =>
-      copyWith(barcodes: packagingCodesWith(barcodes, raw));
+  PackagingDraft withBarcode(String raw) => copyWith(barcodes: packagingCodesWith(barcodes, raw));
 
-  PackagingDraft withoutBarcode(Barcode code) =>
-      copyWith(barcodes: barcodes.remove(code));
+  PackagingDraft withoutBarcode(Barcode code) => copyWith(barcodes: barcodes.remove(code));
 }
 
 /// One packaging being typed, as a card: the two fields on top and what it
@@ -117,6 +148,9 @@ class PackagingRow extends StatefulWidget {
     required this.onRemoved,
     this.enabled = true,
     this.duplicate = false,
+    this.looseAllowed = false,
+    this.packagingAllowed = true,
+    this.looseExtra,
     super.key,
   });
 
@@ -130,6 +164,16 @@ class PackagingRow extends StatefulWidget {
   /// Two identical lines are refused on the spot, and identical is BY CONTENT:
   /// `2 × 500` matches `1 × 1000` because the comparison happens on the total.
   final bool duplicate;
+
+  /// False turns the "A granel" segment off.
+  final bool looseAllowed;
+
+  /// False turns the "Embalagem" segment off (a scale code is pending on the
+  /// loose card).
+  final bool packagingAllowed;
+
+  /// Shown only on the loose card, after "Vendido por …".
+  final Widget? looseExtra;
 
   @override
   State<PackagingRow> createState() => _PackagingRowState();
@@ -154,6 +198,14 @@ class _PackagingRowState extends State<PackagingRow> {
   void dispose() {
     _barcodeText.dispose();
     super.dispose();
+  }
+
+  void _setLoose(bool loose) {
+    if (loose) {
+      _barcodeText.clear();
+      _barcodeError = null;
+    }
+    widget.onChanged(draft.withLoose(loose));
   }
 
   void _include(String raw, {required bool typed}) {
@@ -193,158 +245,173 @@ class _PackagingRowState extends State<PackagingRow> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              // The `×` sits on the BASELINE of what is typed, and no longer
-              // on a padding measured by hand against the old field height:
-              // the filled box and the always-floating label of
-              // `AppTextField` moved that height. `InputDecorator` publishes
-              // the baseline of the typed text, so the `×` follows the field
-              // whatever it grows into — a label, an error line, another
-              // density.
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: [
-                Expanded(
-                  child: AppTextField.unit(
-                    key: ValueKey('count-${draft.id}'),
-                    initialValue: draft.pieceCount,
-                    enabled: enabled,
-                    // "Quantas unidades?" is the Count magnitude of the type
-                    // and reads `un`; "Quantas peças?" counts pieces, and a
-                    // piece is not a unit of measurement.
-                    spec: _countsOnly ? specOf(baseUnit) : countSpec,
-                    // Two fields side by side on a 390 pt phone: there is no
-                    // room for a 24 pt button in either of them.
-                    showClearButton: false,
-                    decoration: InputDecoration(
-                      labelText: _countsOnly
-                          ? 'Quantas unidades?'
-                          : 'Quantas peças?',
-                    ),
-                    // `?? ''`, and it is not decoration: `copyWith` reads null
-                    // as "keep what you had", so a cleared field would come
-                    // back with the value it had just lost.
-                    onChanged: (value) =>
-                        onChanged(draft.copyWith(pieceCount: value ?? '')),
-                  ),
+            SegmentedButton<bool>(
+              key: ValueKey('kind-${draft.id}'),
+              showSelectedIcon: false,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              segments: [
+                ButtonSegment(value: false, label: const Text('Embalagem'), enabled: widget.packagingAllowed),
+                ButtonSegment(
+                  value: true,
+                  label: const Text('A granel'),
+                  enabled: widget.looseAllowed && draft.barcodes.isEmpty,
                 ),
-                if (!_countsOnly) ...[
-                  const Padding(
-                    // The 8 is spacing between siblings, not a measure of the
-                    // field: it stays.
-                    padding: EdgeInsets.symmetric(horizontal: 8),
-                    child: Text('×'),
+              ],
+              selected: {draft.loose},
+              onSelectionChanged: enabled ? (selection) => _setLoose(selection.first) : null,
+            ),
+            if (draft.loose) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('Vendido por ${baseUnit.priceLabel}', key: ValueKey('loose-caption-${draft.id}')),
                   ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Remover'),
+                    onPressed: enabled ? widget.onRemoved : null,
+                  ),
+                ],
+              ),
+              ?widget.looseExtra,
+            ] else ...[
+              Row(
+                // The `×` sits on the BASELINE of what is typed, and no longer
+                // on a padding measured by hand against the old field height:
+                // the filled box and the always-floating label of
+                // `AppTextField` moved that height. `InputDecorator` publishes
+                // the baseline of the typed text, so the `×` follows the field
+                // whatever it grows into — a label, an error line, another
+                // density.
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
                   Expanded(
                     child: AppTextField.unit(
-                      key: ValueKey('size-${draft.id}'),
-                      initialValue: draft.pieceSize,
+                      key: ValueKey('count-${draft.id}'),
+                      initialValue: draft.pieceCount,
                       enabled: enabled,
-                      spec: specOf(baseUnit),
+                      // "Quantas unidades?" is the Count magnitude of the type
+                      // and reads `un`; "Quantas peças?" counts pieces, and a
+                      // piece is not a unit of measurement.
+                      spec: _countsOnly ? specOf(baseUnit) : countSpec,
+                      // Two fields side by side on a 390 pt phone: there is no
+                      // room for a 24 pt button in either of them.
                       showClearButton: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Quanto tem cada?',
+                      decoration: InputDecoration(labelText: _countsOnly ? 'Quantas unidades?' : 'Quantas peças?'),
+                      // `?? ''`, and it is not decoration: `copyWith` reads null
+                      // as "keep what you had", so a cleared field would come
+                      // back with the value it had just lost.
+                      onChanged: (value) => onChanged(draft.copyWith(pieceCount: value ?? '')),
+                    ),
+                  ),
+                  if (!_countsOnly) ...[
+                    const Padding(
+                      // The 8 is spacing between siblings, not a measure of the
+                      // field: it stays.
+                      padding: EdgeInsets.symmetric(horizontal: 8),
+                      child: Text('×'),
+                    ),
+                    Expanded(
+                      child: AppTextField.unit(
+                        key: ValueKey('size-${draft.id}'),
+                        initialValue: draft.pieceSize,
+                        enabled: enabled,
+                        spec: specOf(baseUnit),
+                        showClearButton: false,
+                        decoration: const InputDecoration(labelText: 'Quanto tem cada?'),
+                        onChanged: (value) => onChanged(draft.copyWith(pieceSize: value ?? '')),
                       ),
-                      onChanged: (value) =>
-                          onChanged(draft.copyWith(pieceSize: value ?? '')),
+                    ),
+                  ],
+                ],
+              ),
+              Row(
+                children: [
+                  // The name is never a blank space: half typed, the line says
+                  // WHAT is missing instead of showing nothing and looking
+                  // broken.
+                  Expanded(
+                    child: Text(
+                      _caption(packaging),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: duplicate
+                            ? scheme.error
+                            : packaging == null
+                            ? scheme.onSurfaceVariant
+                            : scheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Remover'),
+                    onPressed: enabled ? widget.onRemoved : null,
+                  ),
+                ],
+              ),
+              Text('Código de barras (opcional)', style: theme.textTheme.bodyMedium),
+              Row(
+                children: [
+                  Expanded(
+                    child: AppTextField(
+                      key: ValueKey('barcode-${draft.id}'),
+                      controller: _barcodeText,
+                      enabled: enabled,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(hintText: 'Código de barras'),
+                      onChanged: (_) {
+                        if (_barcodeError != null) {
+                          setState(() => _barcodeError = null);
+                        }
+                      },
+                      onSubmitted: (text) {
+                        if (text.trim().isNotEmpty) _includeTyped();
+                      },
+                    ),
+                  ),
+                  IconButton(
+                    key: ValueKey('barcode-scan-${draft.id}'),
+                    icon: const Icon(Icons.qr_code_scanner),
+                    tooltip: 'Ler código',
+                    onPressed: enabled ? _scan : null,
+                  ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: _barcodeText,
+                    builder: (context, value, _) => IconButton(
+                      key: ValueKey('barcode-add-${draft.id}'),
+                      icon: const Icon(Icons.add),
+                      tooltip: 'Incluir código',
+                      onPressed: enabled && value.text.trim().isNotEmpty ? _includeTyped : null,
                     ),
                   ),
                 ],
-              ],
-            ),
-            Row(
-              children: [
-                // The name is never a blank space: half typed, the line says
-                // WHAT is missing instead of showing nothing and looking
-                // broken.
-                Expanded(
-                  child: Text(
-                    _caption(packaging),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: duplicate
-                          ? scheme.error
-                          : packaging == null
-                          ? scheme.onSurfaceVariant
-                          : scheme.onSurface,
-                    ),
-                  ),
-                ),
-                TextButton.icon(
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Remover'),
-                  onPressed: enabled ? widget.onRemoved : null,
-                ),
-              ],
-            ),
-            Text(
-              'Código de barras (opcional)',
-              style: theme.textTheme.bodyMedium,
-            ),
-            Row(
-              children: [
-                Expanded(
-                  child: AppTextField(
-                    key: ValueKey('barcode-${draft.id}'),
-                    controller: _barcodeText,
-                    enabled: enabled,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      hintText: 'Código de barras',
-                    ),
-                    onChanged: (_) {
-                      if (_barcodeError != null) {
-                        setState(() => _barcodeError = null);
-                      }
-                    },
-                    onSubmitted: (text) {
-                      if (text.trim().isNotEmpty) _includeTyped();
-                    },
-                  ),
-                ),
-                IconButton(
-                  key: ValueKey('barcode-scan-${draft.id}'),
-                  icon: const Icon(Icons.qr_code_scanner),
-                  tooltip: 'Ler código',
-                  onPressed: enabled ? _scan : null,
-                ),
-                ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _barcodeText,
-                  builder: (context, value, _) => IconButton(
-                    key: ValueKey('barcode-add-${draft.id}'),
-                    icon: const Icon(Icons.add),
-                    tooltip: 'Incluir código',
-                    onPressed: enabled && value.text.trim().isNotEmpty
-                        ? _includeTyped
-                        : null,
-                  ),
-                ),
-              ],
-            ),
-            if (_barcodeError case final error?)
-              Text(
-                error,
-                key: ValueKey('barcode-error-${draft.id}'),
-                style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
               ),
-            if (draft.barcodes.isEmpty)
-              const Text('Nenhum código.')
-            else
-              for (final code in draft.barcodes)
-                Row(
-                  children: [
-                    Expanded(child: Text('• ${code.label}')),
-                    IconButton(
-                      key: ValueKey('barcode-remove-${draft.id}-${code.code}'),
-                      icon: const Icon(Icons.close),
-                      tooltip: 'Remover código',
-                      onPressed: enabled
-                          ? () => widget.onChanged(
-                              widget.draft.withoutBarcode(code),
-                            )
-                          : null,
-                    ),
-                  ],
+              if (_barcodeError case final error?)
+                Text(
+                  error,
+                  key: ValueKey('barcode-error-${draft.id}'),
+                  style: theme.textTheme.bodySmall?.copyWith(color: scheme.error),
                 ),
+              if (draft.barcodes.isEmpty)
+                const Text('Nenhum código.')
+              else
+                for (final code in draft.barcodes)
+                  Row(
+                    children: [
+                      Expanded(child: Text('• ${code.label}')),
+                      IconButton(
+                        key: ValueKey('barcode-remove-${draft.id}-${code.code}'),
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Remover código',
+                        onPressed: enabled ? () => widget.onChanged(widget.draft.withoutBarcode(code)) : null,
+                      ),
+                    ],
+                  ),
+            ],
           ],
         ),
       ),
