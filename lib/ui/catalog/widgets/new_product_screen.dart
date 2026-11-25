@@ -479,9 +479,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     }
 
     setState(() => _writingScaleCode = true);
-    final error = await ref
-        .read(catalogViewModelProvider.notifier)
-        .addScaleCode(registration: _opened!, productId: leaf.id!, code: code);
+    final error = await ref.read(catalogViewModelProvider.notifier).addScaleCode(leaf: leaf, code: code);
     if (!mounted) return null;
     setState(() {
       _writingScaleCode = false;

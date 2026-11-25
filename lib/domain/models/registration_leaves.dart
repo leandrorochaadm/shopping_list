@@ -2,7 +2,6 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 
 import 'packaging.dart';
 import 'product.dart';
-import 'product_registration.dart';
 import 'scale_label.dart';
 
 /// The first active loose leaf (no packaging) of [existing], or null.
@@ -38,4 +37,24 @@ final class LooseAlreadyExists implements Exception {
 
   @override
   String toString() => 'LooseAlreadyExists: $message';
+}
+
+/// Sold by piece and no packaging listed.
+final class MissingPackaging implements Exception {
+  const MissingPackaging();
+
+  String get message => 'Informe ao menos uma embalagem para este produto.';
+
+  @override
+  String toString() => 'MissingPackaging: $message';
+}
+
+/// A scale code came with a product that is not sold loose.
+final class UnexpectedScaleCode implements Exception {
+  const UnexpectedScaleCode();
+
+  String get message => 'Só produto vendido solto tem código de balança.';
+
+  @override
+  String toString() => 'UnexpectedScaleCode: $message';
 }

@@ -3,7 +3,10 @@ import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'brand.dart';
 import 'name_normalization.dart';
 import 'packaging.dart';
+import 'registration_leaves.dart';
 import 'scale_label.dart';
+
+export 'registration_leaves.dart' show MissingPackaging, UnexpectedScaleCode;
 
 /// How the product is bought — and it is a property of the REGISTRATION, not
 /// of the type (decision B4).
@@ -29,6 +32,7 @@ enum SellingMode {
   };
 
   /// Only the product sold loose has a scale code.
+  // Legacy: removed with SellingMode (part 8).
   bool get takesScaleCodes => this == SellingMode.byWeight;
 }
 
@@ -95,6 +99,7 @@ final class ProductRegistration {
     'active': active,
   };
 
+  // Legacy: removed with SellingMode (part 8).
   bool get isSoldByWeight => sellingMode == SellingMode.byWeight;
 
   /// What the item dialog and the list line write for this registration:
@@ -143,6 +148,7 @@ final class ProductRegistration {
   /// * sold BY WEIGHT with packaging is refused — the whole list disappears
   ///   from the screen, so a row arriving here means the screen kept state it
   ///   should have dropped.
+  // Legacy: removed with SellingMode (part 8).
   void checkPackagings(IList<Packaging> packagings) {
     if (isSoldByWeight && packagings.isNotEmpty) {
       throw const UnexpectedPackaging();
@@ -155,6 +161,7 @@ final class ProductRegistration {
   /// The third rule of the selling mode: only the product sold loose has a
   /// scale code. Whoever passes `scaleCodes` to `saveRegistrationWithProducts`
   /// asks this first, as `save` already asks [checkPackagings].
+  // Legacy: removed with SellingMode (part 8).
   void checkScaleCodes(IList<ScaleCode> scaleCodes) {
     if (!sellingMode.takesScaleCodes && scaleCodes.isNotEmpty) {
       throw const UnexpectedScaleCode();
@@ -208,20 +215,11 @@ final class ProductRegistration {
 String registrationConflictMessage(ProductRegistration conflict) =>
     conflict.active ? 'Já existe esse produto cadastrado.' : 'Esse produto já existe, mas está desativado.';
 
-/// Sold by piece and no packaging listed.
-final class MissingPackaging implements Exception {
-  const MissingPackaging();
-
-  String get message => 'Informe ao menos uma embalagem para este produto.';
-
-  @override
-  String toString() => 'MissingPackaging: $message';
-}
-
 /// Sold loose and a packaging came along anyway.
 ///
 /// The sentence says "solto" and not "a peso" because the same mode covers
 /// both grandezas: bulk olive oil is `by_weight` and is measured in litres.
+// Legacy: removed with SellingMode (part 8).
 final class UnexpectedPackaging implements Exception {
   const UnexpectedPackaging();
 
@@ -229,14 +227,4 @@ final class UnexpectedPackaging implements Exception {
 
   @override
   String toString() => 'UnexpectedPackaging: $message';
-}
-
-/// A scale code came with a product that is not sold loose.
-final class UnexpectedScaleCode implements Exception {
-  const UnexpectedScaleCode();
-
-  String get message => 'Só produto vendido solto tem código de balança.';
-
-  @override
-  String toString() => 'UnexpectedScaleCode: $message';
 }

@@ -333,8 +333,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> with SingleTick
     final error = await ref
         .read(barcodeLookupViewModelProvider.notifier)
         .linkScaleCode(
-          registration: link.option.registration,
-          productId: link.option.id!,
+          option: link.option,
           code: ScaleCode(storeId: link.storeId, itemCode: label.itemCode),
         );
     if (!mounted) return;

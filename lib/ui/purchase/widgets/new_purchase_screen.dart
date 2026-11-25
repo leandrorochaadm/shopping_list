@@ -563,8 +563,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     final error = await ref
         .read(barcodeLookupViewModelProvider.notifier)
         .linkScaleCode(
-          registration: link.option.registration,
-          productId: link.option.id!,
+          option: link.option,
           code: ScaleCode(storeId: link.storeId, itemCode: label.itemCode),
         );
     if (!mounted) return;

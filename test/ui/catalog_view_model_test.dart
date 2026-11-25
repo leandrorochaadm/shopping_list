@@ -14,6 +14,7 @@ import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
+import 'package:shopping_list/domain/models/registration_leaves.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 
@@ -1336,6 +1337,194 @@ void main() {
 
       expect(results, [null, null]);
       expect(repository.addScaleCodeCalls, 1);
+    });
+  });
+
+  group('loose leaf', () {
+    const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+    final cola = ProductRegistration(
+      id: 'reg-1',
+      productTypeId: 'type-1',
+      brandId: 'brand-1',
+      description: 'original',
+      sellingMode: SellingMode.byPiece,
+    );
+    final beef = ProductRegistration(
+      id: 'reg-2',
+      productTypeId: 'type-2',
+      description: '',
+      sellingMode: SellingMode.byWeight,
+    );
+
+    Future<(_SpyRepository, CatalogViewModel)> ready() async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
+      return (repository, container.read(catalogViewModelProvider.notifier));
+    }
+
+    Future<Product> leaf(_SpyRepository repository, String id) async =>
+        (await repository.fetchProducts()).firstWhere((p) => p.id == id);
+
+    test('save with loose and no packaging writes the loose leaf', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.save(
+        registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byPiece),
+        packagings: const IList.empty(),
+        loose: true,
+      );
+
+      expect(outcome, isA<RegistrationSaved>());
+      expect(repository.saveCalls, 1);
+    });
+
+    test('save refuses neither loose nor packaging', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.save(
+        registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byPiece),
+        packagings: const IList.empty(),
+        loose: false,
+      );
+
+      expect(_saveMessage(outcome), const MissingPackaging().message);
+      expect(repository.saveCalls, 0);
+    });
+
+    test('save refuses a scale code without loose', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.save(
+        registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+        packagings: plain([bottle('350', BaseUnit.milliliter)]),
+        loose: false,
+        scaleCodes: [scaleCode].lock,
+      );
+
+      expect(_saveMessage(outcome), const UnexpectedScaleCode().message);
+      expect(repository.saveCalls, 0);
+    });
+
+    test('addPackagings refuses a second loose leaf', () async {
+      final (repository, notifier) = await ready();
+      final existing = await repository.fetchProductsOf('reg-2');
+
+      final outcome = await notifier.addPackagings(
+        registrationId: 'reg-2',
+        packagings: const IList.empty(),
+        loose: true,
+        existing: existing,
+      );
+
+      expect(_addMessage(outcome), const LooseAlreadyExists().message);
+      expect(repository.addPackagingCalls, 0);
+    });
+
+    test('addPackagings refuses nothing to add', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.addPackagings(registrationId: 'reg-1', packagings: const IList.empty());
+
+      expect(_addMessage(outcome), const MissingPackaging().message);
+      expect(repository.addPackagingCalls, 0);
+    });
+
+    test('editRegistration refuses a second loose leaf', () async {
+      final (repository, notifier) = await ready();
+      final existing = await repository.fetchProductsOf('reg-2');
+
+      final outcome = await notifier.editRegistration(
+        original: beef,
+        typeId: 'type-2',
+        brandId: null,
+        description: '',
+        packagings: const IList.empty(),
+        loose: true,
+        existing: existing,
+      );
+
+      expect(outcome, isA<RegistrationEditFailed>());
+      expect((outcome! as RegistrationEditFailed).message, const LooseAlreadyExists().message);
+      expect(repository.updateRegistrationCalls, 0);
+      expect(repository.addPackagingCalls, 0);
+    });
+
+    test('editRegistration refuses a scale code without loose', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.editRegistration(
+        original: cola,
+        typeId: 'type-1',
+        brandId: 'brand-1',
+        description: 'novo',
+        packagings: plain([bottle('600', BaseUnit.milliliter)]),
+        loose: false,
+        scaleCodes: [scaleCode].lock,
+      );
+
+      expect((outcome! as RegistrationEditFailed).message, const UnexpectedScaleCode().message);
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('editRegistration with nothing changed and no loose says so', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.editRegistration(
+        original: cola,
+        typeId: 'type-1',
+        brandId: 'brand-1',
+        description: 'original',
+        packagings: const IList.empty(),
+        loose: false,
+      );
+
+      expect(outcome, isA<RegistrationEditFailed>());
+      expect(repository.updateRegistrationCalls, 0);
+      expect(repository.addPackagingCalls, 0);
+    });
+
+    test('editRegistration adds the loose leaf', () async {
+      final (repository, notifier) = await ready();
+
+      final outcome = await notifier.editRegistration(
+        original: cola,
+        typeId: 'type-1',
+        brandId: 'brand-1',
+        description: 'original',
+        packagings: const IList.empty(),
+        loose: true,
+      );
+
+      expect(outcome, isA<RegistrationEdited>());
+      expect(repository.addPackagingCalls, 1);
+      expect(repository.updateRegistrationCalls, 0);
+    });
+
+    test('addScaleCode with the leaf writes on it', () async {
+      final (repository, notifier) = await ready();
+      final target = await leaf(repository, 'prod-5');
+
+      final result = await notifier.addScaleCode(leaf: target, code: scaleCode);
+
+      expect(result, isNull);
+      expect((await leaf(repository, 'prod-5')).scaleCodes, [scaleCode].lock);
+    });
+
+    test('addScaleCode refuses a packaging leaf', () async {
+      final (repository, notifier) = await ready();
+      final target = await leaf(repository, 'prod-1');
+
+      final result = await notifier.addScaleCode(leaf: target, code: scaleCode);
+
+      expect(result, const UnexpectedScaleCode().message);
+      expect(repository.addScaleCodeCalls, 0);
+    });
+
+    test('addScaleCode without the leaf nor the legacy pair throws', () async {
+      final (_, notifier) = await ready();
+
+      expect(() => notifier.addScaleCode(code: scaleCode), throwsArgumentError);
     });
   });
 }

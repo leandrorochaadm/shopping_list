@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
-import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/registration_leaves.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 
@@ -84,6 +83,18 @@ void main() {
   group('LooseAlreadyExists', () {
     test('LooseAlreadyExists names itself', () {
       expect(const LooseAlreadyExists().toString(), 'LooseAlreadyExists: Esse produto já tem granel.');
+    });
+  });
+
+  group('exceptions moved here', () {
+    test('MissingPackaging carries its message', () {
+      expect(const MissingPackaging().message, 'Informe ao menos uma embalagem para este produto.');
+      expect(const MissingPackaging().toString(), startsWith('MissingPackaging: '));
+    });
+
+    test('UnexpectedScaleCode carries its message', () {
+      expect(const UnexpectedScaleCode().message, 'Só produto vendido solto tem código de balança.');
+      expect(const UnexpectedScaleCode().toString(), startsWith('UnexpectedScaleCode: '));
     });
   });
 }

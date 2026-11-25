@@ -187,7 +187,7 @@ ScanResolution _resolveScale(ScaleLabel label, IList<ProductOption> options, Str
 }
 
 /// The leaves "Qual produto é este?" offers: only the weight-sold ones have a
-/// scale code (`ProductRegistration.checkScaleCodes`), and the list does not
+/// scale code (`Product.checkScaleCode`), and the list does not
 /// offer what the save would refuse. Picker order, no repeated id.
 IList<ProductOption> scaleLinkCandidatesOf(IList<ProductOption> options) {
   final seen = <String>{};

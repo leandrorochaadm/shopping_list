@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/repositories/catalog/catalog_repository.dart';
 import '../../../domain/models/barcode.dart';
 import '../../../domain/models/barcode_owner.dart';
+import '../../../domain/models/product_option.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/scale_label.dart';
 import '../../core/app_failure.dart';
@@ -70,15 +71,11 @@ final class BarcodeLookupViewModel extends Notifier<void> {
       // would only say "in-store" without telling why.
       if (ScaleLabel.parse(raw) != null) return const ScaleLabelRejected();
       final code = Barcode.typed(raw);
-      final owners = await ref
-          .read(catalogRepositoryProvider)
-          .findOwners(IList([code]));
+      final owners = await ref.read(catalogRepositoryProvider).findOwners(IList([code]));
       if (!ref.mounted) return null;
 
       final owner = owners[code];
-      return owner != null && owner.isActive
-          ? BarcodeFound(owner)
-          : BarcodeUnknown(code);
+      return owner != null && owner.isActive ? BarcodeFound(owner) : BarcodeUnknown(code);
     } on InStoreBarcode {
       return const ScaleLabelRejected();
     } on InvalidBarcode catch (e) {
@@ -93,23 +90,31 @@ final class BarcodeLookupViewModel extends Notifier<void> {
   /// Links a scale code to the leaf the user chose. Null on success, or the
   /// sentence for the SnackBar.
   ///
-  /// [registration] is the registration of that leaf, so the rule "only a
-  /// product sold loose has a scale code" is asked of the domain. The caller
+  /// [option] is the leaf chosen: the rule "only the loose leaf has a scale
+  /// code" is the leaf's. The pair [registration] + [productId] is the legacy
+  /// form, removed with SellingMode (part 8). The caller
   /// then runs `newPurchaseViewModelProvider.notifier.refresh()`, so the next
   /// read finds the link.
   Future<String?> linkScaleCode({
-    required ProductRegistration registration,
-    required String productId,
+    ProductOption? option,
+    ProductRegistration? registration,
+    String? productId,
     required ScaleCode code,
   }) async {
+    if (option == null && (registration == null || productId == null)) {
+      throw ArgumentError('linkScaleCode needs an option, or a registration and a productId');
+    }
     if (_linking) return null;
     _linking = true;
     try {
-      registration.checkScaleCodes(IList([code]));
+      if (option != null) {
+        option.product.checkScaleCode();
+      } else {
+        // Legacy path while SellingMode exists; removed in part 8.
+        registration!.checkScaleCodes(IList([code]));
+      }
 
-      await ref
-          .read(catalogRepositoryProvider)
-          .addScaleCode(productId: productId, code: code);
+      await ref.read(catalogRepositoryProvider).addScaleCode(productId: option?.id ?? productId!, code: code);
       if (!ref.mounted) return null;
       return null;
     } on UnexpectedScaleCode catch (e) {
@@ -125,8 +130,7 @@ final class BarcodeLookupViewModel extends Notifier<void> {
 }
 
 /// `retry: null` on purpose, like every ViewModel provider of the project.
-final barcodeLookupViewModelProvider =
-    NotifierProvider<BarcodeLookupViewModel, void>(
-      BarcodeLookupViewModel.new,
-      retry: (retryCount, error) => null,
-    );
+final barcodeLookupViewModelProvider = NotifierProvider<BarcodeLookupViewModel, void>(
+  BarcodeLookupViewModel.new,
+  retry: (retryCount, error) => null,
+);

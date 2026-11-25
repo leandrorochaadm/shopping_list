@@ -12,6 +12,7 @@ import '../../../domain/models/category.dart';
 import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
+import '../../../domain/models/registration_leaves.dart';
 import '../../../domain/models/scale_label.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -672,24 +673,27 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   Future<RegistrationSaveOutcome?> save({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool? loose,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
     try {
-      // The rules of the selling mode, asked before any I/O: by piece
-      // with no packaging cannot convert a purchase, and by weight with one
-      // means the screen kept state it should have dropped. A scale code
-      // belongs to a product sold loose only.
-      registration.checkPackagings(packagings.map((p) => p.packaging).toIList());
-      registration.checkScaleCodes(scaleCodes);
+      // The rules of the new leaves, asked before any I/O. A `null` [loose] is
+      // the legacy path while SellingMode exists; removed in part 8.
+      if (loose == null) {
+        registration.checkPackagings(packagings.map((p) => p.packaging).toIList());
+        registration.checkScaleCodes(scaleCodes);
+      } else {
+        checkNewLeaves(packagings: packagings.map((p) => p.packaging).toIList(), loose: loose, scaleCodes: scaleCodes);
+      }
 
       final saved = await ref
           .read(catalogRepositoryProvider)
           .saveRegistrationWithProducts(
             registration: registration,
             packagings: packagings,
-            loose: registration.isSoldByWeight,
+            loose: loose ?? registration.isSoldByWeight,
             scaleCodes: scaleCodes,
           );
       return RegistrationSaved(saved);
@@ -698,6 +702,8 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     } on UnexpectedPackaging catch (e) {
       return RegistrationSaveFailed(e.message);
     } on UnexpectedScaleCode catch (e) {
+      return RegistrationSaveFailed(e.message);
+    } on LooseAlreadyExists catch (e) {
       return RegistrationSaveFailed(e.message);
     } on Object catch (e, st) {
       // The 409 of the identity was already stopped by the `checkIdentity` the
@@ -717,19 +723,34 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   Future<AddPackagingsOutcome?> addPackagings({
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+    IList<Product> existing = const IList.empty(),
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
     try {
-      if (packagings.isEmpty) {
-        return AddPackagingsFailed(const MissingPackaging().message);
-      }
+      checkNewLeaves(
+        packagings: packagings.map((p) => p.packaging).toIList(),
+        loose: loose,
+        scaleCodes: scaleCodes,
+        existing: existing,
+      );
 
       final products = await ref
           .read(catalogRepositoryProvider)
-          .addPackagings(registrationId: registrationId, packagings: packagings);
+          .addPackagings(registrationId: registrationId, packagings: packagings, loose: loose, scaleCodes: scaleCodes);
       return PackagingsAdded(products);
+    } on MissingPackaging catch (e) {
+      return AddPackagingsFailed(e.message);
+    } on UnexpectedScaleCode catch (e) {
+      return AddPackagingsFailed(e.message);
+    } on LooseAlreadyExists catch (e) {
+      return AddPackagingsFailed(e.message);
     } on Object catch (e, st) {
+      if (scaleCodes.isNotEmpty && AppFailure.from(e) is DuplicateRecord) {
+        return const AddPackagingsFailed(ScaleCode.takenMessage);
+      }
       return AddPackagingsFailed(translateError(e, st, 'salvar a embalagem'));
     } finally {
       _writingRegistration = false;
@@ -750,6 +771,9 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     required String? brandId,
     required String description,
     required IList<PackagingWithBarcodes> packagings,
+    bool? loose,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
+    IList<Product> existing = const IList.empty(),
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
@@ -765,17 +789,33 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         brandId: brandId ?? '',
         description: description,
       );
-      // Sold by weight has no packaging section: one arriving here means the
-      // screen kept state it should have dropped — the net `save` has too.
-      if (original.isSoldByWeight && packagings.isNotEmpty) {
-        throw const UnexpectedPackaging();
-      }
-
       final identityChanged = edited.changesIdentityOf(original);
-      if (!identityChanged && packagings.isEmpty) {
-        return RegistrationEditFailed(
-          original.isSoldByWeight ? 'Mude algum campo.' : 'Mude algum campo ou acrescente uma embalagem.',
-        );
+      if (loose == null) {
+        // Legacy path while SellingMode exists; removed in part 8.
+        // Sold by weight has no packaging section: one arriving here means the
+        // screen kept state it should have dropped — the net `save` has too.
+        if (original.isSoldByWeight && packagings.isNotEmpty) {
+          throw const UnexpectedPackaging();
+        }
+        if (!identityChanged && packagings.isEmpty) {
+          return RegistrationEditFailed(
+            original.isSoldByWeight ? 'Mude algum campo.' : 'Mude algum campo ou acrescente uma embalagem.',
+          );
+        }
+      } else {
+        if (!identityChanged && packagings.isEmpty && !loose) {
+          return const RegistrationEditFailed('Mude algum campo ou acrescente uma embalagem.');
+        }
+        // Every rule is asked before the identity is written: a refusal after
+        // it would look like a failure of the second write.
+        if (packagings.isNotEmpty || loose || scaleCodes.isNotEmpty) {
+          checkNewLeaves(
+            packagings: packagings.map((p) => p.packaging).toIList(),
+            loose: loose,
+            scaleCodes: scaleCodes,
+            existing: existing,
+          );
+        }
       }
 
       final repository = ref.read(catalogRepositoryProvider);
@@ -808,15 +848,23 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         if (!ref.mounted) return null;
       }
 
-      if (packagings.isEmpty) {
+      final newLoose = loose ?? false;
+      if (packagings.isEmpty && !newLoose) {
         return RegistrationEdited(registration: written, products: const IList.empty());
       }
 
       try {
-        final products = await repository.addPackagings(registrationId: original.id!, packagings: packagings);
+        final products = await repository.addPackagings(
+          registrationId: original.id!,
+          packagings: packagings,
+          loose: newLoose,
+          scaleCodes: scaleCodes,
+        );
         return RegistrationEdited(registration: written, products: products);
       } on Object catch (e, st) {
-        final message = translateError(e, st, 'salvar a embalagem');
+        final message = scaleCodes.isNotEmpty && AppFailure.from(e) is DuplicateRecord
+            ? ScaleCode.takenMessage
+            : translateError(e, st, 'salvar a embalagem');
         return identityChanged
             ? PackagingsFailedAfterEdit(registration: written, message: message)
             : RegistrationEditFailed(message);
@@ -825,6 +873,12 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       // A rule of the domain saying no is not a failure: nothing to log.
       return RegistrationEditFailed(e.message);
     } on UnexpectedPackaging catch (e) {
+      return RegistrationEditFailed(e.message);
+    } on MissingPackaging catch (e) {
+      return RegistrationEditFailed(e.message);
+    } on UnexpectedScaleCode catch (e) {
+      return RegistrationEditFailed(e.message);
+    } on LooseAlreadyExists catch (e) {
       return RegistrationEditFailed(e.message);
     } on Object catch (e, st) {
       return RegistrationEditFailed(translateError(e, st, 'salvar o produto'));
@@ -835,19 +889,32 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
   /// Writes a scale code of a registration already saved. Null on success, or
   /// the sentence for the screen. [registration] is the one open on screen 4.
+  ///
+  /// Pass the [leaf] that receives the code: the rule is the leaf's. The pair
+  /// [registration] + [productId] is the legacy form, removed with SellingMode
+  /// (part 8).
   Future<String?> addScaleCode({
-    required ProductRegistration registration,
-    required String productId,
+    Product? leaf,
+    ProductRegistration? registration,
+    String? productId,
     required ScaleCode code,
   }) async {
+    if (leaf == null && (registration == null || productId == null)) {
+      throw ArgumentError('addScaleCode needs a leaf, or a registration and a productId');
+    }
     if (_writingCode) return null;
     _writingCode = true;
     try {
-      // The screen only showing the section for weight-sold products does not
+      // The screen only showing the section for the loose leaf does not
       // replace asking the domain, as `save` already does.
-      registration.checkScaleCodes(IList([code]));
+      if (leaf != null) {
+        leaf.checkScaleCode();
+      } else {
+        // Legacy path while SellingMode exists; removed in part 8.
+        registration!.checkScaleCodes(IList([code]));
+      }
 
-      await ref.read(catalogRepositoryProvider).addScaleCode(productId: productId, code: code);
+      await ref.read(catalogRepositoryProvider).addScaleCode(productId: leaf?.id ?? productId!, code: code);
       if (!ref.mounted) return null;
       return null;
     } on UnexpectedScaleCode catch (e) {
