@@ -1,11 +1,9 @@
-import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shopping_list/domain/models/base_unit.dart';
 import 'package:shopping_list/domain/models/brand.dart';
 import 'package:shopping_list/domain/models/packaging.dart';
 import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
-import 'package:shopping_list/domain/models/scale_label.dart';
 
 void main() {
   ProductRegistration cocaCola({
@@ -70,55 +68,14 @@ void main() {
     });
   });
 
-  group('selling mode — the two rules, and they are opposites', () {
-    test('refuses a by-piece registration with no packaging', () {
-      // Without one there is no way to convert what the receipt says into the
-      // base unit.
-      expect(() => cocaCola().checkPackagings(const IListConst([])), throwsA(isA<MissingPackaging>()));
-    });
-
-    test('accepts a by-piece registration with one packaging', () {
-      expect(() => cocaCola().checkPackagings(IList([bottle('350', BaseUnit.milliliter)])), returnsNormally);
-    });
-
-    test('refuses a by-weight registration that carries packaging', () {
-      // The list disappears from the screen when "a peso" is chosen, so a row
-      // arriving here means state was kept that should have been dropped.
-      expect(
-        () => cocaCola(sellingMode: SellingMode.byWeight).checkPackagings(IList([bottle('350', BaseUnit.milliliter)])),
-        throwsA(isA<UnexpectedPackaging>()),
-      );
-    });
-
-    test('accepts a by-weight registration with no packaging', () {
-      expect(() => cocaCola(sellingMode: SellingMode.byWeight).checkPackagings(const IListConst([])), returnsNormally);
-    });
-
-    group('checkScaleCodes', () {
-      final codes = [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock;
-
-      test('refuses a scale code on a by-piece registration', () {
-        expect(() => cocaCola().checkScaleCodes(codes), throwsA(isA<UnexpectedScaleCode>()));
-      });
-
-      test('accepts a scale code on a by-weight registration', () {
-        expect(() => cocaCola(sellingMode: SellingMode.byWeight).checkScaleCodes(codes), returnsNormally);
-      });
-
-      test('accepts no scale code on a by-piece registration', () {
-        expect(() => cocaCola().checkScaleCodes(const IList.empty()), returnsNormally);
-      });
-
-      test('says what is wrong, in pt-BR', () {
-        expect(const UnexpectedScaleCode().toString(), contains(const UnexpectedScaleCode().message));
-      });
+  group('messages and JSON', () {
+    test('says what is wrong, in pt-BR', () {
+      expect(const UnexpectedScaleCode().toString(), contains(const UnexpectedScaleCode().message));
     });
 
     test('says what to do, in pt-BR', () {
       expect(const MissingPackaging().message, 'Informe ao menos uma embalagem para este produto.');
-      expect(const UnexpectedPackaging().message, 'Produto vendido solto não tem embalagem.');
       expect(const MissingPackaging().toString(), contains('embalagem'));
-      expect(const UnexpectedPackaging().toString(), contains('solto'));
     });
 
     test('survives the round trip through JSON, both modes', () {
@@ -157,7 +114,7 @@ void main() {
       // The purchase always has one kind of target.
       const leaf = Product(productRegistrationId: 'r1');
 
-      expect(leaf.isSoldByWeight, isTrue);
+      expect(leaf.isLoose, isTrue);
       expect(leaf.packaging, isNull);
       expect(leaf.toString(), contains('a granel'));
     });
@@ -165,7 +122,7 @@ void main() {
     test('carries the packaging of a by-piece product', () {
       final leaf = Product(productRegistrationId: 'r1', packaging: bottle('350', BaseUnit.milliliter));
 
-      expect(leaf.isSoldByWeight, isFalse);
+      expect(leaf.isLoose, isFalse);
       expect(leaf.packaging!.totalContent, 350);
     });
 
@@ -296,23 +253,6 @@ void main() {
     });
   });
 
-  group('SellingMode.takesScaleCodes', () {
-    final code = ScaleCode(storeId: 's1', itemCode: '1');
-
-    test('by weight takes scale codes', () => expect(SellingMode.byWeight.takesScaleCodes, isTrue));
-
-    test('by piece takes no scale codes', () => expect(SellingMode.byPiece.takesScaleCodes, isFalse));
-
-    test('checkScaleCodes refuses a scale code by piece', () {
-      expect(() => cocaCola().checkScaleCodes([code].lock), throwsA(isA<UnexpectedScaleCode>()));
-    });
-
-    test('checkScaleCodes accepts scale codes by weight and an empty list', () {
-      cocaCola(sellingMode: SellingMode.byWeight).checkScaleCodes([code].lock);
-      cocaCola(sellingMode: SellingMode.byWeight).checkScaleCodes(const IListConst([]));
-      cocaCola().checkScaleCodes(const IListConst([]));
-    });
-  });
   test('defaults the selling mode to by piece when omitted', () {
     final omitted = ProductRegistration(productTypeId: 'type-1');
     final explicit = ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece);

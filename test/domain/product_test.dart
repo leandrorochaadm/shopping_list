@@ -65,7 +65,7 @@ void main() {
 
     test('the leaf exists with no packaging at all (decision B1)', () {
       const weighed = Product(id: 'prod-5', productRegistrationId: 'reg-2');
-      expect(weighed.isSoldByWeight, isTrue);
+      expect(weighed.isLoose, isTrue);
       expect(weighed.packaging, isNull);
       expect(weighed.toString(), contains('a granel'));
     });
@@ -338,11 +338,6 @@ void main() {
     test('checkScaleCode accepts the loose leaf', () {
       expect(loose.checkScaleCode, returnsNormally);
       expect(loose.deactivated().checkScaleCode, returnsNormally);
-    });
-
-    test('isSoldByWeight mirrors isLoose', () {
-      expect(loose.isSoldByWeight, loose.isLoose);
-      expect(leaf().isSoldByWeight, leaf().isLoose);
     });
   });
 }

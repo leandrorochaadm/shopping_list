@@ -290,7 +290,7 @@ void main() {
     expect(ranked.label, 'Coca-Cola 12 × 350 ml');
     expect(ranked.baseUnit, BaseUnit.milliliter);
     expect(ranked.id, 'p1');
-    expect(ranked.isSoldByWeight, isFalse);
+    expect(ranked.isLoose, isFalse);
   });
 
   group('priceIncreaseFor (H15)', () {
@@ -536,11 +536,6 @@ void main() {
       expect(looseUnderByPiece.isLoose, isTrue);
       expect(looseUnderByPiece.toBaseUnit(1500), 1500);
       expect(looseUnderByPiece.quantityLabel, 'Peso');
-    });
-
-    test('isSoldByWeight mirrors isLoose', () {
-      expect(packagedUnderByWeight.isSoldByWeight, packagedUnderByWeight.isLoose);
-      expect(looseUnderByPiece.isSoldByWeight, looseUnderByPiece.isLoose);
     });
   });
 }

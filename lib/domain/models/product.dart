@@ -74,9 +74,6 @@ final class Product {
   /// Is this the loose leaf (no packaging)? The official question.
   bool get isLoose => packaging == null;
 
-  /// Kept for the old tests; use [isLoose].
-  bool get isSoldByWeight => isLoose;
-
   /// Only a leaf WITH a packaging takes barcodes; the loose leaf
   /// keeps scale codes, edited on screen 4. It is what the pencil of the
   /// maintenance asks before showing the code block.

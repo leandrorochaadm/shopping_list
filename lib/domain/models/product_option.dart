@@ -102,9 +102,6 @@ final class ProductOption {
   /// Whether the leaf is loose (bulk). The leaf decides: `packaging == null`.
   bool get isLoose => product.isLoose;
 
-  /// Another name for [isLoose].
-  bool get isSoldByWeight => isLoose;
-
   /// 'Coca-Cola 12 × 350 ml', 'Coca-Cola zero 2 L', 'Acém moído por kg'.
   ///
   /// The loose product is named by the price unit of its TYPE
