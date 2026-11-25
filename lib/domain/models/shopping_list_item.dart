@@ -81,17 +81,14 @@ final class ShoppingListItem {
   /// brand comes nested inside the registration.
   factory ShoppingListItem.fromJson(Map<String, dynamic> json) {
     final type = json[typeKey] as Map<String, dynamic>;
-    final registration =
-        json[preferredRegistrationKey] as Map<String, dynamic>?;
+    final registration = json[preferredRegistrationKey] as Map<String, dynamic>?;
     final brand = registration?[brandKey] as Map<String, dynamic>?;
 
     return ShoppingListItem(
       id: json['id'] as String?,
       type: ProductType.fromJson(type),
       category: Category.fromJson(type[categoryKey] as Map<String, dynamic>),
-      preferredRegistration: registration == null
-          ? null
-          : ProductRegistration.fromJson(registration),
+      preferredRegistration: registration == null ? null : ProductRegistration.fromJson(registration),
       preferredRegistrationBrand: brand == null ? null : Brand.fromJson(brand),
       // PocketBase returns 0 for a number without value: no quantity.
       quantity: switch ((json['quantity'] as num?)?.toInt()) {
@@ -115,8 +112,7 @@ final class ShoppingListItem {
     );
   }
 
-  static DateTime? _dayOrNull(Object? value) =>
-      value == null ? null : decodeCalendarDay(value as String);
+  static DateTime? _dayOrNull(Object? value) => value == null ? null : decodeCalendarDay(value as String);
 
   static int _countWriteOffs(Object? embed) => embed is List ? embed.length : 0;
 
@@ -203,9 +199,7 @@ final class ShoppingListItem {
     'not_found': notFound,
     // Both are columns; `writtenOffQuantity` is not — it is the sum of
     // another table, and writing it back would invent a column.
-    'fulfilled_on': fulfilledOn == null
-        ? null
-        : encodeCalendarDay(fulfilledOn!),
+    'fulfilled_on': fulfilledOn == null ? null : encodeCalendarDay(fulfilledOn!),
     'removed_on': removedOn == null ? null : encodeCalendarDay(removedOn!),
   };
 
@@ -223,13 +217,11 @@ final class ShoppingListItem {
   /// Removing by hand, and it is a TRANSITION on the entity (rule 7) rather
   /// than a DELETE in a repository. [day] is the phone's today, which enters
   /// the system in the ViewModel and travels as a parameter.
-  ShoppingListItem markedRemoved(DateTime day) =>
-      copyWith(removedOn: dayOf(day));
+  ShoppingListItem markedRemoved(DateTime day) => copyWith(removedOn: dayOf(day));
 
   /// A purchase closed this line, on the day printed on the receipt — never
   /// on today's (decision 25).
-  ShoppingListItem fulfilledBy(DateTime purchaseDay) =>
-      copyWith(fulfilledOn: dayOf(purchaseDay));
+  ShoppingListItem fulfilledBy(DateTime purchaseDay) => copyWith(fulfilledOn: dayOf(purchaseDay));
 
   /// The way back: H9 undoing the purchase that had closed it.
   ///
@@ -274,8 +266,7 @@ final class ShoppingListItem {
   /// arrives with H7: a purchase only clears an item that entered BEFORE it or
   /// ON THE SAME DAY. Without it, a purchase registered late erases what the
   /// other person has just asked for.
-  bool canBeClearedBy(DateTime purchaseDay) =>
-      !enteredOn.isAfter(dayOf(purchaseDay));
+  bool canBeClearedBy(DateTime purchaseDay) => !enteredOn.isAfter(dayOf(purchaseDay));
 
   /// The preference falls SILENTLY when its catalog row is deactivated
   /// (requirement 16) — on the READ, with no second write to undo, and it
@@ -307,10 +298,8 @@ final class ShoppingListItem {
   /// What the line writes once a deactivated preference has fallen: it is
   /// [label] asked of the EFFECTIVE registration, so "Leite Italac integral"
   /// becomes "Leite" the moment the registration is deactivated.
-  String get effectiveLabel => [
-    type.name,
-    ?effectivePreferredRegistration?.labelWith(preferredRegistrationBrand),
-  ].join(' ');
+  String get effectiveLabel =>
+      [type.name, ?effectivePreferredRegistration?.labelWith(preferredRegistrationBrand)].join(' ');
 
   /// An item with no quantity leaves on the first purchase of the type; one
   /// with a quantity leaves by balance. H7 decides what to do about it — what
@@ -318,8 +307,7 @@ final class ShoppingListItem {
   bool get hasQuantity => quantity != null;
 
   /// '6 kg', '2,5 L', '3 un' — or null when there is no quantity.
-  String? get quantityLabel =>
-      quantity == null ? null : type.baseUnit.formatQuantity(quantity!);
+  String? get quantityLabel => quantity == null ? null : type.baseUnit.formatQuantity(quantity!);
 
   /// What screen 6 writes UNDER the line: what the list is asking for, and how.
   ///
@@ -353,10 +341,7 @@ final class ShoppingListItem {
 
   /// What the line writes: 'Leite Italac integral', 'Sabão em pó'. The
   /// registration comes in only when there is one.
-  String get label => [
-    type.name,
-    ?preferredRegistration?.labelWith(preferredRegistrationBrand),
-  ].join(' ');
+  String get label => [type.name, ?preferredRegistration?.labelWith(preferredRegistrationBrand)].join(' ');
 
   /// `clearRegistration` exists because `copyWith` cannot tell "keep what is
   /// there" from "set it back to null" — and the item dialog's "Qualquer um"
@@ -386,9 +371,7 @@ final class ShoppingListItem {
     id: id ?? this.id,
     type: type ?? this.type,
     category: category ?? this.category,
-    preferredRegistration: clearRegistration
-        ? null
-        : preferredRegistration ?? this.preferredRegistration,
+    preferredRegistration: clearRegistration ? null : preferredRegistration ?? this.preferredRegistration,
     preferredRegistrationBrand: clearRegistration
         ? null
         : preferredRegistration != null
