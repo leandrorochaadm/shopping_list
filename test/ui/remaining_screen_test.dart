@@ -75,12 +75,7 @@ final class _Offline extends OnlineStatus {
 
 final _drinks = Category(id: 'cat-1', name: 'Bebidas');
 
-final _beef = ProductType(
-  id: 'type-2',
-  name: 'Acém moído',
-  categoryId: 'cat-2',
-  baseUnit: BaseUnit.gram,
-);
+final _beef = ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram);
 
 ShoppingListItem _listItem({
   required ProductType type,
@@ -126,17 +121,12 @@ void main() {
           path: '/',
           builder: (context, state) => Scaffold(
             body: Builder(
-              builder: (context) => TextButton(
-                onPressed: () => context.push('/remaining'),
-                child: const Text('a lista'),
-              ),
+              builder: (context) =>
+                  TextButton(onPressed: () => context.push('/remaining'), child: const Text('a lista')),
             ),
           ),
         ),
-        GoRoute(
-          path: '/remaining',
-          builder: (context, state) => const RemainingScreen(),
-        ),
+        GoRoute(path: '/remaining', builder: (context, state) => const RemainingScreen()),
       ],
     );
     addTearDown(router.dispose);
@@ -154,9 +144,7 @@ void main() {
           // The clock is pinned: the month is August 2026. Without it the case
           // that reads "Agosto/2026" passes in August and fails in September,
           // on a CI nobody touched.
-          monthlyAverageViewModelProvider.overrideWith(
-            () => MonthlyAverageViewModel(today: testToday),
-          ),
+          monthlyAverageViewModelProvider.overrideWith(() => MonthlyAverageViewModel(today: testToday)),
           ...overrides,
         ],
         child: MaterialApp.router(routerConfig: router),
@@ -170,24 +158,14 @@ void main() {
     }
   }
 
-  testWidgets('the month is at the top, because every number is its', (
-    tester,
-  ) async {
+  testWidgets('the month is at the top, because every number is its', (tester) async {
     await pumpScreen(tester);
 
-    expect(
-      find.descendant(
-        of: find.byType(AppBar),
-        matching: find.text('Falta comprar este mês'),
-      ),
-      findsOneWidget,
-    );
+    expect(find.descendant(of: find.byType(AppBar), matching: find.text('Falta comprar este mês')), findsOneWidget);
     expect(find.text('Agosto/2026'), findsOneWidget);
   });
 
-  testWidgets('the top band holds only what is missing, and says how much', (
-    tester,
-  ) async {
+  testWidgets('the top band holds only what is missing, and says how much', (tester) async {
     await pumpScreen(tester);
 
     // The written story of requirement 18: average of 8 kg, 6 kg bought in
@@ -225,9 +203,7 @@ void main() {
     expect(find.text('Mostrar só o que falta'), findsOneWidget);
   });
 
-  testWidgets('the count on the button matches what the band shows', (
-    tester,
-  ) async {
+  testWidgets('the count on the button matches what the band shows', (tester) async {
     // Version 2.0 of the wireframes had to fix exactly this: a count that did
     // not match the band.
     await pumpScreen(tester);
@@ -240,18 +216,12 @@ void main() {
     expect(find.byKey(const ValueKey('remaining-type-3')), findsOneWidget);
   });
 
-  testWidgets('what the list is asking for goes under the number', (
-    tester,
-  ) async {
+  testWidgets('what the list is asking for goes under the number', (tester) async {
     // The two numbers may differ on purpose, and the sub-line is what keeps
     // them from being read as the same one.
     await pumpScreen(
       tester,
-      list: _SpyList(
-        initial: [
-          _listItem(type: _beef, quantity: 6000, writtenOffQuantity: 4000),
-        ],
-      ),
+      list: _SpyList(initial: [_listItem(type: _beef, quantity: 6000, writtenOffQuantity: 4000)]),
     );
 
     expect(find.text('faltam 2 kg'), findsOneWidget);
@@ -265,9 +235,7 @@ void main() {
   });
 
   group('the tap opens the dialog of screen 1, already filled in', () {
-    testWidgets('on a type NOT on the list it opens in the creating mode', (
-      tester,
-    ) async {
+    testWidgets('on a type NOT on the list it opens in the creating mode', (tester) async {
       await pumpScreen(tester);
 
       await tester.tap(find.byKey(const ValueKey('remaining-type-2')));
@@ -276,10 +244,7 @@ void main() {
       expect(find.byType(ItemDialog), findsOneWidget);
       // Prefilled with what is missing: typed in millilitres, read in litres.
       final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('field-quantity')),
-          matching: find.byType(TextField),
-        ),
+        find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
       );
       expect(field.controller!.text, '2,000');
       // Nothing to mark as not found on a type nobody has asked for.
@@ -287,9 +252,7 @@ void main() {
       expect(find.text('Remover da lista'), findsNothing);
     });
 
-    testWidgets('on a type already on the list it EDITS the existing line', (
-      tester,
-    ) async {
+    testWidgets('on a type already on the list it EDITS the existing line', (tester) async {
       final list = _SpyList(
         initial: [_listItem(type: _beef, quantity: 6000, id: 'item-9')],
       );
@@ -309,26 +272,14 @@ void main() {
       expect(list.added, isEmpty);
     });
 
-    testWidgets('with two open items of the type it opens the OLDEST (E-i)', (
-      tester,
-    ) async {
+    testWidgets('with two open items of the type it opens the OLDEST (E-i)', (tester) async {
       // The `#1a` panel blocks the duplicate, but the other phone and the
       // history can produce it — and without a tiebreak which item the dialog
       // opens would change on every fetch.
       final list = _SpyList(
         initial: [
-          _listItem(
-            type: _beef,
-            quantity: 6000,
-            id: 'item-new',
-            enteredOn: DateTime(2026, 8, 28),
-          ),
-          _listItem(
-            type: _beef,
-            quantity: 3000,
-            id: 'item-old',
-            enteredOn: DateTime(2026, 8, 10),
-          ),
+          _listItem(type: _beef, quantity: 6000, id: 'item-new', enteredOn: DateTime(2026, 8, 28)),
+          _listItem(type: _beef, quantity: 3000, id: 'item-old', enteredOn: DateTime(2026, 8, 10)),
         ],
       );
       await pumpScreen(tester, list: list);
@@ -353,17 +304,12 @@ void main() {
       await tester.pumpAndSettle();
 
       final field = tester.widget<TextField>(
-        find.descendant(
-          of: find.byKey(const ValueKey('field-quantity')),
-          matching: find.byType(TextField),
-        ),
+        find.descendant(of: find.byKey(const ValueKey('field-quantity')), matching: find.byType(TextField)),
       );
       expect(field.controller!.text, '');
     });
 
-    testWidgets('the item on the list with no quantity is warned', (
-      tester,
-    ) async {
+    testWidgets('the item on the list with no quantity is warned', (tester) async {
       await pumpScreen(
         tester,
         list: _SpyList(initial: [_listItem(type: _beef)]),
@@ -400,41 +346,24 @@ void main() {
     await pumpScreen(
       tester,
       consumption: _SpyConsumption(
-        lines: [
-          ConsumptionLine(
-            day: DateTime(2026, 8, 10),
-            typeId: 'type-1',
-            quantityInBaseUnit: 4200,
-          ),
-        ],
+        lines: [ConsumptionLine(day: DateTime(2026, 8, 10), typeId: 'type-1', quantityInBaseUnit: 4200)],
       ),
     );
 
-    expect(
-      find.text('Vocês já compraram tudo que costumam comprar em agosto.'),
-      findsOneWidget,
-    );
+    expect(find.text('Vocês já compraram tudo que costumam comprar em agosto.'), findsOneWidget);
     expect(find.text('Ver todos (1 sem faltar)'), findsOneWidget);
   });
 
-  testWidgets('with no history it says so, and offers no action', (
-    tester,
-  ) async {
+  testWidgets('with no history it says so, and offers no action', (tester) async {
     // The state of the first weeks.
     await pumpScreen(tester, consumption: _SpyConsumption(lines: const []));
 
-    expect(
-      find.text('Ainda não há compras suficientes para calcular a média.'),
-      findsOneWidget,
-    );
+    expect(find.text('Ainda não há compras suficientes para calcular a média.'), findsOneWidget);
     expect(find.byKey(const ValueKey('toggle-show-all')), findsNothing);
   });
 
-  testWidgets('a failing load occupies the screen, with a way back', (
-    tester,
-  ) async {
-    final consumption = _SpyConsumption()
-      ..failNextCall = ApiException(500, 'boom');
+  testWidgets('a failing load occupies the screen, with a way back', (tester) async {
+    final consumption = _SpyConsumption()..failNextCall = ApiException(500, 'boom');
     await pumpScreen(tester, consumption: consumption);
 
     expect(find.byKey(const ValueKey('retry-remaining')), findsOneWidget);
@@ -450,19 +379,10 @@ void main() {
   testWidgets('offline the screen does not open at all', (tester) async {
     // **The only screen of the app that does not open offline**, and it is the
     // wireframe that says so: every number here comes from outside the phone.
-    await pumpScreen(
-      tester,
-      overrides: [onlineStatusProvider.overrideWith(_Offline.new)],
-    );
+    await pumpScreen(tester, overrides: [onlineStatusProvider.overrideWith(_Offline.new)]);
 
-    expect(
-      find.text('Sem conexão — não é possível abrir agora.'),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const ValueKey('retry-remaining-offline')),
-      findsOneWidget,
-    );
+    expect(find.text('Sem conexão — não é possível abrir agora.'), findsOneWidget);
+    expect(find.byKey(const ValueKey('retry-remaining-offline')), findsOneWidget);
     // Not a single number is drawn.
     expect(find.text('faltam 2 kg'), findsNothing);
     expect(find.byKey(const ValueKey('toggle-show-all')), findsNothing);

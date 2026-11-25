@@ -91,12 +91,7 @@ ShoppingListItem _listItem({
   DateTime? fulfilledOn,
 }) => ShoppingListItem(
   id: 'item-$typeId',
-  type: ProductType(
-    id: typeId,
-    name: name,
-    categoryId: 'cat-1',
-    baseUnit: BaseUnit.milliliter,
-  ),
+  type: ProductType(id: typeId, name: name, categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
   category: _drinks,
   enteredOn: DateTime(2026, 8, 20),
   notFound: notFound,
@@ -128,9 +123,7 @@ void main() {
           // The clock is pinned: the closed window is 01/05 → 31/07/2026 and
           // the month is August. Without it these cases pass in August and
           // fail in September, on a CI nobody touched.
-          monthlyAverageViewModelProvider.overrideWith(
-            () => MonthlyAverageViewModel(today: testToday),
-          ),
+          monthlyAverageViewModelProvider.overrideWith(() => MonthlyAverageViewModel(today: testToday)),
         ],
         child: const MaterialApp(home: SuggestionsScreen()),
       ),
@@ -140,11 +133,7 @@ void main() {
 
   /// Opens the reader and hands it [raw]. The fake clock only advances on a
   /// `pump` WITH a duration.
-  Future<void> scan(
-    WidgetTester tester,
-    FakeBarcodeCamera camera,
-    String raw,
-  ) async {
+  Future<void> scan(WidgetTester tester, FakeBarcodeCamera camera, String raw) async {
     await tester.tap(find.byKey(const ValueKey('scan-pantry')));
     await tester.pumpAndSettle();
     camera.read(raw);
@@ -153,9 +142,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the five types of the fake, grouped by category', (
-    tester,
-  ) async {
+  testWidgets('the five types of the fake, grouped by category', (tester) async {
     await pumpScreen(tester);
 
     expect(find.text('Conferir despensa'), findsOneWidget);
@@ -174,14 +161,7 @@ void main() {
     final categories = tester
         .widgetList<Text>(find.byType(Text))
         .map((t) => t.data)
-        .where(
-          (text) => const {
-            'Bebidas',
-            'Carnes',
-            'Limpeza',
-            'Mercearia',
-          }.contains(text),
-        )
+        .where((text) => const {'Bebidas', 'Carnes', 'Limpeza', 'Mercearia'}.contains(text))
         .toList();
     expect(categories, ['Bebidas', 'Carnes', 'Limpeza', 'Mercearia']);
   });
@@ -192,17 +172,13 @@ void main() {
     // é rotina é ele".
     await pumpScreen(tester);
 
-    final boxes = tester.widgetList<CheckboxListTile>(
-      find.byType(CheckboxListTile),
-    );
+    final boxes = tester.widgetList<CheckboxListTile>(find.byType(CheckboxListTile));
     expect(boxes, hasLength(5));
     expect(boxes.every((box) => box.value == false), isTrue);
 
     // And with nothing ticked the button does nothing — plainly disabled
     // rather than a tap that says nothing.
-    final button = tester.widget<FloatingActionButton>(
-      find.byKey(const ValueKey('add-selected')),
-    );
+    final button = tester.widget<FloatingActionButton>(find.byKey(const ValueKey('add-selected')));
     expect(button.onPressed, isNull);
   });
 
@@ -214,36 +190,26 @@ void main() {
       ),
     );
 
-    final locked = tester.widget<CheckboxListTile>(
-      find.byKey(const ValueKey('suggestion-type-1')),
-    );
+    final locked = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-1')));
     expect(locked.onChanged, isNull, reason: 'it does not answer the tap');
     expect(locked.value, isFalse);
     expect(find.text('(já está na lista)'), findsOneWidget);
 
     // The others stay tappable.
-    final free = tester.widget<CheckboxListTile>(
-      find.byKey(const ValueKey('suggestion-type-5')),
-    );
+    final free = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-5')));
     expect(free.onChanged, isNotNull);
   });
 
-  testWidgets('the one marked "não encontrei" is locked too, and says so', (
-    tester,
-  ) async {
+  testWidgets('the one marked "não encontrei" is locked too, and says so', (tester) async {
     // It is still on the list — that is the written criterion.
     await pumpScreen(
       tester,
       list: _SpyList(
-        initial: [
-          _listItem(typeId: 'type-1', name: 'Refrigerante', notFound: true),
-        ],
+        initial: [_listItem(typeId: 'type-1', name: 'Refrigerante', notFound: true)],
       ),
     );
 
-    final locked = tester.widget<CheckboxListTile>(
-      find.byKey(const ValueKey('suggestion-type-1')),
-    );
+    final locked = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-1')));
     expect(locked.onChanged, isNull);
     expect(find.text('(não encontrei)'), findsOneWidget);
     expect(find.text('(já está na lista)'), findsNothing);
@@ -255,67 +221,53 @@ void main() {
     await pumpScreen(
       tester,
       list: _SpyList(
-        initial: [
-          _listItem(
-            typeId: 'type-1',
-            name: 'Refrigerante',
-            fulfilledOn: DateTime(2026, 8, 25),
-          ),
-        ],
+        initial: [_listItem(typeId: 'type-1', name: 'Refrigerante', fulfilledOn: DateTime(2026, 8, 25))],
       ),
     );
 
-    final tile = tester.widget<CheckboxListTile>(
-      find.byKey(const ValueKey('suggestion-type-1')),
-    );
+    final tile = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-1')));
     expect(tile.onChanged, isNotNull);
     expect(find.text('(já está na lista)'), findsNothing);
   });
 
-  testWidgets(
-    'ticking two and adding writes both, with no quantity, and stays',
-    (tester) async {
-      final list = _SpyList(initial: const []);
-      await pumpScreen(tester, list: list);
+  testWidgets('ticking two and adding writes both, with no quantity, and stays', (tester) async {
+    final list = _SpyList(initial: const []);
+    await pumpScreen(tester, list: list);
 
-      await tester.tap(find.byKey(const ValueKey('suggestion-type-5')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('suggestion-type-2')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('suggestion-type-5')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('suggestion-type-2')));
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const ValueKey('add-selected')));
-      // Advances the clock enough to drain both of the fake's own
-      // `Future.delayed` writes (Duration.zero still needs a tick), then one
-      // more frame for the SnackBar to appear.
-      await tester.pump(const Duration(milliseconds: 500));
-      await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('add-selected')));
+    // Advances the clock enough to drain both of the fake's own
+    // `Future.delayed` writes (Duration.zero still needs a tick), then one
+    // more frame for the SnackBar to appear.
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
 
-      expect(find.text('2 itens adicionados à lista.'), findsOneWidget);
+    expect(find.text('2 itens adicionados à lista.'), findsOneWidget);
 
-      await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
 
-      expect(list.added, hasLength(2));
-      final byName = {for (final item in list.added) item.type.name: item};
-      expect(byName['Café']!.quantity, isNull);
-      expect(byName['Acém moído']!.quantity, isNull);
-      // The line carries the whole category (D4).
-      expect(byName['Café']!.category.name, 'Mercearia');
+    expect(list.added, hasLength(2));
+    final byName = {for (final item in list.added) item.type.name: item};
+    expect(byName['Café']!.quantity, isNull);
+    expect(byName['Acém moído']!.quantity, isNull);
+    // The line carries the whole category (D4).
+    expect(byName['Café']!.category.name, 'Mercearia');
 
-      // A permanent destination does not leave on its own: the two lines
-      // come back locked, and the ticks went with the write — a tick left on
-      // a locked line would be added again by the next tap.
-      expect(find.byType(SuggestionsScreen), findsOneWidget);
-      expect(find.text('(já está na lista)'), findsNWidgets(2));
-      final button = tester.widget<FloatingActionButton>(
-        find.byKey(const ValueKey('add-selected')),
-      );
-      expect(button.onPressed, isNull);
-    },
-  );
+    // A permanent destination does not leave on its own: the two lines
+    // come back locked, and the ticks went with the write — a tick left on
+    // a locked line would be added again by the next tap.
+    expect(find.byType(SuggestionsScreen), findsOneWidget);
+    expect(find.text('(já está na lista)'), findsNWidgets(2));
+    final button = tester.widget<FloatingActionButton>(find.byKey(const ValueKey('add-selected')));
+    expect(button.onPressed, isNull);
+  });
 
   testWidgets('a failing add keeps the screen and says why', (tester) async {
-    final list = _SpyList(initial: const [])
-      ..failNextWrite = ApiException(500, 'boom');
+    final list = _SpyList(initial: const [])..failNextWrite = ApiException(500, 'boom');
     await pumpScreen(tester, list: list);
 
     await tester.tap(find.byKey(const ValueKey('suggestion-type-5')));
@@ -337,10 +289,7 @@ void main() {
     tester.view.physicalSize = const Size(390, 480);
     await tester.pumpAndSettle();
 
-    await tester.drag(
-      find.byKey(const ValueKey('pantry-lines')),
-      const Offset(0, -2000),
-    );
+    await tester.drag(find.byKey(const ValueKey('pantry-lines')), const Offset(0, -2000));
     await tester.pumpAndSettle();
 
     final lastLine = tester.getRect(find.byType(CheckboxListTile).last);
@@ -348,27 +297,19 @@ void main() {
     expect(lastLine.bottom, lessThanOrEqualTo(button.top));
   });
 
-  testWidgets('with no history it says so, and offers no action', (
-    tester,
-  ) async {
+  testWidgets('with no history it says so, and offers no action', (tester) async {
     // What the wireframe draws: "Ainda não há compras suficientes para
     // conferir a despensa", with no button — there is nothing a tap could do
     // about it.
     await pumpScreen(tester, consumption: _SpyConsumption(lines: const []));
 
-    expect(
-      find.text('Ainda não há compras suficientes para conferir a despensa.'),
-      findsOneWidget,
-    );
+    expect(find.text('Ainda não há compras suficientes para conferir a despensa.'), findsOneWidget);
     expect(find.byKey(const ValueKey('add-selected')), findsNothing);
     expect(find.byType(CheckboxListTile), findsNothing);
   });
 
-  testWidgets('a failing load occupies the screen, with a way back', (
-    tester,
-  ) async {
-    final consumption = _SpyConsumption()
-      ..failNextCall = ApiException(500, 'boom');
+  testWidgets('a failing load occupies the screen, with a way back', (tester) async {
+    final consumption = _SpyConsumption()..failNextCall = ApiException(500, 'boom');
     await pumpScreen(tester, consumption: consumption);
 
     expect(find.byKey(const ValueKey('retry-suggestions')), findsOneWidget);
@@ -382,9 +323,7 @@ void main() {
     expect(find.text('Café'), findsOneWidget);
   });
 
-  testWidgets('it is a permanent destination: the ≡ and the bar, no Back', (
-    tester,
-  ) async {
+  testWidgets('it is a permanent destination: the ≡ and the bar, no Back', (tester) async {
     // "Alternar entre eles não é voltar" — screen 2 took screen 6's slot in
     // the bottom bar on 27/09/2026, and the rule came with the slot.
     await pumpScreen(tester);
@@ -407,20 +346,15 @@ void main() {
   });
 
   group('the [▥] reads a code', () {
-    testWidgets('a read code ticks its line and writes nothing', (
-      tester,
-    ) async {
+    testWidgets('a read code ticks its line and writes nothing', (tester) async {
       final camera = FakeBarcodeCamera();
-      final catalog = _ScanCatalog()
-        ..owners[Barcode.typed(colaCode)] = colaOwner;
+      final catalog = _ScanCatalog()..owners[Barcode.typed(colaCode)] = colaOwner;
       final list = _SpyList(initial: const []);
       await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
 
       await scan(tester, camera, colaCode);
 
-      final tile = tester.widget<CheckboxListTile>(
-        find.byKey(const ValueKey('suggestion-type-1')),
-      );
+      final tile = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-1')));
       expect(tile.value, isTrue);
       expect(list.added, isEmpty);
       expect(find.text('Adicionar 1 à lista'), findsOneWidget);
@@ -428,8 +362,7 @@ void main() {
 
     testWidgets('the ticked line scrolls into view', (tester) async {
       final camera = FakeBarcodeCamera();
-      final catalog = _ScanCatalog()
-        ..owners[Barcode.typed(coffeeCode)] = coffeeOwner;
+      final catalog = _ScanCatalog()..owners[Barcode.typed(coffeeCode)] = coffeeOwner;
       await pumpScreen(tester, catalog: catalog, camera: camera);
       tester.view.physicalSize = const Size(390, 480);
       await tester.pumpAndSettle();
@@ -443,12 +376,9 @@ void main() {
       expect(tester.widget<CheckboxListTile>(line).value, isTrue);
     });
 
-    testWidgets('a type already on the list is not ticked and says so', (
-      tester,
-    ) async {
+    testWidgets('a type already on the list is not ticked and says so', (tester) async {
       final camera = FakeBarcodeCamera();
-      final catalog = _ScanCatalog()
-        ..owners[Barcode.typed(colaCode)] = colaOwner;
+      final catalog = _ScanCatalog()..owners[Barcode.typed(colaCode)] = colaOwner;
       final list = _SpyList(
         initial: [_listItem(typeId: 'type-1', name: 'Refrigerante')],
       );
@@ -457,33 +387,22 @@ void main() {
       await scan(tester, camera, colaCode);
 
       expect(find.text('Já está na lista.'), findsOneWidget);
-      final tile = tester.widget<CheckboxListTile>(
-        find.byKey(const ValueKey('suggestion-type-1')),
-      );
+      final tile = tester.widget<CheckboxListTile>(find.byKey(const ValueKey('suggestion-type-1')));
       expect(tile.value, isFalse);
       expect(tile.onChanged, isNull);
     });
 
-    testWidgets('a type the pantry lacks offers to put it on the list', (
-      tester,
-    ) async {
+    testWidgets('a type the pantry lacks offers to put it on the list', (tester) async {
       final camera = FakeBarcodeCamera();
-      final catalog = _ScanCatalog()
-        ..owners[Barcode.typed(foilCode)] = foilOwner;
+      final catalog = _ScanCatalog()..owners[Barcode.typed(foilCode)] = foilOwner;
       final list = _SpyList(initial: const []);
       await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
 
       await scan(tester, camera, foilCode);
 
-      expect(
-        find.text('Esse produto ainda não aparece na despensa.'),
-        findsOneWidget,
-      );
+      expect(find.text('Esse produto ainda não aparece na despensa.'), findsOneWidget);
       final action = find.byKey(const ValueKey('scan-notice-action'));
-      expect(
-        find.descendant(of: action, matching: find.text('Pôr na lista')),
-        findsOneWidget,
-      );
+      expect(find.descendant(of: action, matching: find.text('Pôr na lista')), findsOneWidget);
 
       await tester.tap(action);
       await tester.pump(const Duration(milliseconds: 500));
@@ -500,14 +419,10 @@ void main() {
       expect(find.byKey(const ValueKey('scan-notice')), findsNothing);
     });
 
-    testWidgets('putting the absent type on the list can fail and says why', (
-      tester,
-    ) async {
+    testWidgets('putting the absent type on the list can fail and says why', (tester) async {
       final camera = FakeBarcodeCamera();
-      final catalog = _ScanCatalog()
-        ..owners[Barcode.typed(foilCode)] = foilOwner;
-      final list = _SpyList(initial: const [])
-        ..failNextWrite = ApiException(500, 'boom');
+      final catalog = _ScanCatalog()..owners[Barcode.typed(foilCode)] = foilOwner;
+      final list = _SpyList(initial: const [])..failNextWrite = ApiException(500, 'boom');
       await pumpScreen(tester, list: list, catalog: catalog, camera: camera);
 
       await scan(tester, camera, foilCode);
@@ -522,9 +437,7 @@ void main() {
       expect(find.byKey(const ValueKey('scan-notice-action')), findsOneWidget);
     });
 
-    testWidgets('an unknown code says so, with no way to register', (
-      tester,
-    ) async {
+    testWidgets('an unknown code says so, with no way to register', (tester) async {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera);
 
@@ -541,10 +454,7 @@ void main() {
 
       await scan(tester, camera, '02822521001605261107');
 
-      expect(
-        find.text('Etiqueta de balança só serve no lançamento da compra.'),
-        findsOneWidget,
-      );
+      expect(find.text('Etiqueta de balança só serve no lançamento da compra.'), findsOneWidget);
       expect(catalog.findOwnersCalls, 0);
     });
 
@@ -571,25 +481,16 @@ void main() {
       expect(find.byKey(const ValueKey('scan-notice')), findsNothing);
     });
 
-    testWidgets('the scan button is off when the pantry failed to load', (
-      tester,
-    ) async {
-      await pumpScreen(
-        tester,
-        consumption: _SpyConsumption()
-          ..failNextCall = ApiException(500, 'boom'),
-      );
+    testWidgets('the scan button is off when the pantry failed to load', (tester) async {
+      await pumpScreen(tester, consumption: _SpyConsumption()..failNextCall = ApiException(500, 'boom'));
 
-      final button = tester.widget<IconButton>(
-        find.byKey(const ValueKey('scan-pantry')),
-      );
+      final button = tester.widget<IconButton>(find.byKey(const ValueKey('scan-pantry')));
       expect(button.onPressed, isNull);
     });
 
     testWidgets('the scan button works on an empty pantry', (tester) async {
       final camera = FakeBarcodeCamera();
-      final catalog = _ScanCatalog()
-        ..owners[Barcode.typed(foilCode)] = foilOwner;
+      final catalog = _ScanCatalog()..owners[Barcode.typed(foilCode)] = foilOwner;
       await pumpScreen(
         tester,
         consumption: _SpyConsumption(lines: const []),
@@ -599,10 +500,7 @@ void main() {
 
       await scan(tester, camera, foilCode);
 
-      expect(
-        find.text('Esse produto ainda não aparece na despensa.'),
-        findsOneWidget,
-      );
+      expect(find.text('Esse produto ainda não aparece na despensa.'), findsOneWidget);
       expect(find.text('Pôr na lista'), findsOneWidget);
     });
   });

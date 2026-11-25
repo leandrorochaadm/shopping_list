@@ -65,8 +65,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
   /// One key per line, so a read can scroll to the line it ticked.
   final _lineKeys = <String, GlobalKey>{};
 
-  GlobalKey _lineKeyOf(String typeId) =>
-      _lineKeys.putIfAbsent(typeId, GlobalKey.new);
+  GlobalKey _lineKeyOf(String typeId) => _lineKeys.putIfAbsent(typeId, GlobalKey.new);
 
   void _say(String message, {BarcodeOwner? absent}) => setState(() {
     _notice = message;
@@ -77,9 +76,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
   /// an aisle, and it is the `{–}` of the wireframe. It includes the one
   /// marked "não encontrei", which is still on the list.
   IMap<String, ShoppingListItem> _onTheList() {
-    final items =
-        ref.watch(shoppingListViewModelProvider).value ??
-        const IList<ShoppingListItem>.empty();
+    final items = ref.watch(shoppingListViewModelProvider).value ?? const IList<ShoppingListItem>.empty();
     return {
       for (final item in items)
         if (item.isOpen && item.type.id != null) item.type.id!: item,
@@ -93,9 +90,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     // One action, ONE guard: `add` in a loop would be swallowed by the
     // reentrancy guard from the second call on, and a `null` back would read
     // as success.
-    final error = await ref
-        .read(shoppingListViewModelProvider.notifier)
-        .addMany(lines);
+    final error = await ref.read(shoppingListViewModelProvider.notifier).addMany(lines);
     if (!mounted) return;
 
     setState(() => _adding = false);
@@ -111,13 +106,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     setState(_selected.clear);
     final count = lines.length;
     messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          count == 1
-              ? '1 item adicionado à lista.'
-              : '$count itens adicionados à lista.',
-        ),
-      ),
+      SnackBar(content: Text(count == 1 ? '1 item adicionado à lista.' : '$count itens adicionados à lista.')),
     );
   }
 
@@ -127,9 +116,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     final raw = await BarcodeReaderSheet.show(context);
     if (!mounted || raw == null) return;
 
-    final outcome = await ref
-        .read(barcodeLookupViewModelProvider.notifier)
-        .lookUp(raw);
+    final outcome = await ref.read(barcodeLookupViewModelProvider.notifier).lookUp(raw);
     if (!mounted) return;
 
     switch (outcome) {
@@ -151,12 +138,8 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
   /// `ref.read`, never `_onTheList()`: that one watches, and a handler is not
   /// `build`.
   void _mark(BarcodeOwner owner) {
-    final lines =
-        ref.read(monthlyAverageViewModelProvider).value ??
-        const IList<MonthlyAverage>.empty();
-    final items =
-        ref.read(shoppingListViewModelProvider).value ??
-        const IList<ShoppingListItem>.empty();
+    final lines = ref.read(monthlyAverageViewModelProvider).value ?? const IList<MonthlyAverage>.empty();
+    final items = ref.read(shoppingListViewModelProvider).value ?? const IList<ShoppingListItem>.empty();
 
     switch (pantryScanOf(lines, items, owner.type)) {
       case TypeNotInPantry():
@@ -179,11 +162,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final target = _lineKeys[typeId]?.currentContext;
       if (target == null || !target.mounted) return;
-      Scrollable.ensureVisible(
-        target,
-        alignment: 0.5,
-        duration: const Duration(milliseconds: 300),
-      );
+      Scrollable.ensureVisible(target, alignment: 0.5, duration: const Duration(milliseconds: 300));
     });
   }
 
@@ -193,28 +172,17 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     final messenger = ScaffoldMessenger.of(context);
 
     setState(() => _adding = true);
-    final category = await ref
-        .read(catalogViewModelProvider.notifier)
-        .categoryOf(owner.type);
+    final category = await ref.read(catalogViewModelProvider.notifier).categoryOf(owner.type);
     if (!mounted) return;
     if (category == null) {
       setState(() => _adding = false);
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Não foi possível pôr na lista. Tente de novo.'),
-        ),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Não foi possível pôr na lista. Tente de novo.')));
       return;
     }
 
     final error = await ref
         .read(shoppingListViewModelProvider.notifier)
-        .addWithRegistration(
-          owner.type,
-          category,
-          registration: owner.registration,
-          brand: owner.brand,
-        );
+        .addWithRegistration(owner.type, category, registration: owner.registration, brand: owner.brand);
     if (!mounted) return;
 
     setState(() {
@@ -224,9 +192,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
         _absent = null;
       }
     });
-    messenger.showSnackBar(
-      SnackBar(content: Text(error ?? '1 item adicionado à lista.')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text(error ?? '1 item adicionado à lista.')));
   }
 
   @override
@@ -235,19 +201,13 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
     // The button floats only over a list with something to tick: loading,
     // error and the empty pantry have nothing a tap could do.
     final lines = state.hasValue ? state.value! : null;
-    final chosen = lines
-        ?.where((line) => _selected.contains(line.type.id))
-        .toIList();
+    final chosen = lines?.where((line) => _selected.contains(line.type.id)).toIList();
 
     return Scaffold(
       appBar: AppBar(
         // No BackButton: this is a permanent destination, and a control that
         // navigates to the screen already on display does nothing.
-        leading: IconButton(
-          icon: const Icon(Icons.menu),
-          tooltip: 'Menu',
-          onPressed: () => MainMenu.show(context),
-        ),
+        leading: IconButton(icon: const Icon(Icons.menu), tooltip: 'Menu', onPressed: () => MainMenu.show(context)),
         title: const Text('Conferir despensa'),
         actions: [
           // Off while loading and on error; on for the empty pantry, where
@@ -277,9 +237,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
               child: RefreshIndicator(
                 onRefresh: () async {
                   final messenger = ScaffoldMessenger.of(context);
-                  final error = await ref
-                      .read(monthlyAverageViewModelProvider.notifier)
-                      .refresh();
+                  final error = await ref.read(monthlyAverageViewModelProvider.notifier).refresh();
                   if (error != null) {
                     messenger.showSnackBar(SnackBar(content: Text(error)));
                   }
@@ -289,9 +247,7 @@ class _SuggestionsScreenState extends ConsumerState<SuggestionsScreen> {
                 // the error state, where it is used most.
                 child: switch (state) {
                   AsyncLoading() when !state.hasValue => const _LoadingBody(),
-                  AsyncError(:final error) when !state.hasValue => _ErrorBody(
-                    error: error,
-                  ),
+                  AsyncError(:final error) when !state.hasValue => _ErrorBody(error: error),
                   _ => _Body(
                     lines: state.value!,
                     onTheList: _onTheList(),
@@ -345,14 +301,11 @@ class _ErrorBody extends ConsumerWidget {
     physics: const AlwaysScrollableScrollPhysics(),
     children: [
       // The raw exception NEVER reaches the screen — it goes to debugPrint.
-      MessageView(
-        translateFailure(AppFailure.from(error), 'carregar a despensa'),
-      ),
+      MessageView(translateFailure(AppFailure.from(error), 'carregar a despensa')),
       Center(
         child: FilledButton(
           key: const ValueKey('retry-suggestions'),
-          onPressed: () =>
-              ref.read(monthlyAverageViewModelProvider.notifier).refresh(),
+          onPressed: () => ref.read(monthlyAverageViewModelProvider.notifier).refresh(),
           child: const Text('Tentar de novo'),
         ),
       ),
@@ -384,11 +337,7 @@ class _Body extends StatelessWidget {
       // nothing to suggest and nothing a tap could do about it.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          MessageView(
-            'Ainda não há compras suficientes para conferir a despensa.',
-          ),
-        ],
+        children: const [MessageView('Ainda não há compras suficientes para conferir a despensa.')],
       );
     }
 
@@ -401,10 +350,7 @@ class _Body extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Marque o que acabou em casa.'),
-          ),
+          const Padding(padding: EdgeInsets.fromLTRB(16, 16, 16, 8), child: Text('Marque o que acabou em casa.')),
           // By CATEGORY and alphabetical inside it — the same organization
           // screen 1 uses, so the suggestion is read in the order the aisle is
           // walked. Never "do mais comprado para o menos comprado": 12 unidades
@@ -412,10 +358,7 @@ class _Body extends StatelessWidget {
           for (final group in groupAveragesByCategory(lines)) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-              child: Text(
-                group.category.name,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
+              child: Text(group.category.name, style: Theme.of(context).textTheme.titleSmall),
             ),
             for (final line in group.lines) _tile(line),
           ],
@@ -436,20 +379,14 @@ class _Body extends StatelessWidget {
       enabled: !adding,
       onToggle: onToggle,
     );
-    return typeId == null
-        ? tile
-        : KeyedSubtree(key: lineKeyOf(typeId), child: tile);
+    return typeId == null ? tile : KeyedSubtree(key: lineKeyOf(typeId), child: tile);
   }
 }
 
 /// The add action, floating over the list instead of closing it: with a long
 /// pantry the button at the end of the list was a scroll away.
 class _AddSelectedButton extends StatelessWidget {
-  const _AddSelectedButton({
-    required this.chosen,
-    required this.adding,
-    required this.onAdd,
-  });
+  const _AddSelectedButton({required this.chosen, required this.adding, required this.onAdd});
 
   final IList<MonthlyAverage> chosen;
   final bool adding;
@@ -470,12 +407,8 @@ class _AddSelectedButton extends StatelessWidget {
       // other: a shared default hero tag would fly it.
       heroTag: null,
       onPressed: enabled ? () => onAdd(chosen) : null,
-      backgroundColor: enabled
-          ? null
-          : scheme.onSurface.withValues(alpha: 0.12),
-      foregroundColor: enabled
-          ? null
-          : scheme.onSurface.withValues(alpha: 0.38),
+      backgroundColor: enabled ? null : scheme.onSurface.withValues(alpha: 0.12),
+      foregroundColor: enabled ? null : scheme.onSurface.withValues(alpha: 0.38),
       elevation: enabled ? null : 0,
       icon: const Icon(Icons.playlist_add),
       label: Text(
@@ -523,9 +456,7 @@ class _SuggestionTile extends StatelessWidget {
       },
       value: onTheList ? false : selected,
       // Locked: it does not answer the tap and cannot be added again.
-      onChanged: onTheList || !enabled || typeId == null
-          ? null
-          : (chosen) => onToggle(typeId, chosen ?? false),
+      onChanged: onTheList || !enabled || typeId == null ? null : (chosen) => onToggle(typeId, chosen ?? false),
     );
   }
 }

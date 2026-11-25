@@ -13,12 +13,7 @@ import '../../../domain/models/shopping_list_item.dart';
 /// | the checkbox | tap | picked ↔ empty, **never** "não encontrei" |
 /// | the text | tap | opens the item dialog |
 class ShoppingListTile extends StatelessWidget {
-  const ShoppingListTile({
-    required this.item,
-    required this.onTogglePicked,
-    required this.onOpen,
-    super.key,
-  });
+  const ShoppingListTile({required this.item, required this.onTogglePicked, required this.onOpen, super.key});
 
   final ShoppingListItem item;
   final VoidCallback onTogglePicked;
@@ -34,9 +29,7 @@ class ShoppingListTile extends StatelessWidget {
       minTileHeight: 56,
       onTap: onOpen,
       leading: Semantics(
-        label: item.picked
-            ? '${item.label}, pego'
-            : '${item.label}, não pego',
+        label: item.picked ? '${item.label}, pego' : '${item.label}, não pego',
         child: Checkbox(
           value: item.picked,
           // The rule is the entity's: the caller asks the ViewModel, which
@@ -49,15 +42,10 @@ class ShoppingListTile extends StatelessWidget {
         // Picking something up is only a visual strike-through: it registers
         // no purchase and never takes the item off the list.
         style: item.picked
-            ? theme.textTheme.bodyLarge?.copyWith(
-                decoration: TextDecoration.lineThrough,
-                color: theme.disabledColor,
-              )
+            ? theme.textTheme.bodyLarge?.copyWith(decoration: TextDecoration.lineThrough, color: theme.disabledColor)
             : theme.textTheme.bodyLarge,
       ),
-      subtitle: item.notFound
-          ? const Text('(não encontrei)')
-          : null,
+      subtitle: item.notFound ? const Text('(não encontrei)') : null,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

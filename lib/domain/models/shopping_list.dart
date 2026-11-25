@@ -14,10 +14,7 @@ final class ShoppingListGroup {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ShoppingListGroup &&
-          other.category == category &&
-          other.items == items);
+      identical(this, other) || (other is ShoppingListGroup && other.category == category && other.items == items);
 
   @override
   int get hashCode => Object.hash(category, items);
@@ -51,8 +48,7 @@ IList<ShoppingListGroup> groupByCategory(IList<ShoppingListItem> items) {
     (byCategory[key] ??= []).add(item);
   }
 
-  final keys = categories.keys.toList()
-    ..sort((a, b) => _compare(categories[a]!.name, categories[b]!.name, a, b));
+  final keys = categories.keys.toList()..sort((a, b) => _compare(categories[a]!.name, categories[b]!.name, a, b));
 
   return [
     for (final key in keys)
@@ -64,12 +60,7 @@ IList<ShoppingListGroup> groupByCategory(IList<ShoppingListItem> items) {
                   // with the same label can exist (the guard of M-a is the
                   // screen's, and the other phone can beat it), and without a
                   // tiebreak their order changes on every fetch.
-                  (a, b) => _compare(
-                    a.effectiveLabel,
-                    b.effectiveLabel,
-                    a.id ?? '',
-                    b.id ?? '',
-                  ),
+                  (a, b) => _compare(a.effectiveLabel, b.effectiveLabel, a.id ?? '', b.id ?? ''),
                 ))
                 .toIList(),
       ),
@@ -88,16 +79,12 @@ int _compare(String name, String otherName, String tie, String otherTie) {
 /// the `#1a` panel creates more than one line per type on purpose, and without a tiebreak which item the dialog opens would change on
 /// every fetch. `enteredOn` first, the id second — two items can enter on the
 /// same day.
-ShoppingListItem? findOpenItemOfType(
-  IList<ShoppingListItem> items,
-  String typeId,
-) {
-  final candidates =
-      items.where((item) => item.isOpen && item.type.id == typeId).toList()
-        ..sort((a, b) {
-          final byDay = a.enteredOn.compareTo(b.enteredOn);
-          return byDay != 0 ? byDay : (a.id ?? '').compareTo(b.id ?? '');
-        });
+ShoppingListItem? findOpenItemOfType(IList<ShoppingListItem> items, String typeId) {
+  final candidates = items.where((item) => item.isOpen && item.type.id == typeId).toList()
+    ..sort((a, b) {
+      final byDay = a.enteredOn.compareTo(b.enteredOn);
+      return byDay != 0 ? byDay : (a.id ?? '').compareTo(b.id ?? '');
+    });
   return candidates.firstOrNull;
 }
 
@@ -109,14 +96,9 @@ ShoppingListItem? findOpenItemOfType(
 /// It reads the EFFECTIVE preference: a line whose registration was
 /// deactivated is a "Qualquer um" line now, and it is that one it blocks.
 /// [exceptItemId] is the line being edited — it never blocks its own option.
-ISet<String?> takenRegistrationsOfType(
-  IList<ShoppingListItem> items,
-  String typeId, {
-  String? exceptItemId,
-}) => {
+ISet<String?> takenRegistrationsOfType(IList<ShoppingListItem> items, String typeId, {String? exceptItemId}) => {
   for (final item in items)
-    if (item.isOpen && item.type.id == typeId && item.id != exceptItemId)
-      item.effectivePreferredRegistration?.id,
+    if (item.isOpen && item.type.id == typeId && item.id != exceptItemId) item.effectivePreferredRegistration?.id,
 }.lock;
 
 /// Whether another OPEN line of the registration's type already asks for this
@@ -126,12 +108,8 @@ ISet<String?> takenRegistrationsOfType(
 /// It reads the EFFECTIVE preference through [takenRegistrationsOfType]: a
 /// "Qualquer um" line does not block a product, and a registration with no id
 /// (not written yet) is never taken.
-bool isRegistrationTaken(
-  IList<ShoppingListItem> items,
-  ProductRegistration registration,
-) {
+bool isRegistrationTaken(IList<ShoppingListItem> items, ProductRegistration registration) {
   final id = registration.id;
   // A null id would match the `null` a "Qualquer um" line puts in the set.
-  return id != null &&
-      takenRegistrationsOfType(items, registration.productTypeId).contains(id);
+  return id != null && takenRegistrationsOfType(items, registration.productTypeId).contains(id);
 }

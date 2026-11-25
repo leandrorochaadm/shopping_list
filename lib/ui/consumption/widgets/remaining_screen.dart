@@ -76,9 +76,7 @@ class _RemainingScreenState extends ConsumerState<RemainingScreen> {
         builder: (context) => RefreshIndicator(
           onRefresh: () async {
             final messenger = ScaffoldMessenger.of(context);
-            final error = await ref
-                .read(monthlyAverageViewModelProvider.notifier)
-                .refresh();
+            final error = await ref.read(monthlyAverageViewModelProvider.notifier).refresh();
             if (error != null) {
               messenger.showSnackBar(SnackBar(content: Text(error)));
             }
@@ -94,9 +92,7 @@ class _RemainingScreenState extends ConsumerState<RemainingScreen> {
             // and the screen redraws with nobody tapping anything.
             _ when !online => const _OfflineBody(),
             AsyncLoading() when !state.hasValue => const _LoadingBody(),
-            AsyncError(:final error) when !state.hasValue => _ErrorBody(
-              error: error,
-            ),
+            AsyncError(:final error) when !state.hasValue => _ErrorBody(error: error),
             _ => _Body(
               lines: state.value!,
               month: month.from,
@@ -121,8 +117,7 @@ class _OfflineBody extends ConsumerWidget {
       Center(
         child: FilledButton(
           key: const ValueKey('retry-remaining-offline'),
-          onPressed: () =>
-              ref.read(monthlyAverageViewModelProvider.notifier).refresh(),
+          onPressed: () => ref.read(monthlyAverageViewModelProvider.notifier).refresh(),
           child: const Text('Tentar de novo'),
         ),
       ),
@@ -153,14 +148,11 @@ class _ErrorBody extends ConsumerWidget {
     physics: const AlwaysScrollableScrollPhysics(),
     children: [
       // The raw exception NEVER reaches the screen — it goes to debugPrint.
-      MessageView(
-        translateFailure(AppFailure.from(error), 'carregar o que falta'),
-      ),
+      MessageView(translateFailure(AppFailure.from(error), 'carregar o que falta')),
       Center(
         child: FilledButton(
           key: const ValueKey('retry-remaining'),
-          onPressed: () =>
-              ref.read(monthlyAverageViewModelProvider.notifier).refresh(),
+          onPressed: () => ref.read(monthlyAverageViewModelProvider.notifier).refresh(),
           child: const Text('Tentar de novo'),
         ),
       ),
@@ -169,12 +161,7 @@ class _ErrorBody extends ConsumerWidget {
 }
 
 class _Body extends ConsumerWidget {
-  const _Body({
-    required this.lines,
-    required this.month,
-    required this.showAll,
-    required this.onToggleShowAll,
-  });
+  const _Body({required this.lines, required this.month, required this.showAll, required this.onToggleShowAll});
 
   final IList<MonthlyAverage> lines;
   final DateTime month;
@@ -188,19 +175,13 @@ class _Body extends ConsumerWidget {
       // no button, because there is nothing a tap could do about it.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          const MessageView(
-            'Ainda não há compras suficientes para calcular a média.',
-          ),
-        ],
+        children: [const MessageView('Ainda não há compras suficientes para calcular a média.')],
       );
     }
 
     final missing = lines.where((line) => line.hasShortage).toIList();
     final satisfied = lines.where((line) => !line.hasShortage).toIList();
-    final items =
-        ref.watch(shoppingListViewModelProvider).value ??
-        const IList<ShoppingListItem>.empty();
+    final items = ref.watch(shoppingListViewModelProvider).value ?? const IList<ShoppingListItem>.empty();
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
@@ -273,23 +254,15 @@ class _Body extends ConsumerWidget {
   }) => [
     Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(
-        group.category.name,
-        style: Theme.of(context).textTheme.titleSmall,
-      ),
+      child: Text(group.category.name, style: Theme.of(context).textTheme.titleSmall),
     ),
-    for (final line in group.lines)
-      _RemainingTile(line: line, items: items, missing: missing),
+    for (final line in group.lines) _RemainingTile(line: line, items: items, missing: missing),
   ];
 }
 
 /// One type: what is missing of it, and what the list is asking for underneath.
 class _RemainingTile extends ConsumerWidget {
-  const _RemainingTile({
-    required this.line,
-    required this.items,
-    required this.missing,
-  });
+  const _RemainingTile({required this.line, required this.items, required this.missing});
 
   final MonthlyAverage line;
   final IList<ShoppingListItem> items;
@@ -311,9 +284,7 @@ class _RemainingTile extends ConsumerWidget {
       // consume 8 L. It is the reader who decides which to follow.
       subtitle: existing == null ? null : Text(existing.listStatusLabel),
       trailing: Text(
-        missing
-            ? 'faltam ${line.remainingLabel}'
-            : line.consumedOverAverageLabel,
+        missing ? 'faltam ${line.remainingLabel}' : line.consumedOverAverageLabel,
         style: Theme.of(context).textTheme.titleSmall,
       ),
       // The SAME dialog of screen 1, already filled in — the screen informs and

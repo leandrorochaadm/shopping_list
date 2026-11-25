@@ -35,37 +35,16 @@ import '../view_model/shopping_list_view_model.dart';
 /// It has an exit of its own (`R11`): in an installed PWA there is no browser
 /// Back button.
 class ItemDialog extends ConsumerStatefulWidget {
-  const ItemDialog._({
-    this.item,
-    required this.type,
-    required this.category,
-    this.prefilledQuantity,
-    super.key,
-  });
+  const ItemDialog._({this.item, required this.type, required this.category, this.prefilledQuantity, super.key});
 
   /// Screen 1, and the "já está na lista" path of screen 6.
   ItemDialog.editing(ShoppingListItem item, {int? prefilledQuantity, Key? key})
-    : this._(
-        item: item,
-        type: item.type,
-        category: item.category,
-        prefilledQuantity: prefilledQuantity,
-        key: key,
-      );
+    : this._(item: item, type: item.type, category: item.category, prefilledQuantity: prefilledQuantity, key: key);
 
   /// Screen 6 on a type that is NOT on the list yet, and the `#1a` panel on
   /// a type that IS (M-a) — a second line, with a product of its own.
-  const ItemDialog.creating({
-    required ProductType type,
-    required Category category,
-    int? prefilledQuantity,
-    Key? key,
-  }) : this._(
-         type: type,
-         category: category,
-         prefilledQuantity: prefilledQuantity,
-         key: key,
-       );
+  const ItemDialog.creating({required ProductType type, required Category category, int? prefilledQuantity, Key? key})
+    : this._(type: type, category: category, prefilledQuantity: prefilledQuantity, key: key);
 
   /// Null in the creating mode — and it is what every branch below asks.
   final ShoppingListItem? item;
@@ -88,10 +67,7 @@ class ItemDialog extends ConsumerStatefulWidget {
 
   /// Screen 1's door, unchanged in signature so its callers do not move.
   static Future<void> show(BuildContext context, ShoppingListItem item) =>
-      showDialog<void>(
-        context: context,
-        builder: (context) => ItemDialog.editing(item),
-      );
+      showDialog<void>(context: context, builder: (context) => ItemDialog.editing(item));
 
   /// Screen 6's door: it hands over the type, the category and what is
   /// missing, and this decides which of the two modes it is.
@@ -107,11 +83,7 @@ class ItemDialog extends ConsumerStatefulWidget {
   }) => showDialog<void>(
     context: context,
     builder: (context) => existing == null
-        ? ItemDialog.creating(
-            type: type,
-            category: category,
-            prefilledQuantity: missing,
-          )
+        ? ItemDialog.creating(type: type, category: category, prefilledQuantity: missing)
         : ItemDialog.editing(existing, prefilledQuantity: missing),
   );
 
@@ -189,9 +161,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     // back as an empty list — a list of products that did not load must not
     // stop the quantity from being adjusted, and the field simply keeps
     // "Qualquer um".
-    final leaves = await ref
-        .read(catalogViewModelProvider.notifier)
-        .leavesOfType(typeId);
+    final leaves = await ref.read(catalogViewModelProvider.notifier).leavesOfType(typeId);
     if (!mounted) return;
     setState(() {
       _leaves = leaves;
@@ -203,19 +173,13 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   /// rule is the domain's (rule 11); the dialog only asks it. `null` in the
   /// set is "Qualquer um".
   ISet<String?> _takenIn(IList<ShoppingListItem>? items) =>
-      takenRegistrationsOfType(
-        items ?? const IList.empty(),
-        widget.type.id ?? '',
-        exceptItemId: widget.item?.id,
-      );
+      takenRegistrationsOfType(items ?? const IList.empty(), widget.type.id ?? '', exceptItemId: widget.item?.id);
 
   /// `read`, so it can be asked from `_save` too; `build` watches the list,
   /// which is what greys out at once an option the other phone just took.
-  ISet<String?> get _taken =>
-      _takenIn(ref.read(shoppingListViewModelProvider).value);
+  ISet<String?> get _taken => _takenIn(ref.read(shoppingListViewModelProvider).value);
 
-  bool _isTaken(String option) =>
-      _taken.contains(option == _any ? null : option);
+  bool _isTaken(String option) => _taken.contains(option == _any ? null : option);
 
   /// The brand of a registration, from the catalog — the registration only
   /// keeps the id. Falls back to the one the line already carries, so a
@@ -225,9 +189,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     if (brandId == null) return null;
     final brands = ref.read(catalogViewModelProvider).value?.brands;
     return brands?.where((brand) => brand.id == brandId).firstOrNull ??
-        (widget.item?.preferredRegistrationBrand?.id == brandId
-            ? widget.item!.preferredRegistrationBrand
-            : null);
+        (widget.item?.preferredRegistrationBrand?.id == brandId ? widget.item!.preferredRegistrationBrand : null);
   }
 
   /// The ACTIVE registrations of the type, once each, in the order the
@@ -235,14 +197,10 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   IList<ProductRegistration> get _registrations {
     final byId = <String, ProductRegistration>{
       for (final leaf in _leaves)
-        if (leaf.registration.active && leaf.registration.id != null)
-          leaf.registration.id!: leaf.registration,
+        if (leaf.registration.active && leaf.registration.id != null) leaf.registration.id!: leaf.registration,
     };
-    return (byId.values.toList()..sort(
-          (a, b) => normalizeName(
-            a.labelWith(_brandOf(a)),
-          ).compareTo(normalizeName(b.labelWith(_brandOf(b)))),
-        ))
+    return (byId.values.toList()
+          ..sort((a, b) => normalizeName(a.labelWith(_brandOf(a))).compareTo(normalizeName(b.labelWith(_brandOf(b))))))
         .toIList();
   }
 
@@ -253,9 +211,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     final choice = _choice;
     if (choice == null || choice == _any) return null;
     return _registrations.where((r) => r.id == choice).firstOrNull ??
-        (widget.item?.preferredRegistration?.id == choice
-            ? widget.item!.preferredRegistration
-            : null);
+        (widget.item?.preferredRegistration?.id == choice ? widget.item!.preferredRegistration : null);
   }
 
   Future<void> _save() async {
@@ -330,14 +286,8 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
         title: const Text('Remover da lista?'),
         content: Text('${item.label} sai da lista.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Remover'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Remover')),
         ],
       ),
     );
@@ -347,9 +297,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
     final navigator = Navigator.of(context);
 
     setState(() => _saving = true);
-    final error = await ref
-        .read(shoppingListViewModelProvider.notifier)
-        .remove(item);
+    final error = await ref.read(shoppingListViewModelProvider.notifier).remove(item);
     if (!mounted) return;
 
     setState(() => _saving = false);
@@ -382,10 +330,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   /// write-off — or, when there is nothing to choose, why.
   String get _productHelper {
     if (_choice == null) {
-      final allTaken =
-          !_loadingLeaves &&
-          _isTaken(_any) &&
-          _registrations.every((r) => _isTaken(r.id!));
+      final allTaken = !_loadingLeaves && _isTaken(_any) && _registrations.every((r) => _isTaken(r.id!));
       return allTaken
           ? 'Todos os produtos deste tipo já estão na lista.'
           : 'Escolha um produto que ainda não está na lista.';
@@ -399,11 +344,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
   /// visible but greyed out, and says why.
   DropdownMenuItem<String> _option(String value, String label) {
     final taken = _isTaken(value);
-    return DropdownMenuItem(
-      value: value,
-      enabled: !taken,
-      child: Text(taken ? '$label · já está na lista' : label),
-    );
+    return DropdownMenuItem(value: value, enabled: !taken, child: Text(taken ? '$label · já está na lista' : label));
   }
 
   @override
@@ -442,33 +383,17 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
               // The stored registration only becomes an option once the
               // leaves have loaded — until then a value with no matching item
               // trips the DropdownButton assertion.
-              initialValue:
-                  choice == _any || registrations.any((r) => r.id == choice)
-                  ? choice
-                  : null,
+              initialValue: choice == _any || registrations.any((r) => r.id == choice) ? choice : null,
               isExpanded: true,
-              decoration: InputDecoration(
-                labelText: 'Produto',
-                helperText: _productHelper,
-                helperMaxLines: 3,
-              ),
+              decoration: InputDecoration(labelText: 'Produto', helperText: _productHelper, helperMaxLines: 3),
               items: [
                 _option(_any, 'Qualquer um'),
                 for (final registration in registrations)
-                  _option(
-                    registration.id!,
-                    registration.labelWith(_brandOf(registration)),
-                  ),
+                  _option(registration.id!, registration.labelWith(_brandOf(registration))),
               ],
-              onChanged: _saving || _loadingLeaves
-                  ? null
-                  : (id) => setState(() => _picked = id),
+              onChanged: _saving || _loadingLeaves ? null : (id) => setState(() => _picked = id),
             ),
-            if (_loadingLeaves)
-              const Padding(
-                padding: EdgeInsets.only(top: 12),
-                child: LinearProgressIndicator(),
-              ),
+            if (_loadingLeaves) const Padding(padding: EdgeInsets.only(top: 12), child: LinearProgressIndicator()),
             const SizedBox(height: 8),
             // Both only exist on a line that EXISTS: there is nothing to mark
             // as not found and nothing to remove on a type nobody has asked
@@ -481,9 +406,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
                 contentPadding: EdgeInsets.zero,
                 // The ONLY way to the `[!]`: the checkbox on the line never
                 // passes through it.
-                onChanged: _saving
-                    ? null
-                    : (value) => setState(() => _notFound = value),
+                onChanged: _saving ? null : (value) => setState(() => _notFound = value),
               ),
               Align(
                 alignment: Alignment.centerLeft,
@@ -491,9 +414,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
                   onPressed: _saving ? null : _remove,
                   icon: const Icon(Icons.delete_outline),
                   label: const Text('Remover da lista'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.error,
-                  ),
+                  style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
                 ),
               ),
             ],
@@ -501,10 +422,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
-          child: const Text('Cancelar'),
-        ),
+        TextButton(onPressed: _saving ? null : () => Navigator.of(context).pop(), child: const Text('Cancelar')),
         FilledButton(
           // Nothing chosen: the creating mode of a type whose "Qualquer um"
           // is already on the list, and the field says what to do.
