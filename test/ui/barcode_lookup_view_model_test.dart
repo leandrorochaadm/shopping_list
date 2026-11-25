@@ -56,9 +56,6 @@ void main() {
   late ProviderContainer container;
   late BarcodeLookupViewModel vm;
 
-  final byPiece = ProductRegistration(id: 'reg-1', productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
-  final byWeight = ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight);
-
   setUp(() {
     repository = _SpyCatalog();
     container = ProviderContainer.test(
@@ -131,8 +128,17 @@ void main() {
   });
 
   group('linkScaleCode', () {
+    Future<ProductOption> optionOf(String productId, String registrationId, String typeId) async {
+      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == productId);
+      return ProductOption(
+        product: leaf,
+        registration: ProductRegistration(id: registrationId, productTypeId: typeId),
+        type: ProductType(id: typeId, name: 'Tipo', categoryId: 'cat-1', baseUnit: BaseUnit.gram),
+      );
+    }
+
     test('writes the code', () async {
-      final result = await vm.linkScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
+      final result = await vm.linkScaleCode(option: await optionOf('prod-5', 'reg-2', 'type-2'), code: scaleCode);
 
       expect(result, isNull);
       final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-5');
@@ -140,70 +146,39 @@ void main() {
     });
 
     test('refuses a code taken in the same store', () async {
-      await repository.addScaleCode(productId: 'prod-5', code: scaleCode);
+      await repository.addScaleCode(productId: 'prod-1', code: scaleCode);
 
-      final result = await vm.linkScaleCode(registration: byWeight, productId: 'prod-1', code: scaleCode);
+      final result = await vm.linkScaleCode(option: await optionOf('prod-5', 'reg-2', 'type-2'), code: scaleCode);
 
       expect(result, ScaleCode.takenMessage);
     });
 
-    test('refuses a product sold by piece', () async {
-      final result = await vm.linkScaleCode(registration: byPiece, productId: 'prod-1', code: scaleCode);
+    test('refuses a scale code on a packaging leaf', () async {
+      final result = await vm.linkScaleCode(option: await optionOf('prod-1', 'reg-1', 'type-1'), code: scaleCode);
 
       expect(result, 'Só o granel tem código de balança.');
       expect(repository.addScaleCodeCalls, 0);
     });
 
     test('translates a failure', () async {
+      final option = await optionOf('prod-5', 'reg-2', 'type-2');
       repository.failNextCall = ApiException(503, 'down');
 
-      final result = await vm.linkScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
+      final result = await vm.linkScaleCode(option: option, code: scaleCode);
 
       expect(result, translateFailure(const ServerUnavailable(), 'ligar a etiqueta ao produto'));
     });
 
     test('guards against double tap', () async {
+      final option = await optionOf('prod-5', 'reg-2', 'type-2');
+
       final results = await Future.wait([
-        vm.linkScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode),
-        vm.linkScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode),
+        vm.linkScaleCode(option: option, code: scaleCode),
+        vm.linkScaleCode(option: option, code: scaleCode),
       ]);
 
       expect(results, [null, null]);
       expect(repository.addScaleCodeCalls, 1);
-    });
-  });
-
-  group('linkScaleCode with the option', () {
-    Future<ProductOption> optionOf(String productId, String registrationId, String typeId) async {
-      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == productId);
-      return ProductOption(
-        product: leaf,
-        registration: ProductRegistration(id: registrationId, productTypeId: typeId, sellingMode: SellingMode.byPiece),
-        type: ProductType(id: typeId, name: 'Tipo', categoryId: 'cat-1', baseUnit: BaseUnit.gram),
-      );
-    }
-
-    test('refuses a code on a packaging leaf', () async {
-      final option = await optionOf('prod-1', 'reg-1', 'type-1');
-
-      final result = await vm.linkScaleCode(option: option, code: scaleCode);
-
-      expect(result, const UnexpectedScaleCode().message);
-      expect(repository.addScaleCodeCalls, 0);
-    });
-
-    test('writes the code on the option leaf', () async {
-      final option = await optionOf('prod-5', 'reg-2', 'type-2');
-
-      final result = await vm.linkScaleCode(option: option, code: scaleCode);
-
-      expect(result, isNull);
-      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-5');
-      expect(leaf.scaleCodes, [scaleCode].lock);
-    });
-
-    test('without the option nor the legacy pair throws', () {
-      expect(() => vm.linkScaleCode(code: scaleCode), throwsArgumentError);
     });
   });
 }

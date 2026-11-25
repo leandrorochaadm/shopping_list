@@ -587,12 +587,13 @@ void main() {
           .save(
             registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
             packagings: const IList.empty(),
+            loose: true,
           );
 
-      expect((outcome! as RegistrationSaved).saved.products.single.isSoldByWeight, isTrue);
+      expect((outcome! as RegistrationSaved).saved.products.single.isLoose, isTrue);
       final leaves = await repository.fetchProductsOf('reg-100');
       expect(leaves, hasLength(1));
-      expect(leaves.first.isSoldByWeight, isTrue);
+      expect(leaves.first.isLoose, isTrue);
     });
 
     test('refuses a by-piece registration with no packaging', () async {
@@ -613,7 +614,7 @@ void main() {
       expect(repository.saveCalls, 0);
     });
 
-    test('refuses a weight-sold registration carrying a packaging', () async {
+    test('refuses no packaging and no loose leaf', () async {
       final repository = _SpyRepository();
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
@@ -622,11 +623,11 @@ void main() {
         await container
             .read(catalogViewModelProvider.notifier)
             .save(
-              registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
-              packagings: plain([bottle('350', BaseUnit.milliliter)]),
+              registration: ProductRegistration(productTypeId: 'type-2'),
+              packagings: const IList.empty(),
             )
             .then(_saveMessage),
-        'Produto vendido solto não tem embalagem.',
+        'Informe ao menos uma embalagem para este produto.',
       );
       expect(repository.saveCalls, 0);
     });
@@ -852,27 +853,14 @@ void main() {
       );
     });
 
-    test('refuses when nothing changed on a product sold by weight', () async {
-      final (_, notifier) = await ready();
+    test('asks for a change when nothing changed', () async {
+      final (repository, notifier) = await ready();
 
       final outcome = await edit(notifier, original: groundBeef, brandId: null);
 
-      expect((outcome! as RegistrationEditFailed).message, 'Mude algum campo.');
-    });
-
-    test('refuses a packaging on a product sold by weight', () async {
-      final (repository, notifier) = await ready();
-
-      final outcome = await edit(
-        notifier,
-        original: groundBeef,
-        brandId: null,
-        description: 'moído fino',
-        packagings: [bottle('500', BaseUnit.gram)].lock,
-      );
-
-      expect((outcome! as RegistrationEditFailed).message, const UnexpectedPackaging().message);
+      expect((outcome! as RegistrationEditFailed).message, 'Mude algum campo ou acrescente uma embalagem.');
       expect(repository.updateRegistrationCalls, 0);
+      expect(repository.addPackagingCalls, 0);
     });
 
     test('reports the identity written when the packagings fail', () async {
@@ -1174,12 +1162,13 @@ void main() {
       expect(saved.products[1].barcodes, [soda].lock);
     });
 
-    test('save writes the scale codes of a product sold by weight', () async {
+    test('save writes the scale codes of the loose leaf', () async {
       final (_, notifier) = await ready();
 
       final outcome = await notifier.save(
         registration: byWeight(),
         packagings: const IList.empty(),
+        loose: true,
         scaleCodes: [scaleCode].lock,
       );
 
@@ -1205,12 +1194,14 @@ void main() {
       await notifier.save(
         registration: byWeight(description: 'primeiro'),
         packagings: const IList.empty(),
+        loose: true,
         scaleCodes: [scaleCode].lock,
       );
 
       final outcome = await notifier.save(
         registration: byWeight(description: 'segundo'),
         packagings: const IList.empty(),
+        loose: true,
         scaleCodes: [scaleCode].lock,
       );
 
@@ -1269,8 +1260,8 @@ void main() {
   group('scale codes', () {
     const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
 
-    final byWeight = ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight);
-    final byPiece = ProductRegistration(id: 'reg-1', productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
+    Future<Product> leafOf(_SpyRepository repository, String id) async =>
+        (await repository.fetchProducts()).firstWhere((p) => p.id == id);
 
     Future<(_SpyRepository, CatalogViewModel)> ready() async {
       final repository = _SpyRepository();
@@ -1282,17 +1273,17 @@ void main() {
     test('addScaleCode writes and returns null', () async {
       final (repository, notifier) = await ready();
 
-      final result = await notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
+      final result = await notifier.addScaleCode(leaf: await leafOf(repository, 'prod-5'), code: scaleCode);
 
       expect(result, isNull);
       final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-5');
       expect(leaf.scaleCodes, [scaleCode].lock);
     });
 
-    test('addScaleCode refuses a product sold by piece', () async {
+    test('refuses a scale code on a packaging leaf', () async {
       final (repository, notifier) = await ready();
 
-      final result = await notifier.addScaleCode(registration: byPiece, productId: 'prod-1', code: scaleCode);
+      final result = await notifier.addScaleCode(leaf: await leafOf(repository, 'prod-1'), code: scaleCode);
 
       expect(result, 'Só o granel tem código de balança.');
       expect(repository.addScaleCodeCalls, 0);
@@ -1302,7 +1293,7 @@ void main() {
       final (repository, notifier) = await ready();
       await repository.addScaleCode(productId: 'prod-1', code: scaleCode);
 
-      final result = await notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
+      final result = await notifier.addScaleCode(leaf: await leafOf(repository, 'prod-5'), code: scaleCode);
 
       expect(result, ScaleCode.takenMessage);
     });
@@ -1319,9 +1310,10 @@ void main() {
 
     test('translates a failure', () async {
       final (repository, notifier) = await ready();
+      final target = await leafOf(repository, 'prod-5');
       repository.failNextCall = ApiException(503, 'down');
 
-      final result = await notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
+      final result = await notifier.addScaleCode(leaf: target, code: scaleCode);
 
       expect(result, isNotNull);
       expect(result, isNot(contains('down')));
@@ -1330,9 +1322,11 @@ void main() {
     test('guards against double tap', () async {
       final (repository, notifier) = await ready();
 
+      final target = await leafOf(repository, 'prod-5');
+
       final results = await Future.wait([
-        notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode),
-        notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode),
+        notifier.addScaleCode(leaf: target, code: scaleCode),
+        notifier.addScaleCode(leaf: target, code: scaleCode),
       ]);
 
       expect(results, [null, null]);
@@ -1519,12 +1513,6 @@ void main() {
 
       expect(result, const UnexpectedScaleCode().message);
       expect(repository.addScaleCodeCalls, 0);
-    });
-
-    test('addScaleCode without the leaf nor the legacy pair throws', () async {
-      final (_, notifier) = await ready();
-
-      expect(() => notifier.addScaleCode(code: scaleCode), throwsArgumentError);
     });
   });
 }

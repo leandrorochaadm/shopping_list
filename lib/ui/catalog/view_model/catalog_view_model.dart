@@ -668,38 +668,30 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// A `null` is the reentrancy guard of rule 14 saying "I did nothing" — it
   /// is not a third outcome, and it is never success.
   ///
-  /// [packagings] is empty for a product sold by weight — the leaf still
-  /// exists (decision B1), it simply has no packaging.
+  /// [packagings] is empty for a loose-only registration (`loose: true`) — the
+  /// leaf still exists (decision B1), it simply has no packaging.
   Future<RegistrationSaveOutcome?> save({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
-    bool? loose,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     if (_writingRegistration) return null;
     _writingRegistration = true;
     try {
-      // The rules of the new leaves, asked before any I/O. A `null` [loose] is
-      // the legacy path while SellingMode exists; removed in part 8.
-      if (loose == null) {
-        registration.checkPackagings(packagings.map((p) => p.packaging).toIList());
-        registration.checkScaleCodes(scaleCodes);
-      } else {
-        checkNewLeaves(packagings: packagings.map((p) => p.packaging).toIList(), loose: loose, scaleCodes: scaleCodes);
-      }
+      // The rules of the new leaves, asked before any I/O.
+      checkNewLeaves(packagings: packagings.map((p) => p.packaging).toIList(), loose: loose, scaleCodes: scaleCodes);
 
       final saved = await ref
           .read(catalogRepositoryProvider)
           .saveRegistrationWithProducts(
             registration: registration,
             packagings: packagings,
-            loose: loose ?? registration.isSoldByWeight,
+            loose: loose,
             scaleCodes: scaleCodes,
           );
       return RegistrationSaved(saved);
     } on MissingPackaging catch (e) {
-      return RegistrationSaveFailed(e.message);
-    } on UnexpectedPackaging catch (e) {
       return RegistrationSaveFailed(e.message);
     } on UnexpectedScaleCode catch (e) {
       return RegistrationSaveFailed(e.message);
@@ -771,7 +763,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     required String? brandId,
     required String description,
     required IList<PackagingWithBarcodes> packagings,
-    bool? loose,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
     IList<Product> existing = const IList.empty(),
   }) async {
@@ -790,32 +782,18 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         description: description,
       );
       final identityChanged = edited.changesIdentityOf(original);
-      if (loose == null) {
-        // Legacy path while SellingMode exists; removed in part 8.
-        // Sold by weight has no packaging section: one arriving here means the
-        // screen kept state it should have dropped — the net `save` has too.
-        if (original.isSoldByWeight && packagings.isNotEmpty) {
-          throw const UnexpectedPackaging();
-        }
-        if (!identityChanged && packagings.isEmpty) {
-          return RegistrationEditFailed(
-            original.isSoldByWeight ? 'Mude algum campo.' : 'Mude algum campo ou acrescente uma embalagem.',
-          );
-        }
-      } else {
-        if (!identityChanged && packagings.isEmpty && !loose) {
-          return const RegistrationEditFailed('Mude algum campo ou acrescente uma embalagem.');
-        }
-        // Every rule is asked before the identity is written: a refusal after
-        // it would look like a failure of the second write.
-        if (packagings.isNotEmpty || loose || scaleCodes.isNotEmpty) {
-          checkNewLeaves(
-            packagings: packagings.map((p) => p.packaging).toIList(),
-            loose: loose,
-            scaleCodes: scaleCodes,
-            existing: existing,
-          );
-        }
+      if (!identityChanged && packagings.isEmpty && !loose) {
+        return const RegistrationEditFailed('Mude algum campo ou acrescente uma embalagem.');
+      }
+      // Every rule is asked before the identity is written: a refusal after
+      // it would look like a failure of the second write.
+      if (packagings.isNotEmpty || loose || scaleCodes.isNotEmpty) {
+        checkNewLeaves(
+          packagings: packagings.map((p) => p.packaging).toIList(),
+          loose: loose,
+          scaleCodes: scaleCodes,
+          existing: existing,
+        );
       }
 
       final repository = ref.read(catalogRepositoryProvider);
@@ -848,8 +826,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         if (!ref.mounted) return null;
       }
 
-      final newLoose = loose ?? false;
-      if (packagings.isEmpty && !newLoose) {
+      if (packagings.isEmpty && !loose) {
         return RegistrationEdited(registration: written, products: const IList.empty());
       }
 
@@ -857,7 +834,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
         final products = await repository.addPackagings(
           registrationId: original.id!,
           packagings: packagings,
-          loose: newLoose,
+          loose: loose,
           scaleCodes: scaleCodes,
         );
         return RegistrationEdited(registration: written, products: products);
@@ -871,8 +848,6 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       }
     } on IncompatibleBaseUnit catch (e) {
       // A rule of the domain saying no is not a failure: nothing to log.
-      return RegistrationEditFailed(e.message);
-    } on UnexpectedPackaging catch (e) {
       return RegistrationEditFailed(e.message);
     } on MissingPackaging catch (e) {
       return RegistrationEditFailed(e.message);
@@ -888,33 +863,18 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   }
 
   /// Writes a scale code of a registration already saved. Null on success, or
-  /// the sentence for the screen. [registration] is the one open on screen 4.
+  /// the sentence for the screen.
   ///
-  /// Pass the [leaf] that receives the code: the rule is the leaf's. The pair
-  /// [registration] + [productId] is the legacy form, removed with SellingMode
-  /// (part 8).
-  Future<String?> addScaleCode({
-    Product? leaf,
-    ProductRegistration? registration,
-    String? productId,
-    required ScaleCode code,
-  }) async {
-    if (leaf == null && (registration == null || productId == null)) {
-      throw ArgumentError('addScaleCode needs a leaf, or a registration and a productId');
-    }
+  /// [leaf] is the one that receives the code: the rule is the leaf's.
+  Future<String?> addScaleCode({required Product leaf, required ScaleCode code}) async {
     if (_writingCode) return null;
     _writingCode = true;
     try {
       // The screen only showing the section for the loose leaf does not
       // replace asking the domain, as `save` already does.
-      if (leaf != null) {
-        leaf.checkScaleCode();
-      } else {
-        // Legacy path while SellingMode exists; removed in part 8.
-        registration!.checkScaleCodes(IList([code]));
-      }
+      leaf.checkScaleCode();
 
-      await ref.read(catalogRepositoryProvider).addScaleCode(productId: leaf?.id ?? productId!, code: code);
+      await ref.read(catalogRepositoryProvider).addScaleCode(productId: leaf.id!, code: code);
       if (!ref.mounted) return null;
       return null;
     } on UnexpectedScaleCode catch (e) {

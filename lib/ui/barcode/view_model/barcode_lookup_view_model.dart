@@ -5,7 +5,7 @@ import '../../../data/repositories/catalog/catalog_repository.dart';
 import '../../../domain/models/barcode.dart';
 import '../../../domain/models/barcode_owner.dart';
 import '../../../domain/models/product_option.dart';
-import '../../../domain/models/product_registration.dart';
+import '../../../domain/models/registration_leaves.dart';
 import '../../../domain/models/scale_label.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -91,30 +91,16 @@ final class BarcodeLookupViewModel extends Notifier<void> {
   /// sentence for the SnackBar.
   ///
   /// [option] is the leaf chosen: the rule "only the loose leaf has a scale
-  /// code" is the leaf's. The pair [registration] + [productId] is the legacy
-  /// form, removed with SellingMode (part 8). The caller
-  /// then runs `newPurchaseViewModelProvider.notifier.refresh()`, so the next
-  /// read finds the link.
-  Future<String?> linkScaleCode({
-    ProductOption? option,
-    ProductRegistration? registration,
-    String? productId,
-    required ScaleCode code,
-  }) async {
-    if (option == null && (registration == null || productId == null)) {
-      throw ArgumentError('linkScaleCode needs an option, or a registration and a productId');
-    }
+  /// code" is the leaf's. The caller then runs
+  /// `newPurchaseViewModelProvider.notifier.refresh()`, so the next read finds
+  /// the link.
+  Future<String?> linkScaleCode({required ProductOption option, required ScaleCode code}) async {
     if (_linking) return null;
     _linking = true;
     try {
-      if (option != null) {
-        option.product.checkScaleCode();
-      } else {
-        // Legacy path while SellingMode exists; removed in part 8.
-        registration!.checkScaleCodes(IList([code]));
-      }
+      option.product.checkScaleCode();
 
-      await ref.read(catalogRepositoryProvider).addScaleCode(productId: option?.id ?? productId!, code: code);
+      await ref.read(catalogRepositoryProvider).addScaleCode(productId: option.product.id!, code: code);
       if (!ref.mounted) return null;
       return null;
     } on UnexpectedScaleCode catch (e) {
