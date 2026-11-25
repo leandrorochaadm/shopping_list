@@ -11,12 +11,8 @@ import 'package:shopping_list/domain/models/scale_label.dart';
 /// `packaging_test.dart` and `product_registration_test.dart`; what is here is
 /// the leaf's own rules, and the one H10 adds.
 void main() {
-  ProductRegistration registration({bool active = true}) => ProductRegistration(
-    id: 'reg-1',
-    productTypeId: 'type-1',
-    sellingMode: SellingMode.byPiece,
-    active: active,
-  );
+  ProductRegistration registration({bool active = true}) =>
+      ProductRegistration(id: 'reg-1', productTypeId: 'type-1', sellingMode: SellingMode.byPiece, active: active);
 
   Product leaf({
     bool active = true,
@@ -25,11 +21,7 @@ void main() {
   }) => Product(
     id: 'prod-1',
     productRegistrationId: 'reg-1',
-    packaging: Packaging(
-      pieceCount: 1,
-      pieceSize: 350,
-      baseUnit: BaseUnit.milliliter,
-    ),
+    packaging: Packaging(pieceCount: 1, pieceSize: 350, baseUnit: BaseUnit.milliliter),
     active: active,
     barcodes: barcodes,
     scaleCodes: scaleCodes,
@@ -41,27 +33,18 @@ void main() {
     });
 
     test('a deactivated leaf is off it', () {
-      expect(
-        leaf(active: false).isEffectivelyActiveIn(registration()),
-        isFalse,
-      );
+      expect(leaf(active: false).isEffectivelyActiveIn(registration()), isFalse);
     });
 
     test('a deactivated REGISTRATION takes its leaves with it', () {
       // `handoff §H10`: "desativar o produto desativa o cadastro e, com ele,
       // todas as folhas". On the read, a `&&`, and not a second write that
       // would have to walk the leaves one by one (D7).
-      expect(
-        leaf().isEffectivelyActiveIn(registration(active: false)),
-        isFalse,
-      );
+      expect(leaf().isEffectivelyActiveIn(registration(active: false)), isFalse);
     });
 
     test('both deactivated is still off', () {
-      expect(
-        leaf(active: false).isEffectivelyActiveIn(registration(active: false)),
-        isFalse,
-      );
+      expect(leaf(active: false).isEffectivelyActiveIn(registration(active: false)), isFalse);
     });
   });
 
@@ -112,28 +95,15 @@ void main() {
       expect(leaf(), isNot(leaf().copyWith(productRegistrationId: 'reg-9')));
       expect(
         leaf(),
-        isNot(
-          leaf().copyWith(
-            packaging: Packaging(
-              pieceCount: 2,
-              pieceSize: 350,
-              baseUnit: BaseUnit.milliliter,
-            ),
-          ),
-        ),
+        isNot(leaf().copyWith(packaging: Packaging(pieceCount: 2, pieceSize: 350, baseUnit: BaseUnit.milliliter))),
       );
       expect(leaf(), isNot(leaf(active: false)));
-      expect(
-        leaf(),
-        isNot(leaf(barcodes: [Barcode.typed('7894900011517')].lock)),
-      );
+      expect(leaf(), isNot(leaf(barcodes: [Barcode.typed('7894900011517')].lock)));
       expect(
         leaf(),
         isNot(
           leaf(
-            scaleCodes: [
-              const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
-            ].lock,
+            scaleCodes: [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
           ),
         ),
       );
@@ -141,11 +111,7 @@ void main() {
   });
 
   group('the codes', () {
-    final row = {
-      'id': 'prod-1',
-      'product_registration_id': 'reg-1',
-      'active': true,
-    };
+    final row = {'id': 'prod-1', 'product_registration_id': 'reg-1', 'active': true};
 
     test('fromJson splits the embed rows by store_id', () {
       final product = Product.fromJson({
@@ -157,10 +123,7 @@ void main() {
       });
 
       expect(product.barcodes, [Barcode.typed('7894900011517')].lock);
-      expect(
-        product.scaleCodes,
-        [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
-      );
+      expect(product.scaleCodes, [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock);
     });
 
     test('fromJson without the embed gives empty lists', () {
@@ -175,9 +138,7 @@ void main() {
     test('toJson leaves the codes out', () {
       final product = leaf(
         barcodes: [Barcode.typed('7894900011517')].lock,
-        scaleCodes: [
-          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
-        ].lock,
+        scaleCodes: [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
       );
 
       expect(product.toJson().containsKey(Product.barcodesKey), isFalse);
@@ -189,9 +150,7 @@ void main() {
     test('the transitions keep the codes', () {
       final product = leaf(
         barcodes: [Barcode.typed('7894900011517')].lock,
-        scaleCodes: [
-          const ScaleCode(storeId: 'store-1', itemCode: '2822521'),
-        ].lock,
+        scaleCodes: [const ScaleCode(storeId: 'store-1', itemCode: '2822521')].lock,
       );
 
       for (final moved in [product.deactivated(), product.reactivated()]) {
@@ -210,19 +169,13 @@ void main() {
     });
 
     test('withBarcode refuses a code the leaf already has', () {
-      expect(
-        () => leaf(barcodes: [milk].lock).withBarcode(milk),
-        throwsA(isA<BarcodeAlreadyOnPackaging>()),
-      );
+      expect(() => leaf(barcodes: [milk].lock).withBarcode(milk), throwsA(isA<BarcodeAlreadyOnPackaging>()));
     });
 
     test('withBarcode sees the same number in UPC-A and EAN-13', () {
       final upc = Barcode.typed('012345678905');
       final ean = Barcode.typed('0012345678905');
-      expect(
-        () => leaf(barcodes: [upc].lock).withBarcode(ean),
-        throwsA(isA<BarcodeAlreadyOnPackaging>()),
-      );
+      expect(() => leaf(barcodes: [upc].lock).withBarcode(ean), throwsA(isA<BarcodeAlreadyOnPackaging>()));
     });
 
     test('withoutBarcode removes only that code', () {
@@ -231,45 +184,30 @@ void main() {
     });
 
     test('the exception carries its sentence', () {
-      expect(
-        const BarcodeAlreadyOnPackaging().toString(),
-        contains('Esse código já está nesta embalagem.'),
-      );
+      expect(const BarcodeAlreadyOnPackaging().toString(), contains('Esse código já está nesta embalagem.'));
     });
   });
 
   group('packagingCodesWith', () {
     test('adds the code to the list', () {
       const empty = IList<Barcode>.empty();
-      expect(
-        packagingCodesWith(empty, '7894900011517'),
-        [Barcode.typed('7894900011517')].lock,
-      );
+      expect(packagingCodesWith(empty, '7894900011517'), [Barcode.typed('7894900011517')].lock);
       expect(empty, isEmpty);
     });
 
     test('refuses the same code twice, however written', () {
       final codes = packagingCodesWith(const IList.empty(), '012345678905');
-      expect(
-        () => packagingCodesWith(codes, '0012345678905'),
-        throwsA(isA<BarcodeAlreadyOnPackaging>()),
-      );
+      expect(() => packagingCodesWith(codes, '0012345678905'), throwsA(isA<BarcodeAlreadyOnPackaging>()));
     });
 
     test('calls a scale label a scale code', () {
       for (final raw in ['02822521001605261107', '2822521001605']) {
-        expect(
-          () => packagingCodesWith(const IList.empty(), raw),
-          throwsA(isA<InStoreBarcode>()),
-        );
+        expect(() => packagingCodesWith(const IList.empty(), raw), throwsA(isA<InStoreBarcode>()));
       }
     });
 
     test('refuses an invalid code', () {
-      expect(
-        () => packagingCodesWith(const IList.empty(), '7894900011518'),
-        throwsA(isA<InvalidBarcode>()),
-      );
+      expect(() => packagingCodesWith(const IList.empty(), '7894900011518'), throwsA(isA<InvalidBarcode>()));
     });
   });
 
@@ -285,10 +223,7 @@ void main() {
     });
 
     test('refuses an invalid code', () {
-      expect(
-        () => packagingCodeOf('7894900011518'),
-        throwsA(isA<InvalidBarcode>()),
-      );
+      expect(() => packagingCodeOf('7894900011518'), throwsA(isA<InvalidBarcode>()));
     });
   });
 
@@ -298,21 +233,12 @@ void main() {
     });
 
     test('a loose leaf takes none', () {
-      expect(
-        const Product(
-          id: 'prod-5',
-          productRegistrationId: 'reg-2',
-        ).acceptsBarcodes,
-        isFalse,
-      );
+      expect(const Product(id: 'prod-5', productRegistrationId: 'reg-2').acceptsBarcodes, isFalse);
     });
   });
 
   group('fromJson — what the CHECKs refused', () {
-    Map<String, dynamic> row({
-      Object? total = 2100,
-      List<Map<String, dynamic>>? codes,
-    }) => {
+    Map<String, dynamic> row({Object? total = 2100, List<Map<String, dynamic>>? codes}) => {
       'id': 'prod-1',
       'product_registration_id': 'reg-1',
       'piece_count': total == 2100 ? 6 : 0,
@@ -383,6 +309,36 @@ void main() {
         ),
         throwsArgumentError,
       );
+    });
+  });
+
+  group('loose leaf', () {
+    const loose = Product(id: 'prod-5', productRegistrationId: 'reg-2');
+
+    test('a leaf with no packaging is loose', () {
+      expect(loose.isLoose, isTrue);
+      expect(loose.takesScaleCodes, isTrue);
+      expect(loose.acceptsBarcodes, isFalse);
+    });
+
+    test('a leaf with a packaging is not loose', () {
+      expect(leaf().isLoose, isFalse);
+      expect(leaf().takesScaleCodes, isFalse);
+      expect(leaf().acceptsBarcodes, isTrue);
+    });
+
+    test('checkScaleCode refuses a packaging leaf', () {
+      expect(() => leaf().checkScaleCode(), throwsA(isA<UnexpectedScaleCode>()));
+    });
+
+    test('checkScaleCode accepts the loose leaf', () {
+      expect(loose.checkScaleCode, returnsNormally);
+      expect(loose.deactivated().checkScaleCode, returnsNormally);
+    });
+
+    test('isSoldByWeight mirrors isLoose', () {
+      expect(loose.isSoldByWeight, loose.isLoose);
+      expect(leaf().isSoldByWeight, leaf().isLoose);
     });
   });
 }

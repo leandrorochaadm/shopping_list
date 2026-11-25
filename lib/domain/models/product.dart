@@ -8,7 +8,7 @@ import 'scale_label.dart';
 /// The LEAF: a registration plus one packaging. It is what a purchase points
 /// at, and where price and history live.
 ///
-/// **The leaf exists even when the product is sold by weight** (decision B1):
+/// **The leaf exists even when it is loose** (decision B1):
 /// ground beef has no "350 ml", so [packaging] is null and the purchase still
 /// has a single kind of target. The alternative — pointing sometimes at the
 /// registration, sometimes at the leaf — would double every price query,
@@ -49,7 +49,7 @@ final class Product {
 
   final String productRegistrationId;
 
-  /// Null for a product sold by weight — and only for those.
+  /// Null for the loose leaf — and only for it.
   final Packaging? packaging;
 
   /// Its own `active` (decision 23): this is what "deactivate the packaging"
@@ -71,12 +71,25 @@ final class Product {
     'active': active,
   };
 
-  bool get isSoldByWeight => packaging == null;
+  /// Is this the loose leaf (no packaging)? The official question.
+  bool get isLoose => packaging == null;
 
-  /// Only a leaf WITH a packaging takes barcodes; the loose (by weight) leaf
+  /// Kept for the old tests; use [isLoose].
+  bool get isSoldByWeight => isLoose;
+
+  /// Only a leaf WITH a packaging takes barcodes; the loose leaf
   /// keeps scale codes, edited on screen 4. It is what the pencil of the
   /// maintenance asks before showing the code block.
-  bool get acceptsBarcodes => packaging != null;
+  bool get acceptsBarcodes => !isLoose;
+
+  /// Only the loose leaf takes scale codes.
+  bool get takesScaleCodes => isLoose;
+
+  /// Throws [UnexpectedScaleCode] when this leaf has a packaging. The rule is
+  /// about the shape of the leaf, not its active state.
+  void checkScaleCode() {
+    if (!isLoose) throw const UnexpectedScaleCode();
+  }
 
   /// Is the leaf on the shelf? `handoff §H10` is explicit: "desativar o
   /// produto desativa o cadastro e, com ele, todas as folhas". A leaf is
