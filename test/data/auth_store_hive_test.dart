@@ -8,11 +8,15 @@ import 'package:shopping_list/data/services/auth_store_hive.dart';
 
 import '../helpers/pocketbase_test_client.dart';
 
-RecordModel _user() => RecordModel.fromJson({
-  'id': testUserId,
-  'collectionId': '_pb_users_auth_',
-  'collectionName': 'users',
-});
+RecordModel _user() =>
+    RecordModel.fromJson({'id': testUserId, 'collectionId': '_pb_users_auth_', 'collectionName': 'users'});
+
+Future<void> _waitUntil(bool Function() condition) async {
+  for (var attempt = 0; attempt < 200 && !condition(); attempt++) {
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+  }
+  expect(condition(), isTrue, reason: 'the queued write never landed');
+}
 
 void main() {
   late Directory directory;
@@ -79,10 +83,14 @@ void main() {
   });
 
   test('keeps one row, replaced on each save', () async {
+    final secondToken = fakeAuthToken(DateTime.utc(2101));
     final store = buildAuthStore(box)
       ..save(token, _user())
-      ..save(fakeAuthToken(DateTime.utc(2101)), _user());
-    await pumpEventQueue();
+      ..save(secondToken, _user());
+    // The two writes go through PocketBase's queue one after the other, each
+    // one real disk I/O: pumpEventQueue alone may return before the second one
+    // lands, and tearDown then closes the box under it.
+    await _waitUntil(() => box.get('session')?.contains(secondToken) ?? false);
 
     expect(box.length, 1);
     expect(store.token, isNot(token));
