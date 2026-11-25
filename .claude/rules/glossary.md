@@ -184,7 +184,7 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | código de balança que abre a Tela 4 | `initialScaleCode` | campo do `NewProductRequest`; também já lembra o mercado |
 | trocar o mercado dos códigos ainda não salvos | `scaleCodesMovedTo` | mantém a ordem; repetido fica um só |
 | mercado lembrado das etiquetas | `_labelStoreId` | temporário, só no `State` da Tela 4; o "Salvar e ler outro" não o limpa |
-| a granel | `Product.isLoose` | a folha sem embalagem (`packaging == null`); `ProductOption.isLoose` lê a folha. Substitui o modo de venda do cadastro (**N-a**); o nome antigo ainda existe no código como apelido até a limpeza pendente em `docs/estado-atual.md` |
+| a granel | `Product.isLoose` | a folha sem embalagem (`packaging == null`); `ProductOption.isLoose` lê a folha. Substitui o modo de venda do cadastro (**N-a**) |
 | regra das folhas novas | `checkNewLeaves` / `activeLooseOf` | o que um salvar pode criar: sem embalagem e sem granel → `MissingPackaging`; etiqueta sem granel → `UnexpectedScaleCode`; segundo granel **ativo** → `LooseAlreadyExists` |
 | granel já existe | `LooseAlreadyExists` | "Esse produto já tem granel." Granel desativado não conta |
 | cartão Embalagem / A granel | `PackagingDraft.loose` / `withLoose` | o cartão da Tela 4; o granel não vira `Packaging` |

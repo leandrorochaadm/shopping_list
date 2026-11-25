@@ -12,7 +12,7 @@ segue travado" da M-b estão revogadas pela **N-a** (`docs/decisoes-divergencias
 - **(1) Domínio:** `Product.isLoose`/`takesScaleCodes`/`acceptsBarcodes`/`checkScaleCode`
   (`product.dart`); `checkNewLeaves`, `activeLooseOf`, `LooseAlreadyExists`, `MissingPackaging`,
   `UnexpectedScaleCode` (`registration_leaves.dart`); `ProductOption.isLoose` lê a folha;
-  `ProductRegistration.fromJson` tolera a falta de `selling_mode`.
+  `ProductRegistration.fromJson` ignora `selling_mode`, e o `toJson` não o escreve.
 - **(2) Dados:** o repository do catálogo recebe `loose`/`scaleCodes` (`saveRegistrationWithProducts`,
   `addPackagings`); o remote não manda `selling_mode`; `tool/pb_seed.py` sem a coluna.
 - **(3) ViewModel:** `CatalogViewModel.save/addPackagings/editRegistration` com `loose`/`existing` e
@@ -22,18 +22,12 @@ segue travado" da M-b estão revogadas pela **N-a** (`docs/decisoes-divergencias
   substituição da folha pelo id.
 - **(5) Banco:** `pocketbase/pb_migrations/1792800400_drop_selling_mode.js` (up apaga a coluna; down
   recria preenchida).
-- **Pendências** (ficam no código, sem servidor que as leia; os testes protegidos ainda leem a API
-  antiga, e a limpeza é um plano próprio): `enum SellingMode`, campo `sellingMode` (opcional, padrão
-  `byPiece`) e `toJson` ainda escrevendo `selling_mode`; `isSoldByWeight` como apelido em cadastro,
-  `Product` e `ProductOption`; `checkPackagings`, `checkScaleCodes`, `SellingMode.takesScaleCodes`,
-  `UnexpectedPackaging`; `lib/domain/models/selling_choice.dart` + teste; o campo Vendido
-  (`_SellingModeField`) e o calço `_legacyModeFor` na Tela 4; ramos `loose == null` do
-  `CatalogViewModel`; formas `registration`/`productId` de `addScaleCode`/`linkScaleCode`; frase
-  antiga de `UnexpectedScaleCode` (`'Só produto vendido solto tem código de balança.'`; a planejada é
-  `'Só o granel tem código de balança.'`); sufixo `'(peso)'` no rótulo do `ProductOption` (o novo é
-  `'por kg'`); `_looseTitle` `'Vendido por peso'` em `catalog_maintenance_screen.dart`;
-  `initialScaleCode` abrindo cartão granel. Conferir no PWA instalado o caso do bug: Café sem marca
-  com granel gravado aceita o pacote de 300 g com o código lido.
+- **Limpeza feita em 25/11/2026** (`temp/plan/plano-limpeza-granel-no-cadastro-2026-11-25.md`): saíram
+  `SellingMode`, o campo `sellingMode`, `isSoldByWeight`, `checkPackagings`, `checkScaleCodes`,
+  `UnexpectedPackaging`, `selling_choice.dart` e o campo Vendido da Tela 4; o granel vem só do cartão, e os
+  rótulos dizem "por kg" (`'Café Pilão por kg'`, `'Vendido por kg'`, `'Só o granel tem código de balança.'`).
+- **Pendência:** conferir no PWA instalado o caso do bug: Café sem marca com granel gravado aceita o pacote
+  de 300 g com o código lido.
 - **ORDEM DE DEPLOY:** a migration `1792800400_drop_selling_mode.js` vai na **mesma tag** do app. O
   app antigo lê `selling_mode` com `as String` e quebra depois dela: publicar e abrir o app novo nos
   **dois iPhones** logo após o deploy. O down da migration recria a coluna preenchida (`by_weight` no
@@ -46,7 +40,7 @@ nova, ler o código o põe na embalagem ou avisa de quem ele já é; `[ Salvar e
 abre a câmera para o próximo; na manutenção do cadastro, a leitura abre o produto ou oferece
 cadastrar. A etiqueta de balança é lida nos dois lugares.
 
-- **(1) Domínio:** `SellingMode.takesScaleCodes`, `SellingChoice.modeFor` (substituídos por `Product.takesScaleCodes` e pelo cartão granel na N-a), `scaleCodesMovedTo`
+- **(1) Domínio:** `SellingMode.takesScaleCodes`, `SellingChoice.modeFor` (substituídos por `Product.takesScaleCodes` e pelo cartão granel na N-a, apagados na limpeza de 25/11/2026), `scaleCodesMovedTo`
   (`scale_label.dart`), `scaleHoldersOf` (`product.dart`).
 - **(2) Telas:** novos `known_code_dialog.dart` e `unknown_code_dialog.dart`
   (`lib/ui/barcode/widgets/`); alterados `new_product_screen.dart` (`[▥]`, etiqueta, mercado
@@ -132,7 +126,7 @@ sem parar, com o preço da última compra marcado "preço anterior".
 (`temp/plan/plano-editar-cadastro-na-tela-4-2026-10-01.md`): a Tela 4 aberta pela
 manutenção (lápis → `[ Abrir e acrescentar embalagem ]`) vira **"Editar produto"**, com
 **Descrição, Marca e Tipo editáveis** e um único `[ Salvar alterações ]` que grava a
-identidade e as embalagens novas; Categoria e Vendido seguem travados (o Vendido saiu na N-a, 24/11/2026), o Tipo só oferece
+identidade e as embalagens novas; a Categoria segue travada (o campo Vendido existiu até a N-a, 24/11/2026), o Tipo só oferece
 tipos da mesma unidade base e a lista de embalagens começa vazia. O caminho do cadastro
 barrado por repetição continua travado. **(1)** Domínio: `checkTypeMove` (em
 `catalog_maintenance.dart`), `ProductRegistration.changesIdentityOf` e
@@ -249,9 +243,9 @@ número, e nenhum preço mudou** — e o enum ganhou `priceLabel`, `typedText`,
 `_largeLabel` e `_largeDecimalPlaces` **privados**, para o compilador impedir uma tela de
 escolher entre 'kg' e 'g'. **Todo campo de quantidade e de conteúdo passou a `digitsOnly`**
 (os de valor pago continuam decimais), `AmountTooPrecise` virou `AmountMustBeWhole`, e a
-leitura ficou **adaptativa**: `900 g`, `1,5 kg`, `1,25 L`, `30 m`. `SellingChoice` ganhou
-`length` ("Tamanho") e o `SegmentedButton` do campo **Vendido** passou a montar **só as
-palavras da grandeza** (campo revogado pela N-a, 24/11/2026) — quatro segmentos espremem o rótulo para 35 pt nos 390 pt do
+leitura ficou **adaptativa**: `900 g`, `1,5 kg`, `1,25 L`, `30 m`. `SellingChoice` (apagado em 25/11/2026) ganhou
+`length` ("Tamanho") e o `SegmentedButton` do campo **Vendido**, que existiu até a N-a, passou a montar **só as
+palavras da grandeza** — quatro segmentos espremem o rótulo para 35 pt nos 390 pt do
 iPhone 12. Uma migration nova (`20260907120000_base_unit_centimeter.sql`) converte os
 rótulos gravados e amplia os dois `check`; **nenhum inteiro gravado mudou**. Decisão
 congelada **26** e divergências **J-a** a **J-e** registradas.
@@ -571,8 +565,8 @@ porque uma FK não perdoa e um rastro de outro dia devolveria a quantidade errad
 **Desde 28/09/2026 o catálogo do seed vem de `supabase/seed_catalog.md`**: 20
 categorias, 255 tipos e ~300 cadastros genéricos sem marca, editáveis como lista em
 Markdown. Cada cadastro ganha uma folha — vendido a peso sem embalagem nas grandezas
-Peso, Volume e Tamanho, `1 × 1 un` na Contagem —, porque o arquivo deixa o **Vendido**
-para o app e o banco exige uma. As compras sintéticas usam os tipos desse arquivo; o
+Peso, Volume e Tamanho, `1 × 1 un` na Contagem —, porque o banco exige uma folha (o campo **Vendido**,
+que existiu até a N-a, ficava para o app). As compras sintéticas usam os tipos desse arquivo; o
 `Papel-alumínio` virou `Papel alumínio`, e os desativados da H10 passaram a ser
 `Bazar` e `Cerveja`, que o catálogo não tem.
 

@@ -305,7 +305,7 @@ lançadas — isso é da natureza delas, não do sistema.
    - **REVOGADO EM 01/09/2026 (divergência H-b):** esta passagem dizia também
      *"Quantidade (un)" no que é vendido solto e contado*. **O cadastro deixou
      de oferecer esse caso**: num tipo contado por unidade, o campo Vendido
-     mostra só *Unidade*, e o avulso passa a ser uma embalagem de `1 un`. Os
+     mostra só *Unidade* (campo revogado pela N-a), e o avulso passa a ser uma embalagem de `1 un`. Os
      números são os mesmos — 12 × conteúdo 1 dá 12 —, o que muda é o caminho:
      ganha-se um passo de cadastro e perde-se o `(un)` do rótulo, que a linha
      da embalagem logo acima já diz. É o preço de a grandeza nomear o botão.
@@ -1219,7 +1219,7 @@ Os dois usam a **mesma lista** e podem estar no mercado em momentos diferentes.
   base do tipo** (decisão de 26/08/2026): "Peso (kg)" ou "Volume (L)". Havia um
   terceiro, "Quantidade (un)", para o solto contado — **revogado em 01/09/2026
   pela divergência H-b**, que tirou esse caso do cadastro: num tipo contado por
-  unidade o campo Vendido oferece só *Unidade*, e o avulso vira uma embalagem
+  unidade o campo Vendido oferece só *Unidade* (campo revogado pela N-a), e o avulso vira uma embalagem
   de `1 un`. A marcação de solto diz que não há embalagem a contar —
   quem informa a quantidade é o cupom —, e não que a grandeza seja
   necessariamente o quilo. Preso ao quilo, o azeite a granel ficaria sem
@@ -1637,6 +1637,7 @@ com a decisão de cada uma.
       o campo Vendido passou a três palavras — `Peso`, `Unidade`, `Volume` — e
       num tipo contado por unidade só `Unidade` fica clicável. O resto da
       decisão continua valendo, e é dela que as três palavras saem.
+      O campo Vendido foi revogado pela N-a (24/11/2026): o granel é um cartão da embalagem.
 - [x] **Tipo e categoria podiam nascer em duplicidade.** Eram os últimos
       cadastros sem trava, e o tipo é o nível que soma. A comparação passa a
       ignorar **maiúsculas, espaço sobrando e acento**, e o desativado aparece na
