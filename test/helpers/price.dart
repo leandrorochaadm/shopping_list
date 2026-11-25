@@ -37,11 +37,7 @@ final otherBeefLeaf = optionByWeight(id: 'prod-6');
 /// and nothing compares against it.
 final unsavedLeaf = ProductOption(
   product: const Product(productRegistrationId: 'reg-x'),
-  registration: ProductRegistration(
-    productTypeId: softDrinkType.id!,
-    brandId: cokeBrand.id,
-    sellingMode: SellingMode.byWeight,
-  ),
+  registration: ProductRegistration(productTypeId: softDrinkType.id!, brandId: cokeBrand.id),
   type: softDrinkType,
   brand: cokeBrand,
 );
@@ -60,11 +56,7 @@ PriceQuote quote({
   categoryId: categoryId,
   categoryName: categoryName,
   store: store ?? carrefour,
-  price: PriceReference(
-    paid: Money(cents),
-    quantityInBaseUnit: quantity,
-    purchasedOn: on,
-  ),
+  price: PriceReference(paid: Money(cents), quantityInBaseUnit: quantity, purchasedOn: on),
 );
 
 /// A quote of the meat category, so the picker has two groups to sort.

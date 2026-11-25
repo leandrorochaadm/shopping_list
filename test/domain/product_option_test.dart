@@ -42,7 +42,6 @@ void main() {
       productTypeId: (type ?? softDrink).id!,
       brandId: brand?.id,
       description: description,
-      sellingMode: SellingMode.byPiece,
     ),
     type: type ?? softDrink,
     brand: brand,
@@ -52,7 +51,7 @@ void main() {
 
   final groundBeef = ProductOption(
     product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
-    registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
+    registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2'),
     type: beef,
   );
 
@@ -192,14 +191,14 @@ void main() {
 
       final bulkOil = ProductOption(
         product: const Product(id: 'p9', productRegistrationId: 'reg-9'),
-        registration: ProductRegistration(id: 'reg-9', productTypeId: 'type-1', sellingMode: SellingMode.byWeight),
+        registration: ProductRegistration(id: 'reg-9', productTypeId: 'type-1'),
         type: softDrink,
       );
       expect(bulkOil.quantityLabel, 'Volume');
 
       final looseRolls = ProductOption(
         product: const Product(id: 'p8', productRegistrationId: 'reg-8'),
-        registration: ProductRegistration(id: 'reg-8', productTypeId: 'type-3', sellingMode: SellingMode.byWeight),
+        registration: ProductRegistration(id: 'reg-8', productTypeId: 'type-3'),
         type: paper,
       );
       expect(looseRolls.quantityLabel, 'Quantidade');
@@ -511,31 +510,31 @@ void main() {
   });
 
   group('isLoose (granel na folha)', () {
-    final packagedUnderByWeight = ProductOption(
+    final packagedLeaf = ProductOption(
       product: Product(
         id: 'p6',
         productRegistrationId: 'reg-6',
         packaging: Packaging(pieceCount: 12, pieceSize: 350, baseUnit: BaseUnit.milliliter),
       ),
-      registration: ProductRegistration(id: 'reg-6', productTypeId: 'type-1', sellingMode: SellingMode.byWeight),
+      registration: ProductRegistration(id: 'reg-6', productTypeId: 'type-1'),
       type: softDrink,
     );
-    final looseUnderByPiece = ProductOption(
+    final looseLeaf = ProductOption(
       product: const Product(id: 'p7', productRegistrationId: 'reg-7'),
-      registration: ProductRegistration(id: 'reg-7', productTypeId: 'type-2', sellingMode: SellingMode.byPiece),
+      registration: ProductRegistration(id: 'reg-7', productTypeId: 'type-2'),
       type: beef,
     );
 
     test('reads the leaf, not the registration', () {
-      expect(packagedUnderByWeight.isLoose, isFalse);
-      expect(packagedUnderByWeight.toBaseUnit(1), 4200);
-      expect(packagedUnderByWeight.quantityLabel, 'Quantidade');
+      expect(packagedLeaf.isLoose, isFalse);
+      expect(packagedLeaf.toBaseUnit(1), 4200);
+      expect(packagedLeaf.quantityLabel, 'Quantidade');
     });
 
-    test('a leaf with no packaging is loose whatever the registration says', () {
-      expect(looseUnderByPiece.isLoose, isTrue);
-      expect(looseUnderByPiece.toBaseUnit(1500), 1500);
-      expect(looseUnderByPiece.quantityLabel, 'Peso');
+    test('a leaf with no packaging is loose', () {
+      expect(looseLeaf.isLoose, isTrue);
+      expect(looseLeaf.toBaseUnit(1500), 1500);
+      expect(looseLeaf.quantityLabel, 'Peso');
     });
   });
 }

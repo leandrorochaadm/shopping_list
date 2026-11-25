@@ -4,16 +4,8 @@ import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/purchase_count.dart';
 
-ProductRegistration registration(
-  String? id,
-  String typeId, {
-  bool active = true,
-}) => ProductRegistration(
-  id: id,
-  productTypeId: typeId,
-  sellingMode: SellingMode.byPiece,
-  active: active,
-);
+ProductRegistration registration(String? id, String typeId, {bool active = true}) =>
+    ProductRegistration(id: id, productTypeId: typeId, active: active);
 
 Product product(String? id, String registrationId, {bool active = true}) =>
     Product(id: id, productRegistrationId: registrationId, active: active);
@@ -56,11 +48,7 @@ void main() {
 
   test('returns an empty map when nothing was bought', () {
     expect(
-      purchaseCountsByType(
-        products: products,
-        registrations: registrations,
-        countByProduct: const IMapConst({}),
-      ),
+      purchaseCountsByType(products: products, registrations: registrations, countByProduct: const IMapConst({})),
       isEmpty,
     );
   });
@@ -75,13 +63,7 @@ void main() {
         ...products,
       ].toIList(),
       registrations: [registration(null, 'ghost'), ...registrations].toIList(),
-      countByProduct: {
-        'p9': 5,
-        'p10': 5,
-        'orphan': 7,
-        'p5': 0,
-        'p1': 1,
-      }.toIMap(),
+      countByProduct: {'p9': 5, 'p10': 5, 'orphan': 7, 'p5': 0, 'p1': 1}.toIMap(),
     );
     expect(counts.unlock, {'milk': 1});
   });

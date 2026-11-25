@@ -12,7 +12,7 @@ import 'package:shopping_list/domain/models/scale_label.dart';
 /// the leaf's own rules, and the one H10 adds.
 void main() {
   ProductRegistration registration({bool active = true}) =>
-      ProductRegistration(id: 'reg-1', productTypeId: 'type-1', sellingMode: SellingMode.byPiece, active: active);
+      ProductRegistration(id: 'reg-1', productTypeId: 'type-1', active: active);
 
   Product leaf({
     bool active = true,

@@ -12,35 +12,21 @@ import '../helpers/purchase.dart';
 
 /// The cheese of the third written story: the counter one is sold by weight,
 /// the sliced one comes in a 200 g package, and both add up in kilos.
-final cheeseType = ProductType(
-  id: 'type-9',
-  name: 'Mussarela',
-  categoryId: 'cat-3',
-  baseUnit: BaseUnit.gram,
-);
+final cheeseType = ProductType(id: 'type-9', name: 'Mussarela', categoryId: 'cat-3', baseUnit: BaseUnit.gram);
 
 /// A leaf sold by piece with NO packaging — not representable in the schema
 /// (decision B1), and the only reason it is built here is to prove the
 /// arithmetic does not lie if one day it is.
 final unpackaged = ProductOption(
   product: const Product(id: 'ghost', productRegistrationId: 'reg-ghost'),
-  registration: ProductRegistration(
-    id: 'reg-ghost',
-    productTypeId: 'type-1',
-    sellingMode: SellingMode.byPiece,
-  ),
+  registration: ProductRegistration(id: 'reg-ghost', productTypeId: 'type-1'),
   type: softDrinkType,
 );
 
 /// Two leaves of one kilo each, so the two prices ARE the two costs per kilo
 /// and the tie threshold can be walked across a cent at a time.
-ProductOption kiloLeaf(String id) => optionByPiece(
-  id: id,
-  type: powderType,
-  description: id,
-  pieceSize: 1000,
-  unit: BaseUnit.gram,
-);
+ProductOption kiloLeaf(String id) =>
+    optionByPiece(id: id, type: powderType, description: id, pieceSize: 1000, unit: BaseUnit.gram);
 
 CostRanking rank(
   IList<ProductOption> options,
@@ -51,9 +37,7 @@ CostRanking rank(
   String? pickedId,
 }) => rankCosts(
   options: options,
-  prices: {
-    for (final entry in cents.entries) entry.key: Money(entry.value),
-  }.lock,
+  prices: {for (final entry in cents.entries) entry.key: Money(entry.value)}.lock,
   contents: contents.lock,
   selected: (selected ?? cents.keys.toSet()).lock,
   baseUnit: baseUnit,
@@ -69,10 +53,7 @@ void main() {
 
     test('sold by weight it is the base unit itself', () {
       expect(contentPricedOf(optionByWeight(id: 'beef')), 1000);
-      expect(
-        contentPricedOf(optionByWeight(id: 'juice', type: softDrinkType)),
-        1000,
-      );
+      expect(contentPricedOf(optionByWeight(id: 'juice', type: softDrinkType)), 1000);
       expect(contentPricedOf(optionByWeight(id: 'egg', type: paperType)), 1);
     });
 
@@ -81,10 +62,7 @@ void main() {
     });
 
     test('the weighed leaf uses the typed content', () {
-      expect(
-        contentPricedOf(optionByWeight(id: 'tray'), typedContent: 800),
-        800,
-      );
+      expect(contentPricedOf(optionByWeight(id: 'tray'), typedContent: 800), 800);
     });
 
     test('the packaged leaf ignores the typed content', () {
@@ -97,14 +75,8 @@ void main() {
     });
 
     test('a typed content of zero or less divides nothing', () {
-      expect(
-        contentPricedOf(optionByWeight(id: 'tray'), typedContent: 0),
-        1000,
-      );
-      expect(
-        contentPricedOf(optionByWeight(id: 'tray'), typedContent: -5),
-        1000,
-      );
+      expect(contentPricedOf(optionByWeight(id: 'tray'), typedContent: 0), 1000);
+      expect(contentPricedOf(optionByWeight(id: 'tray'), typedContent: -5), 1000);
     });
   });
 
@@ -118,20 +90,8 @@ void main() {
     });
 
     test('the line answers the same thing — it is what the View asks', () {
-      expect(
-        CostLine(
-          option: optionByWeight(id: 'tray'),
-          selected: true,
-        ).acceptsTypedContent,
-        isTrue,
-      );
-      expect(
-        CostLine(
-          option: optionByPiece(id: 'prod-1'),
-          selected: true,
-        ).acceptsTypedContent,
-        isFalse,
-      );
+      expect(CostLine(option: optionByWeight(id: 'tray'), selected: true).acceptsTypedContent, isTrue);
+      expect(CostLine(option: optionByPiece(id: 'prod-1'), selected: true).acceptsTypedContent, isFalse);
     });
   });
 
@@ -165,24 +125,14 @@ void main() {
     });
 
     test('sold by weight it is already the price of the base unit', () {
-      final beef = optionByWeight(
-        id: 'prod-5',
-        priceReference: reference(cents: 4500, quantityInBaseUnit: 1500),
-      );
+      final beef = optionByWeight(id: 'prod-5', priceReference: reference(cents: 4500, quantityInBaseUnit: 1500));
       expect(openingPriceOf(beef), const Money(3000));
     });
   });
 
   group('costCandidatesOf', () {
-    CostCandidates candidatesOf(
-      IList<ProductOption> options, {
-      String? typeId = 'type-1',
-      ProductOption? launching,
-    }) => costCandidatesOf(
-      options: options,
-      typeId: typeId,
-      launching: launching,
-    );
+    CostCandidates candidatesOf(IList<ProductOption> options, {String? typeId = 'type-1', ProductOption? launching}) =>
+        costCandidatesOf(options: options, typeId: typeId, launching: launching);
 
     test('keeps only the leaves of the type', () {
       final options = optionsOfSoftDrinkType().add(optionByWeight(id: 'beef'));
@@ -213,13 +163,7 @@ void main() {
       // This test is the sign on the door: it fails the day somebody hands
       // the panel a list from another source, and it says where to look.
       final options = optionsOfSoftDrinkType().add(
-        _deactivated(
-          optionByPiece(
-            id: 'prod-9',
-            description: 'descontinuada',
-            pieceSize: 600,
-          ),
-        ),
+        _deactivated(optionByPiece(id: 'prod-9', description: 'descontinuada', pieceSize: 600)),
       );
 
       expect(candidatesOf(options).all, hasLength(5));
@@ -239,17 +183,12 @@ void main() {
     });
 
     test('two options do', () {
-      final candidates = candidatesOf(
-        [optionByPiece(id: 'prod-1'), optionByPiece(id: 'prod-3')].lock,
-      );
+      final candidates = candidatesOf([optionByPiece(id: 'prod-1'), optionByPiece(id: 'prod-3')].lock);
       expect(candidates.canCompare, isTrue);
     });
 
     test('a lone weighed product does not habilitate it', () {
-      final candidates = candidatesOf(
-        [optionByWeight(id: 'beef')].lock,
-        typeId: 'type-2',
-      );
+      final candidates = candidatesOf([optionByWeight(id: 'beef')].lock, typeId: 'type-2');
       expect(candidates.canCompare, isFalse);
     });
 
@@ -278,11 +217,7 @@ void main() {
     test('with fewer than two bought, it opens WHOLE', () {
       // "Só comprei o Omo 500 g nos últimos 3 meses": cutting to one line is
       // opening a calculator with nothing to compare.
-      final candidates = candidatesOf(
-        optionsOfSoftDrinkType(
-          bottle: reference(cents: 1000, quantityInBaseUnit: 2000),
-        ),
-      );
+      final candidates = candidatesOf(optionsOfSoftDrinkType(bottle: reference(cents: 1000, quantityInBaseUnit: 2000)));
 
       expect(candidates.shown, candidates.all);
       expect(candidates.hasMore, isFalse);
@@ -311,11 +246,7 @@ void main() {
       final candidates = candidatesOf(options, launching: tiny);
 
       // Bought twice inside the window first, then the never-bought one.
-      expect(candidates.shown.map((option) => option.id), [
-        'prod-3',
-        'prod-1',
-        'prod-2',
-      ]);
+      expect(candidates.shown.map((option) => option.id), ['prod-3', 'prod-1', 'prod-2']);
     });
 
     test('F-j: already in the cut, it is not duplicated', () {
@@ -353,11 +284,7 @@ void main() {
 
     test('the order inside is the picker order (C1)', () {
       // Most bought first, and the two never bought alphabetically after.
-      final candidates = candidatesOf(
-        optionsOfSoftDrinkType(
-          bottle: reference(cents: 1000, quantityInBaseUnit: 2000),
-        ),
-      );
+      final candidates = candidatesOf(optionsOfSoftDrinkType(bottle: reference(cents: 1000, quantityInBaseUnit: 2000)));
 
       expect(candidates.all.first.id, 'prod-3');
     });
@@ -380,15 +307,9 @@ void main() {
         unit: BaseUnit.gram,
       );
 
-      final ranking = rank([small, big].lock, {
-        'omo-500': 1000,
-        'omo-2300': 3300,
-      }, baseUnit: BaseUnit.gram);
+      final ranking = rank([small, big].lock, {'omo-500': 1000, 'omo-2300': 3300}, baseUnit: BaseUnit.gram);
 
-      expect(ranking.lines.map((line) => line.option.id), [
-        'omo-2300',
-        'omo-500',
-      ]);
+      expect(ranking.lines.map((line) => line.option.id), ['omo-2300', 'omo-500']);
       expect(ranking.lines[0].costPerBaseUnit, 1435);
       expect(ranking.lines[1].costPerBaseUnit, 2000);
       expect(ranking.lines[0].isBest, isTrue);
@@ -400,17 +321,9 @@ void main() {
 
     test('soft drink: the 2 L bottle wins the litre', () {
       final options = optionsOfSoftDrinkType();
-      final ranking = rank(options, {
-        'prod-1': 400,
-        'prod-3': 1000,
-        'prod-4': 4200,
-      });
+      final ranking = rank(options, {'prod-1': 400, 'prod-3': 1000, 'prod-4': 4200});
 
-      expect(ranking.lines.take(3).map((line) => line.option.id), [
-        'prod-3',
-        'prod-4',
-        'prod-1',
-      ]);
+      expect(ranking.lines.take(3).map((line) => line.option.id), ['prod-3', 'prod-4', 'prod-1']);
       expect(ranking.lines[0].costPerBaseUnit, 500);
       expect(ranking.lines[1].costPerBaseUnit, 1000);
       expect(ranking.lines[2].costPerBaseUnit, 1143);
@@ -418,25 +331,14 @@ void main() {
       expect(ranking.lines[2].savingPercent, 56);
       expect(ranking.best?.id, 'prod-3');
       // The footer repeats the BIGGEST difference, which is against the can.
-      expect(
-        ranking.headline,
-        'Coca-Cola original 2 L — 56% mais barato o litro',
-      );
+      expect(ranking.headline, 'Coca-Cola original 2 L — 56% mais barato o litro');
     });
 
     test('weighed against packaged: the typed price is already the kilo', () {
       final counter = optionByWeight(id: 'counter', type: cheeseType);
-      final sliced = optionByPiece(
-        id: 'sliced',
-        type: cheeseType,
-        pieceSize: 200,
-        unit: BaseUnit.gram,
-      );
+      final sliced = optionByPiece(id: 'sliced', type: cheeseType, pieceSize: 200, unit: BaseUnit.gram);
 
-      final ranking = rank([counter, sliced].lock, {
-        'counter': 4800,
-        'sliced': 1100,
-      }, baseUnit: BaseUnit.gram);
+      final ranking = rank([counter, sliced].lock, {'counter': 4800, 'sliced': 1100}, baseUnit: BaseUnit.gram);
 
       expect(ranking.lines[0].option.id, 'counter');
       expect(ranking.lines[0].costPerBaseUnit, 4800);
@@ -462,10 +364,7 @@ void main() {
         unit: BaseUnit.unit,
       );
 
-      final ranking = rank([small, big].lock, {
-        'paper-4': 800,
-        'paper-12': 1800,
-      }, baseUnit: BaseUnit.unit);
+      final ranking = rank([small, big].lock, {'paper-4': 800, 'paper-12': 1800}, baseUnit: BaseUnit.unit);
 
       expect(ranking.lines[0].costPerBaseUnit, 150);
       expect(ranking.lines[1].costPerBaseUnit, 200);
@@ -490,29 +389,17 @@ void main() {
 
     test('a ticked line with no price waits and does not count', () {
       final options = optionsOfSoftDrinkType();
-      final ranking = rank(
-        options,
-        {'prod-4': 4200},
-        selected: {'prod-4', 'prod-3'},
-      );
+      final ranking = rank(options, {'prod-4': 4200}, selected: {'prod-4', 'prod-3'});
 
-      final waiting = ranking.lines.firstWhere(
-        (line) => line.option.id == 'prod-3',
-      );
+      final waiting = ranking.lines.firstWhere((line) => line.option.id == 'prod-3');
       expect(waiting.selected, isTrue);
       expect(waiting.costPerBaseUnit, isNull);
       expect(ranking.usable, isNull);
     });
 
     test('two ticked prices are enough, even with five lines on screen', () {
-      final options = optionsOfSoftDrinkType().add(
-        optionByPiece(id: 'prod-9', pieceSize: 600),
-      );
-      final ranking = rank(
-        options,
-        {'prod-1': 400, 'prod-3': 1000},
-        selected: {'prod-1', 'prod-3'},
-      );
+      final options = optionsOfSoftDrinkType().add(optionByPiece(id: 'prod-9', pieceSize: 600));
+      final ranking = rank(options, {'prod-1': 400, 'prod-3': 1000}, selected: {'prod-1', 'prod-3'});
 
       expect(ranking.lines, hasLength(5));
       expect(ranking.best?.id, 'prod-3');
@@ -520,15 +407,9 @@ void main() {
 
     test('an unticked line with a price does not compete', () {
       final options = optionsOfSoftDrinkType();
-      final ranking = rank(
-        options,
-        {'prod-1': 400, 'prod-3': 1000, 'prod-2': 100},
-        selected: {'prod-1', 'prod-3'},
-      );
+      final ranking = rank(options, {'prod-1': 400, 'prod-3': 1000, 'prod-2': 100}, selected: {'prod-1', 'prod-3'});
 
-      final aside = ranking.lines.firstWhere(
-        (line) => line.option.id == 'prod-2',
-      );
+      final aside = ranking.lines.firstWhere((line) => line.option.id == 'prod-2');
       // The price shows in the field; the cost and the difference do not.
       expect(aside.price, const Money(100));
       expect(aside.costPerBaseUnit, isNull);
@@ -540,10 +421,7 @@ void main() {
     test('below 1% nobody is crowned, and [ Usar ] survives it (F-h)', () {
       final cheap = kiloLeaf('kilo-a');
       final dear = kiloLeaf('kilo-b');
-      final ranking = rank([cheap, dear].lock, {
-        'kilo-a': 1000,
-        'kilo-b': 1005,
-      }, baseUnit: BaseUnit.gram);
+      final ranking = rank([cheap, dear].lock, {'kilo-a': 1000, 'kilo-b': 1005}, baseUnit: BaseUnit.gram);
 
       expect(ranking.best, isNull);
       expect(ranking.lines.every((line) => !line.isBest), isTrue);
@@ -572,11 +450,11 @@ void main() {
     });
 
     test('F-d: a tie at the top does not erase the third line percentage', () {
-      final ranking = rank(
-        [kiloLeaf('kilo-a'), kiloLeaf('kilo-b'), kiloLeaf('kilo-c')].lock,
-        {'kilo-a': 10000, 'kilo-b': 10050, 'kilo-c': 16667},
-        baseUnit: BaseUnit.gram,
-      );
+      final ranking = rank([kiloLeaf('kilo-a'), kiloLeaf('kilo-b'), kiloLeaf('kilo-c')].lock, {
+        'kilo-a': 10000,
+        'kilo-b': 10050,
+        'kilo-c': 16667,
+      }, baseUnit: BaseUnit.gram);
 
       expect(ranking.best, isNull);
       // The tied runner-up says nothing...
@@ -591,9 +469,7 @@ void main() {
       final ranking = rank(options, {'prod-1': 0, 'prod-3': 1000});
 
       expect(ranking.usable, isNull);
-      final zero = ranking.lines.firstWhere(
-        (line) => line.option.id == 'prod-1',
-      );
+      final zero = ranking.lines.firstWhere((line) => line.option.id == 'prod-1');
       expect(zero.costPerBaseUnit, isNull);
     });
 
@@ -626,12 +502,7 @@ void main() {
 
     test('a cleared quantity field leaves the line waiting', () {
       final tray = optionByWeight(id: 'tray', type: beefType);
-      final packed = optionByPiece(
-        id: 'packed',
-        type: beefType,
-        pieceSize: 1000,
-        unit: BaseUnit.gram,
-      );
+      final packed = optionByPiece(id: 'packed', type: beefType, pieceSize: 1000, unit: BaseUnit.gram);
 
       final ranking = rank(
         [tray, packed].lock,
@@ -642,9 +513,7 @@ void main() {
 
       // It does NOT fall back to one kilo: a plausible and wrong cost is the
       // worst outcome a calculator has.
-      final waiting = ranking.lines.firstWhere(
-        (line) => line.option.id == 'tray',
-      );
+      final waiting = ranking.lines.firstWhere((line) => line.option.id == 'tray');
       expect(waiting.costPerBaseUnit, isNull);
       expect(waiting.savingPercent, isNull);
       expect(ranking.best, isNull);
@@ -654,12 +523,7 @@ void main() {
 
     test('the packaged line waits for no content at all', () {
       final tray = optionByWeight(id: 'tray', type: beefType);
-      final packed = optionByPiece(
-        id: 'packed',
-        type: beefType,
-        pieceSize: 1000,
-        unit: BaseUnit.gram,
-      );
+      final packed = optionByPiece(id: 'packed', type: beefType, pieceSize: 1000, unit: BaseUnit.gram);
 
       final ranking = rank(
         [tray, packed].lock,
@@ -679,11 +543,7 @@ void main() {
   group('rankCosts — the order (F-c)', () {
     test('competing first, then waiting, then aside', () {
       final options = optionsOfSoftDrinkType();
-      final ranking = rank(
-        options,
-        {'prod-4': 4200, 'prod-1': 400},
-        selected: {'prod-4', 'prod-1', 'prod-3'},
-      );
+      final ranking = rank(options, {'prod-4': 4200, 'prod-1': 400}, selected: {'prod-4', 'prod-1', 'prod-3'});
 
       expect(ranking.lines.map((line) => line.option.id), [
         // Competing, cheapest per litre first: the crate at R$ 10,00/L, then
@@ -718,23 +578,14 @@ void main() {
     final all = [can, crate, bottle].lock;
 
     test('a competing picked line becomes usable, even if not the star', () {
-      final ranking = rank(all, {
-        'can': 400,
-        'crate': 3000,
-        'bottle': 900,
-      }, pickedId: 'can');
+      final ranking = rank(all, {'can': 400, 'crate': 3000, 'bottle': 900}, pickedId: 'can');
       expect(ranking.usable, can);
       expect(ranking.best, isNot(can));
       expect(ranking.missingPriceOf, isNull);
     });
 
     test('a ticked picked line with no price locks and names the line', () {
-      final ranking = rank(
-        all,
-        {'can': 400, 'bottle': 900},
-        selected: {'can', 'bottle', 'crate'},
-        pickedId: 'crate',
-      );
+      final ranking = rank(all, {'can': 400, 'bottle': 900}, selected: {'can', 'bottle', 'crate'}, pickedId: 'crate');
       expect(ranking.usable, isNull);
       expect(ranking.missingPriceOf, crate.label);
     });
@@ -756,14 +607,8 @@ void main() {
     test('an unticked or unknown pickedId falls back to the star', () {
       final prices = {'can': 400, 'crate': 3000, 'bottle': 900};
       final ticked = {'crate', 'bottle'};
-      expect(
-        rank(all, prices, selected: ticked, pickedId: 'can').usable,
-        rank(all, prices, selected: ticked).usable,
-      );
-      expect(
-        rank(all, prices, pickedId: 'ghost').usable,
-        rank(all, prices).usable,
-      );
+      expect(rank(all, prices, selected: ticked, pickedId: 'can').usable, rank(all, prices, selected: ticked).usable);
+      expect(rank(all, prices, pickedId: 'ghost').usable, rank(all, prices).usable);
     });
 
     test('without pickedId the leader is usable and nothing is missing', () {
@@ -794,26 +639,15 @@ void main() {
     final beef2 = optionByWeight(id: 'beef-2');
 
     test('by piece it is one package at the price of the line', () {
-      final ranking = rank([crate, can].lock, {
-        'crate': 3000,
-        'can': 400,
-      }, pickedId: 'crate');
+      final ranking = rank([crate, can].lock, {'crate': 3000, 'can': 400}, pickedId: 'crate');
       expect(
-        costPickOf(
-          ranking,
-          {'crate': Money(3000), 'can': Money(400)}.lock,
-          const IMap<String, int?>.empty(),
-        ),
+        costPickOf(ranking, {'crate': Money(3000), 'can': Money(400)}.lock, const IMap<String, int?>.empty()),
         CostPick(option: crate, quantity: 1, paid: Money(3000)),
       );
     });
 
-    CostRanking weighed() => rank(
-      [beef, beef2].lock,
-      {'beef': 3000, 'beef-2': 2900},
-      baseUnit: BaseUnit.gram,
-      pickedId: 'beef',
-    );
+    CostRanking weighed() =>
+        rank([beef, beef2].lock, {'beef': 3000, 'beef-2': 2900}, baseUnit: BaseUnit.gram, pickedId: 'beef');
     final weighedPrices = {'beef': Money(3000), 'beef-2': Money(2900)}.lock;
 
     test('by weight with the content typed, it is that content', () {
@@ -831,37 +665,17 @@ void main() {
     });
 
     test('by weight with a null key it is null', () {
-      expect(
-        costPickOf(weighed(), weighedPrices, <String, int?>{'beef': null}.lock),
-        isNull,
-      );
+      expect(costPickOf(weighed(), weighedPrices, <String, int?>{'beef': null}.lock), isNull);
     });
 
     test('without a price it is null', () {
-      final ranking = rank([crate, can].lock, {
-        'can': 400,
-        'crate': 3000,
-      }, pickedId: 'crate');
-      expect(
-        costPickOf(
-          ranking,
-          {'can': Money(400)}.lock,
-          const IMap<String, int?>.empty(),
-        ),
-        isNull,
-      );
+      final ranking = rank([crate, can].lock, {'can': 400, 'crate': 3000}, pickedId: 'crate');
+      expect(costPickOf(ranking, {'can': Money(400)}.lock, const IMap<String, int?>.empty()), isNull);
     });
 
     test('with no usable it is null', () {
       final ranking = rank([crate, can].lock, {'can': 400});
-      expect(
-        costPickOf(
-          ranking,
-          {'can': Money(400)}.lock,
-          const IMap<String, int?>.empty(),
-        ),
-        isNull,
-      );
+      expect(costPickOf(ranking, {'can': Money(400)}.lock, const IMap<String, int?>.empty()), isNull);
     });
   });
 
@@ -930,10 +744,7 @@ void main() {
     final can = optionByPiece(id: 'can');
     final crate = optionByPiece(id: 'crate', pieceCount: 12);
     final beef = optionByWeight(id: 'beef');
-    final candidates = CostCandidates(
-      all: [can, crate].lock,
-      shown: [can].lock,
-    );
+    final candidates = CostCandidates(all: [can, crate].lock, shown: [can].lock);
 
     test('a visible line is only ticked', () {
       expect(admitScan(candidates, can), const AlreadyShown(id: 'can'));
@@ -955,10 +766,7 @@ void main() {
 
     test('an empty panel answers OtherType', () {
       expect(
-        admitScan(
-          const CostCandidates(all: IList.empty(), shown: IList.empty()),
-          can,
-        ),
+        admitScan(const CostCandidates(all: IList.empty(), shown: IList.empty()), can),
         OtherType(scannedType: softDrinkType),
       );
     });
@@ -981,11 +789,8 @@ void main() {
     });
 
     test('CostRanking: missingPriceOf breaks it', () {
-      CostRanking ranking(String? missing) => CostRanking(
-        lines: const IList.empty(),
-        headline: 'h',
-        missingPriceOf: missing,
-      );
+      CostRanking ranking(String? missing) =>
+          CostRanking(lines: const IList.empty(), headline: 'h', missingPriceOf: missing);
       expect(ranking('x'), ranking('x'));
       expect(ranking('x').hashCode, ranking('x').hashCode);
       expect(ranking('x'), isNot(ranking(null)));
@@ -994,28 +799,13 @@ void main() {
     test('ScanAdmission cases', () {
       expect(const AlreadyShown(id: 'a'), const AlreadyShown(id: 'a'));
       expect(const AlreadyShown(id: 'a'), isNot(const AlreadyShown(id: 'b')));
-      expect(
-        const AlreadyShown(id: 'a').hashCode,
-        const AlreadyShown(id: 'a').hashCode,
-      );
+      expect(const AlreadyShown(id: 'a').hashCode, const AlreadyShown(id: 'a').hashCode);
       expect(AddedToShown(option: a), AddedToShown(option: a));
       expect(AddedToShown(option: a), isNot(AddedToShown(option: b)));
-      expect(
-        AddedToShown(option: a).hashCode,
-        AddedToShown(option: a).hashCode,
-      );
-      expect(
-        OtherType(scannedType: softDrinkType),
-        OtherType(scannedType: softDrinkType),
-      );
-      expect(
-        OtherType(scannedType: softDrinkType),
-        isNot(OtherType(scannedType: beefType)),
-      );
-      expect(
-        OtherType(scannedType: beefType).hashCode,
-        OtherType(scannedType: beefType).hashCode,
-      );
+      expect(AddedToShown(option: a).hashCode, AddedToShown(option: a).hashCode);
+      expect(OtherType(scannedType: softDrinkType), OtherType(scannedType: softDrinkType));
+      expect(OtherType(scannedType: softDrinkType), isNot(OtherType(scannedType: beefType)));
+      expect(OtherType(scannedType: beefType).hashCode, OtherType(scannedType: beefType).hashCode);
       expect(const AlreadyShown(id: 'a').toString(), contains('a'));
       expect(AddedToShown(option: a).toString(), contains('Added'));
       expect(OtherType(scannedType: beefType).toString(), contains('Acém'));
@@ -1070,12 +860,8 @@ void main() {
       String headline = 'Custo praticamente igual.',
       ProductOption? best,
       ProductOption? usable,
-    }) => CostRanking(
-      lines: lines ?? [line()].lock,
-      headline: headline,
-      best: best ?? option,
-      usable: usable ?? option,
-    );
+    }) =>
+        CostRanking(lines: lines ?? [line()].lock, headline: headline, best: best ?? option, usable: usable ?? option);
 
     test('CostRanking: same fields, same value', () {
       expect(ranking(), ranking());
@@ -1089,13 +875,8 @@ void main() {
       expect(ranking(usable: other), isNot(ranking()));
     });
 
-    CostCandidates candidates({
-      IList<ProductOption>? all,
-      IList<ProductOption>? shown,
-    }) => CostCandidates(
-      all: all ?? [option, other].lock,
-      shown: shown ?? [option].lock,
-    );
+    CostCandidates candidates({IList<ProductOption>? all, IList<ProductOption>? shown}) =>
+        CostCandidates(all: all ?? [option, other].lock, shown: shown ?? [option].lock);
 
     test('CostCandidates: same fields, same value', () {
       expect(candidates(), candidates());
@@ -1109,10 +890,7 @@ void main() {
 
     test('the three toStrings say what a failed test needs to read', () {
       expect(candidates().toString(), 'CostCandidates(1 of 2)');
-      expect(
-        line(isBest: true).toString(),
-        'CostLine(350 ml, 1143, best: true)',
-      );
+      expect(line(isBest: true).toString(), 'CostLine(350 ml, 1143, best: true)');
       expect(ranking().toString(), 'CostRanking(1 lines, best: prod-1)');
     });
   });
@@ -1120,10 +898,7 @@ void main() {
 
 /// The same leaf without its id — a product that has not been written yet.
 ProductOption _withoutId(ProductOption option) => ProductOption(
-  product: Product(
-    productRegistrationId: option.registration.id!,
-    packaging: option.product.packaging,
-  ),
+  product: Product(productRegistrationId: option.registration.id!, packaging: option.product.packaging),
   registration: option.registration,
   type: option.type,
   brand: option.brand,

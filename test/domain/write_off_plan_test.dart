@@ -31,11 +31,7 @@ void main() {
     required List<PurchasedAmount> purchased,
     required List<ShoppingListItem> items,
     DateTime? on,
-  }) => planWriteOffs(
-    purchased: purchased.lock,
-    listItems: items.lock,
-    purchaseDate: on ?? purchaseDay,
-  );
+  }) => planWriteOffs(purchased: purchased.lock, listItems: items.lock, purchaseDate: on ?? purchaseDay);
 
   test('an item with no quantity leaves on the first purchase of its type', () {
     final result = plan(
@@ -65,12 +61,8 @@ void main() {
       ],
     );
 
-    final unquantified = result.firstWhere(
-      (off) => off.shoppingListItemId == 'l1',
-    );
-    final quantified = result.firstWhere(
-      (off) => off.shoppingListItemId == 'l2',
-    );
+    final unquantified = result.firstWhere((off) => off.shoppingListItemId == 'l1');
+    final quantified = result.firstWhere((off) => off.shoppingListItemId == 'l2');
 
     expect(unquantified.quantityWrittenOff, 0);
     expect(unquantified.fulfills, isTrue);
@@ -102,8 +94,7 @@ void main() {
     expect(result.first.fulfills, isTrue);
   });
 
-  test('a purchase dated earlier does not touch an item that entered after',
-      () {
+  test('a purchase dated earlier does not touch an item that entered after', () {
     // Decision 25. Without it a purchase registered late erases what the
     // other phone has just asked for.
     final result = plan(
@@ -115,15 +106,12 @@ void main() {
     expect(result, isEmpty);
   });
 
-  test('the limit: an item that entered on the purchase day IS written off',
-      () {
+  test('the limit: an item that entered on the purchase day IS written off', () {
     // "antes ou no mesmo dia" — the boundary, which is where decision 25
     // would break silently.
     final result = plan(
       purchased: [bought(amount: 6000)],
-      items: [
-        listItem(id: 'l1', quantity: 6000, enteredOn: DateTime(2026, 8, 18)),
-      ],
+      items: [listItem(id: 'l1', quantity: 6000, enteredOn: DateTime(2026, 8, 18))],
     );
 
     expect(result.length, 1);
@@ -145,9 +133,7 @@ void main() {
     // "nothing happened" would be undone by H9 as if something had.
     final result = plan(
       purchased: [bought(amount: 2000, type: 'type-1')],
-      items: [
-        listItem(id: 'l1', type: beefType, quantity: 6000, picked: true),
-      ],
+      items: [listItem(id: 'l1', type: beefType, quantity: 6000, picked: true)],
     );
 
     expect(result, isEmpty);
@@ -199,9 +185,7 @@ void main() {
   test('a line already closed by a purchase is ignored', () {
     final result = plan(
       purchased: [bought(amount: 6000)],
-      items: [
-        listItem(id: 'l1', quantity: 6000, fulfilledOn: DateTime(2026, 8, 10)),
-      ],
+      items: [listItem(id: 'l1', quantity: 6000, fulfilledOn: DateTime(2026, 8, 10))],
     );
 
     expect(result, isEmpty);
@@ -212,9 +196,7 @@ void main() {
     // removed line must not come back through a write-off.
     final result = plan(
       purchased: [bought(amount: 6000)],
-      items: [
-        listItem(id: 'l1', quantity: 6000, removedOn: DateTime(2026, 8, 10)),
-      ],
+      items: [listItem(id: 'l1', quantity: 6000, removedOn: DateTime(2026, 8, 10))],
     );
 
     expect(result, isEmpty);
@@ -244,7 +226,10 @@ void main() {
   test('a purchase with nothing on the list plans nothing', () {
     expect(plan(purchased: [bought(amount: 2000)], items: []), isEmpty);
     expect(
-      plan(purchased: [], items: [listItem(id: 'l1', quantity: 6000)]),
+      plan(
+        purchased: [],
+        items: [listItem(id: 'l1', quantity: 6000)],
+      ),
       isEmpty,
     );
   });
@@ -271,44 +256,33 @@ void main() {
     });
 
     test('equality covers every field', () {
-      const off = ListWriteOff(
-        purchaseItemId: 'pi-1',
-        shoppingListItemId: 'l1',
-        quantityWrittenOff: 2000,
-      );
+      const off = ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 2000);
 
-      expect(off, const ListWriteOff(
-        purchaseItemId: 'pi-1',
-        shoppingListItemId: 'l1',
-        quantityWrittenOff: 2000,
-      ));
-      expect(off.hashCode, const ListWriteOff(
-        purchaseItemId: 'pi-1',
-        shoppingListItemId: 'l1',
-        quantityWrittenOff: 2000,
-      ).hashCode);
-      expect(off, isNot(const ListWriteOff(
-        purchaseItemId: 'pi-1',
-        shoppingListItemId: 'l1',
-        quantityWrittenOff: 2000,
-        fulfills: true,
-      )));
+      expect(off, const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 2000));
+      expect(
+        off.hashCode,
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 2000).hashCode,
+      );
+      expect(
+        off,
+        isNot(
+          const ListWriteOff(
+            purchaseItemId: 'pi-1',
+            shoppingListItemId: 'l1',
+            quantityWrittenOff: 2000,
+            fulfills: true,
+          ),
+        ),
+      );
       expect(off.toString(), contains('l1'));
     });
   });
 
   group('AvailableAmount', () {
     test('equality covers every field', () {
-      const amount = AvailableAmount(
-        id: 'pi-1',
-        registrationId: 'reg-1',
-        left: 2000,
-      );
-      AvailableAmount other({
-        String id = 'pi-1',
-        String registrationId = 'reg-1',
-        int left = 2000,
-      }) => AvailableAmount(id: id, registrationId: registrationId, left: left);
+      const amount = AvailableAmount(id: 'pi-1', registrationId: 'reg-1', left: 2000);
+      AvailableAmount other({String id = 'pi-1', String registrationId = 'reg-1', int left = 2000}) =>
+          AvailableAmount(id: id, registrationId: registrationId, left: left);
 
       expect(amount, other());
       expect(amount.hashCode, other().hashCode);
@@ -324,7 +298,6 @@ void main() {
       productTypeId: 'type-1',
       brandId: 'brand-italac',
       description: 'integral',
-      sellingMode: SellingMode.byPiece,
     );
     final italacBrand = Brand(id: 'brand-italac', name: 'Italac');
     final piracanjuba = ProductRegistration(
@@ -332,7 +305,6 @@ void main() {
       productTypeId: 'type-1',
       brandId: 'brand-pira',
       description: 'desnatado',
-      sellingMode: SellingMode.byPiece,
     );
 
     ShoppingListItem asking(
@@ -358,12 +330,7 @@ void main() {
       );
 
       expect(result, [
-        const ListWriteOff(
-          purchaseItemId: 'pi-1',
-          shoppingListItemId: 'l1',
-          quantityWrittenOff: 6000,
-          fulfills: true,
-        ),
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 6000, fulfills: true),
       ]);
     });
 
@@ -380,23 +347,13 @@ void main() {
       final result = plan(
         purchased: [bought(registration: 'reg-italac', amount: 6000)],
         items: [
-          asking(
-            'l1',
-            registration: italac,
-            quantity: 6000,
-            enteredOn: DateTime(2026, 8, 1),
-          ),
+          asking('l1', registration: italac, quantity: 6000, enteredOn: DateTime(2026, 8, 1)),
           asking('l2', quantity: 2000, enteredOn: DateTime(2026, 8, 2)),
         ],
       );
 
       expect(result, [
-        const ListWriteOff(
-          purchaseItemId: 'pi-1',
-          shoppingListItemId: 'l1',
-          quantityWrittenOff: 6000,
-          fulfills: true,
-        ),
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 6000, fulfills: true),
       ]);
     });
 
@@ -406,28 +363,13 @@ void main() {
         purchased: [bought(registration: 'reg-italac', amount: 8000)],
         items: [
           asking('l1', quantity: 2000, enteredOn: DateTime(2026, 8, 1)),
-          asking(
-            'l2',
-            registration: italac,
-            quantity: 6000,
-            enteredOn: DateTime(2026, 8, 2),
-          ),
+          asking('l2', registration: italac, quantity: 6000, enteredOn: DateTime(2026, 8, 2)),
         ],
       );
 
       expect(result, [
-        const ListWriteOff(
-          purchaseItemId: 'pi-1',
-          shoppingListItemId: 'l2',
-          quantityWrittenOff: 6000,
-          fulfills: true,
-        ),
-        const ListWriteOff(
-          purchaseItemId: 'pi-1',
-          shoppingListItemId: 'l1',
-          quantityWrittenOff: 2000,
-          fulfills: true,
-        ),
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l2', quantityWrittenOff: 6000, fulfills: true),
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 2000, fulfills: true),
       ]);
     });
 
@@ -438,34 +380,14 @@ void main() {
           bought(id: 'pi-2', registration: 'reg-pira', amount: 2000),
         ],
         items: [
-          asking(
-            'l1',
-            registration: piracanjuba,
-            quantity: 2000,
-            enteredOn: DateTime(2026, 8, 1),
-          ),
-          asking(
-            'l2',
-            registration: italac,
-            quantity: 6000,
-            enteredOn: DateTime(2026, 8, 2),
-          ),
+          asking('l1', registration: piracanjuba, quantity: 2000, enteredOn: DateTime(2026, 8, 1)),
+          asking('l2', registration: italac, quantity: 6000, enteredOn: DateTime(2026, 8, 2)),
         ],
       );
 
       expect(result, [
-        const ListWriteOff(
-          purchaseItemId: 'pi-2',
-          shoppingListItemId: 'l1',
-          quantityWrittenOff: 2000,
-          fulfills: true,
-        ),
-        const ListWriteOff(
-          purchaseItemId: 'pi-1',
-          shoppingListItemId: 'l2',
-          quantityWrittenOff: 6000,
-          fulfills: true,
-        ),
+        const ListWriteOff(purchaseItemId: 'pi-2', shoppingListItemId: 'l1', quantityWrittenOff: 2000, fulfills: true),
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l2', quantityWrittenOff: 6000, fulfills: true),
       ]);
     });
 
@@ -488,21 +410,14 @@ void main() {
       );
 
       expect(result, [
-        const ListWriteOff(
-          purchaseItemId: 'pi-2',
-          shoppingListItemId: 'l1',
-          quantityWrittenOff: 0,
-          fulfills: true,
-        ),
+        const ListWriteOff(purchaseItemId: 'pi-2', shoppingListItemId: 'l1', quantityWrittenOff: 0, fulfills: true),
       ]);
     });
 
     test('8. a deactivated registration falls, and any purchase clears it', () {
       final result = plan(
         purchased: [bought(registration: 'reg-pira', amount: 6000)],
-        items: [
-          asking('l1', registration: italac.deactivated(), quantity: 6000),
-        ],
+        items: [asking('l1', registration: italac.deactivated(), quantity: 6000)],
       );
 
       expect(result.single.shoppingListItemId, 'l1');
@@ -512,14 +427,7 @@ void main() {
     test('9. a deactivated BRAND takes the registration down with it', () {
       final result = plan(
         purchased: [bought(registration: 'reg-pira', amount: 6000)],
-        items: [
-          asking(
-            'l1',
-            registration: italac,
-            brand: italacBrand.deactivated(),
-            quantity: 6000,
-          ),
-        ],
+        items: [asking('l1', registration: italac, brand: italacBrand.deactivated(), quantity: 6000)],
       );
 
       expect(result.single.fulfills, isTrue);
@@ -528,9 +436,7 @@ void main() {
     test('10. "não encontrei" falls on a partial purchase it accepts', () {
       final result = plan(
         purchased: [bought(registration: 'reg-italac', amount: 2000)],
-        items: [
-          asking('l1', registration: italac, quantity: 6000, notFound: true),
-        ],
+        items: [asking('l1', registration: italac, quantity: 6000, notFound: true)],
       );
 
       expect(result, [
@@ -550,28 +456,14 @@ void main() {
           bought(id: 'pi-2', registration: 'reg-pira', amount: 2000),
         ],
         items: [
-          asking(
-            'l1',
-            registration: italac,
-            quantity: 6000,
-            enteredOn: DateTime(2026, 8, 1),
-          ),
+          asking('l1', registration: italac, quantity: 6000, enteredOn: DateTime(2026, 8, 1)),
           asking('l2', quantity: 2000, enteredOn: DateTime(2026, 8, 2)),
         ],
       );
 
       expect(result, [
-        const ListWriteOff(
-          purchaseItemId: 'pi-1',
-          shoppingListItemId: 'l1',
-          quantityWrittenOff: 3000,
-        ),
-        const ListWriteOff(
-          purchaseItemId: 'pi-2',
-          shoppingListItemId: 'l2',
-          quantityWrittenOff: 2000,
-          fulfills: true,
-        ),
+        const ListWriteOff(purchaseItemId: 'pi-1', shoppingListItemId: 'l1', quantityWrittenOff: 3000),
+        const ListWriteOff(purchaseItemId: 'pi-2', shoppingListItemId: 'l2', quantityWrittenOff: 2000, fulfills: true),
       ]);
     });
   });

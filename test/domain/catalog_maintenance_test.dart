@@ -13,13 +13,7 @@ void main() {
     required String name,
     BaseUnit unit = BaseUnit.milliliter,
     bool active = true,
-  }) => ProductType(
-    id: id,
-    name: name,
-    categoryId: 'cat-1',
-    baseUnit: unit,
-    active: active,
-  );
+  }) => ProductType(id: id, name: name, categoryId: 'cat-1', baseUnit: unit, active: active);
 
   final milk = type(id: 'type-1', name: 'Leite');
   final juice = type(id: 'type-2', name: 'Suco');
@@ -27,11 +21,7 @@ void main() {
   final oldMilk = type(id: 'type-4', name: 'Leite antigo', active: false);
 
   IList<ProductType> compatible(BaseUnit unit, {String? excluding}) =>
-      typesCompatibleWith(
-        [milk, juice, beef, oldMilk].lock,
-        unit,
-        excludingId: excluding,
-      );
+      typesCompatibleWith([milk, juice, beef, oldMilk].lock, unit, excludingId: excluding);
 
   group('typesCompatibleWith', () {
     test('offers the types of the SAME base unit', () {
@@ -60,19 +50,10 @@ void main() {
 
   group('checkTypeMove', () {
     ProductRegistration registration({String description = ''}) =>
-        ProductRegistration(
-          id: 'reg-1',
-          productTypeId: 'type-1',
-          description: description,
-          sellingMode: SellingMode.byPiece,
-        );
+        ProductRegistration(id: 'reg-1', productTypeId: 'type-1', description: description);
 
     test('allows moving between types of the same base unit', () {
-      expect(
-        () =>
-            checkTypeMove(registration: registration(), from: milk, to: juice),
-        returnsNormally,
-      );
+      expect(() => checkTypeMove(registration: registration(), from: milk, to: juice), returnsNormally);
     });
 
     test('refuses moving between base units', () {
@@ -89,26 +70,14 @@ void main() {
           from: milk,
           to: beef,
         ),
-        throwsA(
-          isA<IncompatibleBaseUnit>().having(
-            (e) => e.message,
-            'message',
-            contains('"integral"'),
-          ),
-        ),
+        throwsA(isA<IncompatibleBaseUnit>().having((e) => e.message, 'message', contains('"integral"'))),
       );
     });
 
     test('falls back to the type name when the description is blank', () {
       expect(
         () => checkTypeMove(registration: registration(), from: milk, to: beef),
-        throwsA(
-          isA<IncompatibleBaseUnit>().having(
-            (e) => e.message,
-            'message',
-            contains('"Leite"'),
-          ),
-        ),
+        throwsA(isA<IncompatibleBaseUnit>().having((e) => e.message, 'message', contains('"Leite"'))),
       );
     });
   });
@@ -171,18 +140,12 @@ void main() {
 
     test('TypeInUseOnList derives the singular from the count', () {
       const failure = TypeInUseOnList(name: 'Achocolatado', itemCount: 1);
-      expect(
-        failure.message,
-        'Achocolatado está em 1 item da lista — ele será removido.',
-      );
+      expect(failure.message, 'Achocolatado está em 1 item da lista — ele será removido.');
     });
 
     test('TypeInUseOnList derives the plural from the count', () {
       const failure = TypeInUseOnList(name: 'Achocolatado', itemCount: 3);
-      expect(
-        failure.message,
-        'Achocolatado está em 3 itens da lista — eles serão removidos.',
-      );
+      expect(failure.message, 'Achocolatado está em 3 itens da lista — eles serão removidos.');
       expect(failure.toString(), contains('TypeInUseOnList'));
     });
   });

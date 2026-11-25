@@ -15,12 +15,7 @@ ShoppingListItem _item({
   required String categoryName,
 }) => ShoppingListItem(
   id: id,
-  type: ProductType(
-    id: 'type-$id',
-    name: typeName,
-    categoryId: categoryId,
-    baseUnit: BaseUnit.unit,
-  ),
+  type: ProductType(id: 'type-$id', name: typeName, categoryId: categoryId, baseUnit: BaseUnit.unit),
   category: Category(id: categoryId, name: categoryName),
   enteredOn: DateTime(2026, 8, 28),
 );
@@ -30,91 +25,40 @@ void main() {
     test('puts each category in its own group, alphabetically', () {
       final groups = groupByCategory(
         [
-          _item(
-            id: '1',
-            typeName: 'Leite',
-            categoryId: 'c2',
-            categoryName: 'Bebidas',
-          ),
-          _item(
-            id: '2',
-            typeName: 'Sabão em pó',
-            categoryId: 'c3',
-            categoryName: 'Limpeza',
-          ),
-          _item(
-            id: '3',
-            typeName: 'Acém',
-            categoryId: 'c1',
-            categoryName: 'Açougue',
-          ),
+          _item(id: '1', typeName: 'Leite', categoryId: 'c2', categoryName: 'Bebidas'),
+          _item(id: '2', typeName: 'Sabão em pó', categoryId: 'c3', categoryName: 'Limpeza'),
+          _item(id: '3', typeName: 'Acém', categoryId: 'c1', categoryName: 'Açougue'),
         ].lock,
       );
 
       expect(groups.length, 3);
-      expect(groups.map((g) => g.category.name), [
-        'Açougue',
-        'Bebidas',
-        'Limpeza',
-      ]);
+      expect(groups.map((g) => g.category.name), ['Açougue', 'Bebidas', 'Limpeza']);
     });
 
-    test(
-      '"Açougue" comes BEFORE "Bebidas" — the accent is not a code unit',
-      () {
-        // The test that fails the day someone swaps normalizeName for a raw
-        // compareTo: 'Á' is U+00C1 and would land after 'Z'.
-        final groups = groupByCategory(
-          [
-            _item(
-              id: '1',
-              typeName: 'Leite',
-              categoryId: 'c2',
-              categoryName: 'Bebidas',
-            ),
-            _item(
-              id: '2',
-              typeName: 'Acém',
-              categoryId: 'c1',
-              categoryName: 'Açougue',
-            ),
-          ].lock,
-        );
+    test('"Açougue" comes BEFORE "Bebidas" — the accent is not a code unit', () {
+      // The test that fails the day someone swaps normalizeName for a raw
+      // compareTo: 'Á' is U+00C1 and would land after 'Z'.
+      final groups = groupByCategory(
+        [
+          _item(id: '1', typeName: 'Leite', categoryId: 'c2', categoryName: 'Bebidas'),
+          _item(id: '2', typeName: 'Acém', categoryId: 'c1', categoryName: 'Açougue'),
+        ].lock,
+      );
 
-        expect(groups.first.category.name, 'Açougue');
-      },
-    );
+      expect(groups.first.category.name, 'Açougue');
+    });
 
     test('orders the items inside a group by the type name', () {
       final groups = groupByCategory(
         [
-          _item(
-            id: '1',
-            typeName: 'Refrigerante',
-            categoryId: 'c1',
-            categoryName: 'Bebidas',
-          ),
-          _item(
-            id: '2',
-            typeName: 'Água',
-            categoryId: 'c1',
-            categoryName: 'Bebidas',
-          ),
-          _item(
-            id: '3',
-            typeName: 'Leite',
-            categoryId: 'c1',
-            categoryName: 'Bebidas',
-          ),
+          _item(id: '1', typeName: 'Refrigerante', categoryId: 'c1', categoryName: 'Bebidas'),
+          _item(id: '2', typeName: 'Água', categoryId: 'c1', categoryName: 'Bebidas'),
+          _item(id: '3', typeName: 'Leite', categoryId: 'c1', categoryName: 'Bebidas'),
         ].lock,
       );
 
       expect(groups.length, 1);
-      expect(groups.single.items.map((i) => i.type.name), [
-        'Água',
-        'Leite',
-        'Refrigerante',
-      ]);
+      expect(groups.single.items.map((i) => i.type.name), ['Água', 'Leite', 'Refrigerante']);
     });
 
     test('two items of the same type keep a stable order', () {
@@ -122,18 +66,8 @@ void main() {
       // that — but two items of the SAME type on one list do, and without the
       // id as tiebreak their order would change on every fetch.
       final items = [
-        _item(
-          id: 'b',
-          typeName: 'Leite',
-          categoryId: 'c1',
-          categoryName: 'Bebidas',
-        ),
-        _item(
-          id: 'a',
-          typeName: 'Leite',
-          categoryId: 'c1',
-          categoryName: 'Bebidas',
-        ),
+        _item(id: 'b', typeName: 'Leite', categoryId: 'c1', categoryName: 'Bebidas'),
+        _item(id: 'a', typeName: 'Leite', categoryId: 'c1', categoryName: 'Bebidas'),
       ].lock;
 
       expect(
@@ -144,39 +78,18 @@ void main() {
     });
 
     test('the lines of one type sort by what they read (M-a)', () {
-      ShoppingListItem milk(String id, {String? description}) =>
-          ShoppingListItem(
-            id: id,
-            type: ProductType(
-              id: 'type-milk',
-              name: 'Leite',
-              categoryId: 'c1',
-              baseUnit: BaseUnit.milliliter,
-            ),
-            category: Category(id: 'c1', name: 'Laticínios'),
-            preferredRegistration: description == null
-                ? null
-                : ProductRegistration(
-                    id: 'reg-$id',
-                    productTypeId: 'type-milk',
-                    description: description,
-                    sellingMode: SellingMode.byPiece,
-                  ),
-            enteredOn: DateTime(2026, 8, 28),
-          );
-      final cheese = _item(
-        id: 'z',
-        typeName: 'Queijo',
-        categoryId: 'c1',
-        categoryName: 'Laticínios',
+      ShoppingListItem milk(String id, {String? description}) => ShoppingListItem(
+        id: id,
+        type: ProductType(id: 'type-milk', name: 'Leite', categoryId: 'c1', baseUnit: BaseUnit.milliliter),
+        category: Category(id: 'c1', name: 'Laticínios'),
+        preferredRegistration: description == null
+            ? null
+            : ProductRegistration(id: 'reg-$id', productTypeId: 'type-milk', description: description),
+        enteredOn: DateTime(2026, 8, 28),
       );
+      final cheese = _item(id: 'z', typeName: 'Queijo', categoryId: 'c1', categoryName: 'Laticínios');
 
-      final items = [
-        cheese,
-        milk('c', description: 'integral'),
-        milk('b'),
-        milk('a', description: 'desnatado'),
-      ].lock;
+      final items = [cheese, milk('c', description: 'integral'), milk('b'), milk('a', description: 'desnatado')].lock;
 
       expect(groupByCategory(items).single.items.map((i) => i.label), [
         'Leite',
@@ -192,29 +105,13 @@ void main() {
 
     test('the group compares by category and items', () {
       final category = Category(id: 'c1', name: 'Bebidas');
-      final item = _item(
-        id: '1',
-        typeName: 'Leite',
-        categoryId: 'c1',
-        categoryName: 'Bebidas',
-      );
+      final item = _item(id: '1', typeName: 'Leite', categoryId: 'c1', categoryName: 'Bebidas');
 
       final group = ShoppingListGroup(category: category, items: [item].lock);
 
       expect(group, ShoppingListGroup(category: category, items: [item].lock));
-      expect(
-        group.hashCode,
-        ShoppingListGroup(category: category, items: [item].lock).hashCode,
-      );
-      expect(
-        group,
-        isNot(
-          ShoppingListGroup(
-            category: category,
-            items: const IList<ShoppingListItem>.empty(),
-          ),
-        ),
-      );
+      expect(group.hashCode, ShoppingListGroup(category: category, items: [item].lock).hashCode);
+      expect(group, isNot(ShoppingListGroup(category: category, items: const IList<ShoppingListItem>.empty())));
       expect(group.toString(), contains('Bebidas'));
     });
   });
@@ -228,12 +125,7 @@ void main() {
       DateTime? removedOn,
     }) => ShoppingListItem(
       id: id,
-      type: ProductType(
-        id: typeId,
-        name: 'Leite',
-        categoryId: 'cat-1',
-        baseUnit: BaseUnit.milliliter,
-      ),
+      type: ProductType(id: typeId, name: 'Leite', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
       category: Category(id: 'cat-1', name: 'Laticínios'),
       enteredOn: enteredOn ?? DateTime(2026, 8, 28),
       fulfilledOn: fulfilledOn,
@@ -277,26 +169,13 @@ void main() {
     });
 
     test('an empty list answers null', () {
-      expect(
-        findOpenItemOfType(const IList<ShoppingListItem>.empty(), 'type-1'),
-        isNull,
-      );
+      expect(findOpenItemOfType(const IList<ShoppingListItem>.empty(), 'type-1'), isNull);
     });
   });
 
   group('takenRegistrationsOfType — the guard of M-a', () {
-    final milk = ProductType(
-      id: 'type-1',
-      name: 'Leite',
-      categoryId: 'cat-1',
-      baseUnit: BaseUnit.milliliter,
-    );
-    final italac = ProductRegistration(
-      id: 'reg-italac',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      sellingMode: SellingMode.byPiece,
-    );
+    final milk = ProductType(id: 'type-1', name: 'Leite', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
+    final italac = ProductRegistration(id: 'reg-italac', productTypeId: 'type-1', brandId: 'brand-1');
 
     ShoppingListItem line({
       required String id,
@@ -317,13 +196,7 @@ void main() {
     );
 
     test('an empty list takes nothing', () {
-      expect(
-        takenRegistrationsOfType(
-          const IList<ShoppingListItem>.empty(),
-          'type-1',
-        ),
-        isEmpty,
-      );
+      expect(takenRegistrationsOfType(const IList<ShoppingListItem>.empty(), 'type-1'), isEmpty);
     });
 
     test('a line with no registration takes "Qualquer um" — null', () {
@@ -331,13 +204,7 @@ void main() {
     });
 
     test('a line with a registration takes it', () {
-      expect(
-        takenRegistrationsOfType(
-          [line(id: 'l1', registration: italac)].lock,
-          'type-1',
-        ),
-        {'reg-italac'},
-      );
+      expect(takenRegistrationsOfType([line(id: 'l1', registration: italac)].lock, 'type-1'), {'reg-italac'});
     });
 
     test('the line being edited never blocks its own option', () {
@@ -356,11 +223,7 @@ void main() {
         takenRegistrationsOfType(
           [
             line(id: 'l1', fulfilledOn: DateTime(2026, 8, 29)),
-            line(
-              id: 'l2',
-              registration: italac,
-              removedOn: DateTime(2026, 8, 29),
-            ),
+            line(id: 'l2', registration: italac, removedOn: DateTime(2026, 8, 29)),
           ].lock,
           'type-1',
         ),
@@ -369,43 +232,19 @@ void main() {
     });
 
     test('a line of another type does not count', () {
-      final cheese = ProductType(
-        id: 'type-2',
-        name: 'Queijo',
-        categoryId: 'cat-1',
-        baseUnit: BaseUnit.gram,
-      );
+      final cheese = ProductType(id: 'type-2', name: 'Queijo', categoryId: 'cat-1', baseUnit: BaseUnit.gram);
 
-      expect(
-        takenRegistrationsOfType([line(id: 'l1', type: cheese)].lock, 'type-1'),
-        isEmpty,
-      );
+      expect(takenRegistrationsOfType([line(id: 'l1', type: cheese)].lock, 'type-1'), isEmpty);
     });
 
     test('a preference that fell takes "Qualquer um", not the old one', () {
-      expect(
-        takenRegistrationsOfType(
-          [line(id: 'l1', registration: italac.deactivated())].lock,
-          'type-1',
-        ),
-        {null},
-      );
+      expect(takenRegistrationsOfType([line(id: 'l1', registration: italac.deactivated())].lock, 'type-1'), {null});
     });
   });
 
   group('isRegistrationTaken', () {
-    final milk = ProductType(
-      id: 'type-1',
-      name: 'Leite',
-      categoryId: 'cat-1',
-      baseUnit: BaseUnit.milliliter,
-    );
-    final italac = ProductRegistration(
-      id: 'reg-italac',
-      productTypeId: 'type-1',
-      brandId: 'brand-1',
-      sellingMode: SellingMode.byPiece,
-    );
+    final milk = ProductType(id: 'type-1', name: 'Leite', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter);
+    final italac = ProductRegistration(id: 'reg-italac', productTypeId: 'type-1', brandId: 'brand-1');
 
     ShoppingListItem line({
       required String id,
@@ -423,13 +262,7 @@ void main() {
     );
 
     test('an open line asking for the product takes it', () {
-      expect(
-        isRegistrationTaken(
-          [line(id: 'l1', registration: italac)].lock,
-          italac,
-        ),
-        isTrue,
-      );
+      expect(isRegistrationTaken([line(id: 'l1', registration: italac)].lock, italac), isTrue);
     });
 
     test('a "Qualquer um" line does not block a product', () {
@@ -438,32 +271,14 @@ void main() {
 
     test('a line already bought does not block', () {
       expect(
-        isRegistrationTaken(
-          [
-            line(
-              id: 'l1',
-              registration: italac,
-              fulfilledOn: DateTime(2026, 8, 29),
-            ),
-          ].lock,
-          italac,
-        ),
+        isRegistrationTaken([line(id: 'l1', registration: italac, fulfilledOn: DateTime(2026, 8, 29))].lock, italac),
         isFalse,
       );
     });
 
     test('a line removed by hand does not block', () {
       expect(
-        isRegistrationTaken(
-          [
-            line(
-              id: 'l1',
-              registration: italac,
-              removedOn: DateTime(2026, 8, 29),
-            ),
-          ].lock,
-          italac,
-        ),
+        isRegistrationTaken([line(id: 'l1', registration: italac, removedOn: DateTime(2026, 8, 29))].lock, italac),
         isFalse,
       );
     });
@@ -473,37 +288,20 @@ void main() {
         id: 'reg-italac',
         productTypeId: 'type-1',
         brandId: 'brand-1',
-        sellingMode: SellingMode.byPiece,
         active: false,
       );
 
-      expect(
-        isRegistrationTaken(
-          [line(id: 'l1', registration: deactivated)].lock,
-          italac,
-        ),
-        isFalse,
-      );
+      expect(isRegistrationTaken([line(id: 'l1', registration: deactivated)].lock, italac), isFalse);
     });
 
     test('another product of the same type does not block', () {
-      final other = ProductRegistration(
-        id: 'reg-other',
-        productTypeId: 'type-1',
-        sellingMode: SellingMode.byPiece,
-      );
+      final other = ProductRegistration(id: 'reg-other', productTypeId: 'type-1');
 
-      expect(
-        isRegistrationTaken([line(id: 'l1', registration: other)].lock, italac),
-        isFalse,
-      );
+      expect(isRegistrationTaken([line(id: 'l1', registration: other)].lock, italac), isFalse);
     });
 
     test('a registration with no id is never taken', () {
-      final unsaved = ProductRegistration(
-        productTypeId: 'type-1',
-        sellingMode: SellingMode.byPiece,
-      );
+      final unsaved = ProductRegistration(productTypeId: 'type-1');
 
       // The "Qualquer um" line puts a null in the set: without the id check
       // the unsaved registration would match it.

@@ -10,30 +10,13 @@ import 'package:shopping_list/domain/models/shopping_list_item.dart';
 /// once a year, at midnight.
 final _category = Category(id: 'cat-1', name: 'Bebidas');
 
-ProductType _type({
-  String name = 'Leite',
-  BaseUnit baseUnit = BaseUnit.milliliter,
-}) => ProductType(
-  id: 'type-1',
-  name: name,
-  categoryId: 'cat-1',
-  baseUnit: baseUnit,
-);
+ProductType _type({String name = 'Leite', BaseUnit baseUnit = BaseUnit.milliliter}) =>
+    ProductType(id: 'type-1', name: name, categoryId: 'cat-1', baseUnit: baseUnit);
 
 final _brand = Brand(id: 'brand-1', name: 'Italac');
 
-ProductRegistration _registration({
-  String id = 'reg-1',
-  String description = 'integral',
-  bool active = true,
-}) => ProductRegistration(
-  id: id,
-  productTypeId: 'type-1',
-  brandId: 'brand-1',
-  description: description,
-  sellingMode: SellingMode.byPiece,
-  active: active,
-);
+ProductRegistration _registration({String id = 'reg-1', String description = 'integral', bool active = true}) =>
+    ProductRegistration(id: id, productTypeId: 'type-1', brandId: 'brand-1', description: description, active: active);
 
 ShoppingListItem _item({
   String? id = 'item-1',
@@ -113,10 +96,7 @@ void main() {
     test('writes the quantity in the base unit of the type', () {
       expect(_item(type: _type(baseUnit: BaseUnit.gram)).quantityLabel, '6 kg');
       expect(_item(quantity: 2500).quantityLabel, '2,5 L');
-      expect(
-        _item(type: _type(baseUnit: BaseUnit.unit), quantity: 3).quantityLabel,
-        '3 un',
-      );
+      expect(_item(type: _type(baseUnit: BaseUnit.unit), quantity: 3).quantityLabel, '3 un');
     });
 
     test('has no quantity label when there is no quantity', () {
@@ -129,10 +109,7 @@ void main() {
 
     test('composes the type and the registration, in this order', () {
       expect(_item().label, 'Leite');
-      expect(
-        _item(registration: _registration(), brand: _brand).label,
-        'Leite Italac integral',
-      );
+      expect(_item(registration: _registration(), brand: _brand).label, 'Leite Italac integral');
       expect(_item(registration: _registration()).label, 'Leite integral');
     });
 
@@ -150,19 +127,13 @@ void main() {
     });
 
     test('says what to do, in pt-BR', () {
-      expect(
-        const InvalidQuantity().message,
-        'Informe uma quantidade maior que zero.',
-      );
+      expect(const InvalidQuantity().message, 'Informe uma quantidade maior que zero.');
       expect(const InvalidQuantity().toString(), contains('quantidade'));
     });
   });
 
   group('json', () {
-    Map<String, dynamic> embed({
-      Object? quantity = 6000,
-      Map<String, dynamic>? registration,
-    }) => {
+    Map<String, dynamic> embed({Object? quantity = 6000, Map<String, dynamic>? registration}) => {
       'id': 'item-1',
       'quantity': quantity,
       'entered_on': '2026-08-28',
@@ -336,19 +307,13 @@ void main() {
       // by deleting its write-offs, and a stored balance would be a second
       // number to keep in step.
       expect(_item(quantity: 6000).remainingQuantity, 6000);
-      expect(
-        _item(quantity: 6000, writtenOffQuantity: 2000).remainingQuantity,
-        4000,
-      );
+      expect(_item(quantity: 6000, writtenOffQuantity: 2000).remainingQuantity, 4000);
     });
 
     test('never goes negative', () {
       // Buying more than what was asked for closes the line; it does not owe
       // the list anything back.
-      expect(
-        _item(quantity: 6000, writtenOffQuantity: 9000).remainingQuantity,
-        0,
-      );
+      expect(_item(quantity: 6000, writtenOffQuantity: 9000).remainingQuantity, 0);
     });
 
     test('is null when the line never asked for a quantity', () {
@@ -411,10 +376,7 @@ void main() {
     });
 
     test('reads the two dates and writes them back as columns', () {
-      final json = _item(
-        fulfilledOn: DateTime(2026, 8, 30),
-        removedOn: DateTime(2026, 8, 31),
-      ).toJson();
+      final json = _item(fulfilledOn: DateTime(2026, 8, 30), removedOn: DateTime(2026, 8, 31)).toJson();
 
       expect(json['fulfilled_on'], '2026-08-30');
       expect(json['removed_on'], '2026-08-31');
@@ -443,10 +405,7 @@ void main() {
       expect(_item(), isNot(_item(writeOffCount: 1)));
       expect(_item(), isNot(_item(fulfilledOn: DateTime(2026, 8, 30))));
       expect(_item(), isNot(_item(removedOn: DateTime(2026, 8, 30))));
-      expect(
-        _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode,
-        _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode,
-      );
+      expect(_item(fulfilledOn: DateTime(2026, 8, 30)).hashCode, _item(fulfilledOn: DateTime(2026, 8, 30)).hashCode);
     });
   });
 
@@ -515,10 +474,7 @@ void main() {
     });
 
     test('the undo does NOT resurrect a line removed by hand — D1', () {
-      final both = _item(
-        fulfilledOn: DateTime(2026, 8, 18),
-        removedOn: DateTime(2026, 8, 20),
-      );
+      final both = _item(fulfilledOn: DateTime(2026, 8, 18), removedOn: DateTime(2026, 8, 20));
 
       final back = both.restoredToList();
       expect(back.fulfilledOn, isNull);
@@ -557,10 +513,7 @@ void main() {
     });
 
     test('a deactivated registration falls SILENTLY, with no write at all', () {
-      final item = _item(
-        registration: _registration(active: false),
-        brand: _brand,
-      );
+      final item = _item(registration: _registration(active: false), brand: _brand);
 
       expect(item.effectivePreferredRegistration, isNull);
       // The stored preference is untouched — it comes back the day the
@@ -594,31 +547,25 @@ void main() {
       expect(_item().effectivePreferredRegistration, isNull);
     });
 
-    test(
-      'the preference falls when the registration moved to another type',
-      () {
-        // M-b: no purchase of THIS line's type can be that registration any
-        // more, and keeping the preference would pin the line to the list.
-        final item = _item(
-          registration: _registration().copyWith(productTypeId: 'type-2'),
-          brand: _brand,
-        );
+    test('the preference falls when the registration moved to another type', () {
+      // M-b: no purchase of THIS line's type can be that registration any
+      // more, and keeping the preference would pin the line to the list.
+      final item = _item(
+        registration: _registration().copyWith(productTypeId: 'type-2'),
+        brand: _brand,
+      );
 
-        expect(item.effectivePreferredRegistration, isNull);
-        expect(item.acceptsRegistration('any-id'), isTrue);
-        expect(item.preferredRegistration, isNotNull);
-      },
-    );
+      expect(item.effectivePreferredRegistration, isNull);
+      expect(item.acceptsRegistration('any-id'), isTrue);
+      expect(item.preferredRegistration, isNotNull);
+    });
 
-    test(
-      'the preference holds while the registration stays in the line type',
-      () {
-        final item = _item(registration: _registration(), brand: _brand);
+    test('the preference holds while the registration stays in the line type', () {
+      final item = _item(registration: _registration(), brand: _brand);
 
-        expect(item.effectivePreferredRegistration, _registration());
-        expect(item.acceptsRegistration('any-id'), isFalse);
-      },
-    );
+      expect(item.effectivePreferredRegistration, _registration());
+      expect(item.acceptsRegistration('any-id'), isFalse);
+    });
   });
 
   group('acceptsRegistration — the question planWriteOffs asks (M-a)', () {
@@ -635,10 +582,7 @@ void main() {
     });
 
     test('a preference that fell accepts anything again', () {
-      final item = _item(
-        registration: _registration(active: false),
-        brand: _brand,
-      );
+      final item = _item(registration: _registration(active: false), brand: _brand);
 
       expect(item.acceptsRegistration('reg-2'), isTrue);
     });
@@ -652,10 +596,7 @@ void main() {
     test('asked for and partially bought: "restam X de Y"', () {
       // The first number carries no unit because the second one does — the
       // same shape `wireframes §Tela 1` uses for the balance.
-      expect(
-        _item(quantity: 6000, writtenOffQuantity: 4000).listStatusLabel,
-        'na lista: restam 2 de 6 L',
-      );
+      expect(_item(quantity: 6000, writtenOffQuantity: 4000).listStatusLabel, 'na lista: restam 2 de 6 L');
     });
 
     test('with no quantity it says so, and says nothing about a balance', () {
@@ -668,33 +609,17 @@ void main() {
       // No line of the wireframe has both at once, so combining contradicts
       // none of them — and dropping the "não encontrei" of an item that also
       // has a quantity would lose the message the other person left.
+      expect(_item(quantity: 6000, notFound: true).listStatusLabel, 'na lista: pedindo 6 L, "não encontrei"');
+      expect(_item(quantity: null, notFound: true).listStatusLabel, 'na lista, sem quantidade, "não encontrei"');
       expect(
-        _item(quantity: 6000, notFound: true).listStatusLabel,
-        'na lista: pedindo 6 L, "não encontrei"',
-      );
-      expect(
-        _item(quantity: null, notFound: true).listStatusLabel,
-        'na lista, sem quantidade, "não encontrei"',
-      );
-      expect(
-        _item(
-          quantity: 6000,
-          writtenOffQuantity: 4000,
-          notFound: true,
-        ).listStatusLabel,
+        _item(quantity: 6000, writtenOffQuantity: 4000, notFound: true).listStatusLabel,
         'na lista: restam 2 de 6 L, "não encontrei"',
       );
     });
 
-    test(
-      'a write-off bigger than what was asked reads zero, never negative',
-      () {
-        expect(
-          _item(quantity: 6000, writtenOffQuantity: 9000).listStatusLabel,
-          'na lista: restam 0 de 6 L',
-        );
-      },
-    );
+    test('a write-off bigger than what was asked reads zero, never negative', () {
+      expect(_item(quantity: 6000, writtenOffQuantity: 9000).listStatusLabel, 'na lista: restam 0 de 6 L');
+    });
 
     test('the unit is the type\'s base, whatever the preferred packaging', () {
       expect(
@@ -737,10 +662,7 @@ void main() {
     });
 
     test('refuses a negative quantity read from outside', () {
-      expect(
-        () => ShoppingListItem.fromJson(row(-1)),
-        throwsA(isA<InvalidQuantity>()),
-      );
+      expect(() => ShoppingListItem.fromJson(row(-1)), throwsA(isA<InvalidQuantity>()));
     });
   });
 }

@@ -20,25 +20,10 @@ final colaOwner = BarcodeOwner(
   product: Product(
     id: 'prod-1',
     productRegistrationId: 'reg-1',
-    packaging: Packaging(
-      pieceCount: 1,
-      pieceSize: 350,
-      baseUnit: BaseUnit.milliliter,
-    ),
+    packaging: Packaging(pieceCount: 1, pieceSize: 350, baseUnit: BaseUnit.milliliter),
   ),
-  registration: ProductRegistration(
-    id: 'reg-1',
-    productTypeId: 'type-1',
-    brandId: 'brand-1',
-    description: 'original',
-    sellingMode: SellingMode.byPiece,
-  ),
-  type: ProductType(
-    id: 'type-1',
-    name: 'Refrigerante',
-    categoryId: 'cat-1',
-    baseUnit: BaseUnit.milliliter,
-  ),
+  registration: ProductRegistration(id: 'reg-1', productTypeId: 'type-1', brandId: 'brand-1', description: 'original'),
+  type: ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
   brand: Brand(id: 'brand-1', name: 'Coca-Cola'),
 );
 
@@ -47,24 +32,10 @@ final foilOwner = BarcodeOwner(
   product: Product(
     id: 'prod-6',
     productRegistrationId: 'reg-3',
-    packaging: Packaging(
-      pieceCount: 1,
-      pieceSize: 3000,
-      baseUnit: BaseUnit.centimeter,
-    ),
+    packaging: Packaging(pieceCount: 1, pieceSize: 3000, baseUnit: BaseUnit.centimeter),
   ),
-  registration: ProductRegistration(
-    id: 'reg-3',
-    productTypeId: 'type-6',
-    description: '',
-    sellingMode: SellingMode.byPiece,
-  ),
-  type: ProductType(
-    id: 'type-6',
-    name: 'Papel-alumínio',
-    categoryId: 'cat-3',
-    baseUnit: BaseUnit.centimeter,
-  ),
+  registration: ProductRegistration(id: 'reg-3', productTypeId: 'type-6', description: ''),
+  type: ProductType(id: 'type-6', name: 'Papel-alumínio', categoryId: 'cat-3', baseUnit: BaseUnit.centimeter),
 );
 
 /// The last line of the pantry (Mercearia), for the scroll test.
@@ -72,29 +43,11 @@ final coffeeOwner = BarcodeOwner(
   product: Product(
     id: 'prod-9',
     productRegistrationId: 'reg-9',
-    packaging: Packaging(
-      pieceCount: 1,
-      pieceSize: 500,
-      baseUnit: BaseUnit.gram,
-    ),
+    packaging: Packaging(pieceCount: 1, pieceSize: 500, baseUnit: BaseUnit.gram),
   ),
-  registration: ProductRegistration(
-    id: 'reg-9',
-    productTypeId: 'type-5',
-    description: 'tradicional',
-    sellingMode: SellingMode.byPiece,
-  ),
-  type: ProductType(
-    id: 'type-5',
-    name: 'Café',
-    categoryId: 'cat-4',
-    baseUnit: BaseUnit.gram,
-  ),
+  registration: ProductRegistration(id: 'reg-9', productTypeId: 'type-5', description: 'tradicional'),
+  type: ProductType(id: 'type-5', name: 'Café', categoryId: 'cat-4', baseUnit: BaseUnit.gram),
 );
 
-PickedProduct pickedFrom(BarcodeOwner owner) => PickedProduct(
-  product: owner.product,
-  registration: owner.registration,
-  type: owner.type,
-  brand: owner.brand,
-);
+PickedProduct pickedFrom(BarcodeOwner owner) =>
+    PickedProduct(product: owner.product, registration: owner.registration, type: owner.type, brand: owner.brand);

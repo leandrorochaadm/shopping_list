@@ -14,15 +14,8 @@ void main() {
   final soda = Barcode.typed('7891000100103');
   final juice = Barcode.typed('7891910000197');
 
-  ProductType type({
-    String name = 'Leite',
-    BaseUnit unit = BaseUnit.milliliter,
-  }) => ProductType(
-    id: 'type-1',
-    name: name,
-    categoryId: 'cat-1',
-    baseUnit: unit,
-  );
+  ProductType type({String name = 'Leite', BaseUnit unit = BaseUnit.milliliter}) =>
+      ProductType(id: 'type-1', name: name, categoryId: 'cat-1', baseUnit: unit);
 
   BarcodeOwner owner({
     String productId = 'prod-1',
@@ -36,13 +29,7 @@ void main() {
     product: Product(
       id: productId,
       productRegistrationId: 'reg-1',
-      packaging:
-          packaging ??
-          Packaging(
-            pieceCount: 1,
-            pieceSize: 1000,
-            baseUnit: BaseUnit.milliliter,
-          ),
+      packaging: packaging ?? Packaging(pieceCount: 1, pieceSize: 1000, baseUnit: BaseUnit.milliliter),
       active: leafActive,
     ),
     registration: ProductRegistration(
@@ -50,7 +37,6 @@ void main() {
       productTypeId: 'type-1',
       brandId: brand?.id,
       description: description,
-      sellingMode: SellingMode.byPiece,
       active: registrationActive,
     ),
     type: type(name: name ?? 'Leite'),
@@ -85,11 +71,7 @@ void main() {
           name: 'Refrigerante',
           brand: coke,
           description: 'zero',
-          packaging: Packaging(
-            pieceCount: 1,
-            pieceSize: 2000,
-            baseUnit: BaseUnit.milliliter,
-          ),
+          packaging: Packaging(pieceCount: 1, pieceSize: 2000, baseUnit: BaseUnit.milliliter),
         ).label,
         'Refrigerante Coca-Cola zero 2 L',
       );
@@ -99,24 +81,16 @@ void main() {
       expect(
         owner(
           name: 'Papel-alumínio',
-          packaging: Packaging(
-            pieceCount: 1,
-            pieceSize: 3000,
-            baseUnit: BaseUnit.centimeter,
-          ),
+          packaging: Packaging(pieceCount: 1, pieceSize: 3000, baseUnit: BaseUnit.centimeter),
         ).label,
         'Papel-alumínio 30 m',
       );
     });
 
-    test('of a by-weight leaf has no packaging', () {
+    test('of a loose leaf has no packaging', () {
       final byWeight = BarcodeOwner(
         product: const Product(id: 'prod-5', productRegistrationId: 'reg-2'),
-        registration: ProductRegistration(
-          id: 'reg-2',
-          productTypeId: 'type-2',
-          sellingMode: SellingMode.byWeight,
-        ),
+        registration: ProductRegistration(id: 'reg-2', productTypeId: 'type-2'),
         type: type(name: 'Acém moído', unit: BaseUnit.gram),
       );
       expect(byWeight.label, 'Acém moído');
@@ -151,9 +125,7 @@ void main() {
     };
 
     test('reads the nested embed', () {
-      final read = BarcodeOwner.fromJson(
-        json(brand: {'id': 'brand-1', 'name': 'Italac', 'active': true}),
-      );
+      final read = BarcodeOwner.fromJson(json(brand: {'id': 'brand-1', 'name': 'Italac', 'active': true}));
 
       expect(read.product.id, 'prod-1');
       expect(read.registration.id, 'reg-1');
@@ -181,11 +153,7 @@ void main() {
       Brand? brand,
     }) => BarcodeOwner(
       product: Product(id: productId, productRegistrationId: 'reg-1'),
-      registration: ProductRegistration(
-        id: registrationId,
-        productTypeId: 'type-1',
-        sellingMode: SellingMode.byPiece,
-      ),
+      registration: ProductRegistration(id: registrationId, productTypeId: 'type-1'),
       type: type(name: typeName),
       brand: brand,
     );
@@ -193,18 +161,9 @@ void main() {
     test('covers every field', () {
       expect(build(brand: italac), build(brand: italac));
       expect(build(brand: italac).hashCode, build(brand: italac).hashCode);
-      expect(
-        build(brand: italac),
-        isNot(build(productId: 'prod-2', brand: italac)),
-      );
-      expect(
-        build(brand: italac),
-        isNot(build(registrationId: 'reg-2', brand: italac)),
-      );
-      expect(
-        build(brand: italac),
-        isNot(build(typeName: 'Suco', brand: italac)),
-      );
+      expect(build(brand: italac), isNot(build(productId: 'prod-2', brand: italac)));
+      expect(build(brand: italac), isNot(build(registrationId: 'reg-2', brand: italac)));
+      expect(build(brand: italac), isNot(build(typeName: 'Suco', brand: italac)));
       expect(
         build(brand: italac),
         isNot(
@@ -235,35 +194,23 @@ void main() {
     });
 
     test('flags the same code twice on the screen', () {
-      expect(
-        conflictOf([milk, milk].lock, const IMap.empty()),
-        RepeatedOnScreen(milk),
-      );
+      expect(conflictOf([milk, milk].lock, const IMap.empty()), RepeatedOnScreen(milk));
     });
 
     test('flags a UPC-A and an EAN-13 of the same number', () {
       expect(
-        conflictOf(
-          [Barcode.typed('012345678905'), Barcode.typed('0012345678905')].lock,
-          const IMap.empty(),
-        ),
+        conflictOf([Barcode.typed('012345678905'), Barcode.typed('0012345678905')].lock, const IMap.empty()),
         isA<RepeatedOnScreen>(),
       );
     });
 
     test('flags a code held by an active owner', () {
-      expect(
-        conflictOf([milk].lock, {milk: active}.lock),
-        TakenByActive(code: milk, owner: active),
-      );
+      expect(conflictOf([milk].lock, {milk: active}.lock), TakenByActive(code: milk, owner: active));
     });
 
     test('answers with the first active owner in the order of the codes', () {
       final other = owner(productId: 'prod-3');
-      final conflict = conflictOf(
-        [soda, milk].lock,
-        {milk: active, soda: other}.lock,
-      );
+      final conflict = conflictOf([soda, milk].lock, {milk: active, soda: other}.lock);
 
       expect(conflict, TakenByActive(code: soda, owner: other));
     });
@@ -273,17 +220,11 @@ void main() {
     });
 
     test('lets the own leaf through', () {
-      expect(
-        conflictOf([milk].lock, {milk: active}.lock, ownProductId: 'prod-1'),
-        isNull,
-      );
+      expect(conflictOf([milk].lock, {milk: active}.lock, ownProductId: 'prod-1'), isNull);
     });
 
     test('puts the repeat on the screen before the database', () {
-      expect(
-        conflictOf([milk, milk].lock, {milk: active}.lock),
-        isA<RepeatedOnScreen>(),
-      );
+      expect(conflictOf([milk, milk].lock, {milk: active}.lock), isA<RepeatedOnScreen>());
     });
   });
 
@@ -292,23 +233,13 @@ void main() {
     final inactive = owner(productId: 'prod-2', leafActive: false);
 
     test('brings only the deactivated owners', () {
-      final holders = inactiveHoldersOf(
-        [milk, soda].lock,
-        {milk: active, soda: inactive}.lock,
-      );
+      final holders = inactiveHoldersOf([milk, soda].lock, {milk: active, soda: inactive}.lock);
 
       expect(holders, {soda: inactive}.lock);
     });
 
     test('leaves out the own leaf', () {
-      expect(
-        inactiveHoldersOf(
-          [soda].lock,
-          {soda: inactive}.lock,
-          ownProductId: 'prod-2',
-        ),
-        isEmpty,
-      );
+      expect(inactiveHoldersOf([soda].lock, {soda: inactive}.lock, ownProductId: 'prod-2'), isEmpty);
     });
 
     test('leaves out a code with no owner', () {
@@ -330,33 +261,23 @@ void main() {
     });
 
     test('TakenByActive equality covers every field', () {
-      TakenByActive taken(Barcode code, BarcodeOwner who) =>
-          TakenByActive(code: code, owner: who);
+      TakenByActive taken(Barcode code, BarcodeOwner who) => TakenByActive(code: code, owner: who);
 
       expect(taken(milk, active), taken(milk, active));
       expect(taken(milk, active).hashCode, taken(milk, active).hashCode);
       expect(taken(milk, active), isNot(taken(soda, active)));
-      expect(
-        taken(milk, active),
-        isNot(taken(milk, owner(productId: 'prod-2'))),
-      );
+      expect(taken(milk, active), isNot(taken(milk, owner(productId: 'prod-2'))));
     });
 
     test('toString carries the code', () {
       expect(RepeatedOnScreen(milk).toString(), contains(milk.code));
-      expect(
-        TakenByActive(code: milk, owner: active).toString(),
-        contains(milk.code),
-      );
+      expect(TakenByActive(code: milk, owner: active).toString(), contains(milk.code));
     });
   });
 
   group('messages', () {
     test('a code repeated on the screen', () {
-      expect(
-        barcodeConflictMessage(RepeatedOnScreen(milk)),
-        'Esse código já está em outra embalagem desta tela.',
-      );
+      expect(barcodeConflictMessage(RepeatedOnScreen(milk)), 'Esse código já está em outra embalagem desta tela.');
     });
 
     test('a code taken by an active product names it', () {
@@ -391,26 +312,17 @@ void main() {
     });
 
     test('a code held by an active owner is taken — case 3', () {
-      expect(
-        conflictOf([soda].lock, {soda: active}.lock),
-        TakenByActive(code: soda, owner: active),
-      );
+      expect(conflictOf([soda].lock, {soda: active}.lock), TakenByActive(code: soda, owner: active));
     });
 
     test('the same code twice in one save is repeated — case 4b', () {
-      expect(
-        conflictOf([juice, juice].lock, const IMap.empty()),
-        RepeatedOnScreen(juice),
-      );
+      expect(conflictOf([juice, juice].lock, const IMap.empty()), RepeatedOnScreen(juice));
     });
 
     test('a released code is free again — case 9', () {
       expect(conflictOf([milk].lock, const IMap.empty()), isNull);
       expect(conflictOf([milk].lock, {milk: inactive}.lock), isNull);
-      expect(
-        inactiveHoldersOf([milk].lock, {milk: inactive}.lock),
-        {milk: inactive}.lock,
-      );
+      expect(inactiveHoldersOf([milk].lock, {milk: inactive}.lock), {milk: inactive}.lock);
     });
   });
 }

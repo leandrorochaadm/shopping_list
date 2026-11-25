@@ -39,26 +39,11 @@ final softDrinkType = ProductType(
   categoryId: 'cat-1',
   baseUnit: BaseUnit.milliliter,
 );
-final beefType = ProductType(
-  id: 'type-2',
-  name: 'Acém moído',
-  categoryId: 'cat-2',
-  baseUnit: BaseUnit.gram,
-);
-final paperType = ProductType(
-  id: 'type-3',
-  name: 'Papel higiênico',
-  categoryId: 'cat-3',
-  baseUnit: BaseUnit.unit,
-);
+final beefType = ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram);
+final paperType = ProductType(id: 'type-3', name: 'Papel higiênico', categoryId: 'cat-3', baseUnit: BaseUnit.unit);
 
 /// The second example of requirement 4: the type that adds up two brands.
-final powderType = ProductType(
-  id: 'type-4',
-  name: 'Sabão em pó',
-  categoryId: 'cat-3',
-  baseUnit: BaseUnit.gram,
-);
+final powderType = ProductType(id: 'type-4', name: 'Sabão em pó', categoryId: 'cat-3', baseUnit: BaseUnit.gram);
 
 final cokeBrand = Brand(id: 'brand-1', name: 'Coca-Cola');
 final omoBrand = Brand(id: 'brand-2', name: 'Omo');
@@ -90,11 +75,7 @@ ProductOption optionByPiece({
     product: Product(
       id: id,
       productRegistrationId: registrationId ?? 'reg-$id',
-      packaging: Packaging(
-        pieceCount: pieceCount,
-        pieceSize: pieceSize,
-        baseUnit: unit,
-      ),
+      packaging: Packaging(pieceCount: pieceCount, pieceSize: pieceSize, baseUnit: unit),
       barcodes: barcodes,
       scaleCodes: scaleCodes,
     ),
@@ -103,7 +84,6 @@ ProductOption optionByPiece({
       productTypeId: resolved.id!,
       brandId: brand?.id,
       description: description,
-      sellingMode: SellingMode.byPiece,
     ),
     type: resolved,
     brand: brand,
@@ -114,7 +94,7 @@ ProductOption optionByPiece({
   );
 }
 
-/// A leaf sold by weight: no packaging at all (decision B1).
+/// A loose leaf: no packaging at all (decision B1).
 ProductOption optionByWeight({
   required String id,
   String? registrationId,
@@ -135,12 +115,7 @@ ProductOption optionByWeight({
       barcodes: barcodes,
       scaleCodes: scaleCodes,
     ),
-    registration: ProductRegistration(
-      id: registrationId ?? 'reg-$id',
-      productTypeId: resolved.id!,
-      brandId: brand?.id,
-      sellingMode: SellingMode.byWeight,
-    ),
+    registration: ProductRegistration(id: registrationId ?? 'reg-$id', productTypeId: resolved.id!, brandId: brand?.id),
     type: resolved,
     brand: brand,
     purchaseCount: purchaseCount,
@@ -156,13 +131,7 @@ PurchaseItem purchaseItem({
   int quantity = 1,
   int cents = 600,
   PriceOrigin priceOrigin = PriceOrigin.typed,
-}) => PurchaseItem(
-  id: id,
-  option: option,
-  quantity: quantity,
-  paid: Money(cents),
-  priceOrigin: priceOrigin,
-);
+}) => PurchaseItem(id: id, option: option, quantity: quantity, paid: Money(cents), priceOrigin: priceOrigin);
 
 /// A line of the list. [enteredOn] defaults to well before every purchase
 /// date the tests use, so a test that does not care about decision 25 does
@@ -204,29 +173,18 @@ ShoppingListItem listItem({
 ///
 /// The latency is zero, not the fakes' 400 ms: what is being tested is the
 /// screen, and every pumpAndSettle would otherwise carry the delay.
-List<Override> purchaseOverrides({
-  PurchaseRepository? purchases,
-  PurchaseDraft? draft,
-  SpendingCapRepository? caps,
-}) => [
-  purchaseRepositoryProvider.overrideWith(
-    (ref) => purchases ?? PurchaseRepositoryLocal(latency: Duration.zero),
-  ),
-  purchaseDraftRepositoryProvider.overrideWith(
-    (ref) => PurchaseDraftRepositoryLocal(initial: draft),
-  ),
-  spendingCapOverride(repository: caps),
-  storeOverride(),
-];
+List<Override> purchaseOverrides({PurchaseRepository? purchases, PurchaseDraft? draft, SpendingCapRepository? caps}) =>
+    [
+      purchaseRepositoryProvider.overrideWith((ref) => purchases ?? PurchaseRepositoryLocal(latency: Duration.zero)),
+      purchaseDraftRepositoryProvider.overrideWith((ref) => PurchaseDraftRepositoryLocal(initial: draft)),
+      spendingCapOverride(repository: caps),
+      storeOverride(),
+    ];
 
 /// A price reference written the short way — the pair (paid, quantity) plus
 /// the day, which is what the panel of H19 and the pre-filled value of screen
 /// 3 both read.
-PriceReference reference({
-  required int cents,
-  required int quantityInBaseUnit,
-  DateTime? on,
-}) => PriceReference(
+PriceReference reference({required int cents, required int quantityInBaseUnit, DateTime? on}) => PriceReference(
   paid: Money(cents),
   quantityInBaseUnit: quantityInBaseUnit,
   purchasedOn: on ?? DateTime(2026, 8, 18),
@@ -257,11 +215,7 @@ IList<ProductOption> optionsOfSoftDrinkType({
 /// leaf sold by weight (which GETS a quantity field) and two packagings
 /// (which do not). It is the chicken fixture: the tray at the counter, the
 /// 1 kg pack and the 2 kg pack.
-IList<ProductOption> optionsOfChickenType({
-  PriceReference? tray,
-  PriceReference? small,
-  PriceReference? big,
-}) => [
+IList<ProductOption> optionsOfChickenType({PriceReference? tray, PriceReference? small, PriceReference? big}) => [
   optionByWeight(
     id: 'chick-1',
     type: beefType,
@@ -291,20 +245,15 @@ IList<ProductOption> optionsOfChickenType({
   ),
 ].lock;
 
-ProductOption _softDrinkLeaf(
-  String id,
-  int pieceCount,
-  int pieceSize,
-  BaseUnit unit,
-  PriceReference? priceReference,
-) => optionByPiece(
-  id: id,
-  brand: cokeBrand,
-  description: 'original',
-  pieceCount: pieceCount,
-  pieceSize: pieceSize,
-  unit: unit,
-  purchaseCount: priceReference == null ? 0 : 1,
-  lastPurchasedOn: priceReference?.purchasedOn,
-  priceReference: priceReference,
-);
+ProductOption _softDrinkLeaf(String id, int pieceCount, int pieceSize, BaseUnit unit, PriceReference? priceReference) =>
+    optionByPiece(
+      id: id,
+      brand: cokeBrand,
+      description: 'original',
+      pieceCount: pieceCount,
+      pieceSize: pieceSize,
+      unit: unit,
+      purchaseCount: priceReference == null ? 0 : 1,
+      lastPurchasedOn: priceReference?.purchasedOn,
+      priceReference: priceReference,
+    );
