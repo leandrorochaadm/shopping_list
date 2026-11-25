@@ -60,10 +60,7 @@ class _SpyRepository extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<void> removeBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> removeBarcode({required String productId, required Barcode code}) async {
     removeBarcodeCalls++;
     lastRemovedProductId = productId;
     final only = failRemoveBarcode;
@@ -73,10 +70,7 @@ class _SpyRepository extends CatalogRepositoryLocal {
   }
 
   @override
-  Future<void> addScaleCode({
-    required String productId,
-    required ScaleCode code,
-  }) async {
+  Future<void> addScaleCode({required String productId, required ScaleCode code}) async {
     addScaleCodeCalls++;
     final failure = _take();
     if (failure != null) throw failure;
@@ -145,30 +139,21 @@ class _SpyRepository extends CatalogRepositoryLocal {
   }) async {
     final failure = _take();
     if (failure != null) throw failure;
-    return super.findRegistration(
-      productTypeId: productTypeId,
-      brandId: brandId,
-      description: description,
-    );
+    return super.findRegistration(productTypeId: productTypeId, brandId: brandId, description: description);
   }
 
   @override
-  Future<IList<String>> fetchDescriptions({
-    required String productTypeId,
-    String? brandId,
-  }) async {
+  Future<IList<String>> fetchDescriptions({required String productTypeId, String? brandId}) async {
     final failure = _take();
     if (failure != null) throw failure;
-    return super.fetchDescriptions(
-      productTypeId: productTypeId,
-      brandId: brandId,
-    );
+    return super.fetchDescriptions(productTypeId: productTypeId, brandId: brandId);
   }
 
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     saveCalls++;
@@ -177,14 +162,13 @@ class _SpyRepository extends CatalogRepositoryLocal {
     return super.saveRegistrationWithProducts(
       registration: registration,
       packagings: packagings,
+      loose: loose,
       scaleCodes: scaleCodes,
     );
   }
 
   @override
-  Future<ProductRegistration> updateRegistration(
-    ProductRegistration registration,
-  ) async {
+  Future<ProductRegistration> updateRegistration(ProductRegistration registration) async {
     updateRegistrationCalls++;
     final only = failUpdateRegistration;
     failUpdateRegistration = null;
@@ -198,6 +182,8 @@ class _SpyRepository extends CatalogRepositoryLocal {
   Future<IList<Product>> addPackagings({
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     addPackagingCalls++;
     final only = failAddPackagings;
@@ -208,20 +194,17 @@ class _SpyRepository extends CatalogRepositoryLocal {
     return super.addPackagings(
       registrationId: registrationId,
       packagings: packagings,
+      loose: loose,
+      scaleCodes: scaleCodes,
     );
   }
 }
 
 void main() {
   ProviderContainer containerWith(CatalogRepository repository) =>
-      ProviderContainer.test(
-        overrides: <Override>[
-          catalogRepositoryProvider.overrideWith((ref) => repository),
-        ],
-      );
+      ProviderContainer.test(overrides: <Override>[catalogRepositoryProvider.overrideWith((ref) => repository)]);
 
-  Packaging bottle(String size, BaseUnit unit) =>
-      Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
+  Packaging bottle(String size, BaseUnit unit) => Packaging.typed(pieceCount: '1', pieceSize: size, baseUnit: unit);
 
   group('loading the three lists', () {
     test('brings categories, types and brands together', () async {
@@ -245,21 +228,14 @@ void main() {
     });
 
     test('shows the failure on screen when nothing loaded', () async {
-      final repository = _SpyRepository()
-        ..failNextCall = NetworkException('offline');
+      final repository = _SpyRepository()..failNextCall = NetworkException('offline');
       final container = containerWith(repository);
 
-      await expectLater(
-        container.read(catalogViewModelProvider.future),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(container.read(catalogViewModelProvider.future), throwsA(isA<NetworkException>()));
       expect(container.read(catalogViewModelProvider).hasError, isTrue);
 
       // And the retry that works fills the screen.
-      expect(
-        await container.read(catalogViewModelProvider.notifier).refresh(),
-        isNull,
-      );
+      expect(await container.read(catalogViewModelProvider.notifier).refresh(), isNull);
       expect(container.read(catalogViewModelProvider).hasValue, isTrue);
     });
 
@@ -283,14 +259,9 @@ void main() {
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
 
-      repository.failNextCall = ApiException(
-        500,
-        'duplicate key value violates unique constraint "brand_name_key"',
-      );
+      repository.failNextCall = ApiException(500, 'duplicate key value violates unique constraint "brand_name_key"');
 
-      final message = await container
-          .read(catalogViewModelProvider.notifier)
-          .refresh();
+      final message = await container.read(catalogViewModelProvider.notifier).refresh();
 
       expect(message, isNot(contains('brand_name_key')));
       expect(message, isNot(contains('ApiException')));
@@ -298,12 +269,8 @@ void main() {
   });
 
   group('categoryOf', () {
-    ProductType typeIn(String categoryId) => ProductType(
-      id: 'type-x',
-      name: 'Pão',
-      categoryId: categoryId,
-      baseUnit: BaseUnit.unit,
-    );
+    ProductType typeIn(String categoryId) =>
+        ProductType(id: 'type-x', name: 'Pão', categoryId: categoryId, baseUnit: BaseUnit.unit);
 
     test('answers from the loaded options without a round trip', () async {
       final repository = _SpyRepository();
@@ -312,9 +279,7 @@ void main() {
       final known = options.categories.first;
       final calls = repository.fetchCategoryCalls;
 
-      final found = await container
-          .read(catalogViewModelProvider.notifier)
-          .categoryOf(typeIn(known.id!));
+      final found = await container.read(catalogViewModelProvider.notifier).categoryOf(typeIn(known.id!));
 
       expect(found, known);
       expect(repository.fetchCategoryCalls, calls);
@@ -324,14 +289,10 @@ void main() {
       final repository = _SpyRepository();
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
-      final created = await repository.createCategory(
-        Category(name: 'Padaria'),
-      );
+      final created = await repository.createCategory(Category(name: 'Padaria'));
       final calls = repository.fetchCategoryCalls;
 
-      final found = await container
-          .read(catalogViewModelProvider.notifier)
-          .categoryOf(typeIn(created.id!));
+      final found = await container.read(catalogViewModelProvider.notifier).categoryOf(typeIn(created.id!));
 
       expect(found?.name, 'Padaria');
       expect(repository.fetchCategoryCalls, calls + 1);
@@ -341,14 +302,10 @@ void main() {
       final repository = _SpyRepository();
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
-      final created = await repository.createCategory(
-        Category(name: 'Padaria'),
-      );
+      final created = await repository.createCategory(Category(name: 'Padaria'));
       repository.failNextCall = NetworkException('down');
 
-      final found = await container
-          .read(catalogViewModelProvider.notifier)
-          .categoryOf(typeIn(created.id!));
+      final found = await container.read(catalogViewModelProvider.notifier).categoryOf(typeIn(created.id!));
 
       expect(found, isNull);
     });
@@ -359,9 +316,7 @@ void main() {
       await container.read(catalogViewModelProvider.future);
       final calls = repository.fetchCategoryCalls;
 
-      final found = await container
-          .read(catalogViewModelProvider.notifier)
-          .categoryOf(typeIn('cat-404'));
+      final found = await container.read(catalogViewModelProvider.notifier).categoryOf(typeIn('cat-404'));
 
       expect(found, isNull);
       expect(repository.fetchCategoryCalls, calls + 1);
@@ -374,18 +329,9 @@ void main() {
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
 
+      expect(await container.read(catalogViewModelProvider.notifier).createCategory('Padaria'), isNull);
       expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .createCategory('Padaria'),
-        isNull,
-      );
-      expect(
-        container
-            .read(catalogViewModelProvider)
-            .value!
-            .categories
-            .map((category) => category.name),
+        container.read(catalogViewModelProvider).value!.categories.map((category) => category.name),
         contains('Padaria'),
       );
     });
@@ -396,9 +342,7 @@ void main() {
       await container.read(catalogViewModelProvider.future);
 
       expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .createCategory('  BEBIDAS '),
+        await container.read(catalogViewModelProvider.notifier).createCategory('  BEBIDAS '),
         'Já existe a categoria Bebidas.',
       );
       // Answered in Dart, before any I/O.
@@ -411,9 +355,7 @@ void main() {
       await container.read(catalogViewModelProvider.future);
 
       expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .createBrand('guarana antarctica'),
+        await container.read(catalogViewModelProvider.notifier).createBrand('guarana antarctica'),
         // No destination in it since H10 — see `nameConflictMessage`.
         'O cadastro Guaraná Antarctica existe, mas está desativado.',
       );
@@ -425,12 +367,7 @@ void main() {
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
 
-      expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .createBrand('   '),
-        'Informe um nome.',
-      );
+      expect(await container.read(catalogViewModelProvider.notifier).createBrand('   '), 'Informe um nome.');
       expect(repository.createBrandCalls, 0);
     });
 
@@ -463,11 +400,7 @@ void main() {
       expect(
         await container
             .read(catalogViewModelProvider.notifier)
-            .createType(
-              name: 'Achocolatado',
-              categoryId: 'cat-1',
-              baseUnit: BaseUnit.gram,
-            ),
+            .createType(name: 'Achocolatado', categoryId: 'cat-1', baseUnit: BaseUnit.gram),
         isNull,
       );
 
@@ -488,9 +421,7 @@ void main() {
       repository.failNextCall = NetworkException('offline');
 
       expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .createCategory('Padaria'),
+        await container.read(catalogViewModelProvider.notifier).createCategory('Padaria'),
         'Sem conexão. Verifique a internet e tente de novo.',
       );
       // The lists already on screen stay there: an ACTION that failed never
@@ -504,37 +435,31 @@ void main() {
       await container.read(catalogViewModelProvider.future);
 
       final notifier = container.read(catalogViewModelProvider.notifier);
-      await Future.wait([
-        notifier.createCategory('Padaria'),
-        notifier.createCategory('Padaria'),
-      ]);
+      await Future.wait([notifier.createCategory('Padaria'), notifier.createCategory('Padaria')]);
 
       expect(repository.createCategoryCalls, 1);
     });
   });
 
   group('the identity guard', () {
-    test(
-      'finds the registration that already holds it, with its leaves',
-      () async {
-        final container = containerWith(_SpyRepository());
-        await container.read(catalogViewModelProvider.future);
+    test('finds the registration that already holds it, with its leaves', () async {
+      final container = containerWith(_SpyRepository());
+      await container.read(catalogViewModelProvider.future);
 
-        final conflict = await container
-            .read(catalogViewModelProvider.notifier)
-            .checkIdentity(
-              productTypeId: 'type-1',
-              brandId: 'brand-1',
-              // Same identity, typed differently: the comparison is normalized.
-              description: '  ORIGINAL ',
-            );
+      final conflict = await container
+          .read(catalogViewModelProvider.notifier)
+          .checkIdentity(
+            productTypeId: 'type-1',
+            brandId: 'brand-1',
+            // Same identity, typed differently: the comparison is normalized.
+            description: '  ORIGINAL ',
+          );
 
-        expect(conflict, isNotNull);
-        expect(conflict!.registration.id, 'reg-1');
-        // The four packagings of the wireframe, so the screen can say how many.
-        expect(conflict.products, hasLength(4));
-      },
-    );
+      expect(conflict, isNotNull);
+      expect(conflict!.registration.id, 'reg-1');
+      // The four packagings of the wireframe, so the screen can say how many.
+      expect(conflict.products, hasLength(4));
+    });
 
     test('counts a blank description as a value', () async {
       // Two ground beefs with no description under the same type ARE the same
@@ -556,39 +481,28 @@ void main() {
       expect(
         await container
             .read(catalogViewModelProvider.notifier)
-            .checkIdentity(
-              productTypeId: 'type-1',
-              brandId: 'brand-1',
-              description: 'zero',
-            ),
+            .checkIdentity(productTypeId: 'type-1', brandId: 'brand-1', description: 'zero'),
         isNull,
       );
     });
 
-    test(
-      'does not block the registration when the check itself fails',
-      () async {
-        // The check is a COURTESY the screen pays before saving; the unique
-        // index is what actually holds. Turning a lost connection into a block
-        // would keep a legitimate registration from ever being written.
-        final repository = _SpyRepository();
-        final container = containerWith(repository);
-        await container.read(catalogViewModelProvider.future);
+    test('does not block the registration when the check itself fails', () async {
+      // The check is a COURTESY the screen pays before saving; the unique
+      // index is what actually holds. Turning a lost connection into a block
+      // would keep a legitimate registration from ever being written.
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
 
-        repository.failNextCall = NetworkException('offline');
+      repository.failNextCall = NetworkException('offline');
 
-        expect(
-          await container
-              .read(catalogViewModelProvider.notifier)
-              .checkIdentity(
-                productTypeId: 'type-1',
-                brandId: 'brand-1',
-                description: 'original',
-              ),
-          isNull,
-        );
-      },
-    );
+      expect(
+        await container
+            .read(catalogViewModelProvider.notifier)
+            .checkIdentity(productTypeId: 'type-1', brandId: 'brand-1', description: 'original'),
+        isNull,
+      );
+    });
 
     test('ignores the registration being edited', () async {
       final container = containerWith(_SpyRepository());
@@ -614,20 +528,17 @@ void main() {
       );
     });
 
-    test(
-      'suggests the descriptions already used in that type and brand',
-      () async {
-        final container = containerWith(_SpyRepository());
-        await container.read(catalogViewModelProvider.future);
+    test('suggests the descriptions already used in that type and brand', () async {
+      final container = containerWith(_SpyRepository());
+      await container.read(catalogViewModelProvider.future);
 
-        expect(
-          await container
-              .read(catalogViewModelProvider.notifier)
-              .descriptionsFor(productTypeId: 'type-1', brandId: 'brand-1'),
-          contains('original'),
-        );
-      },
-    );
+      expect(
+        await container
+            .read(catalogViewModelProvider.notifier)
+            .descriptionsFor(productTypeId: 'type-1', brandId: 'brand-1'),
+        contains('original'),
+      );
+    });
   });
 
   group('saving', () {
@@ -649,11 +560,7 @@ void main() {
               bottle('350', BaseUnit.milliliter),
               bottle('269', BaseUnit.milliliter),
               bottle('2', BaseUnit.milliliter),
-              Packaging.typed(
-                pieceCount: '12',
-                pieceSize: '350',
-                baseUnit: BaseUnit.milliliter,
-              ),
+              Packaging.typed(pieceCount: '12', pieceSize: '350', baseUnit: BaseUnit.milliliter),
             ]),
           );
 
@@ -677,17 +584,11 @@ void main() {
       final outcome = await container
           .read(catalogViewModelProvider.notifier)
           .save(
-            registration: ProductRegistration(
-              productTypeId: 'type-2',
-              sellingMode: SellingMode.byWeight,
-            ),
+            registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
             packagings: const IList.empty(),
           );
 
-      expect(
-        (outcome! as RegistrationSaved).saved.products.single.isSoldByWeight,
-        isTrue,
-      );
+      expect((outcome! as RegistrationSaved).saved.products.single.isSoldByWeight, isTrue);
       final leaves = await repository.fetchProductsOf('reg-100');
       expect(leaves, hasLength(1));
       expect(leaves.first.isSoldByWeight, isTrue);
@@ -702,10 +603,7 @@ void main() {
         await container
             .read(catalogViewModelProvider.notifier)
             .save(
-              registration: ProductRegistration(
-                productTypeId: 'type-1',
-                sellingMode: SellingMode.byPiece,
-              ),
+              registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
               packagings: const IList.empty(),
             )
             .then(_saveMessage),
@@ -723,10 +621,7 @@ void main() {
         await container
             .read(catalogViewModelProvider.notifier)
             .save(
-              registration: ProductRegistration(
-                productTypeId: 'type-2',
-                sellingMode: SellingMode.byWeight,
-              ),
+              registration: ProductRegistration(productTypeId: 'type-2', sellingMode: SellingMode.byWeight),
               packagings: plain([bottle('350', BaseUnit.milliliter)]),
             )
             .then(_saveMessage),
@@ -735,30 +630,24 @@ void main() {
       expect(repository.saveCalls, 0);
     });
 
-    test(
-      'turns the duplicate the index caught into its own sentence',
-      () async {
-        final repository = _SpyRepository();
-        final container = containerWith(repository);
-        await container.read(catalogViewModelProvider.future);
+    test('turns the duplicate the index caught into its own sentence', () async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
 
-        repository.failNextCall = ApiException(409, 'duplicate key');
+      repository.failNextCall = ApiException(409, 'duplicate key');
 
-        expect(
-          await container
-              .read(catalogViewModelProvider.notifier)
-              .save(
-                registration: ProductRegistration(
-                  productTypeId: 'type-1',
-                  sellingMode: SellingMode.byPiece,
-                ),
-                packagings: plain([bottle('350', BaseUnit.milliliter)]),
-              )
-              .then(_saveMessage),
-          'Já existe um cadastro com esses dados.',
-        );
-      },
-    );
+      expect(
+        await container
+            .read(catalogViewModelProvider.notifier)
+            .save(
+              registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+              packagings: plain([bottle('350', BaseUnit.milliliter)]),
+            )
+            .then(_saveMessage),
+        'Já existe um cadastro com esses dados.',
+      );
+    });
 
     test('saves once on a double tap', () async {
       final repository = _SpyRepository();
@@ -766,10 +655,7 @@ void main() {
       await container.read(catalogViewModelProvider.future);
 
       final notifier = container.read(catalogViewModelProvider.notifier);
-      final registration = ProductRegistration(
-        productTypeId: 'type-1',
-        sellingMode: SellingMode.byPiece,
-      );
+      final registration = ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
       final packagings = plain([bottle('350', BaseUnit.milliliter)]);
 
       await Future.wait([
@@ -789,10 +675,7 @@ void main() {
       expect(
         await container
             .read(catalogViewModelProvider.notifier)
-            .addPackagings(
-              registrationId: 'reg-1',
-              packagings: plain([bottle('600', BaseUnit.milliliter)]),
-            )
+            .addPackagings(registrationId: 'reg-1', packagings: plain([bottle('600', BaseUnit.milliliter)]))
             .then((outcome) => (outcome! as PackagingsAdded).products),
         hasLength(1),
       );
@@ -808,10 +691,7 @@ void main() {
       expect(
         await container
             .read(catalogViewModelProvider.notifier)
-            .addPackagings(
-              registrationId: 'reg-1',
-              packagings: const IList.empty(),
-            )
+            .addPackagings(registrationId: 'reg-1', packagings: const IList.empty())
             .then(_addMessage),
         'Informe ao menos uma embalagem para este produto.',
       );
@@ -870,31 +750,21 @@ void main() {
       expect(repository.addPackagingCalls, 0);
     });
 
-    test(
-      'writes only the packagings when the identity did not change',
-      () async {
-        final (repository, notifier) = await ready();
+    test('writes only the packagings when the identity did not change', () async {
+      final (repository, notifier) = await ready();
 
-        final outcome = await edit(
-          notifier,
-          packagings: [bottle('600', BaseUnit.milliliter)].lock,
-        );
+      final outcome = await edit(notifier, packagings: [bottle('600', BaseUnit.milliliter)].lock);
 
-        expect(outcome, isA<RegistrationEdited>());
-        expect((outcome! as RegistrationEdited).products, hasLength(1));
-        expect(repository.updateRegistrationCalls, 0);
-        expect(repository.addPackagingCalls, 1);
-      },
-    );
+      expect(outcome, isA<RegistrationEdited>());
+      expect((outcome! as RegistrationEdited).products, hasLength(1));
+      expect(repository.updateRegistrationCalls, 0);
+      expect(repository.addPackagingCalls, 1);
+    });
 
     test('writes both when both changed', () async {
       final (repository, notifier) = await ready();
 
-      final outcome = await edit(
-        notifier,
-        description: 'zero',
-        packagings: [bottle('600', BaseUnit.milliliter)].lock,
-      );
+      final outcome = await edit(notifier, description: 'zero', packagings: [bottle('600', BaseUnit.milliliter)].lock);
 
       expect(outcome, isA<RegistrationEdited>());
       expect(repository.updateRegistrationCalls, 1);
@@ -912,17 +782,9 @@ void main() {
     test('moves to another type of the same base unit', () async {
       final (_, notifier) = await ready();
 
-      final outcome = await edit(
-        notifier,
-        original: groundBeef,
-        brandId: null,
-        typeId: 'type-4',
-      );
+      final outcome = await edit(notifier, original: groundBeef, brandId: null, typeId: 'type-4');
 
-      expect(
-        (outcome! as RegistrationEdited).registration.productTypeId,
-        'type-4',
-      );
+      expect((outcome! as RegistrationEdited).registration.productTypeId, 'type-4');
     });
 
     test('fixing an accent of its own description is not a conflict', () async {
@@ -942,17 +804,12 @@ void main() {
           description: 'zero',
           sellingMode: SellingMode.byPiece,
         ),
-        packagings: [
-          PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter)),
-        ].lock,
+        packagings: [PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter))].lock,
       );
 
       final outcome = await edit(notifier, description: 'Zero');
 
-      expect(
-        (outcome! as RegistrationEditFailed).message,
-        'Já existe esse produto cadastrado.',
-      );
+      expect((outcome! as RegistrationEditFailed).message, 'Já existe esse produto cadastrado.');
       expect(repository.updateRegistrationCalls, 0);
     });
 
@@ -965,19 +822,14 @@ void main() {
           description: 'zero',
           sellingMode: SellingMode.byPiece,
         ),
-        packagings: [
-          PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter)),
-        ].lock,
+        packagings: [PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter))].lock,
       );
       await repository.updateRegistration(saved.registration.deactivated());
       repository.updateRegistrationCalls = 0;
 
       final outcome = await edit(notifier, description: 'zero');
 
-      expect(
-        (outcome! as RegistrationEditFailed).message,
-        'Esse produto já existe, mas está desativado.',
-      );
+      expect((outcome! as RegistrationEditFailed).message, 'Esse produto já existe, mas está desativado.');
       expect(repository.updateRegistrationCalls, 0);
     });
 
@@ -986,10 +838,7 @@ void main() {
 
       final outcome = await edit(notifier, typeId: 'type-2');
 
-      expect(
-        (outcome! as RegistrationEditFailed).message,
-        startsWith('A medida não bate'),
-      );
+      expect((outcome! as RegistrationEditFailed).message, startsWith('A medida não bate'));
       expect(repository.updateRegistrationCalls, 0);
     });
 
@@ -1021,10 +870,7 @@ void main() {
         packagings: [bottle('500', BaseUnit.gram)].lock,
       );
 
-      expect(
-        (outcome! as RegistrationEditFailed).message,
-        const UnexpectedPackaging().message,
-      );
+      expect((outcome! as RegistrationEditFailed).message, const UnexpectedPackaging().message);
       expect(repository.updateRegistrationCalls, 0);
     });
 
@@ -1032,11 +878,7 @@ void main() {
       final (repository, notifier) = await ready();
       repository.failAddPackagings = NetworkException('offline');
 
-      final outcome = await edit(
-        notifier,
-        description: 'zero',
-        packagings: [bottle('600', BaseUnit.milliliter)].lock,
-      );
+      final outcome = await edit(notifier, description: 'zero', packagings: [bottle('600', BaseUnit.milliliter)].lock);
 
       expect(outcome, isA<PackagingsFailedAfterEdit>());
       final partial = outcome! as PackagingsFailedAfterEdit;
@@ -1045,31 +887,21 @@ void main() {
       expect(repository.updateRegistrationCalls, 1);
     });
 
-    test(
-      'a packaging failure with no identity change writes nothing',
-      () async {
-        final (repository, notifier) = await ready();
-        repository.failAddPackagings = NetworkException('offline');
+    test('a packaging failure with no identity change writes nothing', () async {
+      final (repository, notifier) = await ready();
+      repository.failAddPackagings = NetworkException('offline');
 
-        final outcome = await edit(
-          notifier,
-          packagings: [bottle('600', BaseUnit.milliliter)].lock,
-        );
+      final outcome = await edit(notifier, packagings: [bottle('600', BaseUnit.milliliter)].lock);
 
-        expect(outcome, isA<RegistrationEditFailed>());
-        expect(repository.updateRegistrationCalls, 0);
-      },
-    );
+      expect(outcome, isA<RegistrationEditFailed>());
+      expect(repository.updateRegistrationCalls, 0);
+    });
 
     test('an update failure writes nothing', () async {
       final (repository, notifier) = await ready();
       repository.failUpdateRegistration = ApiException(500, 'boom');
 
-      final outcome = await edit(
-        notifier,
-        description: 'zero',
-        packagings: [bottle('600', BaseUnit.milliliter)].lock,
-      );
+      final outcome = await edit(notifier, description: 'zero', packagings: [bottle('600', BaseUnit.milliliter)].lock);
 
       expect(outcome, isA<RegistrationEditFailed>());
       expect(repository.addPackagingCalls, 0);
@@ -1088,71 +920,46 @@ void main() {
   });
 
   group('the two paths the `#1a` panel needs', () {
-    test(
-      'reactivates the deactivated type instead of creating a second',
-      () async {
-        // Decision B3: a second "Sabão em pó" would split in two the history the
-        // soft delete exists to preserve.
-        final repository = _SpyRepository();
-        final container = containerWith(repository);
-        await container.read(catalogViewModelProvider.future);
+    test('reactivates the deactivated type instead of creating a second', () async {
+      // Decision B3: a second "Sabão em pó" would split in two the history the
+      // soft delete exists to preserve.
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
 
-        final deactivated = container
-            .read(catalogViewModelProvider)
-            .value!
-            .types
-            .first
-            .deactivated();
-        await repository.updateType(deactivated);
+      final deactivated = container.read(catalogViewModelProvider).value!.types.first.deactivated();
+      await repository.updateType(deactivated);
 
-        final error = await container
-            .read(catalogViewModelProvider.notifier)
-            .reactivateType(deactivated);
+      final error = await container.read(catalogViewModelProvider.notifier).reactivateType(deactivated);
 
-        expect(error, isNull);
-        expect(
-          container
-              .read(catalogViewModelProvider)
-              .value!
-              .types
-              .firstWhere((t) => t.id == deactivated.id)
-              .active,
-          isTrue,
-        );
-      },
-    );
+      expect(error, isNull);
+      expect(
+        container.read(catalogViewModelProvider).value!.types.firstWhere((t) => t.id == deactivated.id).active,
+        isTrue,
+      );
+    });
 
-    test(
-      'a failed reactivation answers a sentence and moves nothing',
-      () async {
-        final repository = _SpyRepository();
-        final container = containerWith(repository);
-        await container.read(catalogViewModelProvider.future);
+    test('a failed reactivation answers a sentence and moves nothing', () async {
+      final repository = _SpyRepository();
+      final container = containerWith(repository);
+      await container.read(catalogViewModelProvider.future);
 
-        final before = container.read(catalogViewModelProvider).value!.types;
-        repository.failNextCall = NetworkException('offline');
+      final before = container.read(catalogViewModelProvider).value!.types;
+      repository.failNextCall = NetworkException('offline');
 
-        expect(
-          await container
-              .read(catalogViewModelProvider.notifier)
-              .reactivateType(before.first.deactivated()),
-          'Sem conexão. Verifique a internet e tente de novo.',
-        );
-        expect(container.read(catalogViewModelProvider).value!.types, before);
-      },
-    );
+      expect(
+        await container.read(catalogViewModelProvider.notifier).reactivateType(before.first.deactivated()),
+        'Sem conexão. Verifique a internet e tente de novo.',
+      );
+      expect(container.read(catalogViewModelProvider).value!.types, before);
+    });
 
     test('brings the count that orders the panel', () async {
       final repository = _SpyRepository();
       final container = containerWith(repository);
       await container.read(catalogViewModelProvider.future);
 
-      expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .purchaseCountsByType(),
-        {'type-1': 7}.lock,
-      );
+      expect(await container.read(catalogViewModelProvider.notifier).purchaseCountsByType(), {'type-1': 7}.lock);
       expect(repository.countCalls, 1);
     });
 
@@ -1166,31 +973,21 @@ void main() {
       repository.failNextCall = ApiException(500, 'boom');
 
       expect(
-        await container
-            .read(catalogViewModelProvider.notifier)
-            .purchaseCountsByType(),
+        await container.read(catalogViewModelProvider.notifier).purchaseCountsByType(),
         const IMap<String, int>.empty(),
       );
     });
   });
 
   group('the two types that group data instead of an outcome', () {
-    CatalogOptions options({
-      String categoryId = 'cat-1',
-      String typeId = 'type-1',
-      String brandId = 'brand-1',
-    }) => CatalogOptions(
-      categories: [Category(id: categoryId, name: 'Bebidas')].lock,
-      types: [
-        ProductType(
-          id: typeId,
-          name: 'Refrigerante',
-          categoryId: 'cat-1',
-          baseUnit: BaseUnit.milliliter,
-        ),
-      ].lock,
-      brands: [Brand(id: brandId, name: 'Coca-Cola')].lock,
-    );
+    CatalogOptions options({String categoryId = 'cat-1', String typeId = 'type-1', String brandId = 'brand-1'}) =>
+        CatalogOptions(
+          categories: [Category(id: categoryId, name: 'Bebidas')].lock,
+          types: [
+            ProductType(id: typeId, name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
+          ].lock,
+          brands: [Brand(id: brandId, name: 'Coca-Cola')].lock,
+        );
 
     test('CatalogOptions with equal lists is ==, so screen 4 stops '
         'repainting', () {
@@ -1215,15 +1012,8 @@ void main() {
     });
 
     test('RegistrationConflict equality covers every field', () {
-      RegistrationConflict conflict({
-        String regId = 'reg-1',
-        String leafId = 'prod-1',
-      }) => RegistrationConflict(
-        registration: ProductRegistration(
-          id: regId,
-          productTypeId: 'type-1',
-          sellingMode: SellingMode.byPiece,
-        ),
+      RegistrationConflict conflict({String regId = 'reg-1', String leafId = 'prod-1'}) => RegistrationConflict(
+        registration: ProductRegistration(id: regId, productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
         products: [Product(id: leafId, productRegistrationId: 'reg-1')].lock,
       );
 
@@ -1273,10 +1063,7 @@ void main() {
         [Barcode.typed('012345678905'), Barcode.typed('0012345678905')].lock,
       );
 
-      expect(
-        (outcome! as BarcodeTaken).message,
-        'Esse código já está em outra embalagem desta tela.',
-      );
+      expect((outcome! as BarcodeTaken).message, 'Esse código já está em outra embalagem desta tela.');
       expect(repository.findOwnersCalls, 0);
     });
 
@@ -1287,19 +1074,14 @@ void main() {
 
       final outcome = await notifier.checkBarcodes([milk].lock);
 
-      expect(
-        (outcome! as BarcodeTaken).message,
-        'Esse código já é do ${owner.label}.',
-      );
+      expect((outcome! as BarcodeTaken).message, 'Esse código já é do ${owner.label}.');
       expect(repository.removeBarcodeCalls, 0);
     });
 
     test('releases the code of a deactivated product', () async {
       final (repository, notifier) = await ready();
       await repository.addBarcode(productId: 'prod-1', code: milk);
-      await repository.updateProduct(
-        (await leafOf(repository, 'prod-1')).deactivated(),
-      );
+      await repository.updateProduct((await leafOf(repository, 'prod-1')).deactivated());
       final owner = (await repository.findOwners([milk].lock))[milk]!;
 
       final outcome = await notifier.checkBarcodes([milk].lock);
@@ -1314,9 +1096,7 @@ void main() {
       final (repository, notifier) = await ready();
       await repository.addBarcode(productId: 'prod-1', code: milk);
       await repository.addBarcode(productId: 'prod-1', code: soda);
-      await repository.updateProduct(
-        (await leafOf(repository, 'prod-1')).deactivated(),
-      );
+      await repository.updateProduct((await leafOf(repository, 'prod-1')).deactivated());
 
       final outcome = await notifier.checkBarcodes([milk, soda].lock);
 
@@ -1337,9 +1117,7 @@ void main() {
     test('translates a failure of the release', () async {
       final (repository, notifier) = await ready();
       await repository.addBarcode(productId: 'prod-1', code: milk);
-      await repository.updateProduct(
-        (await leafOf(repository, 'prod-1')).deactivated(),
-      );
+      await repository.updateProduct((await leafOf(repository, 'prod-1')).deactivated());
       repository.failRemoveBarcode = ApiException(503, 'down');
 
       final outcome = await notifier.checkBarcodes([milk].lock);
@@ -1373,11 +1151,7 @@ void main() {
     }
 
     ProductRegistration byWeight({String description = ''}) =>
-        ProductRegistration(
-          productTypeId: 'type-2',
-          description: description,
-          sellingMode: SellingMode.byWeight,
-        );
+        ProductRegistration(productTypeId: 'type-2', description: description, sellingMode: SellingMode.byWeight);
 
     test('save writes the codes of each card', () async {
       final (_, notifier) = await ready();
@@ -1389,14 +1163,8 @@ void main() {
           sellingMode: SellingMode.byPiece,
         ),
         packagings: [
-          PackagingWithBarcodes(
-            packaging: bottle('350', BaseUnit.milliliter),
-            barcodes: [milk].lock,
-          ),
-          PackagingWithBarcodes(
-            packaging: bottle('600', BaseUnit.milliliter),
-            barcodes: [soda].lock,
-          ),
+          PackagingWithBarcodes(packaging: bottle('350', BaseUnit.milliliter), barcodes: [milk].lock),
+          PackagingWithBarcodes(packaging: bottle('600', BaseUnit.milliliter), barcodes: [soda].lock),
         ].lock,
       );
 
@@ -1422,18 +1190,12 @@ void main() {
       final (repository, notifier) = await ready();
 
       final outcome = await notifier.save(
-        registration: ProductRegistration(
-          productTypeId: 'type-1',
-          sellingMode: SellingMode.byPiece,
-        ),
+        registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
         packagings: plain([bottle('350', BaseUnit.milliliter)]),
         scaleCodes: [scaleCode].lock,
       );
 
-      expect(
-        _saveMessage(outcome),
-        'Só produto vendido solto tem código de balança.',
-      );
+      expect(_saveMessage(outcome), 'Só produto vendido solto tem código de balança.');
       expect(repository.saveCalls, 0);
     });
 
@@ -1454,23 +1216,17 @@ void main() {
       expect(_saveMessage(outcome), ScaleCode.takenMessage);
     });
 
-    test(
-      'save keeps the generic sentence for a 409 without scale code',
-      () async {
-        final (repository, notifier) = await ready();
-        repository.failNextCall = ApiException(409, 'duplicate key');
+    test('save keeps the generic sentence for a 409 without scale code', () async {
+      final (repository, notifier) = await ready();
+      repository.failNextCall = ApiException(409, 'duplicate key');
 
-        final outcome = await notifier.save(
-          registration: ProductRegistration(
-            productTypeId: 'type-1',
-            sellingMode: SellingMode.byPiece,
-          ),
-          packagings: plain([bottle('350', BaseUnit.milliliter)]),
-        );
+      final outcome = await notifier.save(
+        registration: ProductRegistration(productTypeId: 'type-1', sellingMode: SellingMode.byPiece),
+        packagings: plain([bottle('350', BaseUnit.milliliter)]),
+      );
 
-        expect(_saveMessage(outcome), 'Já existe um cadastro com esses dados.');
-      },
-    );
+      expect(_saveMessage(outcome), 'Já existe um cadastro com esses dados.');
+    });
 
     test('addPackagings writes the codes of each card', () async {
       final (_, notifier) = await ready();
@@ -1478,17 +1234,11 @@ void main() {
       final outcome = await notifier.addPackagings(
         registrationId: 'reg-1',
         packagings: [
-          PackagingWithBarcodes(
-            packaging: bottle('600', BaseUnit.milliliter),
-            barcodes: [milk].lock,
-          ),
+          PackagingWithBarcodes(packaging: bottle('600', BaseUnit.milliliter), barcodes: [milk].lock),
         ].lock,
       );
 
-      expect(
-        (outcome! as PackagingsAdded).products.single.barcodes,
-        [milk].lock,
-      );
+      expect((outcome! as PackagingsAdded).products.single.barcodes, [milk].lock);
     });
 
     test('editRegistration writes the codes of the new packagings', () async {
@@ -1507,33 +1257,19 @@ void main() {
         brandId: 'brand-1',
         description: 'original',
         packagings: [
-          PackagingWithBarcodes(
-            packaging: bottle('600', BaseUnit.milliliter),
-            barcodes: [milk].lock,
-          ),
+          PackagingWithBarcodes(packaging: bottle('600', BaseUnit.milliliter), barcodes: [milk].lock),
         ].lock,
       );
 
-      expect(
-        (outcome! as RegistrationEdited).products.single.barcodes,
-        [milk].lock,
-      );
+      expect((outcome! as RegistrationEdited).products.single.barcodes, [milk].lock);
     });
   });
 
   group('scale codes', () {
     const scaleCode = ScaleCode(storeId: 'store-1', itemCode: '2822521');
 
-    final byWeight = ProductRegistration(
-      id: 'reg-2',
-      productTypeId: 'type-2',
-      sellingMode: SellingMode.byWeight,
-    );
-    final byPiece = ProductRegistration(
-      id: 'reg-1',
-      productTypeId: 'type-1',
-      sellingMode: SellingMode.byPiece,
-    );
+    final byWeight = ProductRegistration(id: 'reg-2', productTypeId: 'type-2', sellingMode: SellingMode.byWeight);
+    final byPiece = ProductRegistration(id: 'reg-1', productTypeId: 'type-1', sellingMode: SellingMode.byPiece);
 
     Future<(_SpyRepository, CatalogViewModel)> ready() async {
       final repository = _SpyRepository();
@@ -1545,27 +1281,17 @@ void main() {
     test('addScaleCode writes and returns null', () async {
       final (repository, notifier) = await ready();
 
-      final result = await notifier.addScaleCode(
-        registration: byWeight,
-        productId: 'prod-5',
-        code: scaleCode,
-      );
+      final result = await notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
 
       expect(result, isNull);
-      final leaf = (await repository.fetchProducts()).firstWhere(
-        (p) => p.id == 'prod-5',
-      );
+      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-5');
       expect(leaf.scaleCodes, [scaleCode].lock);
     });
 
     test('addScaleCode refuses a product sold by piece', () async {
       final (repository, notifier) = await ready();
 
-      final result = await notifier.addScaleCode(
-        registration: byPiece,
-        productId: 'prod-1',
-        code: scaleCode,
-      );
+      final result = await notifier.addScaleCode(registration: byPiece, productId: 'prod-1', code: scaleCode);
 
       expect(result, 'Só produto vendido solto tem código de balança.');
       expect(repository.addScaleCodeCalls, 0);
@@ -1575,11 +1301,7 @@ void main() {
       final (repository, notifier) = await ready();
       await repository.addScaleCode(productId: 'prod-1', code: scaleCode);
 
-      final result = await notifier.addScaleCode(
-        registration: byWeight,
-        productId: 'prod-5',
-        code: scaleCode,
-      );
+      final result = await notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
 
       expect(result, ScaleCode.takenMessage);
     });
@@ -1588,10 +1310,7 @@ void main() {
       final (repository, notifier) = await ready();
       await repository.addScaleCode(productId: 'prod-1', code: scaleCode);
 
-      final result = await notifier.removeScaleCode(
-        productId: 'prod-1',
-        code: scaleCode,
-      );
+      final result = await notifier.removeScaleCode(productId: 'prod-1', code: scaleCode);
 
       expect(result, isNull);
       await repository.addScaleCode(productId: 'prod-5', code: scaleCode);
@@ -1601,11 +1320,7 @@ void main() {
       final (repository, notifier) = await ready();
       repository.failNextCall = ApiException(503, 'down');
 
-      final result = await notifier.addScaleCode(
-        registration: byWeight,
-        productId: 'prod-5',
-        code: scaleCode,
-      );
+      final result = await notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode);
 
       expect(result, isNotNull);
       expect(result, isNot(contains('down')));
@@ -1615,16 +1330,8 @@ void main() {
       final (repository, notifier) = await ready();
 
       final results = await Future.wait([
-        notifier.addScaleCode(
-          registration: byWeight,
-          productId: 'prod-5',
-          code: scaleCode,
-        ),
-        notifier.addScaleCode(
-          registration: byWeight,
-          productId: 'prod-5',
-          code: scaleCode,
-        ),
+        notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode),
+        notifier.addScaleCode(registration: byWeight, productId: 'prod-5', code: scaleCode),
       ]);
 
       expect(results, [null, null]);
@@ -1636,8 +1343,6 @@ void main() {
 /// The pt-BR sentence of a failed save. It asserts the outcome is the FAILED
 /// branch, so a guard that fired (`null`) or a save that went through can
 /// never be read as the error the test is looking for.
-String _saveMessage(RegistrationSaveOutcome? outcome) =>
-    (outcome! as RegistrationSaveFailed).message;
+String _saveMessage(RegistrationSaveOutcome? outcome) => (outcome! as RegistrationSaveFailed).message;
 
-String _addMessage(AddPackagingsOutcome? outcome) =>
-    (outcome! as AddPackagingsFailed).message;
+String _addMessage(AddPackagingsOutcome? outcome) => (outcome! as AddPackagingsFailed).message;

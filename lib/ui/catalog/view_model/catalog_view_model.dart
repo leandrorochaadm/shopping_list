@@ -23,11 +23,7 @@ import '../../core/error_translation.dart';
 /// Riverpod filters updates with `==`, and comparing by reference would
 /// repaint screen 4 on every refresh (rule 8).
 final class CatalogOptions {
-  const CatalogOptions({
-    required this.categories,
-    required this.types,
-    required this.brands,
-  });
+  const CatalogOptions({required this.categories, required this.types, required this.brands});
 
   final IList<Category> categories;
   final IList<ProductType> types;
@@ -36,25 +32,19 @@ final class CatalogOptions {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is CatalogOptions &&
-          other.categories == categories &&
-          other.types == types &&
-          other.brands == brands;
+      other is CatalogOptions && other.categories == categories && other.types == types && other.brands == brands;
 
   @override
   int get hashCode => Object.hash(categories, types, brands);
 
   /// Only the writes that replace exactly ONE of the three lists use this.
   /// Written by hand, like every other copyWith in the project.
-  CatalogOptions copyWith({
-    IList<Category>? categories,
-    IList<ProductType>? types,
-    IList<Brand>? brands,
-  }) => CatalogOptions(
-    categories: categories ?? this.categories,
-    types: types ?? this.types,
-    brands: brands ?? this.brands,
-  );
+  CatalogOptions copyWith({IList<Category>? categories, IList<ProductType>? types, IList<Brand>? brands}) =>
+      CatalogOptions(
+        categories: categories ?? this.categories,
+        types: types ?? this.types,
+        brands: brands ?? this.brands,
+      );
 }
 
 /// How saving a registration ended. Two outcomes, and the payload rides on
@@ -111,10 +101,7 @@ sealed class RegistrationEditOutcome {
 }
 
 final class RegistrationEdited extends RegistrationEditOutcome {
-  const RegistrationEdited({
-    required this.registration,
-    required this.products,
-  });
+  const RegistrationEdited({required this.registration, required this.products});
 
   final ProductRegistration registration;
 
@@ -130,10 +117,7 @@ final class RegistrationEditFailed extends RegistrationEditOutcome {
 }
 
 final class PackagingsFailedAfterEdit extends RegistrationEditOutcome {
-  const PackagingsFailedAfterEdit({
-    required this.registration,
-    required this.message,
-  });
+  const PackagingsFailedAfterEdit({required this.registration, required this.message});
 
   /// The identity as it was written — the new original.
   final ProductRegistration registration;
@@ -202,10 +186,7 @@ final class OpenRegistrationFailed extends OpenRegistrationOutcome {
 /// A registration that already holds the typed identity, and the leaves it
 /// already has — what `[ Abrir e acrescentar embalagem ]` needs to open.
 final class RegistrationConflict {
-  const RegistrationConflict({
-    required this.registration,
-    required this.products,
-  });
+  const RegistrationConflict({required this.registration, required this.products});
 
   final ProductRegistration registration;
   final IList<Product> products;
@@ -213,9 +194,7 @@ final class RegistrationConflict {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is RegistrationConflict &&
-          other.registration == registration &&
-          other.products == products;
+      other is RegistrationConflict && other.registration == registration && other.products == products;
 
   @override
   int get hashCode => Object.hash(registration, products);
@@ -264,11 +243,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     final types = repository.fetchTypes();
     final brands = repository.fetchBrands();
 
-    return CatalogOptions(
-      categories: await categories,
-      types: await types,
-      brands: await brands,
-    );
+    return CatalogOptions(categories: await categories, types: await types, brands: await brands);
   }
 
   /// The category of [type], for the `#1a` panel and screen 2, which hold only
@@ -276,9 +251,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// a category created on the other phone) it reloads ONCE and looks again.
   /// `null` = not found or the reload failed.
   Future<Category?> categoryOf(ProductType type) async {
-    Category? find() => state.value?.categories
-        .where((entry) => entry.id == type.categoryId)
-        .firstOrNull;
+    Category? find() => state.value?.categories.where((entry) => entry.id == type.categoryId).firstOrNull;
     final loaded = find();
     if (loaded != null) return loaded;
     final error = await refresh();
@@ -307,9 +280,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       final message = translateError(e, st, 'atualizar as listas');
       // With nothing to fall back on the failure has to OCCUPY the screen:
       // leaving it in AsyncLoading is a spinner that never resolves.
-      state = state.hasValue
-          ? AsyncData(state.value!)
-          : AsyncError<CatalogOptions>(e, st);
+      state = state.hasValue ? AsyncData(state.value!) : AsyncError<CatalogOptions>(e, st);
       return message;
     } finally {
       _running = false;
@@ -323,8 +294,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     build: (name) => Category(name: name),
     existing: (options) => options.categories,
     write: (repository, entry) => repository.createCategory(entry),
-    store: (options, created) =>
-        options.copyWith(categories: options.categories.add(created)),
+    store: (options, created) => options.copyWith(categories: options.categories.add(created)),
     action: 'salvar a categoria',
     noun: 'a categoria',
   );
@@ -337,8 +307,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     build: (name) => Brand(name: name),
     existing: (options) => options.brands,
     write: (repository, entry) => repository.createBrand(entry),
-    store: (options, created) =>
-        options.copyWith(brands: options.brands.add(created)),
+    store: (options, created) => options.copyWith(brands: options.brands.add(created)),
     action: 'salvar a marca',
     noun: 'a marca',
   );
@@ -348,18 +317,12 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// The name is unique across the WHOLE catalog and not per category — the
   /// type is the level the reports add up, and two "Leite" types would split
   /// that sum in half with nothing on screen explaining why.
-  Future<String?> createType({
-    required String name,
-    required String categoryId,
-    required BaseUnit baseUnit,
-  }) => _create(
+  Future<String?> createType({required String name, required String categoryId, required BaseUnit baseUnit}) => _create(
     name: name,
-    build: (name) =>
-        ProductType(name: name, categoryId: categoryId, baseUnit: baseUnit),
+    build: (name) => ProductType(name: name, categoryId: categoryId, baseUnit: baseUnit),
     existing: (options) => options.types,
     write: (repository, entry) => repository.createType(entry),
-    store: (options, created) =>
-        options.copyWith(types: options.types.add(created)),
+    store: (options, created) => options.copyWith(types: options.types.add(created)),
     action: 'salvar o tipo',
     noun: 'o tipo',
   );
@@ -429,19 +392,13 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     try {
       // The transition is the entity's (rule 7), never a copyWith spread
       // around a ViewModel.
-      final written = await ref
-          .read(catalogRepositoryProvider)
-          .updateType(type.reactivated());
+      final written = await ref.read(catalogRepositoryProvider).updateType(type.reactivated());
       if (!ref.mounted) return null;
 
       final options = state.value;
       if (options != null) {
         state = AsyncData(
-          options.copyWith(
-            types: options.types
-                .map((entry) => entry.id == written.id ? written : entry)
-                .toIList(),
-          ),
+          options.copyWith(types: options.types.map((entry) => entry.id == written.id ? written : entry).toIList()),
         );
       }
       return null;
@@ -459,18 +416,14 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     if (_running) return null;
     _running = true;
     try {
-      final written = await ref
-          .read(catalogRepositoryProvider)
-          .updateCategory(category.reactivated());
+      final written = await ref.read(catalogRepositoryProvider).updateCategory(category.reactivated());
       if (!ref.mounted) return null;
 
       final options = state.value;
       if (options != null) {
         state = AsyncData(
           options.copyWith(
-            categories: options.categories
-                .map((entry) => entry.id == written.id ? written : entry)
-                .toIList(),
+            categories: options.categories.map((entry) => entry.id == written.id ? written : entry).toIList(),
           ),
         );
       }
@@ -487,19 +440,13 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     if (_running) return null;
     _running = true;
     try {
-      final written = await ref
-          .read(catalogRepositoryProvider)
-          .updateBrand(brand.reactivated());
+      final written = await ref.read(catalogRepositoryProvider).updateBrand(brand.reactivated());
       if (!ref.mounted) return null;
 
       final options = state.value;
       if (options != null) {
         state = AsyncData(
-          options.copyWith(
-            brands: options.brands
-                .map((entry) => entry.id == written.id ? written : entry)
-                .toIList(),
-          ),
+          options.copyWith(brands: options.brands.map((entry) => entry.id == written.id ? written : entry).toIList()),
         );
       }
       return null;
@@ -520,9 +467,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     if (_writingRegistration) return null;
     _writingRegistration = true;
     try {
-      await ref
-          .read(catalogRepositoryProvider)
-          .updateRegistration(entry.reactivated());
+      await ref.read(catalogRepositoryProvider).updateRegistration(entry.reactivated());
       if (!ref.mounted) return null;
       return null;
     } on Object catch (e, st) {
@@ -551,17 +496,13 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       final registration = await repository.findRegistrationById(id);
       if (!ref.mounted) return null;
       if (registration == null) {
-        return const OpenRegistrationFailed(
-          'Não encontrei esse produto. Atualize a lista.',
-        );
+        return const OpenRegistrationFailed('Não encontrei esse produto. Atualize a lista.');
       }
 
       final products = await repository.fetchProductsOf(id);
       if (!ref.mounted) return null;
 
-      return RegistrationOpened(
-        RegistrationConflict(registration: registration, products: products),
-      );
+      return RegistrationOpened(RegistrationConflict(registration: registration, products: products));
     } on Object catch (e, st) {
       return OpenRegistrationFailed(translateError(e, st, 'abrir o produto'));
     } finally {
@@ -580,9 +521,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     if (_loadingCounts) return const IMap.empty();
     _loadingCounts = true;
     try {
-      return await ref
-          .read(catalogRepositoryProvider)
-          .fetchPurchaseCountsByType();
+      return await ref.read(catalogRepositoryProvider).fetchPurchaseCountsByType();
     } on Object catch (e, st) {
       translateError(e, st, 'buscar os tipos mais comprados');
       return const IMap.empty();
@@ -600,9 +539,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
     if (_loadingLeaves) return const IList.empty();
     _loadingLeaves = true;
     try {
-      return await ref
-          .read(catalogRepositoryProvider)
-          .fetchLeavesOfType(productTypeId);
+      return await ref.read(catalogRepositoryProvider).fetchLeavesOfType(productTypeId);
     } on Object catch (e, st) {
       translateError(e, st, 'buscar as embalagens deste tipo');
       return const IList.empty();
@@ -644,10 +581,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       final products = await repository.fetchProductsOf(registration.id!);
       if (!ref.mounted) return null;
 
-      return RegistrationConflict(
-        registration: registration,
-        products: products,
-      );
+      return RegistrationConflict(registration: registration, products: products);
     } on Object catch (e, st) {
       translateError(e, st, 'conferir se o produto já existe');
       return null;
@@ -659,10 +593,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   /// The descriptions already used under this type and this brand. Empty on
   /// failure, for the same reason as above: a suggestion that did not load is
   /// not a reason to stop a registration.
-  Future<IList<String>> descriptionsFor({
-    required String productTypeId,
-    String? brandId,
-  }) async {
+  Future<IList<String>> descriptionsFor({required String productTypeId, String? brandId}) async {
     if (_loadingDescriptions) return const IList.empty();
     _loadingDescriptions = true;
     try {
@@ -710,10 +641,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
       final holders = inactiveHoldersOf(codes, owners);
       for (final entry in holders.entries) {
-        await repository.removeBarcode(
-          productId: entry.value.product.id!,
-          code: entry.key,
-        );
+        await repository.removeBarcode(productId: entry.value.product.id!, code: entry.key);
         if (!ref.mounted) return null;
       }
 
@@ -753,9 +681,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       // with no packaging cannot convert a purchase, and by weight with one
       // means the screen kept state it should have dropped. A scale code
       // belongs to a product sold loose only.
-      registration.checkPackagings(
-        packagings.map((p) => p.packaging).toIList(),
-      );
+      registration.checkPackagings(packagings.map((p) => p.packaging).toIList());
       registration.checkScaleCodes(scaleCodes);
 
       final saved = await ref
@@ -763,6 +689,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
           .saveRegistrationWithProducts(
             registration: registration,
             packagings: packagings,
+            loose: registration.isSoldByWeight,
             scaleCodes: scaleCodes,
           );
       return RegistrationSaved(saved);
@@ -800,10 +727,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
       final products = await ref
           .read(catalogRepositoryProvider)
-          .addPackagings(
-            registrationId: registrationId,
-            packagings: packagings,
-          );
+          .addPackagings(registrationId: registrationId, packagings: packagings);
       return PackagingsAdded(products);
     } on Object catch (e, st) {
       return AddPackagingsFailed(translateError(e, st, 'salvar a embalagem'));
@@ -850,9 +774,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       final identityChanged = edited.changesIdentityOf(original);
       if (!identityChanged && packagings.isEmpty) {
         return RegistrationEditFailed(
-          original.isSoldByWeight
-              ? 'Mude algum campo.'
-              : 'Mude algum campo ou acrescente uma embalagem.',
+          original.isSoldByWeight ? 'Mude algum campo.' : 'Mude algum campo ou acrescente uma embalagem.',
         );
       }
 
@@ -860,14 +782,10 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       var written = original;
 
       if (identityChanged) {
-        final from = options.types
-            .where((t) => t.id == original.productTypeId)
-            .firstOrNull;
+        final from = options.types.where((t) => t.id == original.productTypeId).firstOrNull;
         final to = options.types.where((t) => t.id == typeId).firstOrNull;
         if (to == null) {
-          return const RegistrationEditFailed(
-            'Não encontrei o tipo. Atualize a lista.',
-          );
+          return const RegistrationEditFailed('Não encontrei o tipo. Atualize a lista.');
         }
         if (from != null) {
           checkTypeMove(registration: original, from: from, to: to);
@@ -891,17 +809,11 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       }
 
       if (packagings.isEmpty) {
-        return RegistrationEdited(
-          registration: written,
-          products: const IList.empty(),
-        );
+        return RegistrationEdited(registration: written, products: const IList.empty());
       }
 
       try {
-        final products = await repository.addPackagings(
-          registrationId: original.id!,
-          packagings: packagings,
-        );
+        final products = await repository.addPackagings(registrationId: original.id!, packagings: packagings);
         return RegistrationEdited(registration: written, products: products);
       } on Object catch (e, st) {
         final message = translateError(e, st, 'salvar a embalagem');
@@ -935,9 +847,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
       // replace asking the domain, as `save` already does.
       registration.checkScaleCodes(IList([code]));
 
-      await ref
-          .read(catalogRepositoryProvider)
-          .addScaleCode(productId: productId, code: code);
+      await ref.read(catalogRepositoryProvider).addScaleCode(productId: productId, code: code);
       if (!ref.mounted) return null;
       return null;
     } on UnexpectedScaleCode catch (e) {
@@ -952,16 +862,11 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
   }
 
   /// Releases a scale code. Null on success, or the sentence for the screen.
-  Future<String?> removeScaleCode({
-    required String productId,
-    required ScaleCode code,
-  }) async {
+  Future<String?> removeScaleCode({required String productId, required ScaleCode code}) async {
     if (_writingCode) return null;
     _writingCode = true;
     try {
-      await ref
-          .read(catalogRepositoryProvider)
-          .removeScaleCode(productId: productId, code: code);
+      await ref.read(catalogRepositoryProvider).removeScaleCode(productId: productId, code: code);
       if (!ref.mounted) return null;
       return null;
     } on Object catch (e, st) {
@@ -974,8 +879,7 @@ final class CatalogViewModel extends AsyncNotifier<CatalogOptions> {
 
 /// `retry: null` on purpose: Riverpod 3 retries a failing provider ten times
 /// with a growing backoff, and on a screen the error has to be visible now.
-final catalogViewModelProvider =
-    AsyncNotifierProvider<CatalogViewModel, CatalogOptions>(
-      CatalogViewModel.new,
-      retry: (retryCount, error) => null,
-    );
+final catalogViewModelProvider = AsyncNotifierProvider<CatalogViewModel, CatalogOptions>(
+  CatalogViewModel.new,
+  retry: (retryCount, error) => null,
+);

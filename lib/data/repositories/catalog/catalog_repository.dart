@@ -23,9 +23,7 @@ final class SavedRegistration {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is SavedRegistration &&
-          other.registration == registration &&
-          other.products == products;
+      other is SavedRegistration && other.registration == registration && other.products == products;
 
   @override
   int get hashCode => Object.hash(registration, products);
@@ -42,10 +40,7 @@ final class TypeLeaf {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TypeLeaf &&
-          other.product == product &&
-          other.registration == registration;
+      identical(this, other) || other is TypeLeaf && other.product == product && other.registration == registration;
 
   @override
   int get hashCode => Object.hash(product, registration);
@@ -55,10 +50,7 @@ final class TypeLeaf {
 /// leaf plus its `product_barcode` rows. It is not a DTO: both halves are the
 /// domain's own types, and they travel together because the write is single.
 final class PackagingWithBarcodes {
-  const PackagingWithBarcodes({
-    required this.packaging,
-    this.barcodes = const IList.empty(),
-  });
+  const PackagingWithBarcodes({required this.packaging, this.barcodes = const IList.empty()});
 
   final Packaging packaging;
   final IList<Barcode> barcodes;
@@ -66,9 +58,7 @@ final class PackagingWithBarcodes {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is PackagingWithBarcodes &&
-          other.packaging == packaging &&
-          other.barcodes == barcodes;
+      other is PackagingWithBarcodes && other.packaging == packaging && other.barcodes == barcodes;
 
   @override
   int get hashCode => Object.hash(packaging, barcodes);
@@ -113,9 +103,7 @@ abstract class CatalogRepository {
 
   Future<Brand> updateBrand(Brand brand);
 
-  Future<ProductRegistration> updateRegistration(
-    ProductRegistration registration,
-  );
+  Future<ProductRegistration> updateRegistration(ProductRegistration registration);
 
   Future<Product> updateProduct(Product product);
 
@@ -166,10 +154,7 @@ abstract class CatalogRepository {
   /// suggestion under the description field. It is an acceptance criterion,
   /// not a comfort: "orig." typed on a distracted day creates a second
   /// registration out of nothing.
-  Future<IList<String>> fetchDescriptions({
-    required String productTypeId,
-    String? brandId,
-  });
+  Future<IList<String>> fetchDescriptions({required String productTypeId, String? brandId});
 
   /// The leaves a registration already has — what `[ Abrir e acrescentar
   /// embalagem ]` loads when a blocked registration is reopened. They come
@@ -181,16 +166,17 @@ abstract class CatalogRepository {
   /// registration with no leaf when the second one failed — and the duplicate
   /// guard would then block the user's own retry.
   ///
-  /// [packagings] is empty for a product sold by weight: the leaf still
-  /// exists (decision B1), with no packaging on it.
+  /// One leaf per item of [packagings], with its barcodes; plus ONE leaf with
+  /// no packaging when [loose], carrying [scaleCodes], always after the
+  /// packagings. [scaleCodes] only go to the loose leaf; without [loose] they
+  /// are ignored (the domain refuses them before this call, rule 3).
   ///
-  /// [scaleCodes] only exist for a product sold by weight ([packagings]
-  /// empty) and go to its single leaf. Whether the registration accepts them
-  /// is `registration.checkScaleCodes`, asked by the caller before this call:
-  /// the repository does not decide (rule 3).
+  /// An empty [packagings] creates the loose leaf even with [loose] false: a
+  /// registration never stays without a leaf (decision B1).
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   });
 
@@ -198,12 +184,16 @@ abstract class CatalogRepository {
   /// `[ Abrir e acrescentar embalagem ]`, and the "comprou o Omo de 2,3 kg
   /// tendo só o de 500 g" case of the wireframe.
   ///
-  /// One PocketBase batch (atomic): leaves and codes together.
-  /// Only for a registration sold by piece — a scale code of a product that
-  /// already exists goes in through [addScaleCode].
+  /// One PocketBase batch (atomic): leaves and codes together. One leaf per
+  /// item of [packagings], plus the loose leaf (with [scaleCodes]) when
+  /// [loose], last. Writes nothing when [packagings] is empty and [loose] is
+  /// false. A scale code of a leaf that already exists goes in through
+  /// [addScaleCode].
   Future<IList<Product>> addPackagings({
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   });
 
   /// Who holds each of [codes], in ONE round trip. Packaging codes only
@@ -215,20 +205,11 @@ abstract class CatalogRepository {
   Future<void> addBarcode({required String productId, required Barcode code});
 
   /// A real `DELETE` (decision of 10/10/2026).
-  Future<void> removeBarcode({
-    required String productId,
-    required Barcode code,
-  });
+  Future<void> removeBarcode({required String productId, required Barcode code});
 
-  Future<void> addScaleCode({
-    required String productId,
-    required ScaleCode code,
-  });
+  Future<void> addScaleCode({required String productId, required ScaleCode code});
 
-  Future<void> removeScaleCode({
-    required String productId,
-    required ScaleCode code,
-  });
+  Future<void> removeScaleCode({required String productId, required ScaleCode code});
 }
 
 /// Overridden in `config/dependencies.dart` — the fake in debug without

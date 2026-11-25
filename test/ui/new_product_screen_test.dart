@@ -2214,6 +2214,7 @@ class _ScaleSpy extends CatalogRepositoryLocal {
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) {
     saveCalls++;
@@ -2221,6 +2222,7 @@ class _ScaleSpy extends CatalogRepositoryLocal {
     return super.saveRegistrationWithProducts(
       registration: registration,
       packagings: packagings,
+      loose: loose,
       scaleCodes: scaleCodes,
     );
   }
@@ -2234,6 +2236,7 @@ class _ScaleTakenOnSave extends CatalogRepositoryLocal {
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) {
     if (scaleCodes.isNotEmpty) {
@@ -2246,6 +2249,7 @@ class _ScaleTakenOnSave extends CatalogRepositoryLocal {
     return super.saveRegistrationWithProducts(
       registration: registration,
       packagings: packagings,
+      loose: loose,
       scaleCodes: scaleCodes,
     );
   }
@@ -2329,6 +2333,8 @@ class _RecordingRepository extends CatalogRepositoryLocal {
   Future<IList<Product>> addPackagings({
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     if (refusesPackagings) throw NetworkException('offline');
     added = packagings;
@@ -2355,6 +2361,7 @@ class _StuckRepository extends CatalogRepositoryLocal {
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) => _held.future;
 }
@@ -2382,6 +2389,7 @@ class _RefusingRepository extends CatalogRepositoryLocal {
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async => throw NetworkException('offline');
 }
@@ -2451,12 +2459,14 @@ class _WithOwners extends CatalogRepositoryLocal {
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) {
     saved = packagings;
     return super.saveRegistrationWithProducts(
       registration: registration,
       packagings: packagings,
+      loose: loose,
       scaleCodes: scaleCodes,
     );
   }

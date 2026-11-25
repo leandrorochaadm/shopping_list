@@ -16,26 +16,19 @@ void main() {
   final soda = Barcode.typed('7891000100103');
   final juice = Barcode.typed('7891910000197');
 
-  Matcher conflict() =>
-      throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409));
+  Matcher conflict() => throwsA(isA<ApiException>().having((e) => e.statusCode, 'status', 409));
 
-  PackagingWithBarcodes card(int size, [List<Barcode> codes = const []]) =>
-      PackagingWithBarcodes(
-        packaging: Packaging(
-          pieceCount: 1,
-          pieceSize: size,
-          baseUnit: BaseUnit.milliliter,
-        ),
-        barcodes: codes.lock,
-      );
+  PackagingWithBarcodes card(int size, [List<Barcode> codes = const []]) => PackagingWithBarcodes(
+    packaging: Packaging(pieceCount: 1, pieceSize: size, baseUnit: BaseUnit.milliliter),
+    barcodes: codes.lock,
+  );
 
-  ProductRegistration newRegistration([String description = 'novo']) =>
-      ProductRegistration(
-        productTypeId: 'type-1',
-        brandId: 'brand-1',
-        description: description,
-        sellingMode: SellingMode.byPiece,
-      );
+  ProductRegistration newRegistration([String description = 'novo']) => ProductRegistration(
+    productTypeId: 'type-1',
+    brandId: 'brand-1',
+    description: description,
+    sellingMode: SellingMode.byPiece,
+  );
 
   setUp(() => repository = CatalogRepositoryLocal(latency: Duration.zero));
 
@@ -43,10 +36,7 @@ void main() {
     test('refuses the same code on another leaf', () async {
       await repository.addBarcode(productId: 'prod-1', code: milk);
 
-      expect(
-        repository.addBarcode(productId: 'prod-2', code: milk),
-        conflict(),
-      );
+      expect(repository.addBarcode(productId: 'prod-2', code: milk), conflict());
     });
   });
 
@@ -58,10 +48,7 @@ void main() {
       await repository.addScaleCode(productId: 'prod-5', code: first);
       await repository.addScaleCode(productId: 'prod-5', code: second);
 
-      expect(
-        repository.addScaleCode(productId: 'prod-6', code: first),
-        conflict(),
-      );
+      expect(repository.addScaleCode(productId: 'prod-6', code: first), conflict());
     });
   });
 
@@ -119,6 +106,26 @@ void main() {
 
       expect(saved.products.single.scaleCodes, [code]);
     });
+
+    test('adds the loose leaf when asked, after the packagings', () async {
+      const code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+
+      final saved = await repository.saveRegistrationWithProducts(
+        registration: newRegistration(),
+        packagings: [
+          card(500, [milk]),
+        ].lock,
+        loose: true,
+        scaleCodes: [code].lock,
+      );
+
+      expect(saved.products, hasLength(2));
+      expect(saved.products.first.barcodes, [milk]);
+      expect(saved.products.last.isLoose, isTrue);
+      expect(saved.products.last.scaleCodes, [code]);
+      final stored = await repository.fetchProductsOf(saved.registration.id!);
+      expect(stored, hasLength(2));
+    });
   });
 
   group('fetchProductsOf', () {
@@ -146,10 +153,7 @@ void main() {
       await repository.removeBarcode(productId: 'prod-1', code: milk);
 
       await repository.addBarcode(productId: 'prod-2', code: milk);
-      expect(
-        (await repository.findOwners([milk].lock))[milk]!.product.id,
-        'prod-2',
-      );
+      expect((await repository.findOwners([milk].lock))[milk]!.product.id, 'prod-2');
     });
 
     test('does not remove a code another leaf holds', () async {
@@ -157,10 +161,7 @@ void main() {
 
       await repository.removeBarcode(productId: 'prod-2', code: milk);
 
-      expect(
-        repository.addBarcode(productId: 'prod-3', code: milk),
-        conflict(),
-      );
+      expect(repository.addBarcode(productId: 'prod-3', code: milk), conflict());
     });
   });
 
@@ -170,10 +171,7 @@ void main() {
       await repository.addScaleCode(productId: 'prod-5', code: code);
 
       await repository.removeScaleCode(productId: 'prod-6', code: code);
-      expect(
-        repository.addScaleCode(productId: 'prod-6', code: code),
-        conflict(),
-      );
+      expect(repository.addScaleCode(productId: 'prod-6', code: code), conflict());
 
       await repository.removeScaleCode(productId: 'prod-5', code: code);
       await repository.addScaleCode(productId: 'prod-6', code: code);
@@ -181,32 +179,25 @@ void main() {
   });
 
   group('findOwners', () {
-    test(
-      'brings active and deactivated owners, leaves out a free code',
-      () async {
-        await repository.addBarcode(productId: 'prod-1', code: milk);
-        await repository.addBarcode(productId: 'prod-2', code: soda);
-        final leaf = (await repository.fetchProducts()).firstWhere(
-          (p) => p.id == 'prod-2',
-        );
-        await repository.updateProduct(leaf.deactivated());
+    test('brings active and deactivated owners, leaves out a free code', () async {
+      await repository.addBarcode(productId: 'prod-1', code: milk);
+      await repository.addBarcode(productId: 'prod-2', code: soda);
+      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-2');
+      await repository.updateProduct(leaf.deactivated());
 
-        final owners = await repository.findOwners([milk, soda, juice].lock);
+      final owners = await repository.findOwners([milk, soda, juice].lock);
 
-        expect(owners.keys, [milk, soda]);
-        expect(owners[milk]!.isActive, isTrue);
-        expect(owners[soda]!.isActive, isFalse);
-        expect(owners[milk]!.label, 'Refrigerante Coca-Cola original 350 ml');
-      },
-    );
+      expect(owners.keys, [milk, soda]);
+      expect(owners[milk]!.isActive, isTrue);
+      expect(owners[soda]!.isActive, isFalse);
+      expect(owners[milk]!.label, 'Refrigerante Coca-Cola original 350 ml');
+    });
   });
 
   group('updateProduct', () {
     test('returns the leaf with its codes', () async {
       await repository.addBarcode(productId: 'prod-1', code: milk);
-      final leaf = (await repository.fetchProducts()).firstWhere(
-        (p) => p.id == 'prod-1',
-      );
+      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-1');
 
       final updated = await repository.updateProduct(leaf);
 
@@ -215,18 +206,13 @@ void main() {
 
     test('does not keep a copy of the codes the leaf came with', () async {
       await repository.addBarcode(productId: 'prod-1', code: milk);
-      final leaf = (await repository.fetchProducts()).firstWhere(
-        (p) => p.id == 'prod-1',
-      );
+      final leaf = (await repository.fetchProducts()).firstWhere((p) => p.id == 'prod-1');
       await repository.updateProduct(leaf);
 
       await repository.removeBarcode(productId: 'prod-1', code: milk);
 
       final leaves = await repository.fetchLeavesOfType('type-1');
-      expect(
-        leaves.firstWhere((l) => l.product.id == 'prod-1').product.barcodes,
-        isEmpty,
-      );
+      expect(leaves.firstWhere((l) => l.product.id == 'prod-1').product.barcodes, isEmpty);
       expect(await repository.findOwners([milk].lock), isEmpty);
     });
   });
@@ -235,12 +221,56 @@ void main() {
     test('with an empty list creates no leaf', () async {
       final before = (await repository.fetchProductsOf('reg-1')).length;
 
+      final created = await repository.addPackagings(registrationId: 'reg-1', packagings: const IList.empty());
+
+      expect(created, isEmpty);
+      expect((await repository.fetchProductsOf('reg-1')).length, before);
+    });
+
+    test('does not write when there is nothing to add', () async {
+      final before = (await repository.fetchProductsOf('reg-1')).length;
+
       final created = await repository.addPackagings(
         registrationId: 'reg-1',
         packagings: const IList.empty(),
+        loose: false,
       );
 
       expect(created, isEmpty);
+      expect((await repository.fetchProductsOf('reg-1')).length, before);
+    });
+
+    test('addPackagings with only the loose leaf writes it', () async {
+      const code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+
+      final created = await repository.addPackagings(
+        registrationId: 'reg-1',
+        packagings: const IList.empty(),
+        loose: true,
+        scaleCodes: [code].lock,
+      );
+
+      expect(created.single.isLoose, isTrue);
+      expect(created.single.scaleCodes, [code]);
+    });
+
+    test('addPackagings refuses a taken scale code and writes nothing', () async {
+      const code = ScaleCode(storeId: 'store-1', itemCode: '2822521');
+      await repository.addScaleCode(productId: 'prod-5', code: code);
+      final before = (await repository.fetchProductsOf('reg-1')).length;
+
+      await expectLater(
+        repository.addPackagings(
+          registrationId: 'reg-1',
+          packagings: [
+            card(500, [milk]),
+          ].lock,
+          loose: true,
+          scaleCodes: [code].lock,
+        ),
+        conflict(),
+      );
+
       expect((await repository.fetchProductsOf('reg-1')).length, before);
     });
 

@@ -41,50 +41,20 @@ class CatalogRepositoryLocal implements CatalogRepository {
   ];
 
   final List<ProductType> _types = [
-    ProductType(
-      id: 'type-1',
-      name: 'Refrigerante',
-      categoryId: 'cat-1',
-      baseUnit: BaseUnit.milliliter,
-    ),
-    ProductType(
-      id: 'type-2',
-      name: 'Acém moído',
-      categoryId: 'cat-2',
-      baseUnit: BaseUnit.gram,
-    ),
-    ProductType(
-      id: 'type-3',
-      name: 'Papel higiênico',
-      categoryId: 'cat-3',
-      baseUnit: BaseUnit.unit,
-    ),
+    ProductType(id: 'type-1', name: 'Refrigerante', categoryId: 'cat-1', baseUnit: BaseUnit.milliliter),
+    ProductType(id: 'type-2', name: 'Acém moído', categoryId: 'cat-2', baseUnit: BaseUnit.gram),
+    ProductType(id: 'type-3', name: 'Papel higiênico', categoryId: 'cat-3', baseUnit: BaseUnit.unit),
     // The second example of requirement 4: one type that adds up two brands,
     // every description and every packaging — 6,8 kg for R$ 136,00. Without it
     // the report fake could not tell the story the client reads.
-    ProductType(
-      id: 'type-4',
-      name: 'Sabão em pó',
-      categoryId: 'cat-3',
-      baseUnit: BaseUnit.gram,
-    ),
+    ProductType(id: 'type-4', name: 'Sabão em pó', categoryId: 'cat-3', baseUnit: BaseUnit.gram),
     // The coffee of `requisitos §8`: bought before the closed window and once
     // inside it, so it divides by three and screen 2 suggests 0,7 kg. Without
     // it the suggestion fake would name a type screen 3 does not offer.
-    ProductType(
-      id: 'type-5',
-      name: 'Café',
-      categoryId: 'cat-4',
-      baseUnit: BaseUnit.gram,
-    ),
+    ProductType(id: 'type-5', name: 'Café', categoryId: 'cat-4', baseUnit: BaseUnit.gram),
     // The 'Tamanho' magnitude, which is what centimetres exist for: the roll
     // of aluminium foil the shelf sells by the metre.
-    ProductType(
-      id: 'type-6',
-      name: 'Papel-alumínio',
-      categoryId: 'cat-3',
-      baseUnit: BaseUnit.centimeter,
-    ),
+    ProductType(id: 'type-6', name: 'Papel-alumínio', categoryId: 'cat-3', baseUnit: BaseUnit.centimeter),
   ];
 
   final List<Brand> _brands = [
@@ -106,18 +76,8 @@ class CatalogRepositoryLocal implements CatalogRepository {
       description: 'original',
       sellingMode: SellingMode.byPiece,
     ),
-    ProductRegistration(
-      id: 'reg-2',
-      productTypeId: 'type-2',
-      description: '',
-      sellingMode: SellingMode.byWeight,
-    ),
-    ProductRegistration(
-      id: 'reg-3',
-      productTypeId: 'type-6',
-      description: '',
-      sellingMode: SellingMode.byPiece,
-    ),
+    ProductRegistration(id: 'reg-2', productTypeId: 'type-2', description: '', sellingMode: SellingMode.byWeight),
+    ProductRegistration(id: 'reg-3', productTypeId: 'type-6', description: '', sellingMode: SellingMode.byPiece),
   ];
 
   late final List<Product> _products = [
@@ -161,12 +121,8 @@ class CatalogRepositoryLocal implements CatalogRepository {
   void _checkFree(Iterable<Barcode> barcodes, Iterable<ScaleCode> scaleCodes) {
     final codes = barcodes.toList();
     final scales = scaleCodes.toList();
-    final repeated =
-        codes.toSet().length != codes.length ||
-        scales.toSet().length != scales.length;
-    if (repeated ||
-        codes.any(_barcodeOwners.containsKey) ||
-        scales.any(_scaleCodeOwners.containsKey)) {
+    final repeated = codes.toSet().length != codes.length || scales.toSet().length != scales.length;
+    if (repeated || codes.any(_barcodeOwners.containsKey) || scales.any(_scaleCodeOwners.containsKey)) {
       throw ApiException(
         _conflictStatus,
         'duplicate key value violates unique constraint '
@@ -175,20 +131,10 @@ class CatalogRepositoryLocal implements CatalogRepository {
     }
   }
 
-  static Product _leaf(
-    String id,
-    String registrationId,
-    int pieceCount,
-    int pieceSize,
-    BaseUnit unit,
-  ) => Product(
+  static Product _leaf(String id, String registrationId, int pieceCount, int pieceSize, BaseUnit unit) => Product(
     id: id,
     productRegistrationId: registrationId,
-    packaging: Packaging(
-      pieceCount: pieceCount,
-      pieceSize: pieceSize,
-      baseUnit: unit,
-    ),
+    packaging: Packaging(pieceCount: pieceCount, pieceSize: pieceSize, baseUnit: unit),
   );
 
   @override
@@ -258,13 +204,9 @@ class CatalogRepositoryLocal implements CatalogRepository {
   }
 
   @override
-  Future<ProductRegistration> updateRegistration(
-    ProductRegistration registration,
-  ) async {
+  Future<ProductRegistration> updateRegistration(ProductRegistration registration) async {
     await Future<void>.delayed(latency);
-    final index = _registrations.indexWhere(
-      (entry) => entry.id == registration.id,
-    );
+    final index = _registrations.indexWhere((entry) => entry.id == registration.id);
     if (index >= 0) _registrations[index] = registration;
     return registration;
   }
@@ -278,10 +220,7 @@ class CatalogRepositoryLocal implements CatalogRepository {
     // `removeBarcode` does not clean, and `fetchLeavesOfType`/`findOwners`
     // would hand back a code that was already released.
     if (index >= 0) {
-      _products[index] = product.copyWith(
-        barcodes: const IList.empty(),
-        scaleCodes: const IList.empty(),
-      );
+      _products[index] = product.copyWith(barcodes: const IList.empty(), scaleCodes: const IList.empty());
     }
     return _withCodes(product);
   }
@@ -316,15 +255,11 @@ class CatalogRepositoryLocal implements CatalogRepository {
   @override
   Future<IList<TypeLeaf>> fetchLeavesOfType(String productTypeId) async {
     await Future<void>.delayed(latency);
-    final registrations = _registrations
-        .where((entry) => entry.productTypeId == productTypeId)
-        .toList();
+    final registrations = _registrations.where((entry) => entry.productTypeId == productTypeId).toList();
 
     return [
       for (final registration in registrations)
-        for (final product in _products.where(
-          (leaf) => leaf.productRegistrationId == registration.id,
-        ))
+        for (final product in _products.where((leaf) => leaf.productRegistrationId == registration.id))
           TypeLeaf(product: product, registration: registration),
     ].toIList();
   }
@@ -348,16 +283,10 @@ class CatalogRepositoryLocal implements CatalogRepository {
   }
 
   @override
-  Future<IList<String>> fetchDescriptions({
-    required String productTypeId,
-    String? brandId,
-  }) async {
+  Future<IList<String>> fetchDescriptions({required String productTypeId, String? brandId}) async {
     await Future<void>.delayed(latency);
     return _registrations
-        .where(
-          (entry) =>
-              entry.productTypeId == productTypeId && entry.brandId == brandId,
-        )
+        .where((entry) => entry.productTypeId == productTypeId && entry.brandId == brandId)
         .map((entry) => entry.description)
         .where((description) => description.isNotEmpty)
         .toSet()
@@ -367,26 +296,26 @@ class CatalogRepositoryLocal implements CatalogRepository {
   @override
   Future<IList<Product>> fetchProductsOf(String registrationId) async {
     await Future<void>.delayed(latency);
-    return _products
-        .where((product) => product.productRegistrationId == registrationId)
-        .map(_withCodes)
-        .toIList();
+    return _products.where((product) => product.productRegistrationId == registrationId).map(_withCodes).toIList();
   }
 
   @override
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     await Future<void>.delayed(latency);
 
-    _checkFree(packagings.expand((p) => p.barcodes), scaleCodes);
+    // A registration never stays without a leaf (decision B1).
+    final withLoose = loose || packagings.isEmpty;
+    _checkFree(packagings.expand((p) => p.barcodes), withLoose ? scaleCodes : const IList.empty());
 
     final created = registration.copyWith(id: 'reg-${_nextId++}');
     _registrations.add(created);
 
-    final products = _insert(created.id!, packagings, scaleCodes: scaleCodes);
+    final products = _insert(created.id!, packagings, loose: withLoose, scaleCodes: scaleCodes);
     return SavedRegistration(registration: created, products: products);
   }
 
@@ -394,14 +323,15 @@ class CatalogRepositoryLocal implements CatalogRepository {
   Future<IList<Product>> addPackagings({
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     await Future<void>.delayed(latency);
-    // Like the `add_packagings` function: an empty list creates no leaf. The
-    // "empty = one by-weight leaf" of `_insert` belongs to a NEW registration.
-    if (packagings.isEmpty) return const IList.empty();
+    // Like the `add_packagings` function: nothing to add creates no leaf.
+    if (packagings.isEmpty && !loose) return const IList.empty();
 
-    _checkFree(packagings.expand((p) => p.barcodes), const IList.empty());
-    return _insert(registrationId, packagings);
+    _checkFree(packagings.expand((p) => p.barcodes), loose ? scaleCodes : const IList.empty());
+    return _insert(registrationId, packagings, loose: loose, scaleCodes: scaleCodes);
   }
 
   @override
@@ -413,81 +343,59 @@ class CatalogRepositoryLocal implements CatalogRepository {
       if (leafId == null) continue;
       // The raw leaf: the remote embed does not bring the owner's codes either.
       final leaf = _products.firstWhere((entry) => entry.id == leafId);
-      final registration = _registrations.firstWhere(
-        (entry) => entry.id == leaf.productRegistrationId,
-      );
+      final registration = _registrations.firstWhere((entry) => entry.id == leaf.productRegistrationId);
       owners[code] = BarcodeOwner(
         product: leaf,
         registration: registration,
         type: _types.firstWhere((t) => t.id == registration.productTypeId),
-        brand: registration.brandId == null
-            ? null
-            : _brands.firstWhere((b) => b.id == registration.brandId),
+        brand: registration.brandId == null ? null : _brands.firstWhere((b) => b.id == registration.brandId),
       );
     }
     return owners.lock;
   }
 
   @override
-  Future<void> addBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> addBarcode({required String productId, required Barcode code}) async {
     await Future<void>.delayed(latency);
     _checkFree([code], const []);
     _barcodeOwners[code] = productId;
   }
 
   @override
-  Future<void> removeBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> removeBarcode({required String productId, required Barcode code}) async {
     await Future<void>.delayed(latency);
     // The remote `DELETE` filters by `product_id`: another owner's code stays.
     if (_barcodeOwners[code] == productId) _barcodeOwners.remove(code);
   }
 
   @override
-  Future<void> addScaleCode({
-    required String productId,
-    required ScaleCode code,
-  }) async {
+  Future<void> addScaleCode({required String productId, required ScaleCode code}) async {
     await Future<void>.delayed(latency);
     _checkFree(const [], [code]);
     _scaleCodeOwners[code] = productId;
   }
 
   @override
-  Future<void> removeScaleCode({
-    required String productId,
-    required ScaleCode code,
-  }) async {
+  Future<void> removeScaleCode({required String productId, required ScaleCode code}) async {
     await Future<void>.delayed(latency);
     if (_scaleCodeOwners[code] == productId) _scaleCodeOwners.remove(code);
   }
 
-  /// The fake's half of the transaction: one leaf per packaging, and exactly
-  /// one leaf with no packaging when the product is sold by weight. Each
-  /// card's codes go to its own leaf; the scale codes to the by-weight one.
+  /// The fake's half of the transaction: one leaf per packaging, then one leaf
+  /// with no packaging when [loose]. Each card's codes go to its own leaf; the
+  /// scale codes to the loose one (ignored without [loose]).
   IList<Product> _insert(
     String registrationId,
     IList<PackagingWithBarcodes> packagings, {
+    required bool loose,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) {
-    final leaves = packagings.isEmpty
-        ? [Product(productRegistrationId: registrationId)]
-        : [
-            for (final p in packagings)
-              Product(
-                productRegistrationId: registrationId,
-                packaging: p.packaging,
-              ),
-          ];
-
-    final created = [
-      for (final leaf in leaves) leaf.copyWith(id: 'prod-${_nextId++}'),
+    final leaves = [
+      for (final p in packagings) Product(productRegistrationId: registrationId, packaging: p.packaging),
+      if (loose) Product(productRegistrationId: registrationId),
     ];
+
+    final created = [for (final leaf in leaves) leaf.copyWith(id: 'prod-${_nextId++}')];
     _products.addAll(created);
 
     for (var i = 0; i < packagings.length; i++) {
@@ -495,9 +403,9 @@ class CatalogRepositoryLocal implements CatalogRepository {
         _barcodeOwners[code] = created[i].id!;
       }
     }
-    if (packagings.isEmpty) {
+    if (loose) {
       for (final code in scaleCodes) {
-        _scaleCodeOwners[code] = created.single.id!;
+        _scaleCodeOwners[code] = created.last.id!;
       }
     }
     return created.map(_withCodes).toIList();

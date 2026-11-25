@@ -44,9 +44,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       // deactivated rows for the duplicate guard, and the screen greys them
       // out instead of the query hiding them. No owner filter either: the
       // `listRule` already limits the list to the signed-in user.
-      final records = await _pb
-          .collection(PbCollections.category)
-          .getFullList(sort: PbFields.name);
+      final records = await _pb.collection(PbCollections.category).getFullList(sort: PbFields.name);
       return records.map((r) => Category.fromJson(_rowOf(r))).toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -57,9 +55,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<IList<ProductType>> fetchTypes() async {
     try {
       requireSession(_pb);
-      final records = await _pb
-          .collection(PbCollections.productType)
-          .getFullList(sort: PbFields.name);
+      final records = await _pb.collection(PbCollections.productType).getFullList(sort: PbFields.name);
       return records.map((r) => ProductType.fromJson(_rowOf(r))).toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -70,9 +66,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<IList<Brand>> fetchBrands() async {
     try {
       requireSession(_pb);
-      final records = await _pb
-          .collection(PbCollections.brand)
-          .getFullList(sort: PbFields.name);
+      final records = await _pb.collection(PbCollections.brand).getFullList(sort: PbFields.name);
       return records.map((r) => Brand.fromJson(_rowOf(r))).toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -88,38 +82,22 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       _create(PbCollections.productType, type.toJson(), ProductType.fromJson);
 
   @override
-  Future<Brand> createBrand(Brand brand) =>
-      _create(PbCollections.brand, brand.toJson(), Brand.fromJson);
+  Future<Brand> createBrand(Brand brand) => _create(PbCollections.brand, brand.toJson(), Brand.fromJson);
 
   @override
-  Future<ProductType> updateType(ProductType type) => _update(
-    PbCollections.productType,
-    type.id!,
-    type.toJson(),
-    ProductType.fromJson,
-  );
+  Future<ProductType> updateType(ProductType type) =>
+      _update(PbCollections.productType, type.id!, type.toJson(), ProductType.fromJson);
 
   @override
-  Future<Category> updateCategory(Category category) => _update(
-    PbCollections.category,
-    category.id!,
-    category.toJson(),
-    Category.fromJson,
-  );
+  Future<Category> updateCategory(Category category) =>
+      _update(PbCollections.category, category.id!, category.toJson(), Category.fromJson);
 
   @override
-  Future<Brand> updateBrand(Brand brand) =>
-      _update(PbCollections.brand, brand.id!, brand.toJson(), Brand.fromJson);
+  Future<Brand> updateBrand(Brand brand) => _update(PbCollections.brand, brand.id!, brand.toJson(), Brand.fromJson);
 
   @override
-  Future<ProductRegistration> updateRegistration(
-    ProductRegistration registration,
-  ) => _update(
-    PbCollections.productRegistration,
-    registration.id!,
-    registration.toJson(),
-    ProductRegistration.fromJson,
-  );
+  Future<ProductRegistration> updateRegistration(ProductRegistration registration) =>
+      _update(PbCollections.productRegistration, registration.id!, registration.toJson(), ProductRegistration.fromJson);
 
   @override
   Future<Product> updateProduct(Product product) async {
@@ -151,12 +129,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       requireSession(_pb);
       final record = await _pb
           .collection(collection)
-          .create(
-            body: {
-              ..._writeBody(json),
-              PbFields.user: _pb.authStore.record!.id,
-            },
-          );
+          .create(body: {..._writeBody(json), PbFields.user: _pb.authStore.record!.id});
       return fromJson(_rowOf(record));
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -173,9 +146,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   ) async {
     try {
       requireSession(_pb);
-      final record = await _pb
-          .collection(collection)
-          .update(id, body: _writeBody(json..remove(PbFields.id)));
+      final record = await _pb.collection(collection).update(id, body: _writeBody(json..remove(PbFields.id)));
       return fromJson(_rowOf(record));
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -189,12 +160,8 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       // No `active` filter, like every other read in this file: the
       // maintenance screen is what offers "mostrar desativados", and the
       // duplicate guard needs to see them anyway (decision B3).
-      final records = await _pb
-          .collection(PbCollections.productRegistration)
-          .getFullList(sort: PbFields.description);
-      return records
-          .map((r) => ProductRegistration.fromJson(_rowOf(r)))
-          .toIList();
+      final records = await _pb.collection(PbCollections.productRegistration).getFullList(sort: PbFields.description);
+      return records.map((r) => ProductRegistration.fromJson(_rowOf(r))).toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
@@ -206,10 +173,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       requireSession(_pb);
       final records = await _pb
           .collection(PbCollections.product)
-          .getFullList(
-            sort: PbFields.totalContent,
-            expand: PbFields.productBarcodeViaProductId,
-          );
+          .getFullList(sort: PbFields.totalContent, expand: PbFields.productBarcodeViaProductId);
       return records.map(_leafOf).toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
@@ -223,15 +187,8 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       // Not `getOne`: its 404 would become an `ApiException` instead of null.
       final page = await _pb
           .collection(PbCollections.productRegistration)
-          .getList(
-            page: 1,
-            perPage: 1,
-            skipTotal: true,
-            filter: _pb.filter('${PbFields.id} = {:id}', {'id': id}),
-          );
-      return page.items.isEmpty
-          ? null
-          : ProductRegistration.fromJson(_rowOf(page.items.first));
+          .getList(page: 1, perPage: 1, skipTotal: true, filter: _pb.filter('${PbFields.id} = {:id}', {'id': id}));
+      return page.items.isEmpty ? null : ProductRegistration.fromJson(_rowOf(page.items.first));
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
@@ -250,13 +207,10 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       ]);
       return purchaseCountsByType(
         products: answers[1].map((r) => Product.fromJson(_rowOf(r))).toIList(),
-        registrations: answers[2]
-            .map((r) => ProductRegistration.fromJson(_rowOf(r)))
-            .toIList(),
+        registrations: answers[2].map((r) => ProductRegistration.fromJson(_rowOf(r))).toIList(),
         countByProduct: {
           for (final r in answers[0])
-            r.data[PbFields.productId] as String:
-                (r.data[PbFields.purchaseCount] as num).toInt(),
+            r.data[PbFields.productId] as String: (r.data[PbFields.purchaseCount] as num).toInt(),
         }.lock,
       );
     } on Object catch (e, st) {
@@ -283,9 +237,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
         for (final r in records)
           TypeLeaf(
             product: Product.fromJson(_rowOf(r)),
-            registration: ProductRegistration.fromJson(
-              _rowOfMap(_expanded(r.data, PbFields.productRegistrationId)!),
-            ),
+            registration: ProductRegistration.fromJson(_rowOfMap(_expanded(r.data, PbFields.productRegistrationId)!)),
           ),
       ].toIList();
     } on Object catch (e, st) {
@@ -320,10 +272,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   }
 
   @override
-  Future<IList<String>> fetchDescriptions({
-    required String productTypeId,
-    String? brandId,
-  }) async {
+  Future<IList<String>> fetchDescriptions({required String productTypeId, String? brandId}) async {
     try {
       requireSession(_pb);
       final records = await _pb
@@ -334,10 +283,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
                 '${PbFields.description} != ""',
             sort: PbFields.description,
           );
-      return records
-          .map((r) => r.data[PbFields.description] as String)
-          .toSet()
-          .toIList();
+      return records.map((r) => r.data[PbFields.description] as String).toSet().toIList();
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
@@ -356,9 +302,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       final records = await _pb
           .collection(PbCollections.product)
           .getFullList(
-            filter: _pb.filter('${PbFields.productRegistrationId} = {:id}', {
-              'id': registrationId,
-            }),
+            filter: _pb.filter('${PbFields.productRegistrationId} = {:id}', {'id': registrationId}),
             sort: PbFields.totalContent,
             expand: PbFields.productBarcodeViaProductId,
           );
@@ -372,6 +316,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<SavedRegistration> saveRegistrationWithProducts({
     required ProductRegistration registration,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
     IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     try {
@@ -385,18 +330,13 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       final batch = _pb.createBatch();
       batch
           .collection(PbCollections.productRegistration)
-          .create(
-            body: {
-              ..._writeBody(registration.toJson()),
-              PbFields.id: registrationId,
-              PbFields.user: user,
-            },
-          );
+          .create(body: {..._writeBody(registration.toJson()), PbFields.id: registrationId, PbFields.user: user});
       final slots = _addLeaves(
         batch,
         user: user,
         registrationId: registrationId,
         packagings: packagings,
+        loose: loose || packagings.isEmpty,
         scaleCodes: scaleCodes,
         // The registration took request 0.
         firstIndex: 1,
@@ -404,9 +344,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       final answers = await batch.send();
 
       return SavedRegistration(
-        registration: ProductRegistration.fromJson(
-          _rowOfMap(_bodyOf(answers[0])),
-        ),
+        registration: ProductRegistration.fromJson(_rowOfMap(_bodyOf(answers[0]))),
         products: _productsOf(answers, slots),
       );
     } on Object catch (e, st) {
@@ -418,12 +356,14 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<IList<Product>> addPackagings({
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    bool loose = false,
+    IList<ScaleCode> scaleCodes = const IList.empty(),
   }) async {
     try {
       requireSession(_pb);
-      // Nothing to write is nothing to ask: an empty list must never create a
-      // by-weight leaf inside a by-piece registration.
-      if (packagings.isEmpty) return const IList.empty();
+      // Nothing to write is nothing to ask: no packagings and no loose leaf
+      // means no request.
+      if (packagings.isEmpty && !loose) return const IList.empty();
 
       final batch = _pb.createBatch();
       final slots = _addLeaves(
@@ -431,7 +371,8 @@ final class CatalogRepositoryRemote implements CatalogRepository {
         user: _pb.authStore.record!.id,
         registrationId: registrationId,
         packagings: packagings,
-        scaleCodes: const IList.empty(),
+        loose: loose,
+        scaleCodes: scaleCodes,
         firstIndex: 0,
       );
       return _productsOf(await batch.send(), slots);
@@ -443,35 +384,28 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   /// Queues the leaves and their codes, leaf before its codes, and says where
   /// each one will sit in the answers.
   ///
-  /// A product sold by weight arrives with no packaging and still gets ONE
-  /// leaf (decision B1), and the scale codes ride on it. No check on
-  /// [scaleCodes] here: "packagings + scale code" was already refused by
-  /// `checkScaleCodes` in the domain.
+  /// One leaf per packaging, then, when [loose], ONE leaf with no packaging
+  /// carrying the [scaleCodes]. No check here: the domain decides what is
+  /// allowed before the call.
   List<_LeafSlot> _addLeaves(
     BatchService batch, {
     required String user,
     required String registrationId,
     required IList<PackagingWithBarcodes> packagings,
+    required bool loose,
     required IList<ScaleCode> scaleCodes,
     required int firstIndex,
   }) {
     final slots = <_LeafSlot>[];
     var next = firstIndex;
 
-    void addLeaf(
-      PackagingWithBarcodes? card,
-      List<Map<String, dynamic>> codes,
-    ) {
+    void addLeaf(PackagingWithBarcodes? card, List<Map<String, dynamic>> codes) {
       final leafId = newRecordId();
       batch
           .collection(PbCollections.product)
           .create(
             body: {
-              ...Product(
-                id: leafId,
-                productRegistrationId: registrationId,
-                packaging: card?.packaging,
-              ).toJson(),
+              ...Product(id: leafId, productRegistrationId: registrationId, packaging: card?.packaging).toJson(),
               PbFields.user: user,
             },
           );
@@ -481,37 +415,26 @@ final class CatalogRepositoryRemote implements CatalogRepository {
         // The codes get no id from the app: no later request points at them.
         batch
             .collection(PbCollections.productBarcode)
-            .create(
-              body: {PbFields.productId: leafId, ...code, PbFields.user: user},
-            );
+            .create(body: {PbFields.productId: leafId, ...code, PbFields.user: user});
         codeAts.add(next++);
       }
       slots.add(_LeafSlot(leafAt, codeAts));
     }
 
-    if (packagings.isEmpty) {
-      addLeaf(null, [for (final c in scaleCodes) c.toJson()]);
-    } else {
-      for (final card in packagings) {
-        addLeaf(card, [
-          for (final b in card.barcodes)
-            {PbFields.code: b.toJson(), PbFields.storeId: ''},
-        ]);
-      }
+    for (final card in packagings) {
+      addLeaf(card, [
+        for (final b in card.barcodes) {PbFields.code: b.toJson(), PbFields.storeId: ''},
+      ]);
     }
+    if (loose) addLeaf(null, [for (final c in scaleCodes) c.toJson()]);
     return slots;
   }
 
-  IList<Product> _productsOf(
-    List<BatchResult> answers,
-    List<_LeafSlot> slots,
-  ) => [
+  IList<Product> _productsOf(List<BatchResult> answers, List<_LeafSlot> slots) => [
     for (final slot in slots)
       Product.fromJson({
         ..._rowOfMap(_bodyOf(answers[slot.leafAt])),
-        Product.barcodesKey: [
-          for (final at in slot.codeAts) _bodyOf(answers[at]),
-        ],
+        Product.barcodesKey: [for (final at in slot.codeAts) _bodyOf(answers[at])],
       }),
   ].toIList();
 
@@ -522,21 +445,13 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       requireSession(_pb);
       // `store_id = ""` is what leaves the scale codes out. A 7-digit item code
       // is never equal to a GTIN-14, but the filter does not depend on that.
-      final params = {
-        for (var i = 0; i < codes.length; i++) 'c$i': codes[i].toJson(),
-      };
-      final anyCode = [
-        for (final key in params.keys) '${PbFields.code} = {:$key}',
-      ].join(' || ');
-      const registrationPath =
-          '${PbFields.productId}.${PbFields.productRegistrationId}';
+      final params = {for (var i = 0; i < codes.length; i++) 'c$i': codes[i].toJson()};
+      final anyCode = [for (final key in params.keys) '${PbFields.code} = {:$key}'].join(' || ');
+      const registrationPath = '${PbFields.productId}.${PbFields.productRegistrationId}';
       final records = await _pb
           .collection(PbCollections.productBarcode)
           .getFullList(
-            filter: _pb.filter(
-              '${PbFields.storeId} = "" && ($anyCode)',
-              params,
-            ),
+            filter: _pb.filter('${PbFields.storeId} = "" && ($anyCode)', params),
             expand:
                 '$registrationPath.${PbFields.productTypeId},'
                 '$registrationPath.${PbFields.brandId}',
@@ -578,10 +493,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   }
 
   @override
-  Future<void> addBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> addBarcode({required String productId, required Barcode code}) async {
     try {
       requireSession(_pb);
       await _pb
@@ -601,10 +513,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   }
 
   @override
-  Future<void> removeBarcode({
-    required String productId,
-    required Barcode code,
-  }) async {
+  Future<void> removeBarcode({required String productId, required Barcode code}) async {
     try {
       requireSession(_pb);
       await _deleteCodes(
@@ -620,31 +529,19 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   }
 
   @override
-  Future<void> addScaleCode({
-    required String productId,
-    required ScaleCode code,
-  }) async {
+  Future<void> addScaleCode({required String productId, required ScaleCode code}) async {
     try {
       requireSession(_pb);
       await _pb
           .collection(PbCollections.productBarcode)
-          .create(
-            body: {
-              PbFields.productId: productId,
-              ...code.toJson(),
-              PbFields.user: _pb.authStore.record!.id,
-            },
-          );
+          .create(body: {PbFields.productId: productId, ...code.toJson(), PbFields.user: _pb.authStore.record!.id});
     } on Object catch (e, st) {
       rethrowAsKnownFailure(e, st);
     }
   }
 
   @override
-  Future<void> removeScaleCode({
-    required String productId,
-    required ScaleCode code,
-  }) async {
+  Future<void> removeScaleCode({required String productId, required ScaleCode code}) async {
     try {
       requireSession(_pb);
       await _deleteCodes(
@@ -663,9 +560,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   /// PocketBase has no delete-by-filter, so it finds the rows and removes them
   /// in one batch. Nothing found is nothing to write.
   Future<void> _deleteCodes(String filter) async {
-    final rows = await _pb
-        .collection(PbCollections.productBarcode)
-        .getFullList(filter: filter);
+    final rows = await _pb.collection(PbCollections.productBarcode).getFullList(filter: filter);
     if (rows.isEmpty) return;
     final batch = _pb.createBatch();
     for (final row in rows) {
@@ -677,8 +572,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   /// The leaf plus the codes the back-relation expanded (none is an empty
   /// list, not a missing leaf).
   Product _leafOf(RecordModel record) {
-    final expanded =
-        (record.data[_expandKey] as Map?)?[PbFields.productBarcodeViaProductId];
+    final expanded = (record.data[_expandKey] as Map?)?[PbFields.productBarcodeViaProductId];
     return Product.fromJson({
       ..._rowOf(record),
       Product.barcodesKey: switch (expanded) {
@@ -696,11 +590,9 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   }
 
   /// A batch answer is `{status, body}`.
-  Map<String, dynamic> _bodyOf(BatchResult answer) =>
-      (answer.body as Map).cast<String, dynamic>();
+  Map<String, dynamic> _bodyOf(BatchResult answer) => (answer.body as Map).cast<String, dynamic>();
 
-  Map<String, dynamic> _rowOf(RecordModel record) =>
-      _rowOfMap({...record.data, PbFields.id: record.id});
+  Map<String, dynamic> _rowOf(RecordModel record) => _rowOfMap({...record.data, PbFields.id: record.id});
 
   /// The entities read an absent brand as null; PocketBase says `''`.
   Map<String, dynamic> _rowOfMap(Map<String, dynamic> data) {
