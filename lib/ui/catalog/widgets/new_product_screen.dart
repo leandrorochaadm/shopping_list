@@ -16,7 +16,6 @@ import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/registration_leaves.dart';
 import '../../../domain/models/scale_label.dart';
-import '../../../domain/models/selling_choice.dart';
 import '../../../domain/models/store.dart';
 import '../../../routing/routes.dart';
 import '../../barcode/view_model/barcode_lookup_view_model.dart';
@@ -148,7 +147,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   String? _categoryId;
   String? _typeId;
   String? _brandId;
-  SellingMode _sellingMode = SellingMode.byPiece;
 
   IList<PackagingDraft> _drafts = const IList.empty();
   var _nextDraftId = 1;
@@ -240,12 +238,13 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       // The loose card already on screen, or the leaf already saved, takes the
       // code: nothing else changes.
       if (_looseDraft != null || _savedLooseLeaf != null) return;
-      if (!_soldByWeight && _drafts.any(_hasContent)) {
-        // A typed card is never thrown away: the code gets a card of its own.
+      // The first empty card turns loose; a typed card is never thrown away.
+      final index = _drafts.indexWhere((d) => !_hasContent(d));
+      if (index >= 0) {
+        _drafts = _drafts.replace(index, _drafts[index].withLoose(true));
+      } else {
         _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++, unit: _baseUnit, loose: true));
-        return;
       }
-      _sellingMode = _legacyModeFor(_baseUnit);
     });
   }
 
@@ -270,14 +269,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   bool _hasContent(PackagingDraft draft) =>
       draft.barcodes.isNotEmpty || draft.pieceSize.isNotEmpty || (draft.pieceCount != '' && draft.pieceCount != '1');
 
-  int get _completeCount => _soldByWeight ? 0 : _drafts.where((d) => d.isComplete).length;
-
-  /// The `Vendido` field is still on screen until part 8, so the mode follows
-  /// it. With a loose card on screen the mode keeps what the person chose.
-  // Legacy loose-only mode; removed with the Vendido field in part 8.
-  SellingMode _legacyModeFor(BaseUnit? unit) => _looseDraft != null
-      ? SellingChoice.of(_sellingMode, unit).mode
-      : SellingChoice.modeFor(_sellingMode, unit, hasScaleCodes: _scaleCodes.isNotEmpty);
+  int get _completeCount => _drafts.where((d) => d.isComplete).length;
 
   /// The remembered store, while it is still among the active ones.
   Store? _labelStoreOf(IList<Store>? stores) {
@@ -318,12 +310,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     }
   }
 
-  /// A scale code read before the type (or under a counted type) is held, and
-  /// the save waits until it is taken out.
-  bool get _pendingScaleCodesBlock =>
-      !_editing && _scaleCodes.isNotEmpty && SellingChoice.bulkOf(_baseUnit) == null && _looseDraft == null;
-
-  bool get _showsScaleCodes => _savedLooseLeaf != null || (_soldByWeight && _typeId != null) || _pendingScaleCodesBlock;
+  bool get _showsScaleCodes => _savedLooseLeaf != null;
 
   /// The top `[▥]`: reads a code before anything else is filled in.
   Future<void> _readFirst() async {
@@ -345,11 +332,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
           case null:
             return;
           case BarcodeUnknown(:final code):
-            if (_soldByWeight) {
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Produto vendido a peso não leva código de barras.')),
-              );
-            } else if (_drafts.expand((d) => d.barcodes).contains(code)) {
+            if (_drafts.expand((d) => d.barcodes).contains(code)) {
               messenger.showSnackBar(SnackBar(content: Text(barcodeConflictMessage(RepeatedOnScreen(code)))));
             } else {
               _putCodeInCard(code);
@@ -414,14 +397,15 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   @override
   void initState() {
     super.initState();
-    // The first line is already there: the wireframe's list is never empty
-    // for a product sold by piece, so the screen opens with somewhere to
-    // type instead of an empty block and a button. Editing is the exception:
+    // The first card is already there: the list is never empty on a new
+    // product, so the screen opens with somewhere to type instead of an empty block and a button. Editing is the exception:
     // the product already has its packagings, and a blank line would hold
     // the save button off for someone who only came to fix the description.
     if (!_editing) {
-      _drafts = _drafts.add(PackagingDraft(id: _nextDraftId++, barcodes: [?widget.initialBarcode].lock));
       final scaleCode = widget.initialScaleCode;
+      _drafts = _drafts.add(
+        PackagingDraft(id: _nextDraftId++, barcodes: [?widget.initialBarcode].lock, loose: scaleCode != null),
+      );
       if (scaleCode != null) {
         _scaleCodes = IList([scaleCode]);
         _labelStoreId = scaleCode.storeId;
@@ -457,7 +441,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         setState(() {
           _opened = conflict.registration;
           _existing = conflict.products;
-          _sellingMode = conflict.registration.sellingMode;
           _typeId = conflict.registration.productTypeId;
           _brandId = conflict.registration.brandId;
           _descriptionController.text = conflict.registration.description;
@@ -497,8 +480,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     _descriptionController.dispose();
     super.dispose();
   }
-
-  bool get _soldByWeight => _sellingMode == SellingMode.byWeight;
 
   IList<ScaleCode> get _shownScaleCodes => _savedLooseLeaf?.scaleCodes ?? _scaleCodes;
 
@@ -592,12 +573,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   }
 
   /// The same lines with the codes of each card, for the write.
-  IList<PackagingWithBarcodes> get _packagingsWithBarcodes => _soldByWeight
-      ? const IList.empty()
-      : _drafts
-            .where((draft) => draft.packaging != null)
-            .map((draft) => PackagingWithBarcodes(packaging: draft.packaging!, barcodes: draft.barcodes))
-            .toIList();
+  IList<PackagingWithBarcodes> get _packagingsWithBarcodes => _drafts
+      .where((draft) => draft.packaging != null)
+      .map((draft) => PackagingWithBarcodes(packaging: draft.packaging!, barcodes: draft.barcodes))
+      .toIList();
 
   IList<Barcode> get _barcodes => _packagingsWithBarcodes.expand((p) => p.barcodes).toIList();
 
@@ -629,15 +608,13 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   bool get _canSave {
     if (_saving || _typeId == null) return false;
     if (_barcodeConflict != null) return false;
-    if (_pendingScaleCodesBlock) return false;
     if (_editing) {
       if (_opened == null || _conflict != null) return false;
-      if (_completeCount != _drafts.length && !_soldByWeight || _hasDuplicate) return false;
-      return _identityChanged || (!_soldByWeight && _drafts.isNotEmpty);
+      if (_completeCount != _drafts.length || _hasDuplicate) return false;
+      return _identityChanged || _drafts.isNotEmpty;
     }
     // The identity is taken and this is not the "add a packaging" path.
     if (_conflict != null && !_locked) return false;
-    if (_soldByWeight) return !_locked;
     return _drafts.isNotEmpty && _completeCount == _drafts.length && !_hasDuplicate;
   }
 
@@ -650,9 +627,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         final options = ref.read(catalogViewModelProvider).value;
         _categoryId = options?.types.where((t) => t.id == id).firstOrNull?.categoryId;
       }
-      // The grandeza comes from the type, so a type change can leave the
-      // saved mode with no word to go by: `Peso` under a type of litres.
-      _sellingMode = _legacyModeFor(_baseUnit);
       // The magnitude of every line is the type's, so a type change carries
       // the new one down to the lines already typed.
       final unit = _baseUnit;
@@ -733,8 +707,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     setState(() {
       _opened = registration;
       _existing = conflict.products;
-      // The loose leaf is told by the products now, not by the mode.
-      _sellingMode = SellingMode.byPiece;
       _conflict = null;
     });
   }
@@ -750,7 +722,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     _typeId = null;
     _brandId = null;
     _descriptionController.clear();
-    _sellingMode = SellingMode.byPiece;
     // A NEW id: the card key must change so the controllers are born empty.
     _drafts = IList([PackagingDraft(id: _nextDraftId++)]);
     _conflict = null;
@@ -800,7 +771,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     IList<Product> written;
 
     final hasLooseCard = _looseDraft != null;
-    final loose = _soldByWeight || hasLooseCard;
+    final loose = hasLooseCard;
     final scale = loose ? _scaleCodes : const IList<ScaleCode>.empty();
 
     if (opened == null) {
@@ -808,8 +779,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
         productTypeId: typeId,
         brandId: _brandId,
         description: _descriptionController.text,
-        // Shim until sellingMode is removed (part 7).
-        sellingMode: _soldByWeight || (hasLooseCard && packagings.isEmpty) ? SellingMode.byWeight : SellingMode.byPiece,
+        sellingMode: SellingMode.byPiece, // Removed with the field in step 4.
       );
       final outcome = await notifier.save(
         registration: registration,
@@ -948,13 +918,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
     CatalogOptions options,
     ProductType type,
   ) {
-    // Sold by weight there is no packaging and no radio: the leaf is the only
-    // one the registration has.
-    if (_soldByWeight) {
-      final leaf = written.firstOrNull ?? _existing.firstOrNull;
-      return leaf == null ? null : _option(leaf, registration, options, type);
-    }
-
     // The last card decides which leaf goes back.
     if (_drafts.isNotEmpty && _drafts.last.loose) {
       final leaf = written.where((p) => p.isLoose).firstOrNull ?? activeLooseOf(_existing);
@@ -1056,9 +1019,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             // The type list is filtered by category, so the chosen type may
             // no longer be in it.
             _typeId = null;
-            // And with no type there is no grandeza: the loose choice has no
-            // word left, so the mode falls back to `Unidade`.
-            _sellingMode = _legacyModeFor(null);
             _conflict = null;
           }),
           onCreate: () async {
@@ -1092,19 +1052,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               ? 'Unidade: escolha o tipo do produto primeiro'
               : 'Unidade: ${type.baseUnit.magnitudeNoun} (vem do tipo)',
           style: Theme.of(context).textTheme.bodyMedium,
-        ),
-        const SizedBox(height: 16),
-        _SellingModeField(
-          baseUnit: type?.baseUnit,
-          value: SellingChoice.of(_sellingMode, type?.baseUnit),
-          // Locked while editing: the leaves already bought were converted
-          // under this mode, and changing it would break that conversion.
-          enabled: !_locked && !_editing && !_saving,
-          onChanged: (choice) => setState(() {
-            _sellingMode = choice.mode;
-            // The cards leave with the weight mode, and so do their codes.
-            _barcodeConflict = null;
-          }),
         ),
         const SizedBox(height: 16),
         _BrandField(
@@ -1189,95 +1136,93 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
             style: Theme.of(context).textTheme.titleSmall,
           ),
         ],
-        // Sold by weight: the packaging list disappears from the screen.
-        // Quantity is what the PURCHASE asks for, not the registration.
-        if (!_soldByWeight) ...[
-          const Divider(height: 32),
-          Text('Embalagens deste produto', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 4),
-          Text(
-            'Cada embalagem vira um produto, com preço e histórico próprios.',
-            style: Theme.of(context).textTheme.bodySmall,
+        const Divider(height: 32),
+        Text('Embalagens deste produto', style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          'Cada embalagem vira um produto, com preço e histórico próprios.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        if (type == null) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Text('Escolha o tipo do produto primeiro.'),
           ),
-          const SizedBox(height: 12),
-          if (type == null)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('Escolha o tipo do produto primeiro.'),
-            )
-          else ...[
-            for (final draft in _drafts)
-              PackagingRow(
-                key: ValueKey(draft.id),
-                draft: draft,
-                baseUnit: type.baseUnit,
-                looseAllowed: draft.loose || _canAddLoose,
-                packagingAllowed: !draft.loose || _scaleCodes.isEmpty,
-                looseExtra: draft.loose ? _scaleCodesSection : null,
-                duplicate: _isDuplicate(draft),
-                enabled: !_saving && _conflict == null,
-                // By id: the `[▥]` answers after an `await`, when the card
-                // captured here may be stale.
-                onChanged: (updated) => setState(() {
-                  final index = _drafts.indexWhere((d) => d.id == updated.id);
-                  if (index < 0) return;
-                  // Touching a code is the way out of the block; typing a
-                  // measure is not.
-                  if (_drafts[index].barcodes != updated.barcodes) {
-                    _barcodeConflict = null;
-                  }
-                  _drafts = _drafts.replace(index, updated);
-                }),
-                onRemoved: () => setState(() {
+          // A label read before the type keeps its code on screen.
+          if (_scaleCodes.isNotEmpty) _scaleCodesSection,
+        ] else ...[
+          for (final draft in _drafts)
+            PackagingRow(
+              key: ValueKey(draft.id),
+              draft: draft,
+              baseUnit: type.baseUnit,
+              looseAllowed: draft.loose || _canAddLoose,
+              packagingAllowed: !draft.loose || _scaleCodes.isEmpty,
+              looseExtra: draft.loose ? _scaleCodesSection : null,
+              duplicate: _isDuplicate(draft),
+              enabled: !_saving && _conflict == null,
+              // By id: the `[▥]` answers after an `await`, when the card
+              // captured here may be stale.
+              onChanged: (updated) => setState(() {
+                final index = _drafts.indexWhere((d) => d.id == updated.id);
+                if (index < 0) return;
+                // Touching a code is the way out of the block; typing a
+                // measure is not.
+                if (_drafts[index].barcodes != updated.barcodes) {
                   _barcodeConflict = null;
-                  // The codes belong to the loose card: they leave with it.
-                  if (draft.loose) _scaleCodes = const IList.empty();
-                  _drafts = _drafts.remove(draft);
-                }),
-              ),
-            TextButton.icon(
-              icon: const Icon(Icons.add),
-              label: Text(_drafts.isEmpty ? 'Adicionar embalagem' : 'Adicionar outra embalagem'),
-              // It is blocked while the identity is taken: a line built here
-              // would be born inside a registration that will not be saved.
-              onPressed: _saving || _conflict != null ? null : () => setState(_addDraft),
+                }
+                _drafts = _drafts.replace(index, updated);
+              }),
+              onRemoved: () => setState(() {
+                _barcodeConflict = null;
+                // The codes belong to the loose card: they leave with it.
+                if (draft.loose) _scaleCodes = const IList.empty();
+                _drafts = _drafts.remove(draft);
+              }),
             ),
-          ],
-          // What is already registered comes AFTER the lines being typed: the
-          // line one types must not slide down as the product piles up
-          // packagings. Only the maintenance path ever fills this list.
-          if (_existing.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            // Collapsed, and without the check icon it used to carry: six
-            // ticked lines under the ones being typed read as a checklist
-            // waiting to be answered, when they are only "you already have
-            // these".
-            ExpansionTile(
-              key: const ValueKey('existing-packagings'),
-              tilePadding: EdgeInsets.zero,
-              title: Text(
-                _existing.length == 1
-                    ? 'Já cadastrada neste produto (1)'
-                    : 'Já cadastradas neste produto (${_existing.length})',
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              children: [
-                for (final product in _existing)
-                  ListTile(
-                    dense: true,
-                    title: Text(product.packaging?.label ?? 'A granel (por ${type?.baseUnit.priceLabel ?? 'kg'})'),
-                    // Read only: adding and removing a code is the pencil of
-                    // the maintenance.
-                    subtitle: product.barcodes.isEmpty
-                        ? null
-                        : Text(
-                            product.barcodes.map((code) => code.label).join('\n'),
-                            key: ValueKey('existing-barcodes-${product.id}'),
-                          ),
-                  ),
-              ],
+          TextButton.icon(
+            icon: const Icon(Icons.add),
+            label: Text(_drafts.isEmpty ? 'Adicionar embalagem' : 'Adicionar outra embalagem'),
+            // It is blocked while the identity is taken: a line built here
+            // would be born inside a registration that will not be saved.
+            onPressed: _saving || _conflict != null ? null : () => setState(_addDraft),
+          ),
+        ],
+        // What is already registered comes AFTER the lines being typed: the
+        // line one types must not slide down as the product piles up
+        // packagings. Only the maintenance path ever fills this list.
+        if (_existing.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          // Collapsed, and without the check icon it used to carry: six
+          // ticked lines under the ones being typed read as a checklist
+          // waiting to be answered, when they are only "you already have
+          // these".
+          ExpansionTile(
+            key: const ValueKey('existing-packagings'),
+            tilePadding: EdgeInsets.zero,
+            title: Text(
+              _existing.length == 1
+                  ? 'Já cadastrada neste produto (1)'
+                  : 'Já cadastradas neste produto (${_existing.length})',
+              style: Theme.of(context).textTheme.titleSmall,
             ),
-          ],
+            children: [
+              for (final product in _existing)
+                ListTile(
+                  dense: true,
+                  title: Text(product.packaging?.label ?? 'A granel (por ${type?.baseUnit.priceLabel ?? 'kg'})'),
+                  // Read only: adding and removing a code is the pencil of
+                  // the maintenance.
+                  subtitle: product.barcodes.isEmpty
+                      ? null
+                      : Text(
+                          product.barcodes.map((code) => code.label).join('\n'),
+                          key: ValueKey('existing-barcodes-${product.id}'),
+                        ),
+                ),
+            ],
+          ),
         ],
         if (_showsScaleCodes && _looseDraft == null) ...[const Divider(height: 32), _scaleCodesSection],
         const SizedBox(height: 24),
@@ -1288,7 +1233,7 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
               // Red only for what IS a mistake. A screen that opens with an
               // empty line and paints "falta completar" in error colour is
               // scolding before anyone typed a character.
-              color: _hasDuplicate || _barcodeConflict != null || _pendingScaleCodesBlock
+              color: _hasDuplicate || _barcodeConflict != null
                   ? Theme.of(context).colorScheme.error
                   : Theme.of(context).colorScheme.onSurfaceVariant,
             ),
@@ -1316,7 +1261,6 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
   String get _saveLabel {
     if (_saving) return 'Salvando...';
     if (_editing) return 'Salvar alterações';
-    if (_soldByWeight) return 'Salvar produto';
 
     final count = _completeCount;
     return count > 1 ? 'Salvar $count produtos' : 'Salvar produto';
@@ -1335,14 +1279,10 @@ class _NewProductScreenState extends ConsumerState<NewProductScreen> {
       if (incomplete == 1) return 'Falta completar 1 embalagem.';
       if (incomplete > 1) return 'Faltam completar $incomplete embalagens.';
       if (!_identityChanged && _drafts.isEmpty) {
-        // Sold by weight the packaging section is not on screen: asking for
-        // one would point at something that does not exist.
-        return _soldByWeight ? 'Mude algum campo.' : 'Mude algum campo ou acrescente uma embalagem.';
+        return 'Mude algum campo ou acrescente uma embalagem.';
       }
       return null;
     }
-    if (_pendingScaleCodesBlock && _typeId != null) return const UnexpectedScaleCode().message;
-    if (_soldByWeight) return null;
     if (_typeId == null || (_conflict != null && !_locked)) return null;
     if (_hasDuplicate) return 'Há duas embalagens iguais na lista.';
 
@@ -1472,49 +1412,6 @@ class _BrandField extends StatelessWidget {
         ),
       ),
       IconButton(icon: const Icon(Icons.add), tooltip: 'Nova marca', onPressed: enabled ? onCreate : null),
-    ],
-  );
-}
-
-class _SellingModeField extends StatelessWidget {
-  const _SellingModeField({
-    required this.baseUnit,
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  /// Null while no type is chosen: the grandeza belongs to the type, so until
-  /// there is one only `Unidade` can be taken.
-  final BaseUnit? baseUnit;
-
-  final SellingChoice value;
-  final bool enabled;
-  final ValueChanged<SellingChoice> onChanged;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      const Text('Vendido:'),
-      const SizedBox(width: 8),
-      Expanded(
-        child: SegmentedButton<SellingChoice>(
-          // No check icon: the labels plus the icon do not fit the 390 pt of
-          // an iPhone 12, and the filled segment already says which one is
-          // taken.
-          showSelectedIcon: false,
-          // Only the words this magnitude can take, never all four: a type
-          // has ONE bulk word — weight, volume or length — and `Unidade`.
-          // Four segments squeeze the widest label to 35 pt at 390 pt, which
-          // is narrower than the word it has to write.
-          segments: [
-            for (final choice in SellingChoice.values)
-              if (choice.isAvailableFor(baseUnit)) ButtonSegment(value: choice, label: Text(choice.label)),
-          ],
-          selected: {value},
-          onSelectionChanged: enabled ? (selection) => onChanged(selection.first) : null,
-        ),
-      ),
     ],
   );
 }

@@ -19,7 +19,6 @@ import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/product_registration.dart';
 import 'package:shopping_list/domain/models/product_type.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
-import 'package:shopping_list/domain/models/selling_choice.dart';
 import 'package:shopping_list/domain/models/store.dart';
 import 'package:shopping_list/ui/catalog/view_model/catalog_view_model.dart';
 import 'package:shopping_list/ui/catalog/widgets/new_product_screen.dart';
@@ -35,7 +34,6 @@ import '../helpers/barcode_owners.dart';
 import '../helpers/catalog.dart';
 import '../helpers/device_user.dart';
 import '../helpers/shopping_list.dart';
-import '../helpers/viewport.dart';
 
 void main() {
   const cola = '7894900011517';
@@ -124,18 +122,12 @@ void main() {
 
   FilledButton saveButton(WidgetTester tester) => tester.widget<FilledButton>(find.byKey(const ValueKey('save')));
 
-  /// The `Vendido` field as the screen actually built it: which word is taken
-  /// and which ones can be taken at all. Read from the segments, because a
-  /// disabled segment still DRAWS — asserting on the text alone would pass
-  /// with every word clickable.
-  SegmentedButton<SellingChoice> sellingField(WidgetTester tester) =>
-      tester.widget<SegmentedButton<SellingChoice>>(find.byType(SegmentedButton<SellingChoice>));
+  Finder looseCaption(int id) => find.byKey(ValueKey('loose-caption-$id'));
 
-  /// The words the field OFFERS — a type has one bulk word plus `Unidade`,
-  /// never all four.
-  List<SellingChoice> offeredChoices(WidgetTester tester) => [
-    for (final segment in sellingField(tester).segments) segment.value,
-  ];
+  /// Turns card `id` into the `A granel` one, the only way a product goes loose.
+  Future<void> turnLoose(WidgetTester tester, int id) async {
+    await tapOn(tester, find.descendant(of: find.byKey(ValueKey('kind-$id')), matching: find.text('A granel')));
+  }
 
   /// The one field inside the open dialog — `find.byType(TextField)` alone
   /// also matches the description field of the screen behind it.
@@ -240,109 +232,45 @@ void main() {
     expect(find.text('Salvar 2 produtos'), findsOneWidget);
   });
 
-  testWidgets('hides the packaging list when the product is sold by weight', (tester) async {
-    await pumpScreen(tester);
-
-    await choose(tester, const ValueKey('field-category'), 'Carnes');
-    await choose(tester, const ValueKey('field-type'), 'Acém moído');
-    await tapOn(tester, find.text('Peso'));
-
-    expect(find.text('Embalagens deste produto'), findsNothing);
-    expect(find.text('Adicionar outra embalagem'), findsNothing);
-    // Quantity is what the PURCHASE asks for, not the registration.
-    expect(find.text('Salvar produto'), findsOneWidget);
-  });
-
-  testWidgets('names the loose product after the grandeza of the type', (tester) async {
-    await pumpScreen(tester);
-
-    await choose(tester, const ValueKey('field-category'), 'Bebidas');
-    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
-
-    // Bulk olive oil is measured in millilitres: calling it "a peso" is the
-    // very mistake this field exists to fix.
-    expect(offeredChoices(tester), [SellingChoice.unit, SellingChoice.volume]);
-  });
-
-  testWidgets('sells by volume the same way it sells by weight', (tester) async {
-    await pumpScreen(tester);
-
-    await choose(tester, const ValueKey('field-category'), 'Bebidas');
-    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
-    await tapOn(tester, find.text('Volume'));
-
-    // `Volume` IS `by_weight`: same loose product, other grandeza.
-    expect(find.text('Embalagens deste produto'), findsNothing);
-    expect(find.text('Adicionar outra embalagem'), findsNothing);
-    expect(find.text('Salvar produto'), findsOneWidget);
-  });
-
-  testWidgets('leaves only Unidade under a type counted by unit', (tester) async {
-    await pumpScreen(tester);
-
-    await choose(tester, const ValueKey('field-category'), 'Limpeza');
-    await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
-
-    // Decision H-b: there is no bulk in a type counted by unit, so the avulso
-    // is a packaging of `1 un` like any other.
-    expect(offeredChoices(tester), [SellingChoice.unit]);
-    expect(find.text('Embalagens deste produto'), findsOneWidget);
-  });
-
-  testWidgets('keeps the loose product loose when the grandeza changes', (tester) async {
+  testWidgets('keeps the loose card loose when the type changes', (tester) async {
     await pumpScreen(tester);
 
     // No category chosen on purpose: the type field then lists every type,
     // which is what puts a kilogram and a litre one behind the same dropdown.
     await choose(tester, const ValueKey('field-type'), 'Acém moído');
-    await tapOn(tester, find.text('Peso'));
-    expect(sellingField(tester).selected, {SellingChoice.weight});
+    // Without a description the identity matches `reg-2` and the screen locks.
+    await type(tester, const ValueKey('field-description'), 'moído fino');
+    await leaveField(tester);
+    await turnLoose(tester, 1);
+    expect(find.text('Vendido por kg'), findsOneWidget);
 
     await choose(tester, const ValueKey('field-type'), 'Refrigerante');
 
-    // The saved mode did not move — only the word that names it.
-    expect(sellingField(tester).selected, {SellingChoice.volume});
-    expect(find.text('Embalagens deste produto'), findsNothing);
-  });
-
-  testWidgets('falls back to Unidade when the new type has no bulk', (tester) async {
-    await pumpScreen(tester);
-
-    await choose(tester, const ValueKey('field-category'), 'Limpeza');
-    await choose(tester, const ValueKey('field-type'), 'Sabão em pó');
-    await tapOn(tester, find.text('Peso'));
-    expect(find.text('Embalagens deste produto'), findsNothing);
-
-    await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
-
-    // A `Peso` left behind by the old type would name a product measured in
-    // units — the field normalizes instead.
-    expect(sellingField(tester).selected, {SellingChoice.unit});
+    // The card stayed loose — only the unit that names it moved.
+    expect(looseCaption(1), findsOneWidget);
+    expect(find.text('Vendido por L'), findsOneWidget);
     expect(find.text('Embalagens deste produto'), findsOneWidget);
   });
 
-  testWidgets('fits the words it offers on an iPhone 12', (tester) async {
+  testWidgets('opens without the Vendido field', (tester) async {
     await pumpScreen(tester);
-    await choose(tester, const ValueKey('field-category'), 'Bebidas');
-    await choose(tester, const ValueKey('field-type'), 'Refrigerante');
+    await choose(tester, const ValueKey('field-category'), 'Carnes');
+    await choose(tester, const ValueKey('field-type'), 'Acém moído');
 
-    // AFTER pumpScreen, which forces a tall viewport of its own.
-    useIPhone12(tester);
-    await tester.pumpAndSettle();
+    expect(find.text('Vendido'), findsNothing);
+    expect(find.text('Embalagens deste produto'), findsOneWidget);
+    expect(find.byKey(const ValueKey('kind-1')), findsOneWidget);
+  });
 
-    // Drained on purpose, and it is NOT this field: the Marca dropdown
-    // overflows by 219 px at this width, by exactly the same amount before
-    // this change — it sizes itself to its widest menu item. Left as it was
-    // found; the assertion below is about the `Vendido` field alone.
-    tester.takeException();
+  testWidgets('a counted type takes the loose card', (tester) async {
+    await pumpScreen(tester);
+    await choose(tester, const ValueKey('field-category'), 'Limpeza');
+    await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
 
-    // The assertion is GEOMETRIC on purpose: `SegmentedButton` constrains its
-    // children instead of overflowing, so `takeException()` is null at any
-    // width and would prove nothing. Offering all four magnitudes at once
-    // squeezes this label to 35 pt, which is why the field offers only the
-    // words the magnitude can take.
-    final label = find.descendant(of: find.byType(SegmentedButton<SellingChoice>), matching: find.text('Unidade'));
-    expect(tester.getSize(label).width, greaterThanOrEqualTo(54));
+    await turnLoose(tester, 1);
+
+    expect(looseCaption(1), findsOneWidget);
+    expect(find.text('Vendido por un'), findsOneWidget);
   });
 
   testWidgets('warns and blocks when the identity is already taken', (tester) async {
@@ -939,21 +867,6 @@ void main() {
       expect(saveButton(tester).onPressed, isNotNull);
     });
 
-    testWidgets('selling loose drops the code block', (tester) async {
-      final repository = _WithOwners(owners: {Barcode.typed(cola): cola2l});
-      await pumpScreen(tester, repository: repository);
-      await pickRefrigerante(tester);
-      await type(tester, const ValueKey('size-1'), '350');
-      await includeTyped(tester, 1, cola);
-      await tapOn(tester, find.byKey(const ValueKey('save')));
-      expect(saveButton(tester).onPressed, isNull);
-
-      await tapOn(tester, find.text('Volume'));
-
-      expect(find.text('Esse código já é do ${cola2l.label}.'), findsNothing);
-      expect(saveButton(tester).onPressed, isNotNull);
-    });
-
     testWidgets('the same code on two cards is refused before the database', (tester) async {
       final repository = _WithOwners();
       await pumpScreen(tester, repository: repository);
@@ -1167,8 +1080,7 @@ void main() {
       expect(find.text('Mude algum campo ou acrescente uma embalagem.'), findsOneWidget);
     });
 
-    testWidgets('description, brand and type are editable; category and '
-        'selling mode are not', (tester) async {
+    testWidgets('description, brand and type are editable; category is not', (tester) async {
       await pumpScreen(tester, request: editing);
 
       final description = tester.widget<TextField>(
@@ -1208,7 +1120,6 @@ void main() {
             .onChanged,
         isNull,
       );
-      expect(sellingField(tester).onSelectionChanged, isNull);
       // A new type could measure another magnitude.
       expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add).at(1)).onPressed, isNull);
       // The category is shown, from the type, even though it is locked.
@@ -1286,11 +1197,15 @@ void main() {
       expect(saveButton(tester).onPressed, isNotNull);
     });
 
-    testWidgets('editing a product sold by weight saves the identity alone', (tester) async {
+    testWidgets('editing a loose-only product saves the identity alone', (tester) async {
       await pumpScreen(tester, request: const NewProductRequest(registrationId: 'reg-2'));
 
-      expect(find.text('Embalagens deste produto'), findsNothing);
-      expect(find.text('Mude algum campo.'), findsOneWidget);
+      expect(find.text('Embalagens deste produto'), findsOneWidget);
+      expect(find.text('Mude algum campo ou acrescente uma embalagem.'), findsOneWidget);
+      expect(saveButton(tester).onPressed, isNull);
+
+      await tapOn(tester, find.byKey(const ValueKey('existing-packagings')));
+      expect(find.text('A granel (por kg)'), findsOneWidget);
 
       await type(tester, const ValueKey('field-description'), 'fino');
       await leaveField(tester);
@@ -1322,14 +1237,14 @@ void main() {
     const other = '2004417001603';
     const storeKey = ValueKey('scale-store');
 
-    Future<void> toWeight(WidgetTester tester) async {
+    Future<void> toLoose(WidgetTester tester) async {
       await choose(tester, const ValueKey('field-category'), 'Carnes');
       await choose(tester, const ValueKey('field-type'), 'Acém moído');
-      await tapOn(tester, find.text('Peso'));
       // Without a description the identity matches `reg-2` and the screen locks.
       await type(tester, const ValueKey('field-description'), 'moído fino');
       FocusManager.instance.primaryFocus?.unfocus();
       await tester.pumpAndSettle();
+      await turnLoose(tester, 1);
     }
 
     Future<void> includeScale(WidgetTester tester, String store, String raw) async {
@@ -1344,19 +1259,19 @@ void main() {
       find.descendant(of: find.byKey(const ValueKey('scale-code')), matching: find.byType(TextField)),
     );
 
-    testWidgets('sold by piece has no scale code section', (tester) async {
+    testWidgets('a packaging card has no scale code section', (tester) async {
       await pumpScreen(tester);
       await choose(tester, const ValueKey('field-category'), 'Carnes');
       await choose(tester, const ValueKey('field-type'), 'Acém moído');
       expect(find.byKey(const ValueKey('scale-codes')), findsNothing);
 
-      await toWeight(tester);
+      await toLoose(tester);
       expect(find.byKey(const ValueKey('scale-codes')), findsOneWidget);
     });
 
     testWidgets('a typed label goes in with its store and the field empties', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
 
       await includeScale(tester, 'Carrefour', tamara);
 
@@ -1367,7 +1282,7 @@ void main() {
 
     testWidgets('+, ▥ and the field are off until a store is chosen', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
 
       expect(fieldOf(tester).enabled, isFalse);
       expect(buttonOn(tester, const ValueKey('scale-scan')), isFalse);
@@ -1381,7 +1296,7 @@ void main() {
     testWidgets('a failed store load offers to try again', (tester) async {
       final stores = _FlakyStores();
       await pumpScreen(tester, stores: stores);
-      await toWeight(tester);
+      await toLoose(tester);
 
       expect(find.text('Não foi possível carregar os mercados.'), findsOneWidget);
 
@@ -1393,7 +1308,7 @@ void main() {
 
     testWidgets('the inactive store is not offered', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
 
       await tapOn(tester, find.byKey(storeKey));
 
@@ -1404,7 +1319,7 @@ void main() {
     testWidgets('a camera read keeps only the item code', (tester) async {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera);
-      await toWeight(tester);
+      await toLoose(tester);
       await choose(tester, storeKey, 'Carrefour');
 
       await tapOn(tester, find.byKey(const ValueKey('scale-scan')));
@@ -1417,7 +1332,7 @@ void main() {
     testWidgets('the same code twice in the same store is refused under the '
         'field', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
       await includeScale(tester, 'Carrefour', tamara);
 
       await type(tester, const ValueKey('scale-code'), tamaraQr);
@@ -1429,7 +1344,7 @@ void main() {
 
     testWidgets('the same code in another store is taken', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
 
       await includeScale(tester, 'Carrefour', tamara);
       await includeScale(tester, 'Feira do Bairro', tamara);
@@ -1440,7 +1355,7 @@ void main() {
 
     testWidgets('what is not a scale label is refused', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
 
       await includeScale(tester, 'Carrefour', '7894900011517');
       expect(find.text('Não conheço esta etiqueta.'), findsOneWidget);
@@ -1451,7 +1366,7 @@ void main() {
 
     testWidgets('x removes the code before saving', (tester) async {
       await pumpScreen(tester);
-      await toWeight(tester);
+      await toLoose(tester);
       await includeScale(tester, 'Carrefour', tamara);
 
       await tapOn(tester, find.byKey(const ValueKey('scale-remove-store-1-2822521')));
@@ -1462,7 +1377,7 @@ void main() {
     testWidgets('saving sends the scale codes', (tester) async {
       final repository = _ScaleSpy();
       await pumpScreen(tester, repository: repository);
-      await toWeight(tester);
+      await toLoose(tester);
       await includeScale(tester, 'Carrefour', tamara);
       await includeScale(tester, 'Feira do Bairro', other);
 
@@ -1477,14 +1392,15 @@ void main() {
       );
     });
 
-    testWidgets('selling by piece again sends no scale code', (tester) async {
+    testWidgets('removing the loose card sends no scale code', (tester) async {
       final repository = _ScaleSpy();
       await pumpScreen(tester, repository: repository);
-      await toWeight(tester);
+      await toLoose(tester);
       await includeScale(tester, 'Carrefour', tamara);
-      await tapOn(tester, find.text('Unidade'));
-      await type(tester, const ValueKey('count-1'), '1');
-      await type(tester, const ValueKey('size-1'), '500');
+      await tapOn(tester, find.text('Remover'));
+      await tapOn(tester, find.text('Adicionar embalagem'));
+      await type(tester, const ValueKey('count-2'), '1');
+      await type(tester, const ValueKey('size-2'), '500');
 
       await tapOn(tester, find.byKey(const ValueKey('save')));
 
@@ -1495,7 +1411,7 @@ void main() {
     testWidgets('a code taken in this store by another product is refused on '
         'save', (tester) async {
       await pumpScreen(tester, repository: _ScaleTakenOnSave());
-      await toWeight(tester);
+      await toLoose(tester);
       await includeScale(tester, 'Carrefour', tamara);
 
       await tapOn(tester, find.byKey(const ValueKey('save')));
@@ -1744,16 +1660,19 @@ void main() {
       expect(topScan, findsNothing);
     });
 
-    testWidgets('top read refuses a packaging code when sold by weight', (tester) async {
+    testWidgets('a barcode read on top with only the loose card adds a packaging card', (tester) async {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, repository: _WithOwners(), camera: camera);
       await choose(tester, const ValueKey('field-category'), 'Carnes');
       await choose(tester, const ValueKey('field-type'), 'Acém moído');
-      await tapOn(tester, find.text('Peso'));
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      await leaveField(tester);
+      await turnLoose(tester, 1);
 
       await readRaw(tester, camera, cola);
 
-      expect(find.text('Produto vendido a peso não leva código de barras.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('kind-2')), findsOneWidget);
+      expect(find.text('Embalagens deste produto'), findsOneWidget);
     });
   });
 
@@ -1788,17 +1707,16 @@ void main() {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera);
       await toLooseType(tester);
-      await tapOn(tester, find.text('Peso'));
 
       await readLabel(tester, camera, tamara);
       await pickStore(tester, 'store-1');
 
       expect(find.text('• Carrefour · ${ScaleLabel.parse(tamara)!.itemCode}'), findsOneWidget);
       expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
-      expect(sellingField(tester).selected, {SellingChoice.weight});
+      expect(looseCaption(1), findsOneWidget);
     });
 
-    testWidgets('a scale label turns the screen loose under a weight type', (tester) async {
+    testWidgets('a scale label on an empty screen turns the first card loose', (tester) async {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera);
       await toLooseType(tester);
@@ -1806,51 +1724,34 @@ void main() {
       await readLabel(tester, camera, tamara);
       await pickStore(tester, 'store-1');
 
-      expect(sellingField(tester).selected, {SellingChoice.weight});
+      expect(looseCaption(1), findsOneWidget);
       expect(find.text('• Carrefour · 2822521'), findsOneWidget);
     });
 
-    testWidgets('a scale label read before the type turns the screen loose when a weight type is chosen', (
-      tester,
-    ) async {
+    testWidgets('a scale label read before the type waits on a loose card', (tester) async {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera);
 
       await readLabel(tester, camera, tamara);
       await pickStore(tester, 'store-1');
-      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
 
       await toLooseType(tester);
 
       expect(find.text('• Carrefour · 2822521'), findsOneWidget);
-      expect(sellingField(tester).selected, {SellingChoice.weight});
+      expect(looseCaption(1), findsOneWidget);
     });
 
-    testWidgets('a pending scale code blocks saving under a counted type', (tester) async {
+    testWidgets('a scale label under a counted type goes on a loose card', (tester) async {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera);
-      await readLabel(tester, camera, tamara);
-      await pickStore(tester, 'store-1');
-
       await choose(tester, const ValueKey('field-category'), 'Limpeza');
       await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
 
-      expect(find.text(const UnexpectedScaleCode().message), findsOneWidget);
-      expect(saveButton(tester).onPressed, isNull);
-    });
-
-    testWidgets('removing the pending scale code unblocks saving', (tester) async {
-      final camera = FakeBarcodeCamera();
-      await pumpScreen(tester, camera: camera);
       await readLabel(tester, camera, tamara);
       await pickStore(tester, 'store-1');
-      await choose(tester, const ValueKey('field-category'), 'Limpeza');
-      await choose(tester, const ValueKey('field-type'), 'Papel higiênico');
 
-      await tapOn(tester, find.byKey(const ValueKey('scale-remove-store-1-2822521')));
-
-      expect(find.text(const UnexpectedScaleCode().message), findsNothing);
-      expect(find.byKey(const ValueKey('scale-codes')), findsNothing);
+      expect(looseCaption(1), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
     });
 
     testWidgets('top read refuses a scale code already on the product', (tester) async {
@@ -1901,7 +1802,6 @@ void main() {
       final camera = FakeBarcodeCamera();
       await pumpScreen(tester, camera: camera, repository: _ScaleTakenOnSave());
       await toLooseType(tester);
-      await tapOn(tester, find.text('Peso'));
       await readLabel(tester, camera, tamara);
       await pickStore(tester, 'store-1');
 
@@ -2049,10 +1949,10 @@ void main() {
       expect(find.text('Novo produto'), findsOneWidget);
     });
 
-    testWidgets('save and read another also works for a product sold by weight', (tester) async {
+    testWidgets('save and read another also works for a loose product', (tester) async {
       await pumpScreen(tester, camera: FakeBarcodeCamera());
       await toLooseType(tester);
-      await tapOn(tester, find.text('Peso'));
+      await turnLoose(tester, 1);
 
       await tapOn(tester, saveAndRead);
 
@@ -2157,7 +2057,7 @@ void main() {
       final repository = _ScaleSpy();
       await pumpScreen(tester, repository: repository, camera: camera);
       await toLooseType(tester);
-      await tapOn(tester, find.text('Peso'));
+      await turnLoose(tester, 1);
       await readLabel(tester, camera, tamara);
       await pickStore(tester, 'store-1');
       expect(find.text('• Carrefour · 2822521'), findsOneWidget);
@@ -2193,12 +2093,26 @@ void main() {
     testWidgets('initialScaleCode starts the remembered store', (tester) async {
       await pumpScreen(tester, request: const NewProductRequest(initialScaleCode: scaleCode));
 
-      expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
-      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
-
       await choose(tester, const ValueKey('field-category'), 'Carnes');
       await choose(tester, const ValueKey('field-type'), 'Acém moído');
-      expect(sellingField(tester).selected, {SellingChoice.weight});
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      await leaveField(tester);
+
+      expect(find.text('Etiquetas do mercado: Carrefour'), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+    });
+
+    testWidgets('initialScaleCode opens a loose card', (tester) async {
+      await pumpScreen(tester, request: const NewProductRequest(initialScaleCode: scaleCode));
+      await choose(tester, const ValueKey('field-category'), 'Carnes');
+      await choose(tester, const ValueKey('field-type'), 'Acém moído');
+      await type(tester, const ValueKey('field-description'), 'moído fino');
+      await leaveField(tester);
+
+      expect(looseCaption(1), findsOneWidget);
+      expect(find.text('• Carrefour · 2822521'), findsOneWidget);
+      expect(find.text('Salvar produto'), findsOneWidget);
+      expect(saveButton(tester).onPressed, isNotNull);
     });
   });
 
