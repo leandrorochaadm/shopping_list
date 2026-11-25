@@ -96,8 +96,12 @@ final class CatalogRepositoryRemote implements CatalogRepository {
   Future<Brand> updateBrand(Brand brand) => _update(PbCollections.brand, brand.id!, brand.toJson(), Brand.fromJson);
 
   @override
-  Future<ProductRegistration> updateRegistration(ProductRegistration registration) =>
-      _update(PbCollections.productRegistration, registration.id!, registration.toJson(), ProductRegistration.fromJson);
+  Future<ProductRegistration> updateRegistration(ProductRegistration registration) => _update(
+    PbCollections.productRegistration,
+    registration.id!,
+    _registrationBody(registration),
+    ProductRegistration.fromJson,
+  );
 
   @override
   Future<Product> updateProduct(Product product) async {
@@ -330,7 +334,7 @@ final class CatalogRepositoryRemote implements CatalogRepository {
       final batch = _pb.createBatch();
       batch
           .collection(PbCollections.productRegistration)
-          .create(body: {..._writeBody(registration.toJson()), PbFields.id: registrationId, PbFields.user: user});
+          .create(body: {..._registrationBody(registration), PbFields.id: registrationId, PbFields.user: user});
       final slots = _addLeaves(
         batch,
         user: user,
@@ -600,6 +604,11 @@ final class CatalogRepositoryRemote implements CatalogRepository {
     if (row[PbFields.brandId] == '') row[PbFields.brandId] = null;
     return row;
   }
+
+  static const _droppedSellingMode = 'selling_mode'; // column dropped by 1792800400; kept out of every body
+
+  Map<String, dynamic> _registrationBody(ProductRegistration registration) =>
+      _writeBody(registration.toJson()..remove(_droppedSellingMode));
 
   /// The way back of [_rowOfMap]: a null brand is written as `''`.
   Map<String, dynamic> _writeBody(Map<String, dynamic> json) {

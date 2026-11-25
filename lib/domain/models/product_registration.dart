@@ -47,7 +47,8 @@ final class ProductRegistration {
     required String productTypeId,
     String? brandId,
     String description = '',
-    // Optional since part 7; removed with the field in part 8.
+    // Optional: the server no longer has the column (dropped by migration 1792800400). The field stays only until
+    // the old tests are rewritten.
     SellingMode sellingMode = SellingMode.byPiece,
     bool active = true,
   }) => ProductRegistration._(
@@ -73,7 +74,10 @@ final class ProductRegistration {
     productTypeId: json['product_type_id'] as String,
     brandId: json['brand_id'] as String?,
     description: json['description'] as String? ?? '',
-    sellingMode: SellingMode.fromJson(json['selling_mode'] as String),
+    sellingMode: switch (json['selling_mode']) {
+      final String raw => SellingMode.fromJson(raw),
+      _ => SellingMode.byPiece,
+    },
     active: json['active'] as bool? ?? true,
   );
 

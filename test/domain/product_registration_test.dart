@@ -319,4 +319,27 @@ void main() {
     expect(omitted, explicit);
     expect(omitted.hashCode, explicit.hashCode);
   });
+
+  group('selling_mode column dropped', () {
+    final expected = ProductRegistration(id: 'reg1', productTypeId: 'type-1', brandId: 'brand-1', description: 'zero');
+
+    test('ignores selling_mode from old rows', () {
+      final raw = {'id': 'reg1', 'product_type_id': 'type-1', 'brand_id': 'brand-1', 'description': 'zero'};
+
+      expect(ProductRegistration.fromJson(raw), expected);
+      expect(ProductRegistration.fromJson({...raw, 'selling_mode': null}), expected);
+    });
+
+    test('reads a row that still carries selling_mode', () {
+      final raw = {
+        'id': 'reg1',
+        'product_type_id': 'type-1',
+        'brand_id': 'brand-1',
+        'description': 'zero',
+        'selling_mode': 'by_piece',
+      };
+
+      expect(ProductRegistration.fromJson(raw), expected);
+    });
+  });
 }

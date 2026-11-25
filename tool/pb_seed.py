@@ -95,7 +95,6 @@ OPTIONAL_RELATIONS = {"brand_id", "preferred_registration_id"}
 # The unit written after a type in the catalog, and the base unit it stands for.
 CATALOG_UNITS = {"g": "gram", "ml": "milliliter", "un": "unit", "cm": "centimeter"}
 BASE_UNITS = frozenset(CATALOG_UNITS.values())
-SELLING_MODES = frozenset({"by_piece", "by_weight"})
 
 
 class ExitCode(IntEnum):
@@ -134,7 +133,6 @@ class Registration:
     type_name: str
     brand: str | None
     description: str
-    selling_mode: str
     packagings: list[Packaging | None]
     # Price in CENTS per leaf, per store: prices[store][leaf index].
     prices: dict[str, list[int]]
@@ -167,7 +165,6 @@ REGISTRATIONS = [
         type_name="Refrigerante",
         brand="Coca-Cola",
         description="",
-        selling_mode="by_piece",
         packagings=[
             Packaging(1, 350, "milliliter"),
             Packaging(6, 350, "milliliter"),
@@ -185,7 +182,6 @@ REGISTRATIONS = [
         type_name="Acém",
         brand=None,
         description="moído",
-        selling_mode="by_weight",
         packagings=[None],
         prices={"Supermercado Central": [3290], "Feira do Bairro": [2990]},
     ),
@@ -194,7 +190,6 @@ REGISTRATIONS = [
         type_name="Leite",
         brand="Italac",
         description="integral",
-        selling_mode="by_piece",
         packagings=[Packaging(1, 1000, "milliliter")],
         prices={"Supermercado Central": [529], "Feira do Bairro": [559]},
     ),
@@ -203,7 +198,6 @@ REGISTRATIONS = [
         type_name="Sabão em pó",
         brand="Omo",
         description="",
-        selling_mode="by_piece",
         packagings=[Packaging(1, 800, "gram")],
         prices={"Supermercado Central": [1890], "Feira do Bairro": [1990]},
     ),
@@ -212,7 +206,6 @@ REGISTRATIONS = [
         type_name="Papel alumínio",
         brand=None,
         description="",
-        selling_mode="by_piece",
         # 30 m in centimetres.
         packagings=[Packaging(1, 3000, "centimeter")],
         prices={"Supermercado Central": [1290], "Feira do Bairro": [1390]},
@@ -222,7 +215,6 @@ REGISTRATIONS = [
         type_name="Banana",
         brand=None,
         description="prata",
-        selling_mode="by_weight",
         packagings=[None],
         prices={"Supermercado Central": [749], "Feira do Bairro": [599]},
     ),
@@ -353,7 +345,6 @@ def build_records(anchor: date) -> list[SeedRecord]:
                 if registration.brand
                 else "",
                 "description": registration.description,
-                "selling_mode": registration.selling_mode,
                 "active": True,
             },
         )
@@ -396,7 +387,6 @@ def build_records(anchor: date) -> list[SeedRecord]:
                         "product_type_id": record_id("type", catalog_type.name),
                         "brand_id": "",
                         "description": description,
-                        "selling_mode": "by_piece" if by_piece else "by_weight",
                         "active": True,
                     },
                 )
@@ -569,7 +559,6 @@ def build_records(anchor: date) -> list[SeedRecord]:
             "product_type_id": record_id("type", "Leite"),
             "brand_id": "",
             "description": "desnatado",
-            "selling_mode": "by_piece",
             "active": False,
         },
     )
@@ -661,8 +650,6 @@ def check_records(records: list[SeedRecord]) -> None:
         for unit_field in ("base_unit", "piece_size_unit"):
             if unit_field in body and body[unit_field] not in BASE_UNITS:
                 raise ValueError(f"{unit_field} inválido em {record.id}")
-        if "selling_mode" in body and body["selling_mode"] not in SELLING_MODES:
-            raise ValueError(f"selling_mode inválido em {record.id}")
         for positive in ("quantity", "quantity_in_base_unit", "total_content"):
             value = body.get(positive)
             if isinstance(value, int) and value <= 0:

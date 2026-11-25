@@ -762,4 +762,46 @@ void main() {
       expect(isRecordId(newRecordId()), isTrue);
     });
   });
+
+  group('selling_mode column dropped', () {
+    test('updateRegistration does not write selling_mode', () async {
+      final repository = repositoryAnswering(json(registrationRow(_regId)));
+
+      await repository.updateRegistration(registration.copyWith(id: _regId, sellingMode: SellingMode.byWeight));
+
+      final body = bodyOf(requests.single);
+      expect(body.containsKey('selling_mode'), isFalse);
+      expect(body['product_type_id'], 'type0000000001');
+    });
+
+    test('saveRegistrationWithProducts does not write selling_mode', () async {
+      final repository = CatalogRepositoryRemote(
+        testPocketBase(
+          MockClient((request) async {
+            requests.add(request);
+            return json([
+              for (final r in batchRequests(request)) {'status': 200, 'body': r['body']},
+            ]);
+          }),
+        ),
+      );
+
+      await repository.saveRegistrationWithProducts(
+        registration: registration.copyWith(sellingMode: SellingMode.byWeight),
+        packagings: [PackagingWithBarcodes(packaging: packaging, barcodes: <Barcode>[].lock)].lock,
+      );
+
+      final regBody = batchRequests(requests.single)[0]['body'] as Map<String, dynamic>;
+      expect(regBody.containsKey('selling_mode'), isFalse);
+    });
+
+    test('reads a registration row without selling_mode', () async {
+      final row = registrationRow(_regId)..remove('selling_mode');
+      final repository = repositoryAnswering(listJson([row]));
+
+      final result = await repository.fetchRegistrations();
+
+      expect(result.single.sellingMode, SellingMode.byPiece);
+    });
+  });
 }
