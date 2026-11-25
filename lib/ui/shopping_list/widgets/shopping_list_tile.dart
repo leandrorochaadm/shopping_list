@@ -29,7 +29,7 @@ class ShoppingListTile extends StatelessWidget {
       minTileHeight: 56,
       onTap: onOpen,
       leading: Semantics(
-        label: item.picked ? '${item.label}, pego' : '${item.label}, não pego',
+        label: item.picked ? '${item.effectiveLabel}, pego' : '${item.effectiveLabel}, não pego',
         child: Checkbox(
           value: item.picked,
           // The rule is the entity's: the caller asks the ViewModel, which
@@ -38,7 +38,7 @@ class ShoppingListTile extends StatelessWidget {
         ),
       ),
       title: Text(
-        item.label,
+        item.effectiveLabel,
         // Picking something up is only a visual strike-through: it registers
         // no purchase and never takes the item off the list.
         style: item.picked

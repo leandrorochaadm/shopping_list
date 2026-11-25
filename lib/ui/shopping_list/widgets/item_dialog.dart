@@ -284,7 +284,7 @@ class _ItemDialogState extends ConsumerState<ItemDialog> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Remover da lista?'),
-        content: Text('${item.label} sai da lista.'),
+        content: Text('${item.effectiveLabel} sai da lista.'),
         actions: [
           TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
           FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Remover')),
