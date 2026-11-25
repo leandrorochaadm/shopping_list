@@ -12,14 +12,11 @@ abstract final class Environment {
   /// `tecnico §3` rules out. What keeps the copy honest is
   /// `test/config/environment_test.dart`, which reads the pubspec and fails
   /// when the two drift apart.
-  static const fallbackVersionName = '1.0.0';
+  static const fallbackVersionName = '1.1.0';
 
   /// Filled by the CI from the pubspec; empty on a local run, when the
   /// constant above answers instead.
-  static const _versionName = String.fromEnvironment(
-    'APP_VERSION',
-    defaultValue: fallbackVersionName,
-  );
+  static const _versionName = String.fromEnvironment('APP_VERSION', defaultValue: fallbackVersionName);
 
   /// `github.run_number`. Empty on a local run.
   static const _buildNumber = String.fromEnvironment('APP_BUILD_NUMBER');
