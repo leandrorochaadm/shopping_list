@@ -509,7 +509,17 @@ void main() {
       final item = _item(registration: _registration(), brand: _brand);
 
       expect(item.effectivePreferredRegistration, _registration());
-      expect(item.effectiveLabel, 'Leite Italac integral');
+      // No brand on the line: only the description tells products apart.
+      expect(item.effectiveLabel, 'Leite integral');
+    });
+
+    test('a registration with only a brand reads as the type alone', () {
+      final item = _item(
+        registration: _registration(description: ''),
+        brand: _brand,
+      );
+
+      expect(item.effectiveLabel, 'Leite');
     });
 
     test('a deactivated registration falls SILENTLY, with no write at all', () {

@@ -295,11 +295,14 @@ final class ShoppingListItem {
     return wanted == null || wanted.id == registrationId;
   }
 
-  /// What the line writes once a deactivated preference has fallen: it is
-  /// [label] asked of the EFFECTIVE registration, so "Leite Italac integral"
-  /// becomes "Leite" the moment the registration is deactivated.
-  String get effectiveLabel =>
-      [type.name, ?effectivePreferredRegistration?.labelWith(preferredRegistrationBrand)].join(' ');
+  /// What screen 1 writes on the line: the type plus the description of the
+  /// EFFECTIVE registration, **with no brand** — "Leite integral". A
+  /// deactivated or moved registration falls, so it becomes "Leite"; an empty
+  /// description adds nothing.
+  String get effectiveLabel => [
+    type.name,
+    if (effectivePreferredRegistration?.description case final description? when description.isNotEmpty) description,
+  ].join(' ');
 
   /// An item with no quantity leaves on the first purchase of the type; one
   /// with a quantity leaves by balance. H7 decides what to do about it — what

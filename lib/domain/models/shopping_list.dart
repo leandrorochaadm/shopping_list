@@ -27,7 +27,7 @@ final class ShoppingListGroup {
 /// The grouping of requirement 11 and the order decided on 28/08/2026 (`C3`):
 /// categories alphabetically and, inside each one, the items by what the
 /// line reads ([ShoppingListItem.effectiveLabel]). Since M-a a type can sit on
-/// the list more than once — "Leite Italac integral" and "Leite" — and
+/// the list more than once — "Leite integral" and "Leite" — and
 /// sorting by the label keeps the lines of one type together, since every
 /// label starts with the type's name.
 ///
