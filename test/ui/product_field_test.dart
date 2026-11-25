@@ -19,12 +19,7 @@ void main() {
     pieceSize: 350,
     purchaseCount: 9,
   );
-  final can = optionByPiece(
-    id: 'p2',
-    brand: cokeBrand,
-    description: 'original',
-    pieceSize: 269,
-  );
+  final can = optionByPiece(id: 'p2', brand: cokeBrand, description: 'original', pieceSize: 269);
   final beef = optionByWeight(id: 'p3', type: beefType);
 
   final options = IList([crate, can, beef]);
@@ -54,31 +49,20 @@ void main() {
     ),
   );
 
-  testWidgets('searching finds by stretch, case and accent alike', (
-    tester,
-  ) async {
+  testWidgets('searching finds by stretch, case and accent alike', (tester) async {
     await pumpField(tester);
 
     for (final query in ['coca', 'COCA', 'cocá']) {
-      await tester.enterText(
-        find.byKey(const ValueKey('field-product')),
-        query,
-      );
+      await tester.enterText(find.byKey(const ValueKey('field-product')), query);
       await tester.pumpAndSettle();
 
-      expect(
-        find.text('Coca-Cola original 12 × 350 ml'),
-        findsOneWidget,
-        reason: query,
-      );
+      expect(find.text('Coca-Cola original 12 × 350 ml'), findsOneWidget, reason: query);
       // Grouped by type, with the type's name as the header.
       expect(find.text('Refrigerante'), findsWidgets, reason: query);
     }
   });
 
-  testWidgets('and by the packaging, which is how a shelf is searched', (
-    tester,
-  ) async {
+  testWidgets('and by the packaging, which is how a shelf is searched', (tester) async {
     await pumpField(tester);
 
     await tester.enterText(find.byKey(const ValueKey('field-product')), '269');
@@ -106,8 +90,7 @@ void main() {
     // widgets that would diverge on the first change.
     await pumpField(
       tester,
-      groupBy: (filtered) =>
-          [ProductGroup(header: 'Bebidas', options: filtered)].lock,
+      groupBy: (filtered) => [ProductGroup(header: 'Bebidas', options: filtered)].lock,
     );
 
     await tester.tap(find.byKey(const ValueKey('field-product')));
@@ -118,9 +101,7 @@ void main() {
     expect(find.text('Coca-Cola original 12 × 350 ml'), findsOneWidget);
   });
 
-  testWidgets('a caller may key the field, so two of them can coexist', (
-    tester,
-  ) async {
+  testWidgets('a caller may key the field, so two of them can coexist', (tester) async {
     // The two tabs of screen 5 live in the same tree of the `TabBarView`, and
     // a `find.byKey('field-product')` would find two.
     await pumpField(tester, fieldKey: const ValueKey('field-comparison'));
@@ -129,9 +110,7 @@ void main() {
     expect(find.byKey(const ValueKey('field-product')), findsNothing);
   });
 
-  testWidgets('choosing one hands it back and writes it in the field', (
-    tester,
-  ) async {
+  testWidgets('choosing one hands it back and writes it in the field', (tester) async {
     ProductOption? chosen;
     await pumpField(tester, onSelected: (option) => chosen = option);
 
@@ -142,10 +121,7 @@ void main() {
 
     expect(chosen, can);
     expect(
-      tester
-          .widget<TextField>(find.byKey(const ValueKey('field-product')))
-          .controller!
-          .text,
+      tester.widget<TextField>(find.byKey(const ValueKey('field-product'))).controller!.text,
       // The type comes in front: the field shows no group header.
       'Refrigerante Coca-Cola original 269 ml',
     );
@@ -155,34 +131,24 @@ void main() {
     await pumpField(tester, initial: beef);
 
     expect(
-      tester
-          .widget<TextField>(find.byKey(const ValueKey('field-product')))
-          .controller!
-          .text,
+      tester.widget<TextField>(find.byKey(const ValueKey('field-product'))).controller!.text,
       // Loose, with no brand and no description: the type appears ONCE.
-      'Acém moído (peso)',
+      'Acém moído por kg',
     );
   });
 
   testWidgets('disabled, it takes nothing', (tester) async {
     await pumpField(tester, enabled: false, hintText: 'Carregando...');
 
-    final field = tester.widget<TextField>(
-      find.byKey(const ValueKey('field-product')),
-    );
+    final field = tester.widget<TextField>(find.byKey(const ValueKey('field-product')));
     expect(field.enabled, isFalse);
     expect(field.decoration!.hintText, 'Carregando...');
   });
 
-  testWidgets('a search that finds nothing shows no list at all', (
-    tester,
-  ) async {
+  testWidgets('a search that finds nothing shows no list at all', (tester) async {
     await pumpField(tester);
 
-    await tester.enterText(
-      find.byKey(const ValueKey('field-product')),
-      'iogurte',
-    );
+    await tester.enterText(find.byKey(const ValueKey('field-product')), 'iogurte');
     await tester.pumpAndSettle();
 
     expect(find.text('Refrigerante'), findsNothing);
@@ -192,13 +158,7 @@ void main() {
   testWidgets('the label is always Produto', (tester) async {
     await pumpField(tester, given: const IList<ProductOption>.empty());
 
-    expect(
-      tester
-          .widget<TextField>(find.byKey(const ValueKey('field-product')))
-          .decoration!
-          .labelText,
-      'Produto',
-    );
+    expect(tester.widget<TextField>(find.byKey(const ValueKey('field-product'))).decoration!.labelText, 'Produto');
   });
 
   test('the helper leaves the base units apart, which is what groups them', () {

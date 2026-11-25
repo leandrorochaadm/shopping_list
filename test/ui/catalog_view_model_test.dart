@@ -1196,7 +1196,7 @@ void main() {
         scaleCodes: [scaleCode].lock,
       );
 
-      expect(_saveMessage(outcome), 'Só produto vendido solto tem código de balança.');
+      expect(_saveMessage(outcome), 'Só o granel tem código de balança.');
       expect(repository.saveCalls, 0);
     });
 
@@ -1294,7 +1294,7 @@ void main() {
 
       final result = await notifier.addScaleCode(registration: byPiece, productId: 'prod-1', code: scaleCode);
 
-      expect(result, 'Só produto vendido solto tem código de balança.');
+      expect(result, 'Só o granel tem código de balança.');
       expect(repository.addScaleCodeCalls, 0);
     });
 

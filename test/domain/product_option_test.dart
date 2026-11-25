@@ -56,6 +56,43 @@ void main() {
     type: beef,
   );
 
+  group('loose label', () {
+    ProductOption loose(ProductType type, {Brand? brand, String description = ''}) => ProductOption(
+      product: const Product(id: 'prod-9', productRegistrationId: 'reg-9'),
+      registration: ProductRegistration(
+        id: 'reg-9',
+        productTypeId: type.id!,
+        brandId: brand?.id,
+        description: description,
+      ),
+      type: type,
+      brand: brand,
+    );
+
+    ProductType typeOf(String name, BaseUnit unit) =>
+        ProductType(id: 'type-9', name: name, categoryId: 'cat-9', baseUnit: unit);
+
+    test('names the loose leaf by its price unit', () {
+      final withBrand = loose(
+        typeOf('Café', BaseUnit.gram),
+        brand: Brand(id: 'brand-9', name: 'Pilão'),
+      );
+      expect(withBrand.label, 'Pilão por kg');
+      expect(withBrand.selectedLabel, 'Café Pilão por kg');
+
+      final plain = loose(typeOf('Café', BaseUnit.gram));
+      expect(plain.label, 'Café por kg');
+      expect(plain.selectedLabel, 'Café por kg');
+
+      final oil = loose(typeOf('Azeite', BaseUnit.milliliter), description: 'X');
+      expect(oil.label, 'X por L');
+      expect(oil.selectedLabel, 'Azeite X por L');
+
+      expect(loose(typeOf('Barbante', BaseUnit.centimeter)).label, 'Barbante por m');
+      expect(loose(typeOf('Ovos', BaseUnit.unit)).label, 'Ovos por un');
+    });
+  });
+
   group('label', () {
     test('joins brand, description and packaging, skipping what is absent', () {
       expect(byPiece(id: 'p1', brand: coke, pieceCount: 12).label, 'Coca-Cola 12 × 350 ml');
@@ -71,7 +108,7 @@ void main() {
     test('falls back to the type name when nothing else is left', () {
       // The weight-sold product with no brand and no description — there the
       // type name IS the name of the thing on the shelf.
-      expect(groundBeef.label, 'Acém moído (peso)');
+      expect(groundBeef.label, 'Acém moído por kg');
     });
   });
 
@@ -89,9 +126,9 @@ void main() {
     });
 
     test('does NOT repeat the type the loose product is already named after', () {
-      // 'Acém moído Acém moído (peso)' is what stacking the two getters
+      // 'Acém moído Acém moído por kg' is what stacking the two getters
       // would read — the type belongs in there once.
-      expect(groundBeef.selectedLabel, 'Acém moído (peso)');
+      expect(groundBeef.selectedLabel, 'Acém moído por kg');
     });
   });
 

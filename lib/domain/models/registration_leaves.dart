@@ -49,11 +49,11 @@ final class MissingPackaging implements Exception {
   String toString() => 'MissingPackaging: $message';
 }
 
-/// A scale code came with a product that is not sold loose.
+/// A scale code came with a leaf that is not the loose one.
 final class UnexpectedScaleCode implements Exception {
   const UnexpectedScaleCode();
 
-  String get message => 'Só produto vendido solto tem código de balança.';
+  String get message => 'Só o granel tem código de balança.';
 
   @override
   String toString() => 'UnexpectedScaleCode: $message';

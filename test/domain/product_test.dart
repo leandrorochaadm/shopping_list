@@ -59,11 +59,15 @@ void main() {
   });
 
   group('sold by weight', () {
+    test('describes the loose leaf', () {
+      expect(const Product(id: 'prod-5', productRegistrationId: 'reg-2').toString(), 'Product(a granel, active: true)');
+    });
+
     test('the leaf exists with no packaging at all (decision B1)', () {
       const weighed = Product(id: 'prod-5', productRegistrationId: 'reg-2');
       expect(weighed.isSoldByWeight, isTrue);
       expect(weighed.packaging, isNull);
-      expect(weighed.toString(), contains('a peso'));
+      expect(weighed.toString(), contains('a granel'));
     });
 
     test('two weight-sold leaves of the same registration are the same', () {

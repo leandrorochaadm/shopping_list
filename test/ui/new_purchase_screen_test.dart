@@ -306,7 +306,7 @@ void main() {
   Future<void> fillLooseItem(WidgetTester tester, {String quantity = '500'}) async {
     await tester.enterText(find.byKey(const ValueKey('field-product')), 'Acém');
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Acém moído (peso)').last);
+    await tester.tap(find.text('Acém moído por kg').last);
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('field-quantity')), quantity);
     await tester.pumpAndSettle();
@@ -863,7 +863,7 @@ void main() {
       await pumpScreen(tester);
       await tester.enterText(find.byKey(const ValueKey('field-product')), 'acém');
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Acém moído (peso)').last);
+      await tester.tap(find.text('Acém moído por kg').last);
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('compare-cost')), findsNothing);

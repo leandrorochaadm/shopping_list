@@ -93,7 +93,7 @@ void main() {
     });
 
     test('UnexpectedScaleCode carries its message', () {
-      expect(const UnexpectedScaleCode().message, 'Só produto vendido solto tem código de balança.');
+      expect(const UnexpectedScaleCode().message, 'Só o granel tem código de balança.');
       expect(const UnexpectedScaleCode().toString(), startsWith('UnexpectedScaleCode: '));
     });
   });

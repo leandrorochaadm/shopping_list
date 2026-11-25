@@ -368,9 +368,8 @@ void main() {
     await selectKind(tester, 'Embalagens');
 
     // A leaf with no packaging has no label to show, so the row says how the
-    // product is sold — and "a peso" would not name bulk olive oil, which is
-    // measured in litres. The word comes from the base unit of the type.
-    expect(find.text('Vendido por peso'), findsOneWidget);
+    // product is sold — named by the price unit of the type.
+    expect(find.text('Vendido por kg'), findsOneWidget);
   });
 
   testWidgets('the search is normalized: "acem" finds "Acém"', (tester) async {

@@ -159,7 +159,7 @@ void main() {
 
       expect(leaf.isSoldByWeight, isTrue);
       expect(leaf.packaging, isNull);
-      expect(leaf.toString(), contains('a peso'));
+      expect(leaf.toString(), contains('a granel'));
     });
 
     test('carries the packaging of a by-piece product', () {

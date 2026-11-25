@@ -12,34 +12,17 @@ void main() {
   // single can that turns the type view of the Carrefour inside out.
   IList<PriceQuote> theWireframe() => [
     quote(quantity: 4200, cents: 4800, on: DateTime(2026, 7, 3)),
-    quote(
-      store: streetMarket,
-      quantity: 4200,
-      cents: 5670,
-      on: DateTime(2026, 8, 12),
-    ),
+    quote(store: streetMarket, quantity: 4200, cents: 5670, on: DateTime(2026, 8, 12)),
     quote(store: grocery, quantity: 4200, cents: 6200, on: DateTime(2026, 8, 18)),
     quote(option: cokeCan, quantity: 350, cents: 525, on: DateTime(2026, 8, 20)),
   ].lock;
 
   group('buildComparison — Este produto', () {
     test('one line per store, cheapest first, with the day beside it', () {
-      final lines = buildComparison(
-        quotes: theWireframe(),
-        selected: cokeCrate,
-        scope: ComparisonScope.thisProduct,
-      );
+      final lines = buildComparison(quotes: theWireframe(), selected: cokeCrate, scope: ComparisonScope.thisProduct);
 
-      expect(lines.map((line) => line.store.name).toList(), [
-        'Carrefour',
-        'Feira do Bairro',
-        'Mercearia do Zé',
-      ]);
-      expect(lines.map((line) => line.costPerBaseUnit).toList(), [
-        1143,
-        1350,
-        1476,
-      ]);
+      expect(lines.map((line) => line.store.name).toList(), ['Carrefour', 'Feira do Bairro', 'Mercearia do Zé']);
+      expect(lines.map((line) => line.costPerBaseUnit).toList(), [1143, 1350, 1476]);
       // The date INFORMS: the cheapest is the OLDEST of the three, and the
       // list is still ordered by price.
       expect(lines.first.purchasedOn, DateTime(2026, 7, 3));
@@ -47,11 +30,7 @@ void main() {
     });
 
     test('the can of the same type is NOT in it — brand with brand', () {
-      final lines = buildComparison(
-        quotes: theWireframe(),
-        selected: cokeCrate,
-        scope: ComparisonScope.thisProduct,
-      );
+      final lines = buildComparison(quotes: theWireframe(), selected: cokeCrate, scope: ComparisonScope.thisProduct);
 
       // The can was bought at the Carrefour on 20/08, later than the crate,
       // and the Carrefour line still shows the CRATE's price.
@@ -80,12 +59,7 @@ void main() {
         quotes: [
           quote(quantity: 4200, cents: 4800, on: DateTime(2026, 7, 3)),
           // Another leaf entirely, in another store.
-          meatQuote(
-            store: streetMarket,
-            quantity: 1500,
-            cents: 4500,
-            on: DateTime(2026, 8, 10),
-          ),
+          meatQuote(store: streetMarket, quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10)),
         ].lock,
         selected: cokeCrate,
         scope: ComparisonScope.thisProduct,
@@ -112,11 +86,7 @@ void main() {
 
     test('a leaf never bought in the window shows nothing at all', () {
       expect(
-        buildComparison(
-          quotes: theWireframe(),
-          selected: groundBeef,
-          scope: ComparisonScope.thisProduct,
-        ),
+        buildComparison(quotes: theWireframe(), selected: groundBeef, scope: ComparisonScope.thisProduct),
         isEmpty,
       );
     });
@@ -127,20 +97,10 @@ void main() {
       final quotes = [
         meatQuote(quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10)),
         // Another leaf of the SAME type, and cheaper — it must not show up.
-        meatQuote(
-          option: otherBeefLeaf,
-          store: streetMarket,
-          quantity: 2000,
-          cents: 5000,
-          on: DateTime(2026, 8, 12),
-        ),
+        meatQuote(option: otherBeefLeaf, store: streetMarket, quantity: 2000, cents: 5000, on: DateTime(2026, 8, 12)),
       ].lock;
 
-      final lines = buildComparison(
-        quotes: quotes,
-        selected: groundBeef,
-        scope: ComparisonScope.thisProduct,
-      );
+      final lines = buildComparison(quotes: quotes, selected: groundBeef, scope: ComparisonScope.thisProduct);
 
       expect(lines.map((line) => line.store.name).toList(), ['Carrefour']);
       expect(lines.single.costPerBaseUnit, 3000);
@@ -148,11 +108,7 @@ void main() {
 
     test('a leaf that was never written has nothing to compare', () {
       expect(
-        buildComparison(
-          quotes: theWireframe(),
-          selected: unsavedLeaf,
-          scope: ComparisonScope.thisProduct,
-        ),
+        buildComparison(quotes: theWireframe(), selected: unsavedLeaf, scope: ComparisonScope.thisProduct),
         isEmpty,
       );
     });
@@ -162,59 +118,31 @@ void main() {
     test('it ignores brand and packaging and turns the Carrefour around', () {
       // The most recent Refrigerante at the Carrefour is the single CAN of
       // 20/08, at R$ 15,00 a litre: the cheapest store becomes the dearest.
-      final lines = buildComparison(
-        quotes: theWireframe(),
-        selected: cokeCrate,
-        scope: ComparisonScope.wholeType,
-      );
+      final lines = buildComparison(quotes: theWireframe(), selected: cokeCrate, scope: ComparisonScope.wholeType);
 
-      expect(lines.map((line) => line.store.name).toList(), [
-        'Feira do Bairro',
-        'Mercearia do Zé',
-        'Carrefour',
-      ]);
+      expect(lines.map((line) => line.store.name).toList(), ['Feira do Bairro', 'Mercearia do Zé', 'Carrefour']);
       expect(lines.last.costPerBaseUnit, 1500);
       expect(lines.last.purchasedOn, DateTime(2026, 8, 20));
     });
 
     test('one line per STORE, never one per store × product (D-o)', () {
-      final lines = buildComparison(
-        quotes: theWireframe(),
-        selected: cokeCrate,
-        scope: ComparisonScope.wholeType,
-      );
+      final lines = buildComparison(quotes: theWireframe(), selected: cokeCrate, scope: ComparisonScope.wholeType);
 
       expect(lines, hasLength(3));
-      expect(
-        lines.map((line) => line.store.id).toSet(),
-        {'store-1', 'store-2', 'store-3'},
-      );
+      expect(lines.map((line) => line.store.id).toSet(), {'store-1', 'store-2', 'store-3'});
     });
 
     test('the leaf with no brand DOES climb when the user asks it to', () {
       final quotes = [
         meatQuote(quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10)),
-        meatQuote(
-          option: otherBeefLeaf,
-          store: streetMarket,
-          quantity: 2000,
-          cents: 5000,
-          on: DateTime(2026, 8, 12),
-        ),
+        meatQuote(option: otherBeefLeaf, store: streetMarket, quantity: 2000, cents: 5000, on: DateTime(2026, 8, 12)),
       ].lock;
 
-      final lines = buildComparison(
-        quotes: quotes,
-        selected: groundBeef,
-        scope: ComparisonScope.wholeType,
-      );
+      final lines = buildComparison(quotes: quotes, selected: groundBeef, scope: ComparisonScope.wholeType);
 
       // R$ 25,00 a kilo at the street market against R$ 30,00 at the
       // Carrefour.
-      expect(lines.map((line) => line.store.name).toList(), [
-        'Feira do Bairro',
-        'Carrefour',
-      ]);
+      expect(lines.map((line) => line.store.name).toList(), ['Feira do Bairro', 'Carrefour']);
     });
 
     test('two purchases of the same DAY in one store: the cheaper stays', () {
@@ -246,14 +174,7 @@ void main() {
     });
 
     test('a type never bought in the window shows nothing', () {
-      expect(
-        buildComparison(
-          quotes: theWireframe(),
-          selected: groundBeef,
-          scope: ComparisonScope.wholeType,
-        ),
-        isEmpty,
-      );
+      expect(buildComparison(quotes: theWireframe(), selected: groundBeef, scope: ComparisonScope.wholeType), isEmpty);
     });
   });
 
@@ -265,12 +186,7 @@ void main() {
       final lines = buildComparison(
         quotes: [
           quote(quantity: 4200, cents: 4800, on: DateTime(2026, 7, 3)),
-          quote(
-            store: streetMarket,
-            quantity: 4200,
-            cents: 4800,
-            on: DateTime(2026, 8, 12),
-          ),
+          quote(store: streetMarket, quantity: 4200, cents: 4800, on: DateTime(2026, 8, 12)),
         ].lock,
         selected: cokeCrate,
         scope: ComparisonScope.thisProduct,
@@ -302,10 +218,7 @@ void main() {
         scope: ComparisonScope.thisProduct,
       );
 
-      expect(lines.map((line) => line.store.name).toList(), [
-        'Água & Cia',
-        'Bebidas Center',
-      ]);
+      expect(lines.map((line) => line.store.name).toList(), ['Água & Cia', 'Bebidas Center']);
     });
 
     test('a tie on everything goes to the id, so the order is STABLE', () {
@@ -328,21 +241,17 @@ void main() {
         scope: ComparisonScope.thisProduct,
       );
 
-      expect(lines.map((line) => line.store.id).toList(), [
-        'store-2',
-        'store-9',
-      ]);
+      expect(lines.map((line) => line.store.id).toList(), ['store-2', 'store-9']);
     });
   });
 
   group('ComparisonLine', () {
-    ComparisonLine line({Store? store, int cents = 1143, DateTime? on}) =>
-        ComparisonLine(
-          store: store ?? carrefour,
-          costPerBaseUnit: cents,
-          baseUnit: BaseUnit.milliliter,
-          purchasedOn: on ?? DateTime(2026, 7, 3),
-        );
+    ComparisonLine line({Store? store, int cents = 1143, DateTime? on}) => ComparisonLine(
+      store: store ?? carrefour,
+      costPerBaseUnit: cents,
+      baseUnit: BaseUnit.milliliter,
+      purchasedOn: on ?? DateTime(2026, 7, 3),
+    );
 
     test('== covers every field', () {
       expect(line(), line());
@@ -380,10 +289,7 @@ void main() {
     test('a leaf bought in three stores appears ONCE', () {
       final options = distinctOptionsOf(theWireframe());
 
-      expect(options.map((option) => option.id).toList(), [
-        'prod-4',
-        'prod-1',
-      ]);
+      expect(options.map((option) => option.id).toList(), ['prod-4', 'prod-1']);
     });
 
     test('an empty window offers nothing to pick', () {
@@ -393,10 +299,9 @@ void main() {
 
   group('categoryNamesOf', () {
     test('it answers one name per category, whatever the repetition', () {
-      final names = categoryNamesOf([
-        ...theWireframe(),
-        meatQuote(quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10)),
-      ].lock);
+      final names = categoryNamesOf(
+        [...theWireframe(), meatQuote(quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10))].lock,
+      );
 
       expect(names.unlock, {'cat-1': 'Bebidas', 'cat-2': 'Carnes'});
     });
@@ -404,37 +309,22 @@ void main() {
 
   group('buildComparisonGroups', () {
     test('groups by CATEGORY, alphabetical inside and between', () {
-      final quotes = [
-        ...theWireframe(),
-        meatQuote(quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10)),
-      ].lock;
+      final quotes = [...theWireframe(), meatQuote(quantity: 1500, cents: 4500, on: DateTime(2026, 8, 10))].lock;
 
-      final groups = buildComparisonGroups(
-        options: distinctOptionsOf(quotes),
-        categoryNames: categoryNamesOf(quotes),
-      );
+      final groups = buildComparisonGroups(options: distinctOptionsOf(quotes), categoryNames: categoryNamesOf(quotes));
 
-      expect(groups.map((group) => group.header).toList(), [
-        'Bebidas',
-        'Carnes',
-      ]);
+      expect(groups.map((group) => group.header).toList(), ['Bebidas', 'Carnes']);
       // Alphabetical INSIDE the group, unlike screen 3, which is by what gets
       // bought most (C1): here the question is "find it in a growing list".
-      expect(
-        groups.first.options.map((option) => option.label).toList(),
-        ['Coca-Cola 12 × 350 ml', 'Coca-Cola 350 ml'],
-      );
-      expect(groups.last.options.single.label, 'Acém moído (peso)');
+      expect(groups.first.options.map((option) => option.label).toList(), [
+        'Coca-Cola 12 × 350 ml',
+        'Coca-Cola 350 ml',
+      ]);
+      expect(groups.last.options.single.label, 'Acém moído por kg');
     });
 
     test('an empty selection groups into nothing', () {
-      expect(
-        buildComparisonGroups(
-          options: const IList.empty(),
-          categoryNames: const IMap.empty(),
-        ),
-        isEmpty,
-      );
+      expect(buildComparisonGroups(options: const IList.empty(), categoryNames: const IMap.empty()), isEmpty);
     });
   });
 }

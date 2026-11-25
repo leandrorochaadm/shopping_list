@@ -156,7 +156,7 @@ final class Product {
   int get hashCode => Object.hash(id, productRegistrationId, packaging, active, barcodes, scaleCodes);
 
   @override
-  String toString() => 'Product(${packaging?.label ?? 'a peso'}, active: $active)';
+  String toString() => 'Product(${packaging?.label ?? 'a granel'}, active: $active)';
 }
 
 /// The packaging already has this code.

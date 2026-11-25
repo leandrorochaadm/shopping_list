@@ -150,7 +150,7 @@ void main() {
     test('refuses a product sold by piece', () async {
       final result = await vm.linkScaleCode(registration: byPiece, productId: 'prod-1', code: scaleCode);
 
-      expect(result, 'Só produto vendido solto tem código de balança.');
+      expect(result, 'Só o granel tem código de balança.');
       expect(repository.addScaleCodeCalls, 0);
     });
 

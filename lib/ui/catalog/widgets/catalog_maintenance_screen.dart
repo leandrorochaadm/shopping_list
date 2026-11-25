@@ -11,7 +11,6 @@ import '../../../domain/models/product.dart';
 import '../../../domain/models/product_registration.dart';
 import '../../../domain/models/product_type.dart';
 import '../../../domain/models/scale_label.dart';
-import '../../../domain/models/selling_choice.dart';
 import '../../../routing/routes.dart';
 import '../../core/app_failure.dart';
 import '../../core/error_translation.dart';
@@ -655,12 +654,10 @@ class _CatalogMaintenanceScreenState extends ConsumerState<CatalogMaintenanceScr
     return registration == null ? leaf.active : leaf.isEffectivelyActiveIn(registration);
   }
 
-  /// The title of a leaf with no packaging: it is the loose product, and the
-  /// word for it comes from the grandeza of its type — the SAME fallback
-  /// `ProductOption.label` uses, which is why it lives in the enum.
+  /// The title of a leaf with no packaging: it is the loose product, named by
+  /// the price unit of its type — the same one `ProductOption.label` uses.
   static String _looseTitle(CatalogMaintenanceState loaded, Product leaf) =>
-      'Vendido por '
-      '${SellingChoice.looseNameOf(_baseUnitOfLeaf(loaded, leaf)).toLowerCase()}';
+      'Vendido por ${_baseUnitOfLeaf(loaded, leaf).priceLabel}';
 
   static BaseUnit _baseUnitOfLeaf(CatalogMaintenanceState loaded, Product leaf) {
     final registration = loaded.registrationOf(leaf);

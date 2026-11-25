@@ -10,7 +10,6 @@ import 'price_reference.dart';
 import 'product.dart';
 import 'product_registration.dart';
 import 'product_type.dart';
-import 'selling_choice.dart';
 
 /// One line of the Produto picker on screen 3 — and an ENTITY, not a DTO: it
 /// carries the rules of decision C1 (how the search matches, how the list is
@@ -106,12 +105,11 @@ final class ProductOption {
   /// Another name for [isLoose].
   bool get isSoldByWeight => isLoose;
 
-  /// 'Coca-Cola 12 × 350 ml', 'Coca-Cola zero 2 L', 'Acém moído (peso)'.
+  /// 'Coca-Cola 12 × 350 ml', 'Coca-Cola zero 2 L', 'Acém moído por kg'.
   ///
-  /// The loose product is named after the grandeza of its TYPE — '(peso)' in
-  /// the kilogram, '(volume)' in the litre — because "a peso" does not name
-  /// bulk olive oil, which is measured in litres. `looseNameOf` is the single
-  /// place that word lives.
+  /// The loose product is named by the price unit of its TYPE
+  /// (`BaseUnit.priceLabel`: kg, L, un, m), because "by weight" does not name
+  /// bulk olive oil, which is priced per litre.
   ///
   /// Brand, description and packaging, in that order, skipping whatever does
   /// not exist. The TYPE is not in it because the picker is grouped by type
@@ -120,7 +118,7 @@ final class ProductOption {
   /// the type name IS the name of the thing.
   String get label => _join(_identifyingParts.isEmpty ? [type.name] : _identifyingParts);
 
-  /// 'Refrigerante Coca-Cola 12 × 350 ml', 'Acém moído (peso)'.
+  /// 'Refrigerante Coca-Cola 12 × 350 ml', 'Café Pilão por kg'.
   ///
   /// What the Produto field is left holding once this option is chosen.
   /// [label] leaves the type out because the picker's rows sit under the
@@ -129,7 +127,7 @@ final class ProductOption {
   ///
   /// It is NOT `'${type.name} $label'`: the weight-sold product with no
   /// brand and no description is already named after its type, and stacking
-  /// one getter on the other would read 'Acém moído Acém moído (peso)'.
+  /// one getter on the other would read 'Acém moído Acém moído por kg'.
   String get selectedLabel => _join([type.name, ..._identifyingParts]);
 
   /// What tells this leaf apart from the others OF ITS TYPE — brand,
@@ -143,8 +141,7 @@ final class ProductOption {
   ];
 
   /// The loose suffix goes on last, and on both labels.
-  String _join(List<String> parts) =>
-      [...parts, if (isLoose) '(${SellingChoice.looseNameOf(baseUnit).toLowerCase()})'].join(' ');
+  String _join(List<String> parts) => [...parts, if (isLoose) 'por ${baseUnit.priceLabel}'].join(' ');
 
   /// The C1 search: it matches a STRETCH of the name, ignoring case, blanks
   /// and accents — `normalizeName` on both sides, then `contains`.
