@@ -1,5 +1,6 @@
 import 'package:fast_immutable_collections/fast_immutable_collections.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shopping_list/domain/models/product.dart';
 import 'package:shopping_list/domain/models/scale_label.dart';
 
 void main() {
@@ -113,10 +114,7 @@ void main() {
 
     test('refuses what is not a scale label', () {
       for (final raw in ['7894900011517', '2822521']) {
-        expect(
-          () => ScaleCode.fromLabel(raw, storeId: 'store-1'),
-          throwsA(isA<UnknownScaleLabel>()),
-        );
+        expect(() => ScaleCode.fromLabel(raw, storeId: 'store-1'), throwsA(isA<UnknownScaleLabel>()));
       }
     });
 
@@ -136,10 +134,7 @@ void main() {
     });
 
     test('refuses the same code in the same store', () {
-      expect(
-        () => scaleCodesWith([code].lock, code),
-        throwsA(isA<ScaleCodeAlreadyOnProduct>()),
-      );
+      expect(() => scaleCodesWith([code].lock, code), throwsA(isA<ScaleCodeAlreadyOnProduct>()));
     });
 
     test('takes the same item code in another store', () {
@@ -170,31 +165,100 @@ void main() {
     });
 
     test('refuses a factory code with a store — case 7d', () {
-      expect(
-        () => ScaleCode.fromJson({
-          'store_id': 'store-1',
-          'code': '07894900011517',
-        }),
-        throwsArgumentError,
-      );
+      expect(() => ScaleCode.fromJson({'store_id': 'store-1', 'code': '07894900011517'}), throwsArgumentError);
     });
 
     test('refuses a scale code without a store, null or empty', () {
       for (final store in [null, '']) {
-        expect(
-          () => ScaleCode.fromJson({'store_id': store, 'code': '2822521'}),
-          throwsArgumentError,
-        );
+        expect(() => ScaleCode.fromJson({'store_id': store, 'code': '2822521'}), throwsArgumentError);
       }
     });
 
     test('refuses a scale code outside 7 to 14 digits', () {
       for (final code in ['28225A1', '282252']) {
-        expect(
-          () => ScaleCode.fromJson({'store_id': 'store-1', 'code': code}),
-          throwsArgumentError,
-        );
+        expect(() => ScaleCode.fromJson({'store_id': 'store-1', 'code': code}), throwsArgumentError);
       }
+    });
+  });
+
+  group('scaleCodesMovedTo', () {
+    ScaleCode code(String store, String item) => ScaleCode(storeId: store, itemCode: item);
+
+    IList<ScaleCode> move(List<ScaleCode> codes, String from, String to) =>
+        scaleCodesMovedTo(codes.lock, fromStoreId: from, toStoreId: to);
+
+    test('scaleCodesMovedTo moves the codes of the old store', () {
+      expect(
+        move([code('store-1', '1'), code('store-1', '2')], 'store-1', 'store-2'),
+        [code('store-2', '1'), code('store-2', '2')].lock,
+      );
+    });
+
+    test('scaleCodesMovedTo leaves codes of other stores alone', () {
+      final codes = [code('store-3', '1')];
+      expect(move(codes, 'store-1', 'store-2'), codes.lock);
+      expect(
+        move([code('store-1', '1'), code('store-3', '2')], 'store-1', 'store-2'),
+        [code('store-2', '1'), code('store-3', '2')].lock,
+      );
+    });
+
+    test('scaleCodesMovedTo to the same store changes nothing', () {
+      final codes = [code('store-1', '1')];
+      expect(move(codes, 'store-1', 'store-1'), codes.lock);
+    });
+
+    test('scaleCodesMovedTo keeps one code when it repeats', () {
+      expect(
+        move([code('store-2', '2822521'), code('store-1', '2822521')], 'store-1', 'store-2'),
+        [code('store-2', '2822521')].lock,
+      );
+    });
+
+    test('scaleCodesMovedTo of nothing is nothing', () {
+      expect(move([], 'store-1', 'store-2'), isEmpty);
+    });
+  });
+
+  group('scaleHoldersOf', () {
+    ScaleCode code(String store, String item) => ScaleCode(storeId: store, itemCode: item);
+    Product leaf(String id, [List<ScaleCode> codes = const []]) =>
+        Product(id: id, productRegistrationId: 'reg-$id', scaleCodes: codes.lock);
+
+    test('scaleHoldersOf answers nobody for no leaves', () {
+      expect(scaleHoldersOf('1', const []), const IMap<String, Product>.empty());
+    });
+
+    test('scaleHoldersOf skips a leaf without codes', () {
+      expect(scaleHoldersOf('1', [leaf('a')]).isEmpty, isTrue);
+    });
+
+    test('scaleHoldersOf maps one store to its leaf', () {
+      final a = leaf('a', [code('store-1', '1')]);
+      expect(scaleHoldersOf('1', [a]), {'store-1': a}.lock);
+    });
+
+    test('scaleHoldersOf maps two stores of the same leaf', () {
+      final a = leaf('a', [code('store-1', '1'), code('store-2', '1')]);
+      expect(scaleHoldersOf('1', [a]), {'store-1': a, 'store-2': a}.lock);
+    });
+
+    test('scaleHoldersOf maps one item code across leaves of different stores', () {
+      final a = leaf('a', [code('store-1', '1')]);
+      final b = leaf('b', [code('store-2', '1')]);
+      expect(scaleHoldersOf('1', [a, b]), {'store-1': a, 'store-2': b}.lock);
+    });
+
+    test('scaleHoldersOf leaves out another item code', () {
+      final a = leaf('a', [code('store-1', '2'), code('store-2', '1')]);
+      expect(scaleHoldersOf('1', [a]), {'store-2': a}.lock);
+      expect(scaleHoldersOf('3', [a]).isEmpty, isTrue);
+    });
+
+    test('scaleHoldersOf keeps the first leaf of a repeat in the same store', () {
+      final a = leaf('a', [code('store-1', '1')]);
+      final b = leaf('b', [code('store-1', '1')]);
+      expect(scaleHoldersOf('1', [a, b]), {'store-1': a}.lock);
     });
   });
 }

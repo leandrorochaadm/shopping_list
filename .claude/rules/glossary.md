@@ -180,6 +180,14 @@ traduzir qualquer termo novo, e acrescente o termo depois de escolher.**
 | início da leitura | `consumptionReadStart` | desde quando o repository lê: o início da janela mais antiga |
 | compras por tipo | `purchaseCountsByType` | contagem de compras por tipo, somada da contagem por produto |
 | avisos do teto no servidor | `fetchStoredCapAlerts` / `addCapAlertSteps` | o par leitura/gravação de `spending_cap_alert`; usado pela compra e pelo teto |
+| aviso "já cadastrado" da Tela 4 | `KnownCodeDialog` / `KnownCodeChoice` | `readAnother` e `edit`; fechar por fora é `null`. Enum só do app, sem `apiValue` |
+| "Nenhum produto com…" | `UnknownCodeDialog` | usado pela Tela 3 e pela manutenção (código e etiqueta). `true` é "Cadastrar produto" |
+| o modo aceita código de balança | `SellingMode.takesScaleCodes` | só `byWeight`; é o que `checkScaleCodes` pergunta |
+| modo da tela com código de balança pendente | `SellingChoice.modeFor` | vira `byWeight` só quando o tipo tem palavra de solto (`bulkOf`); senão é o `of` de sempre |
+| quem tem a etiqueta, por mercado | `scaleHoldersOf` / `activeScaleHoldersOf` | `storeId → folha`. A primeira mora em `lib/domain/models/product.dart` e não filtra ativo; a segunda, no `CatalogMaintenanceState`, só olha folha ativa de cadastro ativo |
+| código de balança que abre a Tela 4 | `initialScaleCode` | campo do `NewProductRequest`; também já lembra o mercado |
+| trocar o mercado dos códigos ainda não salvos | `scaleCodesMovedTo` | mantém a ordem; repetido fica um só |
+| mercado lembrado das etiquetas | `_labelStoreId` | temporário, só no `State` da Tela 4; o "Salvar e ler outro" não o limpa |
 
 **`ProductRegistration` e `Packaging` foram escolhidos aqui, não pelo cliente** — os dois
 termos são ambíguos em inglês. Confirme na H2, antes de a entidade existir; depois disso

@@ -21,6 +21,7 @@ import '../../../domain/models/scan_resolution.dart';
 import '../../../domain/models/store.dart';
 import '../../../domain/models/unit_price.dart';
 import '../../../routing/routes.dart';
+import '../../barcode/widgets/unknown_code_dialog.dart';
 import '../../barcode/view_model/barcode_lookup_view_model.dart';
 import '../../barcode/widgets/barcode_reader_sheet.dart';
 import '../../catalog/widgets/new_product_screen.dart';
@@ -169,9 +170,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// the decoration draws it beside the number and it takes the same room.
   String get _widestQuantity {
     final spec = _quantitySpec;
-    final sample = spec.format(
-      _wideReadingAmount * math.pow(10, spec.decimalDigits).toInt(),
-    );
+    final sample = spec.format(_wideReadingAmount * math.pow(10, spec.decimalDigits).toInt());
     final suffix = spec.suffix;
     final widest = _widest(sample, _quantityController.text);
     return suffix == null ? widest : '$widest $suffix';
@@ -182,8 +181,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
   /// Whichever of the two is longer — so a value already typed is never
   /// measured short, however far past the promise it goes.
-  String _widest(String sample, String typed) =>
-      typed.length > sample.length ? typed : sample;
+  String _widest(String sample, String typed) => typed.length > sample.length ? typed : sample;
 
   int? get _typedQuantity {
     if (_option == null) return null;
@@ -212,10 +210,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     if (cents <= 0) return null;
     final paid = Money(cents);
 
-    return option.priceIncreaseFor(
-      paid: paid,
-      quantityInBaseUnit: option.toBaseUnit(typed),
-    );
+    return option.priceIncreaseFor(paid: paid, quantityInBaseUnit: option.toBaseUnit(typed));
   }
 
   /// The typed amount already converted into the base unit, or null while
@@ -241,9 +236,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// It never bounces back: `onChanged` fires on TYPING, and writing into a
   /// controller from here is not typing.
   void _write(TextEditingController controller, Money? value) {
-    controller.text = value == null
-        ? ''
-        : UnitSpec.currency.format(value.cents);
+    controller.text = value == null ? '' : UnitSpec.currency.format(value.cents);
   }
 
   /// Redoes the money field the person did NOT type — and, while neither was
@@ -275,9 +268,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
     // No money typed yet, and the last purchase has something to say.
     final reference = option.priceReference;
-    if (_priceSource == _PriceSource.none &&
-        reference != null &&
-        quantity != null) {
+    if (_priceSource == _PriceSource.none && reference != null && quantity != null) {
       _write(_valueController, reference.estimateFor(quantity));
     }
 
@@ -290,11 +281,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       _unitPriceController,
       paid == null || quantity == null
           ? null
-          : pricePerLargeUnitOf(
-              paid: paid,
-              quantityInBaseUnit: quantity,
-              unit: option.baseUnit,
-            ),
+          : pricePerLargeUnitOf(paid: paid, quantityInBaseUnit: quantity, unit: option.baseUnit),
     );
   }
 
@@ -362,18 +349,14 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     // one truncation later a cent is gone.
     final cents = UnitSpec.currency.parse(_valueController.text);
     if (cents <= 0) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Informe um valor válido.')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Informe um valor válido.')));
       return;
     }
     final paid = Money(cents);
 
     final quantity = _quantitySpec.parse(_quantityController.text);
     if (quantity <= 0) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Informe uma quantidade válida.')),
-      );
+      messenger.showSnackBar(const SnackBar(content: Text('Informe uma quantidade válida.')));
       return;
     }
 
@@ -414,18 +397,13 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// the same sum; it is done again here because whoever builds the panel is
   /// the screen, not the field.
   IList<ProductOption> _allOptions(AsyncValue<IList<ProductOption>> state) =>
-      (state.value ?? const IList<ProductOption>.empty()).addAll(
-        _justRegistered,
-      );
+      (state.value ?? const IList<ProductOption>.empty()).addAll(_justRegistered);
 
   /// The `[ Comparar custo ]→3a` of the wireframe.
   ///
   /// The panel puts the item **straight** in the purchase, as if it had been
   /// typed in the form, and the screen comes back clean for the next item.
-  Future<void> _compareCost(
-    IList<ProductOption> options,
-    String? storeId,
-  ) async {
+  Future<void> _compareCost(IList<ProductOption> options, String? storeId) async {
     final option = _option;
     if (option == null) return;
 
@@ -457,10 +435,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       Routes.newProduct,
       // What tells screen 4 to hand the leaf back instead of navigating to
       // the list.
-      extra: NewProductRequest(
-        returnsSelection: true,
-        initialBarcode: initialBarcode,
-      ),
+      extra: NewProductRequest(returnsSelection: true, initialBarcode: initialBarcode),
     );
     if (!mounted || picked == null) return null;
 
@@ -495,8 +470,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     _productController.text = option.selectedLabel;
   }
 
-  IList<Store> get _stores =>
-      ref.read(storeViewModelProvider).value ?? const IList<Store>.empty();
+  IList<Store> get _stores => ref.read(storeViewModelProvider).value ?? const IList<Store>.empty();
 
   /// A product chosen by a read. The SAME leaf already chosen does not clear
   /// the form, so a price per kilo already typed redoes the total when the
@@ -516,13 +490,9 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
   Future<void> _applyScaleMatch(ScaleMatch match) async {
     final messenger = ScaffoldMessenger.of(context);
-    final adopted = ref
-        .read(purchaseDraftViewModelProvider)
-        .storeAdoptedFrom(match);
+    final adopted = ref.read(purchaseDraftViewModelProvider).storeAdoptedFrom(match);
     if (adopted != null) {
-      final error = await ref
-          .read(purchaseDraftViewModelProvider.notifier)
-          .setStore(adopted);
+      final error = await ref.read(purchaseDraftViewModelProvider.notifier).setStore(adopted);
       if (!mounted) return;
       if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
     }
@@ -560,42 +530,28 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       case ScaleMatch() && final match:
         await _applyScaleMatch(match);
       case ScaleInManyStores(:final storeIds):
-        final chosen = await ScaleStoreDialog.show(
-          context,
-          storeIds: storeIds,
-          stores: _stores,
-        );
+        final chosen = await ScaleStoreDialog.show(context, storeIds: storeIds, stores: _stores);
         if (!mounted || chosen == null) return;
         await _applyScan(raw, storeId: chosen);
       case ScaleUnlinked() && final unlinked:
         await _linkLabel(unlinked, options, store);
       case UnknownLabel():
         messenger.showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Não conheço esta etiqueta. Escolha o produto pela lista.',
-            ),
-          ),
+          const SnackBar(content: Text('Não conheço esta etiqueta. Escolha o produto pela lista.')),
         );
       case NoMatch(:final code):
-        final register = await _askToRegister(code);
+        final register = await UnknownCodeDialog.show(context, 'Nenhum produto com o código ${code.label}.');
         if (!mounted || !register) return;
         await _registerProduct(initialBarcode: code);
       case InvalidScan():
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Código de barras inválido.')),
-        );
+        messenger.showSnackBar(const SnackBar(content: Text('Código de barras inválido.')));
     }
   }
 
   /// "Qual produto é este?": links the label to the tapped leaf in that store
   /// and uses it. A failed link does NOT stop the line — the purchase is typed
   /// in the aisle, and the link only serves the next read.
-  Future<void> _linkLabel(
-    ScaleUnlinked label,
-    IList<ProductOption> options,
-    String? storeId,
-  ) async {
+  Future<void> _linkLabel(ScaleUnlinked label, IList<ProductOption> options, String? storeId) async {
     final messenger = ScaffoldMessenger.of(context);
     final link = await ScaleLinkDialog.show(
       context,
@@ -633,9 +589,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   /// are in them too, and keeping `_justRegistered` would show each twice in
   /// the picker.
   Future<String?> _reloadOptions() async {
-    final error = await ref
-        .read(newPurchaseViewModelProvider.notifier)
-        .refresh();
+    final error = await ref.read(newPurchaseViewModelProvider.notifier).refresh();
     if (!mounted) return error;
     if (error == null) setState(() => _justRegistered = const IList.empty());
     return error;
@@ -658,42 +612,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
     );
   }
 
-  Future<bool> _askToRegister(Barcode code) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        content: Text('Nenhum produto com o código ${code.label}.'),
-        actions: [
-          FilledButton(
-            key: const ValueKey('unknown-code-register'),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Cadastrar produto'),
-          ),
-          TextButton(
-            key: const ValueKey('unknown-code-close'),
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Fechar'),
-          ),
-        ],
-      ),
-    );
-    return result ?? false;
-  }
-
   Future<void> _confirmItemPrice(String itemId) async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await ref
-        .read(purchaseDraftViewModelProvider.notifier)
-        .confirmPrice(itemId);
+    final error = await ref.read(purchaseDraftViewModelProvider.notifier).confirmPrice(itemId);
     if (!mounted) return;
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
   }
 
   Future<void> _confirmAllPrices() async {
     final messenger = ScaffoldMessenger.of(context);
-    final error = await ref
-        .read(purchaseDraftViewModelProvider.notifier)
-        .confirmAllPrices();
+    final error = await ref.read(purchaseDraftViewModelProvider.notifier).confirmAllPrices();
     if (!mounted) return;
     if (error != null) messenger.showSnackBar(SnackBar(content: Text(error)));
   }
@@ -721,10 +649,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
   void _showItems() {
     final target = _itemsKey.currentContext;
     if (target != null) {
-      Scrollable.ensureVisible(
-        target,
-        duration: const Duration(milliseconds: 300),
-      );
+      Scrollable.ensureVisible(target, duration: const Duration(milliseconds: 300));
     }
   }
 
@@ -781,11 +706,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
         // there is nothing to say, so there is no `if` here.
         await showWarnings(context, [
           if (capAlert != null) capAlert.message,
-          for (final alert in sameDay)
-            alert.messageFor(
-              today: _today,
-              shortDate: formatShortDate(alert.purchasedOn),
-            ),
+          for (final alert in sameDay) alert.messageFor(today: _today, shortDate: formatShortDate(alert.purchasedOn)),
         ]);
         // The purchase is registered either way: the dialog acknowledges it,
         // it does not decide anything.
@@ -842,9 +763,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               open: headerOpen,
               enabled: !_saving,
               onToggle: () => setState(() => _headerOpen = !headerOpen),
-              onDateChanged: (date) => ref
-                  .read(purchaseDraftViewModelProvider.notifier)
-                  .setDate(date),
+              onDateChanged: (date) => ref.read(purchaseDraftViewModelProvider.notifier).setDate(date),
               onStoreChanged: (id) {
                 if (id == null) return;
                 ref.read(purchaseDraftViewModelProvider.notifier).setStore(id);
@@ -852,9 +771,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               onCreateStore: () async {
                 final created = await NewStoreDialog.show(context, ref);
                 if (!mounted || created?.id == null) return;
-                await ref
-                    .read(purchaseDraftViewModelProvider.notifier)
-                    .setStore(created!.id!);
+                await ref.read(purchaseDraftViewModelProvider.notifier).setStore(created!.id!);
               },
             ),
             Align(
@@ -881,8 +798,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
               selected: _option,
               enabled: !_saving,
               onChosen: _onProductChanged,
-              onRetry: () =>
-                  ref.read(newPurchaseViewModelProvider.notifier).refresh(),
+              onRetry: () => ref.read(newPurchaseViewModelProvider.notifier).refresh(),
               onCreate: () => _registerProduct(),
               onScan: _scan,
             ),
@@ -891,19 +807,12 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
             // or more. Whoever never taps it registers the purchase exactly
             // as before.
             if (_option case final option?)
-              if (costCandidatesOf(
-                options: _allOptions(options),
-                typeId: option.type.id,
-                launching: option,
-              ).canCompare)
+              if (costCandidatesOf(options: _allOptions(options), typeId: option.type.id, launching: option).canCompare)
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
                     key: const ValueKey('compare-cost'),
-                    onPressed: _saving
-                        ? null
-                        : () =>
-                              _compareCost(_allOptions(options), draft.storeId),
+                    onPressed: _saving ? null : () => _compareCost(_allOptions(options), draft.storeId),
                     child: const Text('Comparar custo'),
                   ),
                 ),
@@ -925,9 +834,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     enabled: _option != null && !_saving,
                     spec: _quantitySpec,
                     showClearButton: !compact,
-                    decoration: InputDecoration(
-                      labelText: _option?.quantityLabel ?? 'Quantidade',
-                    ),
+                    decoration: InputDecoration(labelText: _option?.quantityLabel ?? 'Quantidade'),
                     onChanged: (_) => _onQuantityChanged(),
                   ),
                 ),
@@ -947,9 +854,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                       controller: _unitPriceController,
                       enabled: !_saving,
                       showClearButton: !compact,
-                      decoration: InputDecoration(
-                        labelText: 'Valor por ${option.baseUnit.priceLabel}',
-                      ),
+                      decoration: InputDecoration(labelText: 'Valor por ${option.baseUnit.priceLabel}'),
                       onChanged: (_) => setState(() {
                         _priceSource = _PriceSource.unitPrice;
                         _recomputePrices();
@@ -987,23 +892,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
             if (_option != null) ...[
               const SizedBox(height: 4),
               Text(
-                _option?.priceReference == null
-                    ? 'Sem base de comparação'
-                    : 'Sugerido pela última compra',
+                _option?.priceReference == null ? 'Sem base de comparação' : 'Sugerido pela última compra',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
-            if (_priceIncrease case final increase?)
-              PriceIncreaseWarning(increase: increase),
+            if (_priceIncrease case final increase?) PriceIncreaseWarning(increase: increase),
             const SizedBox(height: 16),
             FilledButton.tonal(
               key: const ValueKey('add-item'),
               onPressed: _option == null || _saving ? null : _addItem,
-              child: Text(
-                _editingItemId == null
-                    ? '+ Adicionar à compra'
-                    : 'Salvar alteração',
-              ),
+              child: Text(_editingItemId == null ? '+ Adicionar à compra' : 'Salvar alteração'),
             ),
             // From here down it is READING, and reading is what the keyboard
             // is allowed to push: the list grows with every item launched, and
@@ -1020,24 +918,16 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
                     child: const Text('Todos conferidos'),
                   ),
                 ),
-              Text(
-                'Itens desta compra',
-                key: _itemsKey,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+              Text('Itens desta compra', key: _itemsKey, style: Theme.of(context).textTheme.titleMedium),
               for (final item in draft.items)
                 PurchaseItemRow(
                   item: item,
                   editing: item.id == _editingItemId,
                   onEdit: () => _edit(item),
-                  onConfirmPrice: _saving
-                      ? null
-                      : () => _confirmItemPrice(item.id),
+                  onConfirmPrice: _saving ? null : () => _confirmItemPrice(item.id),
                   onRemove: () async {
                     if (item.id == _editingItemId) _clearForm();
-                    await ref
-                        .read(purchaseDraftViewModelProvider.notifier)
-                        .removeItem(item.id);
+                    await ref.read(purchaseDraftViewModelProvider.notifier).removeItem(item.id);
                   },
                 ),
             ],
@@ -1052,11 +942,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
       // hundred points it gives back are the ones the item fields need.
       bottomNavigationBar: MediaQuery.viewInsetsOf(context).bottom > 0
           ? null
-          : _PurchaseFooter(
-              total: draft.total,
-              label: _saveLabel(online),
-              onSave: _saving ? null : _save,
-            ),
+          : _PurchaseFooter(total: draft.total, label: _saveLabel(online), onSave: _saving ? null : _save),
     );
   }
 
@@ -1070,11 +956,7 @@ class _NewPurchaseScreenState extends ConsumerState<NewPurchaseScreen> {
 
 /// The total and `[ Salvar ]`, pinned below the scroll.
 class _PurchaseFooter extends StatelessWidget {
-  const _PurchaseFooter({
-    required this.total,
-    required this.label,
-    required this.onSave,
-  });
+  const _PurchaseFooter({required this.total, required this.label, required this.onSave});
 
   final Money total;
   final String label;
@@ -1108,11 +990,7 @@ class _PurchaseFooter extends StatelessWidget {
               // would have nowhere to go.
               SizedBox(
                 width: double.infinity,
-                child: FilledButton(
-                  key: const ValueKey('save'),
-                  onPressed: onSave,
-                  child: Text(label),
-                ),
+                child: FilledButton(key: const ValueKey('save'), onPressed: onSave, child: Text(label)),
               ),
             ],
           ),
@@ -1142,10 +1020,7 @@ class _RecoveryBanner extends ConsumerWidget {
         '${count == 1 ? '1 item' : '$count itens'}, não salva.',
       ),
       actions: [
-        TextButton(
-          onPressed: notifier.dismissBanner,
-          child: const Text('Continuar'),
-        ),
+        TextButton(onPressed: notifier.dismissBanner, child: const Text('Continuar')),
         TextButton(onPressed: notifier.discard, child: const Text('Descartar')),
       ],
     );
@@ -1219,11 +1094,7 @@ class _PurchaseHeader extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: Text(
-                    _summary,
-                    style: theme.textTheme.titleMedium,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  child: Text(_summary, style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
                 ),
                 Icon(open ? Icons.expand_less : Icons.expand_more),
               ],
@@ -1232,12 +1103,7 @@ class _PurchaseHeader extends StatelessWidget {
         ),
         if (open) ...[
           const SizedBox(height: 8),
-          _DateField(
-            value: date,
-            today: today,
-            enabled: enabled,
-            onChanged: onDateChanged,
-          ),
+          _DateField(value: date, today: today, enabled: enabled, onChanged: onDateChanged),
           const SizedBox(height: 12),
           _StoreField(
             stores: stores,
@@ -1253,9 +1119,7 @@ class _PurchaseHeader extends StatelessWidget {
 
   /// The one line the header is when it is closed.
   String get _summary {
-    final when = date == today
-        ? 'hoje, ${formatShortDate(date)}'
-        : formatDate(date);
+    final when = date == today ? 'hoje, ${formatShortDate(date)}' : formatDate(date);
     final store = _storeName;
     return store == null ? '$when · escolha o mercado' : '$when · $store';
   }
@@ -1269,12 +1133,7 @@ class _PurchaseHeader extends StatelessWidget {
 }
 
 class _DateField extends StatelessWidget {
-  const _DateField({
-    required this.value,
-    required this.today,
-    required this.enabled,
-    required this.onChanged,
-  });
+  const _DateField({required this.value, required this.today, required this.enabled, required this.onChanged});
 
   final DateTime value;
 
@@ -1292,10 +1151,7 @@ class _DateField extends StatelessWidget {
       onTap: enabled ? () => _pick(context) : null,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(formatDate(value)),
-          const Icon(Icons.calendar_today_outlined, size: 18),
-        ],
+        children: [Text(formatDate(value)), const Icon(Icons.calendar_today_outlined, size: 18)],
       ),
     ),
   );
@@ -1339,10 +1195,7 @@ class _StoreField extends StatelessWidget {
           child: DropdownButtonFormField<String>(
             key: const ValueKey('field-store'),
             initialValue: list.any((store) => store.id == value) ? value : null,
-            decoration: InputDecoration(
-              labelText: 'Mercado',
-              hintText: _hint(list),
-            ),
+            decoration: InputDecoration(labelText: 'Mercado', hintText: _hint(list)),
             items: [
               for (final store in list.where((store) => store.active))
                 DropdownMenuItem(value: store.id, child: Text(store.name)),
@@ -1366,10 +1219,7 @@ class _StoreField extends StatelessWidget {
   String? _hint(IList<Store> list) {
     if (stores.isLoading && !stores.hasValue) return 'Carregando...';
     if (stores.hasError && !stores.hasValue) {
-      return translateFailure(
-        AppFailure.from(stores.error!),
-        'carregar os mercados',
-      );
+      return translateFailure(AppFailure.from(stores.error!), 'carregar os mercados');
     }
     return list.isEmpty ? 'Nenhum mercado ainda — cadastre o primeiro' : null;
   }
@@ -1406,9 +1256,7 @@ class _ProductField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final options = (state.value ?? const IList<ProductOption>.empty()).addAll(
-      extra,
-    );
+    final options = (state.value ?? const IList<ProductOption>.empty()).addAll(extra);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1459,14 +1307,9 @@ class _ProductField extends StatelessWidget {
   String? _hint(IList<ProductOption> options) {
     if (state.isLoading && !state.hasValue) return 'Carregando...';
     if (state.hasError && !state.hasValue) {
-      return translateFailure(
-        AppFailure.from(state.error!),
-        'carregar os produtos',
-      );
+      return translateFailure(AppFailure.from(state.error!), 'carregar os produtos');
     }
-    return options.isEmpty
-        ? 'Nenhum produto ainda — cadastre o primeiro'
-        : null;
+    return options.isEmpty ? 'Nenhum produto ainda — cadastre o primeiro' : null;
   }
 }
 
@@ -1480,5 +1323,4 @@ enum _PriceSource { none, total, unitPrice }
 /// The title of the "bateu com o cupom?" question: Portuguese plural, not the
 /// `count` one.
 @visibleForTesting
-String unconfirmedPricesMessage(int count) =>
-    count == 1 ? '1 preço não conferido.' : '$count preços não conferidos.';
+String unconfirmedPricesMessage(int count) => count == 1 ? '1 preço não conferido.' : '$count preços não conferidos.';

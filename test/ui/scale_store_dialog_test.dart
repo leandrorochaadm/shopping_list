@@ -5,18 +5,12 @@ import 'package:shopping_list/domain/models/store.dart';
 import 'package:shopping_list/ui/purchase/widgets/scale_store_dialog.dart';
 
 void main() {
-  final stores = [
-    Store(id: 'store-1', name: 'Carrefour'),
-    Store(id: 'store-2', name: 'Feira do Bairro'),
-  ].lock;
+  final stores = [Store(id: 'store-1', name: 'Carrefour'), Store(id: 'store-2', name: 'Feira do Bairro')].lock;
 
   String? picked;
   var answered = false;
 
-  Future<void> openDialog(
-    WidgetTester tester, {
-    required List<String> storeIds,
-  }) async {
+  Future<void> openDialog(WidgetTester tester, {required List<String> storeIds}) async {
     picked = null;
     answered = false;
     await tester.pumpWidget(
@@ -25,11 +19,7 @@ void main() {
           body: Builder(
             builder: (context) => TextButton(
               onPressed: () async {
-                picked = await ScaleStoreDialog.show(
-                  context,
-                  storeIds: storeIds.lock,
-                  stores: stores,
-                );
+                picked = await ScaleStoreDialog.show(context, storeIds: storeIds.lock, stores: stores);
                 answered = true;
               },
               child: const Text('abrir'),
@@ -45,14 +35,8 @@ void main() {
   testWidgets('lists the stores in the order given', (tester) async {
     await openDialog(tester, storeIds: ['store-2', 'store-1']);
 
-    expect(
-      tester.getTopLeft(find.text('Feira do Bairro')).dy,
-      lessThan(tester.getTopLeft(find.text('Carrefour')).dy),
-    );
-    expect(
-      find.text('Esta etiqueta existe em mais de um mercado. Qual?'),
-      findsOneWidget,
-    );
+    expect(tester.getTopLeft(find.text('Feira do Bairro')).dy, lessThan(tester.getTopLeft(find.text('Carrefour')).dy));
+    expect(find.text('Esta etiqueta existe em mais de um mercado. Qual?'), findsOneWidget);
   });
 
   testWidgets('a tap answers the store', (tester) async {
@@ -78,5 +62,30 @@ void main() {
 
     expect(answered, isTrue);
     expect(picked, isNull);
+  });
+
+  testWidgets('shows the title passed in', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => ScaleStoreDialog.show(
+                context,
+                storeIds: ['store-1'].lock,
+                stores: stores,
+                title: 'De qual mercado é esta etiqueta?',
+              ),
+              child: const Text('abrir'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('De qual mercado é esta etiqueta?'), findsOneWidget);
+    expect(find.text(ScaleStoreDialog.defaultTitle), findsNothing);
   });
 }

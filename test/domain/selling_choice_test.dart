@@ -91,31 +91,48 @@ void main() {
   group('SellingChoice.of', () {
     test('is always unit when the saved mode is by_piece', () {
       for (final baseUnit in [...BaseUnit.values, null]) {
-        expect(
-          SellingChoice.of(SellingMode.byPiece, baseUnit),
-          SellingChoice.unit,
-          reason: 'by_piece under $baseUnit',
-        );
+        expect(SellingChoice.of(SellingMode.byPiece, baseUnit), SellingChoice.unit, reason: 'by_piece under $baseUnit');
       }
     });
 
     test('names the saved by_weight after the grandeza of the type', () {
-      expect(
-        SellingChoice.of(SellingMode.byWeight, BaseUnit.gram),
-        SellingChoice.weight,
-      );
-      expect(
-        SellingChoice.of(SellingMode.byWeight, BaseUnit.milliliter),
-        SellingChoice.volume,
-      );
+      expect(SellingChoice.of(SellingMode.byWeight, BaseUnit.gram), SellingChoice.weight);
+      expect(SellingChoice.of(SellingMode.byWeight, BaseUnit.milliliter), SellingChoice.volume);
     });
 
     test('normalizes a by_weight with no bulk down to unit', () {
-      expect(
-        SellingChoice.of(SellingMode.byWeight, BaseUnit.unit),
-        SellingChoice.unit,
-      );
+      expect(SellingChoice.of(SellingMode.byWeight, BaseUnit.unit), SellingChoice.unit);
       expect(SellingChoice.of(SellingMode.byWeight, null), SellingChoice.unit);
+    });
+  });
+
+  group('SellingChoice.modeFor', () {
+    for (final unit in [BaseUnit.gram, BaseUnit.milliliter, BaseUnit.centimeter]) {
+      test('modeFor turns loose with a scale code under $unit', () {
+        expect(SellingChoice.modeFor(SellingMode.byPiece, unit, hasScaleCodes: true), SellingMode.byWeight);
+      });
+    }
+
+    test('modeFor stays by piece with a scale code under a counted type', () {
+      expect(SellingChoice.modeFor(SellingMode.byPiece, BaseUnit.unit, hasScaleCodes: true), SellingMode.byPiece);
+    });
+
+    test('modeFor stays by piece with a scale code and no type', () {
+      expect(SellingChoice.modeFor(SellingMode.byPiece, null, hasScaleCodes: true), SellingMode.byPiece);
+    });
+
+    test('modeFor without scale codes is the mode of of', () {
+      for (final unit in [...BaseUnit.values, null]) {
+        expect(
+          SellingChoice.modeFor(SellingMode.byPiece, unit, hasScaleCodes: false),
+          SellingChoice.of(SellingMode.byPiece, unit).mode,
+        );
+      }
+    });
+
+    test('modeFor without scale codes drops by weight under a counted type', () {
+      expect(SellingChoice.modeFor(SellingMode.byWeight, BaseUnit.gram, hasScaleCodes: false), SellingMode.byWeight);
+      expect(SellingChoice.modeFor(SellingMode.byWeight, BaseUnit.unit, hasScaleCodes: false), SellingMode.byPiece);
     });
   });
 }

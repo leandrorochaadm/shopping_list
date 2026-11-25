@@ -27,6 +27,9 @@ enum SellingMode {
     SellingMode.byWeight => 'by_weight',
     SellingMode.byPiece => 'by_piece',
   };
+
+  /// Only the product sold loose has a scale code.
+  bool get takesScaleCodes => this == SellingMode.byWeight;
 }
 
 /// **`tipo + marca + descrição`** — the thing that must not repeat, and where
@@ -60,15 +63,14 @@ final class ProductRegistration {
     required this.active,
   });
 
-  factory ProductRegistration.fromJson(Map<String, dynamic> json) =>
-      ProductRegistration(
-        id: json['id'] as String?,
-        productTypeId: json['product_type_id'] as String,
-        brandId: json['brand_id'] as String?,
-        description: json['description'] as String? ?? '',
-        sellingMode: SellingMode.fromJson(json['selling_mode'] as String),
-        active: json['active'] as bool? ?? true,
-      );
+  factory ProductRegistration.fromJson(Map<String, dynamic> json) => ProductRegistration(
+    id: json['id'] as String?,
+    productTypeId: json['product_type_id'] as String,
+    brandId: json['brand_id'] as String?,
+    description: json['description'] as String? ?? '',
+    sellingMode: SellingMode.fromJson(json['selling_mode'] as String),
+    active: json['active'] as bool? ?? true,
+  );
 
   final String? id;
 
@@ -122,9 +124,7 @@ final class ProductRegistration {
   /// "acém" is the same identity for the duplicate guard and still an edit the
   /// person wants saved.
   bool changesIdentityOf(ProductRegistration original) =>
-      productTypeId != original.productTypeId ||
-      brandId != original.brandId ||
-      description != original.description;
+      productTypeId != original.productTypeId || brandId != original.brandId || description != original.description;
 
   /// The duplicate guard for registrations, INCLUDING the deactivated ones
   /// (decision B3): a deactivated "Coca-Cola 2 L" blocks a new one, and the
@@ -156,7 +156,7 @@ final class ProductRegistration {
   /// scale code. Whoever passes `scaleCodes` to `saveRegistrationWithProducts`
   /// asks this first, as `save` already asks [checkPackagings].
   void checkScaleCodes(IList<ScaleCode> scaleCodes) {
-    if (!isSoldByWeight && scaleCodes.isNotEmpty) {
+    if (!sellingMode.takesScaleCodes && scaleCodes.isNotEmpty) {
       throw const UnexpectedScaleCode();
     }
   }
@@ -177,9 +177,7 @@ final class ProductRegistration {
     productTypeId: productTypeId ?? this.productTypeId,
     // Null is a value here, so `??` cannot be used to clear it: a caller that
     // wants "Sem marca" passes an empty string.
-    brandId: brandId == null
-        ? this.brandId
-        : (brandId.isEmpty ? null : brandId),
+    brandId: brandId == null ? this.brandId : (brandId.isEmpty ? null : brandId),
     description: description ?? this.description,
     sellingMode: sellingMode ?? this.sellingMode,
     active: active ?? this.active,
@@ -197,8 +195,7 @@ final class ProductRegistration {
           other.active == active);
 
   @override
-  int get hashCode =>
-      Object.hash(id, productTypeId, brandId, description, sellingMode, active);
+  int get hashCode => Object.hash(id, productTypeId, brandId, description, sellingMode, active);
 
   @override
   String toString() =>
@@ -209,9 +206,7 @@ final class ProductRegistration {
 /// The sentence of the registration duplicate guard. Deactivated or not
 /// changes the sentence (decision B3), never whether it blocks.
 String registrationConflictMessage(ProductRegistration conflict) =>
-    conflict.active
-    ? 'Já existe esse produto cadastrado.'
-    : 'Esse produto já existe, mas está desativado.';
+    conflict.active ? 'Já existe esse produto cadastrado.' : 'Esse produto já existe, mas está desativado.';
 
 /// Sold by piece and no packaging listed.
 final class MissingPackaging implements Exception {

@@ -655,10 +655,10 @@ packages:
     description:
       path: "."
       ref: main
-      resolved-ref: af8869dd502090f1ea3b01f58cdbfec1583fcd16
+      resolved-ref: "3cf6656e1170af3076ce0e662760a95194f0d64f"
       url: "https://github.com/leandrorochaadm/tekton_core.git"
     source: git
-    version: "0.3.0"
+    version: "0.4.0"
   term_glyph:
     dependency: transitive
     description:

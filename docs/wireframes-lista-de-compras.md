@@ -1,6 +1,16 @@
 # Wireframes (rascunho) — Lista de compras de supermercado
 
-Versão: 2.2 | Data: 10/10/2026
+Versão: 2.3 | Data: 24/11/2026
+
+**O que mudou na 2.3** (24/11/2026) — cadastro pelo leitor (plano
+`temp/plan/plano-cadastro-pelo-leitor-2026-11-24.md`):
+
+- Tela 4: `[▥]↻` no topo, **só no cadastro novo** (some na edição e no produto
+  aberto pelo conflito).
+- Tela 4: `[ Salvar e ler outro ]↻` abaixo do salvar.
+- Manutenção do cadastro: `[▥]↻` no topo.
+- A etiqueta de balança passa a ser lida também na Tela 4 e na manutenção (corrige
+  a linha da 2.2 abaixo, que fica como estava).
 
 **O que mudou na 2.2** (10/10/2026) — código de barras, etiqueta de balança e
 modo caixa (decisões M-c a M-f, plano
@@ -16,7 +26,8 @@ modo caixa (decisões M-c a M-f, plano
   para outra embalagem.
 - A leitura acha a **embalagem** na Tela 3, o **produto** (sem embalagem) no `#1a`
   e o **tipo** na Despensa.
-- A etiqueta de balança **só vale no lançamento da compra**.
+- A etiqueta de balança **só vale no lançamento da compra** — até a 2.2; desde a
+  2.3 também no cadastro e na manutenção.
 - O `#3a` lê códigos e o `[ Adicionar … à compra ]` substitui o `[ Usar… ]`
   (M-e).
 - Nasceu o **modo caixa** `#3b`, e o salvar da Tela 3 avisa dos preços "preço
@@ -455,7 +466,12 @@ Tela 1 e não foram desenhadas, para o rascunho ficar nas 6 telas do dia a dia:
   acima não mostra por ela morar atrás do `≡`: chegando por aqui, a tela abre
   com o produto preenchido; chegando pelo `[+Novo]` da Tela 3, abre em branco.
   Existe uma terceira porta desde a 1.9, e ela é interna: o cadastro **barrado
-  por repetição** oferece abrir o produto que já existe sem passar pelo `≡`;
+  por repetição** oferece abrir o produto que já existe sem passar pelo `≡`.
+  Desde 24/11/2026 o topo da manutenção tem `[▥]↻`: código de produto em uso
+  abre a Tela 4 "Editar produto"; código desconhecido pergunta "Nenhum produto
+  com o código …" com `[ Cadastrar produto ]→4`; etiqueta ligada a um mercado
+  abre o produto, em vários pergunta o mercado, em nenhum oferece cadastrar
+  (pergunta o mercado e abre a Tela 4 com o código de balança);
 - as **configurações**, onde o **teto de gasto do mês** é definido e alterado
   (requisito 9) e onde "quem está usando" também pode ser trocado. **Salvar um
   teto que o mês já ultrapassou avisa ali mesmo** — "vocês já estão em 87% deste
@@ -487,7 +503,7 @@ mas não é uma sexta tela: ela não existe fora do lançamento, e o lançamento
 continua aparecendo atrás dela.
 
 O **leitor de código** é um **painel ancorado embaixo que abre sobre a tela que
-pediu** (`#1a`, Tela 2, Tela 3, `#3a`, Tela 4 e o lápis da manutenção) e devolve
+pediu** (`#1a`, Tela 2, Tela 3, `#3a`, Tela 4, o topo da Tela 4, o topo da manutenção e o lápis da manutenção) e devolve
 o que leu a ela — **sem rota**. O **modo caixa** `#3b` é uma **tela cheia sobre a
 Tela 3**, aberta pelo `[ ▥ Passar no caixa ]→3b` — **sem rota nova** (as 11 rotas
 são congeladas); `< Concluir` volta para a Tela 3.
@@ -1436,7 +1452,7 @@ O frango, que é o caso que pede o campo:
 
 ```
 ┌──────────────────────────────────────┐
-│ < Voltar   Novo produto              │
+│ < Voltar   Novo produto       [▥]↻ * │
 ├──────────────────────────────────────┤
 │  Categoria: ▼ Bebidas   [+Novo]↻  *  │
 │  Tipo: ▼ refrigerante   [+Novo]↻  *  │
@@ -1468,6 +1484,7 @@ O frango, que é o caso que pede o campo:
 │  [ + Adicionar outra embalagem ]↻    │
 │                                      │
 │  [    Salvar 2 produtos    ]→3    *  │
+│  [   Salvar e ler outro   ]↻      *  │
 └──────────────────────────────────────┘
 ```
 
@@ -1604,6 +1621,17 @@ O frango, que é o caso que pede o campo:
   embalagem."; em outro cartão desta tela, "Esse código já está em outra
   embalagem desta tela." Código inválido: "Código de barras inválido." Código de
   balança no cartão: "Esse é um código de balança."
+- `*` **`[▥]↻` do topo** (24/11/2026): código sem dono (ou de produto
+  desativado) entra no primeiro cartão sem código, ou num cartão novo; código de
+  produto em uso abre "Já cadastrado: …" com `[ Ler outro ]↻` e `[ Abrir para
+  editar ]→4` (abre por cima, e voltar devolve esta tela como estava); a peso,
+  recusa código de embalagem; etiqueta de balança pergunta "De qual mercado é
+  esta etiqueta?" e o mercado fica lembrado numa faixa `Etiquetas do mercado: …
+  [ Trocar ]↻` no topo do formulário, só enquanto a tela está aberta. Aparece
+  **só no cadastro novo**. O `[▥]↻` de cada cartão continua sem consultar dono.
+- `*` **`[ Salvar e ler outro ]↻`** (24/11/2026): grava como o salvar, limpa tudo
+  (menos o mercado lembrado) e abre a câmera; não aparece quando a tela veio da
+  Tela 3 ou do `#1a` para devolver o produto, nem em "Editar produto".
 - `*` **Código que já é de um produto ativo trava o salvar:** "Esse código já é do
   Guaraná 2L." aparece **acima do botão**, como as outras travas da tela, com o
   nome de quem é o dono (quadro em Estados adicionais).
@@ -2080,7 +2108,7 @@ O frango, que é o caso que pede o campo:
 ```
 
 **Notas:**
-- Abre sobre o `#1a`, a Tela 2, a Tela 3, o `#3a`, a Tela 4 e o lápis da
+- Abre sobre o `#1a`, a Tela 2, a Tela 3, o `#3a`, a Tela 4, o topo da Tela 4, o topo da manutenção e o lápis da
   manutenção, e **devolve o que leu à tela que o abriu** — quem decide o que o
   código significa é ela.
 - Lê código de barras e o QR da etiqueta de balança.

@@ -25,8 +25,7 @@ enum SellingChoice {
   };
 
   /// What is SAVED. `Peso` and `Volume` are both the loose product.
-  SellingMode get mode =>
-      this == SellingChoice.unit ? SellingMode.byPiece : SellingMode.byWeight;
+  SellingMode get mode => this == SellingChoice.unit ? SellingMode.byPiece : SellingMode.byWeight;
 
   /// The loose choice of a base unit, or null where there is none: a type
   /// counted by unit has no bulk, and neither has a screen with no type yet.
@@ -39,22 +38,25 @@ enum SellingChoice {
 
   /// Whether this choice can be taken under [baseUnit]. `Unidade` always can —
   /// a closed packaging exists in any grandeza.
-  bool isAvailableFor(BaseUnit? baseUnit) =>
-      this == SellingChoice.unit || this == bulkOf(baseUnit);
+  bool isAvailableFor(BaseUnit? baseUnit) => this == SellingChoice.unit || this == bulkOf(baseUnit);
 
   /// The word the LOOSE product goes by under [baseUnit] — the only place
   /// the fallback lives, and it is `Unidade`, never `Peso`. A type counted by
   /// unit offers no bulk choice on SCREEN (H-b), but the domain still holds
   /// the state and old rows may too: calling that one "peso" is the very
   /// mistake this change exists to fix.
-  static String looseNameOf(BaseUnit? baseUnit) =>
-      (bulkOf(baseUnit) ?? SellingChoice.unit).label;
+  static String looseNameOf(BaseUnit? baseUnit) => (bulkOf(baseUnit) ?? SellingChoice.unit).label;
 
   /// The choice a saved mode becomes on screen — and the normalization that
   /// keeps the two from disagreeing: a mode of `by_weight` under a type with
   /// no bulk falls back to `Unidade`.
   static SellingChoice of(SellingMode mode, BaseUnit? baseUnit) =>
-      mode == SellingMode.byPiece
-      ? SellingChoice.unit
-      : bulkOf(baseUnit) ?? SellingChoice.unit;
+      mode == SellingMode.byPiece ? SellingChoice.unit : bulkOf(baseUnit) ?? SellingChoice.unit;
+
+  /// The mode the screen keeps. A pending scale code under a type with a bulk
+  /// choice forces `byWeight`; otherwise it is the mode of [of].
+  static SellingMode modeFor(SellingMode current, BaseUnit? baseUnit, {required bool hasScaleCodes}) {
+    if (hasScaleCodes && bulkOf(baseUnit) != null) return SellingMode.byWeight;
+    return of(current, baseUnit).mode;
+  }
 }

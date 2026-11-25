@@ -23,10 +23,7 @@ final class ScaleLabel {
       case Barcode.ean13Length:
         ean13 = digits;
       case qrLength when digits.startsWith('0'):
-        ean13 = digits.substring(
-          Barcode.gtinLength - Barcode.ean13Length,
-          Barcode.gtinLength,
-        );
+        ean13 = digits.substring(Barcode.gtinLength - Barcode.ean13Length, Barcode.gtinLength);
       default:
         return null;
     }
@@ -34,15 +31,10 @@ final class ScaleLabel {
     if (!ean13.startsWith(Barcode.inStorePrefix)) return null;
     if (!Barcode.hasValidCheckDigit(ean13)) return null;
 
-    final weight = int.parse(
-      ean13.substring(itemCodeLength, itemCodeLength + weightDigits),
-    );
+    final weight = int.parse(ean13.substring(itemCodeLength, itemCodeLength + weightDigits));
     if (weight == 0) return null;
 
-    return ScaleLabel(
-      itemCode: ean13.substring(0, itemCodeLength),
-      weightInGrams: weight,
-    );
+    return ScaleLabel(itemCode: ean13.substring(0, itemCodeLength), weightInGrams: weight);
   }
 
   static const itemCodeLength = 7;
@@ -59,9 +51,7 @@ final class ScaleLabel {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is ScaleLabel &&
-          other.itemCode == itemCode &&
-          other.weightInGrams == weightInGrams);
+      (other is ScaleLabel && other.itemCode == itemCode && other.weightInGrams == weightInGrams);
 
   @override
   int get hashCode => Object.hash(itemCode, weightInGrams);
@@ -78,11 +68,7 @@ final class ScaleCode {
   /// outside 7 to 14 digits, or a code that is not a scale one.
   factory ScaleCode.fromJson(Map<String, dynamic> json) {
     if (!isScaleCodeRow(json)) {
-      throw ArgumentError.value(
-        json[storeIdKey],
-        'store_id',
-        'a scale code needs a store',
-      );
+      throw ArgumentError.value(json[storeIdKey], 'store_id', 'a scale code needs a store');
     }
     final code = json[codeKey] as String;
     if (!Barcode.isStoredCode(code)) {
@@ -94,11 +80,7 @@ final class ScaleCode {
       );
     }
     if (!Barcode.isInStoreCode(code)) {
-      throw ArgumentError.value(
-        code,
-        'code',
-        'a factory code cannot have a store',
-      );
+      throw ArgumentError.value(code, 'code', 'a factory code cannot have a store');
     }
     return ScaleCode(storeId: json[storeIdKey] as String, itemCode: code);
   }
@@ -124,8 +106,7 @@ final class ScaleCode {
 
   /// The translation of the 409 of a scale code, WITHOUT the owner's name
   /// (decision of 10/10/2026: there is no `findScaleCodeOwner`).
-  static const takenMessage =
-      'Esse código já é de outro produto neste mercado.';
+  static const takenMessage = 'Esse código já é de outro produto neste mercado.';
 
   final String storeId;
   final String itemCode;
@@ -134,10 +115,7 @@ final class ScaleCode {
 
   @override
   bool operator ==(Object other) =>
-      identical(this, other) ||
-      (other is ScaleCode &&
-          other.storeId == storeId &&
-          other.itemCode == itemCode);
+      identical(this, other) || (other is ScaleCode && other.storeId == storeId && other.itemCode == itemCode);
 
   @override
   int get hashCode => Object.hash(storeId, itemCode);
@@ -163,6 +141,18 @@ final class UnknownScaleLabel implements Exception {
 IList<ScaleCode> scaleCodesWith(IList<ScaleCode> codes, ScaleCode code) {
   if (codes.contains(code)) throw const ScaleCodeAlreadyOnProduct();
   return codes.add(code);
+}
+
+/// Moves the codes of [fromStoreId] to [toStoreId], keeping the order and
+/// only the first of any code that ends up repeated. Never throws.
+IList<ScaleCode> scaleCodesMovedTo(IList<ScaleCode> codes, {required String fromStoreId, required String toStoreId}) {
+  if (fromStoreId == toStoreId) return codes;
+  final moved = <ScaleCode>[];
+  for (final code in codes) {
+    final next = code.storeId == fromStoreId ? ScaleCode(storeId: toStoreId, itemCode: code.itemCode) : code;
+    if (!moved.contains(next)) moved.add(next);
+  }
+  return moved.toIList();
 }
 
 final class ScaleCodeAlreadyOnProduct implements Exception {

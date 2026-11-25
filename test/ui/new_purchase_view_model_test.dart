@@ -47,11 +47,7 @@ class _SpyPurchases extends PurchaseRepositoryLocal {
     required ISet<String> productTypeIds,
   }) {
     sameDayCalls++;
-    return super.fetchSameDayTypes(
-      date: date,
-      registeredBy: registeredBy,
-      productTypeIds: productTypeIds,
-    );
+    return super.fetchSameDayTypes(date: date, registeredBy: registeredBy, productTypeIds: productTypeIds);
   }
 
   @override
@@ -81,12 +77,7 @@ void main() {
   final today = DateTime(2026, 8, 28);
   // Under `reg-1`, as in the fake catalog: `item-3` of the fake list asks
   // for that registration, and only a purchase of it writes it off (M-a).
-  final crate = optionByPiece(
-    id: 'prod-4',
-    registrationId: 'reg-1',
-    brand: cokeBrand,
-    pieceCount: 12,
-  );
+  final crate = optionByPiece(id: 'prod-4', registrationId: 'reg-1', brand: cokeBrand, pieceCount: 12);
 
   ProviderContainer containerWith({
     _SpyPurchases? purchases,
@@ -98,25 +89,17 @@ void main() {
     overrides: [
       deviceUserOverride(),
       spendingCapOverride(repository: caps),
-      purchaseRepositoryProvider.overrideWith(
-        (ref) => purchases ?? _SpyPurchases(),
-      ),
-      shoppingListRepositoryProvider.overrideWith(
-        (ref) =>
-            list ?? ShoppingListRepositoryLocal(latency: Duration.zero),
-      ),
-      purchaseDraftRepositoryProvider.overrideWith(
-        (ref) => drafts ?? PurchaseDraftRepositoryLocal(),
-      ),
+      // The seed's dates are fixed (August 2026): the rolling window has to
+      // be read from a day that still sees them, not from the real clock.
+      newPurchaseViewModelProvider.overrideWith(() => NewPurchaseViewModel(today: DateTime(2026, 8, 28))),
+      purchaseRepositoryProvider.overrideWith((ref) => purchases ?? _SpyPurchases()),
+      shoppingListRepositoryProvider.overrideWith((ref) => list ?? ShoppingListRepositoryLocal(latency: Duration.zero)),
+      purchaseDraftRepositoryProvider.overrideWith((ref) => drafts ?? PurchaseDraftRepositoryLocal()),
       if (!online) onlineStatusProvider.overrideWith(_Offline.new),
     ],
   );
 
-  PurchaseDraft draft({
-    String? storeId = 'store-1',
-    bool withItem = true,
-    DateTime? date,
-  }) {
+  PurchaseDraft draft({String? storeId = 'store-1', bool withItem = true, DateTime? date}) {
     var value = PurchaseDraft(
       purchaseId: 'a1',
       date: date ?? DateTime(2026, 8, 18),
@@ -124,19 +107,14 @@ void main() {
       storeId: storeId,
     );
     if (withItem) {
-      value = value.withItem(
-        purchaseItem(id: 'i1', option: crate, cents: 6200),
-      );
+      value = value.withItem(purchaseItem(id: 'i1', option: crate, cents: 6200));
     }
     return value;
   }
 
   group('rankOptions', () {
     test('orders by how often each leaf was bought', () {
-      final options = [
-        optionByPiece(id: 'prod-1'),
-        optionByPiece(id: 'prod-4', pieceCount: 12),
-      ].lock;
+      final options = [optionByPiece(id: 'prod-1'), optionByPiece(id: 'prod-4', pieceCount: 12)].lock;
       final history = [
         PurchaseHistoryEntry(
           productId: 'prod-4',
@@ -181,20 +159,14 @@ void main() {
         ),
       ].lock;
 
-      final ranked = rankOptions(
-        [optionByPiece(id: 'prod-4', pieceCount: 12)].lock,
-        history,
-      );
+      final ranked = rankOptions([optionByPiece(id: 'prod-4', pieceCount: 12)].lock, history);
 
       expect(ranked.single.priceReference!.paid, const Money(6200));
       expect(ranked.single.lastPurchasedOn, DateTime(2026, 8, 18));
     });
 
     test('a leaf never bought has no reference — the empty comparison', () {
-      final ranked = rankOptions(
-        [optionByPiece(id: 'prod-1')].lock,
-        const IList.empty(),
-      );
+      final ranked = rankOptions([optionByPiece(id: 'prod-1')].lock, const IList.empty());
 
       expect(ranked.single.priceReference, isNull);
       expect(ranked.single.purchaseCount, 0);
@@ -229,17 +201,9 @@ void main() {
         ),
       ].lock;
 
-      final ranked = rankOptions(
-        [
-          optionByPiece(id: 'prod-4', brand: cokeBrand, pieceCount: 12),
-        ].lock,
-        history,
-      );
+      final ranked = rankOptions([optionByPiece(id: 'prod-4', brand: cokeBrand, pieceCount: 12)].lock, history);
 
-      expect(
-        ranked.single.baseline,
-        PriceBaseline(paid: const Money(12190), quantityInBaseUnit: 8400),
-      );
+      expect(ranked.single.baseline, PriceBaseline(paid: const Money(12190), quantityInBaseUnit: 8400));
     });
 
     test('attaches the TYPE average to a leaf with no brand (H15)', () {
@@ -265,10 +229,7 @@ void main() {
 
       final ranked = rankOptions([optionByWeight(id: 'prod-5')].lock, history);
 
-      expect(
-        ranked.single.baseline,
-        PriceBaseline(paid: const Money(11300), quantityInBaseUnit: 3500),
-      );
+      expect(ranked.single.baseline, PriceBaseline(paid: const Money(11300), quantityInBaseUnit: 3500));
     });
 
     test('a window with no purchase of it leaves the baseline null', () {
@@ -295,9 +256,7 @@ void main() {
     test('brings the picker ranked, in one pass', () async {
       final container = containerWith();
 
-      final options = await container.read(
-        newPurchaseViewModelProvider.future,
-      );
+      final options = await container.read(newPurchaseViewModelProvider.future);
 
       expect(options, isNotEmpty);
       // The fake's seed bought the crate twice.
@@ -306,29 +265,18 @@ void main() {
     });
 
     test('a failed load occupies the field, not a spinner forever', () async {
-      final container = containerWith(
-        purchases: _SpyPurchases()..failNextCall = NetworkException('offline'),
-      );
+      final container = containerWith(purchases: _SpyPurchases()..failNextCall = NetworkException('offline'));
 
-      await expectLater(
-        container.read(newPurchaseViewModelProvider.future),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(container.read(newPurchaseViewModelProvider.future), throwsA(isA<NetworkException>()));
       expect(container.read(newPurchaseViewModelProvider).hasError, isTrue);
     });
 
     test('refresh that works puts the picker back', () async {
-      final purchases = _SpyPurchases()
-        ..failNextCall = NetworkException('offline');
+      final purchases = _SpyPurchases()..failNextCall = NetworkException('offline');
       final container = containerWith(purchases: purchases);
-      await expectLater(
-        container.read(newPurchaseViewModelProvider.future),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(container.read(newPurchaseViewModelProvider.future), throwsA(isA<NetworkException>()));
 
-      final error = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .refresh();
+      final error = await container.read(newPurchaseViewModelProvider.notifier).refresh();
 
       expect(error, isNull);
       expect(container.read(newPurchaseViewModelProvider).value, isNotEmpty);
@@ -340,9 +288,7 @@ void main() {
       await container.read(newPurchaseViewModelProvider.future);
 
       purchases.failNextCall = NetworkException('offline');
-      final error = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .refresh();
+      final error = await container.read(newPurchaseViewModelProvider.notifier).refresh();
 
       expect(error, 'Sem conexão. Verifique a internet e tente de novo.');
       expect(container.read(newPurchaseViewModelProvider).value, isNotEmpty);
@@ -350,13 +296,9 @@ void main() {
     });
 
     test('a failed refresh with NOTHING on screen becomes an error', () async {
-      final purchases = _SpyPurchases()
-        ..failNextCall = NetworkException('offline');
+      final purchases = _SpyPurchases()..failNextCall = NetworkException('offline');
       final container = containerWith(purchases: purchases);
-      await expectLater(
-        container.read(newPurchaseViewModelProvider.future),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(container.read(newPurchaseViewModelProvider.future), throwsA(isA<NetworkException>()));
 
       purchases.failNextCall = NetworkException('still offline');
       await container.read(newPurchaseViewModelProvider.notifier).refresh();
@@ -372,9 +314,7 @@ void main() {
       final drafts = PurchaseDraftRepositoryLocal(initial: draft());
       final container = containerWith(purchases: purchases, drafts: drafts);
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect(outcome, isA<PurchaseSaved>());
       expect(purchases.saveCalls, 1);
@@ -392,21 +332,19 @@ void main() {
 
       await container
           .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(date: DateTime(2026, 8, 28)), today: today);
+          .save(
+            draft: draft(date: DateTime(2026, 8, 28)),
+            today: today,
+          );
 
       final writeOffs = purchases.saved.single.writeOffs;
       expect(writeOffs, isNotEmpty);
-      final closed = writeOffs.firstWhere(
-        (off) => off.shoppingListItemId == 'item-3',
-      );
+      final closed = writeOffs.firstWhere((off) => off.shoppingListItemId == 'item-3');
       expect(closed.quantityWrittenOff, 4200);
       expect(closed.fulfills, isTrue);
       // The line that entered AFTER the purchase date is untouched
       // (decision 25).
-      expect(
-        writeOffs.map((off) => off.shoppingListItemId),
-        isNot(contains('item-5')),
-      );
+      expect(writeOffs.map((off) => off.shoppingListItemId), isNot(contains('item-5')));
     });
 
     test('refuses a future date, with the domain sentence', () async {
@@ -414,16 +352,12 @@ void main() {
 
       final outcome = await container
           .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(date: DateTime(2026, 8, 29)), today: today);
+          .save(
+            draft: draft(date: DateTime(2026, 8, 29)),
+            today: today,
+          );
 
-      expect(
-        outcome,
-        isA<SaveFailed>().having(
-          (o) => o.message,
-          'message',
-          'A compra não pode ter data futura.',
-        ),
-      );
+      expect(outcome, isA<SaveFailed>().having((o) => o.message, 'message', 'A compra não pode ter data futura.'));
     });
 
     test('refuses a purchase with no store and one with no item', () async {
@@ -432,34 +366,20 @@ void main() {
 
       expect(
         await notifier.save(draft: draft(storeId: null), today: today),
-        isA<SaveFailed>().having(
-          (o) => o.message,
-          'message',
-          'Escolha o mercado desta compra.',
-        ),
+        isA<SaveFailed>().having((o) => o.message, 'message', 'Escolha o mercado desta compra.'),
       );
       expect(
         await notifier.save(draft: draft(withItem: false), today: today),
-        isA<SaveFailed>().having(
-          (o) => o.message,
-          'message',
-          'Acrescente ao menos um item à compra.',
-        ),
+        isA<SaveFailed>().having((o) => o.message, 'message', 'Acrescente ao menos um item à compra.'),
       );
     });
 
     test('with no signal it keeps the purchase instead of trying', () async {
       final purchases = _SpyPurchases();
       final drafts = PurchaseDraftRepositoryLocal(initial: draft());
-      final container = containerWith(
-        purchases: purchases,
-        drafts: drafts,
-        online: false,
-      );
+      final container = containerWith(purchases: purchases, drafts: drafts, online: false);
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect(outcome, isA<PurchaseHeldOffline>());
       expect(purchases.saveCalls, 0, reason: 'no attempt at all');
@@ -472,28 +392,22 @@ void main() {
       // A hotel Wi-Fi or a captive portal: the browser says online and the
       // request never lands. Without this, "nada se perde" would depend on
       // the browser having noticed the drop.
-      final purchases = _SpyPurchases()
-        ..failNextSave = NetworkException('captive portal');
+      final purchases = _SpyPurchases()..failNextSave = NetworkException('captive portal');
       final drafts = PurchaseDraftRepositoryLocal(initial: draft());
       final container = containerWith(purchases: purchases, drafts: drafts);
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect(outcome, isA<PurchaseHeldOffline>());
       expect(drafts.readNow()!.pendingSubmission, isTrue);
     });
 
     test('another failure answers a sentence and keeps the purchase', () async {
-      final purchases = _SpyPurchases()
-        ..failNextSave = ApiException(500, 'boom');
+      final purchases = _SpyPurchases()..failNextSave = ApiException(500, 'boom');
       final drafts = PurchaseDraftRepositoryLocal(initial: draft());
       final container = containerWith(purchases: purchases, drafts: drafts);
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect(outcome, isA<SaveFailed>());
       final message = (outcome! as SaveFailed).message;
@@ -504,8 +418,7 @@ void main() {
       expect(drafts.readNow(), isNotNull);
     });
 
-    test('a resend that arrives twice does not become a second purchase',
-        () async {
+    test('a resend that arrives twice does not become a second purchase', () async {
       // The `on conflict (id) do nothing` of `create_purchase`, seen from
       // here: the second call is the same success, and the draft dies all the
       // same.
@@ -513,14 +426,8 @@ void main() {
       final container = containerWith(purchases: purchases);
       final notifier = container.read(newPurchaseViewModelProvider.notifier);
 
-      expect(
-        await notifier.save(draft: draft(), today: today),
-        isA<PurchaseSaved>(),
-      );
-      expect(
-        await notifier.save(draft: draft(), today: today),
-        isA<PurchaseSaved>(),
-      );
+      expect(await notifier.save(draft: draft(), today: today), isA<PurchaseSaved>());
+      expect(await notifier.save(draft: draft(), today: today), isA<PurchaseSaved>());
 
       expect(purchases.saved, hasLength(1), reason: 'one purchase, not two');
     });
@@ -547,17 +454,11 @@ void main() {
       //
       // It works because every line of the draft carries its own leaf, so
       // the type each one writes off is known with no catalog at all.
-      final purchases = _SpyPurchases()
-        ..failNextCall = NetworkException('offline');
+      final purchases = _SpyPurchases()..failNextCall = NetworkException('offline');
       final container = containerWith(purchases: purchases);
-      await expectLater(
-        container.read(newPurchaseViewModelProvider.future),
-        throwsA(isA<NetworkException>()),
-      );
+      await expectLater(container.read(newPurchaseViewModelProvider.future), throwsA(isA<NetworkException>()));
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect(outcome, isA<PurchaseSaved>());
       expect(purchases.saved, hasLength(1));
@@ -569,15 +470,9 @@ void main() {
       // must leave the draft on the phone.
       final purchases = _SpyPurchases();
       final drafts = PurchaseDraftRepositoryLocal(initial: draft());
-      final container = containerWith(
-        purchases: purchases,
-        drafts: drafts,
-        list: _FailingList(),
-      );
+      final container = containerWith(purchases: purchases, drafts: drafts, list: _FailingList());
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect(outcome, isA<PurchaseHeldOffline>());
       expect(purchases.saveCalls, 0);
@@ -597,36 +492,19 @@ void main() {
       latency: Duration.zero,
       today: today,
       cap: hasCap
-          ? SpendingCap(
-              amount: const Money(150000),
-              effectiveFrom: DateTime(2026, 8, 1),
-            )
+          ? SpendingCap(amount: const Money(150000), effectiveFrom: DateTime(2026, 8, 1))
           // A cap that only starts in September is a month with none.
-          : SpendingCap(
-              amount: const Money(150000),
-              effectiveFrom: DateTime(2026, 9, 1),
-            ),
+          : SpendingCap(amount: const Money(150000), effectiveFrom: DateTime(2026, 9, 1)),
       spending: {DateTime(2026, 8, 1): Money(spent)},
-      alerts: {
-        DateTime(2026, 8, 1): CapAlerts(
-          month: DateTime(2026, 8, 1),
-          warned80: warned80,
-          warned100: warned100,
-        ),
-      },
+      alerts: {DateTime(2026, 8, 1): CapAlerts(month: DateTime(2026, 8, 1), warned80: warned80, warned100: warned100)},
     );
 
     test('the purchase that takes the month past 80% warns', () async {
       // R$ 1.150 + R$ 62 = R$ 1.212, over the R$ 1.200 cut.
       final purchases = _SpyPurchases();
-      final container = containerWith(
-        purchases: purchases,
-        caps: capsWith(spent: 115000),
-      );
+      final container = containerWith(purchases: purchases, caps: capsWith(spent: 115000));
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect((outcome! as PurchaseSaved).capAlert, CapThreshold.approaching);
       // The mark travels WITH the purchase, in the same submission — never as
@@ -638,14 +516,9 @@ void main() {
     test('the one that blows the cap says only the graver sentence', () async {
       // R$ 1.490 + R$ 62 crosses BOTH cuts in the same write (D-h).
       final purchases = _SpyPurchases();
-      final container = containerWith(
-        purchases: purchases,
-        caps: capsWith(spent: 149000),
-      );
+      final container = containerWith(purchases: purchases, caps: capsWith(spent: 149000));
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect((outcome! as PurchaseSaved).capAlert, CapThreshold.exceeded);
       // …and both marks go up, which is what stops the next purchase from
@@ -656,14 +529,9 @@ void main() {
 
     test('the next purchase of the month does not repeat the warning', () async {
       final purchases = _SpyPurchases();
-      final container = containerWith(
-        purchases: purchases,
-        caps: capsWith(spent: 130000, warned80: true),
-      );
+      final container = containerWith(purchases: purchases, caps: capsWith(spent: 130000, warned80: true));
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect((outcome! as PurchaseSaved).capAlert, isNull);
       // The mark is written again all the same: the SQL preserves the first
@@ -673,14 +541,9 @@ void main() {
 
     test('a month with no cap warns nothing and writes no mark', () async {
       final purchases = _SpyPurchases();
-      final container = containerWith(
-        purchases: purchases,
-        caps: capsWith(spent: 900000, hasCap: false),
-      );
+      final container = containerWith(purchases: purchases, caps: capsWith(spent: 900000, hasCap: false));
 
-      final outcome = await container
-          .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(), today: today);
+      final outcome = await container.read(newPurchaseViewModelProvider.notifier).save(draft: draft(), today: today);
 
       expect((outcome! as PurchaseSaved).capAlert, isNull);
       // Empty and not "both false": there is no row to touch.
@@ -691,10 +554,7 @@ void main() {
       // A forgotten receipt of August registered in September pushes AUGUST
       // across its cut, and it is August's cap that applies.
       final purchases = _SpyPurchases();
-      final container = containerWith(
-        purchases: purchases,
-        caps: capsWith(spent: 115000),
-      );
+      final container = containerWith(purchases: purchases, caps: capsWith(spent: 115000));
 
       await container
           .read(newPurchaseViewModelProvider.notifier)
@@ -710,10 +570,7 @@ void main() {
       // Its `spent` was read BEFORE the first send, so adding the total again
       // would overstate the month — and the purchase is already there.
       final purchases = _SpyPurchases();
-      final container = containerWith(
-        purchases: purchases,
-        caps: capsWith(spent: 149000),
-      );
+      final container = containerWith(purchases: purchases, caps: capsWith(spent: 149000));
       final notifier = container.read(newPurchaseViewModelProvider.notifier);
 
       await notifier.save(draft: draft(), today: today);
@@ -732,14 +589,14 @@ void main() {
 
       final outcome = await container
           .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(date: today), today: today);
+          .save(
+            draft: draft(date: today),
+            today: today,
+          );
 
       final alerts = (outcome! as PurchaseSaved).sameDay;
       expect(alerts, hasLength(1));
-      expect(
-        alerts.single.messageFor(today: today, shortDate: '28/08'),
-        'Vocês dois compraram Refrigerante hoje.',
-      );
+      expect(alerts.single.messageFor(today: today, shortDate: '28/08'), 'Vocês dois compraram Refrigerante hoje.');
     });
 
     test('a purchase of YESTERDAY warns, and names the day', () async {
@@ -748,13 +605,13 @@ void main() {
 
       final outcome = await container
           .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(date: yesterday), today: today);
+          .save(
+            draft: draft(date: yesterday),
+            today: today,
+          );
 
       expect(
-        (outcome! as PurchaseSaved).sameDay.single.messageFor(
-          today: today,
-          shortDate: '27/08',
-        ),
+        (outcome! as PurchaseSaved).sameDay.single.messageFor(today: today, shortDate: '27/08'),
         'Vocês dois compraram Refrigerante no dia 27/08.',
       );
     });
@@ -765,7 +622,10 @@ void main() {
 
       final outcome = await container
           .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(date: DateTime(2026, 8, 5)), today: today);
+          .save(
+            draft: draft(date: DateTime(2026, 8, 5)),
+            today: today,
+          );
 
       expect((outcome! as PurchaseSaved).sameDay, isEmpty);
       // Outside the window there is no question to ask, so the query does not
@@ -779,7 +639,10 @@ void main() {
 
       final outcome = await container
           .read(newPurchaseViewModelProvider.notifier)
-          .save(draft: draft(date: today), today: today);
+          .save(
+            draft: draft(date: today),
+            today: today,
+          );
 
       expect((outcome! as PurchaseSaved).sameDay, isEmpty);
     });
@@ -790,6 +653,5 @@ class _FailingList extends ShoppingListRepositoryLocal {
   _FailingList() : super(latency: Duration.zero);
 
   @override
-  Future<IList<ShoppingListItem>> fetchAll() async =>
-      throw NetworkException('offline');
+  Future<IList<ShoppingListItem>> fetchAll() async => throw NetworkException('offline');
 }
