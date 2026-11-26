@@ -12,6 +12,8 @@ include: package:flutter_lints/flutter.yaml
 # Line width for `dart format`, the IDE and `.githooks/pre-commit`.
 formatter:
   page_width: 120
+  # Keep trailing commas: a comma after the last argument forces one per line.
+  trailing_commas: preserve
 
 linter:
   # The lint rules applied to this project can be customized in the
